@@ -82,6 +82,10 @@ function CloudGame() {
         placed: cloudSave.placed,
         bestPaperToss: cloudSave.bestPaperToss,
       });
+      // hydrate() applied offline decay locally; push that (and the fresh
+      // lastSeen) to the cloud so an immediate sign-out can't leave the
+      // cloud stale. The saver was registered by the effect below on mount.
+      State.save();
     } else {
       void upsert(State.snapshot());
     }
@@ -121,6 +125,9 @@ function CloudGame() {
       userLabel={viewer?.email ?? 'Signed in'}
       leaveLabel="Sign out"
       onLeave={() => {
+        // save() persists locally and arms the cloud debounce; flushCloud()
+        // fires it now, so hydrated decay reaches the cloud before sign-out.
+        State.save();
         State.flushCloud();
         void signOut();
       }}
