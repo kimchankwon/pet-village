@@ -7,7 +7,7 @@ needs keep decaying even while the game is closed.
 Built with Phaser 3 + TypeScript + Vite + Convex.
 
 Saves: `localStorage` for guests; signed-in players sync durable cloud
-saves via Convex (email/password auth).
+saves via Convex (Google or email/password).
 
 ## Play
 
@@ -23,6 +23,22 @@ npm run dev   # starts Convex + Vite together
 Open http://localhost:5173/pet-village/
 
 Requires `.env.local` with `VITE_CONVEX_URL` (created by `npx convex dev`).
+
+### Google sign-in (one-time)
+
+Uses the same Convex Auth Google provider as relationship-app. In
+[Google Cloud Console](https://console.cloud.google.com/) → Credentials → your
+OAuth Web client, add:
+
+**Authorized JavaScript origins**
+- `http://localhost:5173`
+- `https://kimchankwon.github.io`
+
+**Authorized redirect URIs**
+- `https://graceful-bear-184.convex.site/api/auth/callback/google` (dev)
+- `https://striped-lion-699.convex.site/api/auth/callback/google` (prod)
+
+`AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` are set on the Convex deployments.
 
 Deployed to GitHub Pages from the `gh-pages` branch (static `dist/` build).
 For production auth redirects, set Convex `SITE_URL` to your live origin
