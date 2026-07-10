@@ -61,6 +61,7 @@ const DECAY_PER_HOUR = { hunger: 6, happiness: 4, energy: 3 };
 const MAX_OFFLINE_HOURS = 12;
 
 const KEY = 'pet-village-save-v1';
+const WELCOME_KEY = 'pet-village-welcomed';
 
 type CloudSaver = (data: SaveData) => void;
 
@@ -280,6 +281,17 @@ class GameStateStore {
     this.data.petName = trimmed;
     this.data.adopted = true;
     this.save();
+  }
+
+  /** Guest-only: wipe local progress and return to the adopt screen. */
+  resetToPetSelect() {
+    if (this.cloudTimer) {
+      clearTimeout(this.cloudTimer);
+      this.cloudTimer = null;
+    }
+    this.data = defaultSave();
+    this.persistLocal();
+    localStorage.removeItem(WELCOME_KEY);
   }
 }
 

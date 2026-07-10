@@ -12,11 +12,13 @@ function PlayChrome({
   userLabel,
   onLeave,
   leaveLabel,
+  onChangePet,
   children,
 }: {
   userLabel: string;
   onLeave: () => void;
   leaveLabel: string;
+  onChangePet?: () => void;
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -44,6 +46,11 @@ function PlayChrome({
         </button>
         <span className="topbar-brand">Pet Village</span>
         <span className="topbar-user">{userLabel}</span>
+        {onChangePet && (
+          <button type="button" className="btn tiny" onClick={onChangePet}>
+            Change pet
+          </button>
+        )}
         <button type="button" className="btn tiny" onClick={onLeave}>
           {leaveLabel}
         </button>
@@ -126,6 +133,7 @@ function CloudGame() {
 function GuestGame({ onBack }: { onBack: () => void }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
+  const [gameKey, setGameKey] = useState(0);
 
   useEffect(() => {
     State.setCloudSaver(null);
@@ -138,10 +146,23 @@ function GuestGame({ onBack }: { onBack: () => void }) {
       gameRef.current = null;
       resetUiBlock();
     };
-  }, []);
+  }, [gameKey]);
+
+  function changePet() {
+    if (!window.confirm('Reset your guest save and choose a new pet?')) return;
+    gameRef.current?.destroy(true);
+    gameRef.current = null;
+    State.resetToPetSelect();
+    setGameKey((k) => k + 1);
+  }
 
   return (
-    <PlayChrome userLabel="Guest · local save" leaveLabel="Sign in" onLeave={onBack}>
+    <PlayChrome
+      userLabel="Guest · local save"
+      leaveLabel="Sign in"
+      onLeave={onBack}
+      onChangePet={changePet}
+    >
       <div ref={hostRef} id="game" className="game-host" />
     </PlayChrome>
   );
