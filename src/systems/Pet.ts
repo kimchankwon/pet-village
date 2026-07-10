@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { State } from './GameState';
 import { toast } from './UI';
+import { feetDepth } from './depth';
 
 // Tamagotchi companion. Smoothly chases a follow-slot beside the player
 // (no breadcrumb trail — that caused weird U-turns on direction changes).
@@ -19,7 +20,8 @@ export class Pet {
     this.scene = scene;
     this.followX = x;
     this.followY = y;
-    this.sprite = scene.add.sprite(x, y, 'pet-idle1').setScale(1.5).setDepth(y);
+    this.sprite = scene.add.sprite(x, y, 'pet-idle1').setScale(1.5);
+    this.sprite.setDepth(feetDepth(this.sprite));
     this.sprite.play('pet-bounce');
     this.updateMood();
   }
@@ -53,7 +55,7 @@ export class Pet {
       this.sprite.y = this.followY;
     }
 
-    this.sprite.setDepth(this.sprite.y);
+    this.sprite.setDepth(feetDepth(this.sprite));
 
     if (this.scene.time.now < this.emotionUntil) return;
 

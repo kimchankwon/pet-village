@@ -4,6 +4,7 @@ import { State, ITEMS } from '../systems/GameState';
 import { HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
+import { feetDepth } from '../systems/depth';
 
 const TILE = 48;
 const WORLD_W = 32 * TILE;
@@ -372,8 +373,7 @@ export class TownScene extends Phaser.Scene {
         0,
       );
     }
-    this.player.setDepth(this.player.y);
-
+    this.player.setDepth(feetDepth(this.player));
     this.pet.update(this.player.x - (this.player.flipX ? -26 : 26), this.player.y + 8, moving);
 
     if (!this.menuOpen) {
