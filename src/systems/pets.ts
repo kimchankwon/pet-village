@@ -1,4 +1,4 @@
-export type PetSpecies = 'mametchi' | 'kuchipatchi';
+export type PetSpecies = 'mametchi' | 'kuchipatchi' | 'mimitchi';
 
 export const PET_SPECIES: Record<
   PetSpecies,
@@ -15,6 +15,12 @@ export const PET_SPECIES: Record<
     label: 'Kuchipatchi',
     defaultName: 'Patchi',
     blurb: 'Hungry goofball · loves snacks',
+  },
+  mimitchi: {
+    id: 'mimitchi',
+    label: 'Mimitchi',
+    defaultName: 'Mimi',
+    blurb: 'Stylish trendsetter · loves fashion',
   },
 };
 
@@ -62,5 +68,5 @@ export function poseFromAssetFile(file: (typeof PET_ASSET_FILES)[number]): PetPo
 }
 
 export function isPetSpecies(value: unknown): value is PetSpecies {
-  return value === 'mametchi' || value === 'kuchipatchi';
+  return value === 'mametchi' || value === 'kuchipatchi' || value === 'mimitchi';
 }

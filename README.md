@@ -75,8 +75,8 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 - `src/sprites/pixelart.ts` — penguin/world/furniture art, generated at
   boot from character grids. Swap any of it for real PNG loading in
   BootScene later (keep the texture keys).
-- `public/assets/pet/mametchi/` · `kuchipatchi/` — Tamagotchi iD sprites
-  from the Tamagotchi wiki.
+- `public/assets/pet/mametchi/` · `kuchipatchi/` · `mimitchi/` — Tamagotchi iD
+  sprites from the Tamagotchi wiki.
 - `src/systems/GameState.ts` — save data, item catalog, pet-needs decay.
 - `src/systems/Pet.ts` — the follower companion (species-aware sprites).
 - `src/systems/UI.ts` — HUD, menus, toasts, prompts.
@@ -87,9 +87,9 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 
 - The penguin is original pixel art inspired by iChibi's fan-made Club
   Penguin sprite sheet (marked "no need to credit").
-- Pets use Mametchi + Kuchipatchi sprites (Tamagotchi iD era) from the
-  Tamagotchi fandom wiki. Bandai characters — fine for a personal project,
-  but replace with original art before any public or commercial release.
+- Pets use Mametchi, Kuchipatchi, and Mimitchi sprites (Tamagotchi iD era)
+  from the Tamagotchi fandom wiki. Bandai characters — fine for a personal
+  project, but replace with original art before any public or commercial release.
 - Everything else is original generated pixel art.
 
 ## Roadmap ideas

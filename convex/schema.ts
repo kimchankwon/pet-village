@@ -24,7 +24,11 @@ export default defineSchema({
     coins: v.number(),
     petName: v.string(),
     petSpecies: v.optional(
-      v.union(v.literal("mametchi"), v.literal("kuchipatchi")),
+      v.union(
+        v.literal("mametchi"),
+        v.literal("kuchipatchi"),
+        v.literal("mimitchi"),
+      ),
     ),
     adopted: v.optional(v.boolean()),
     pet: petStats,

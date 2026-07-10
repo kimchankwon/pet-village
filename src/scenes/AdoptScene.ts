@@ -11,7 +11,7 @@ import {
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#efe8ff' };
 
 /**
- * First-run screen: pick Mametchi or Kuchipatchi and give them a name.
+ * First-run screen: pick a Tamagotchi companion and give them a name.
  */
 export class AdoptScene extends Phaser.Scene {
   private selected: PetSpecies = 'mametchi';
@@ -26,9 +26,7 @@ export class AdoptScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor('#1a1626');
-    this.add
-      .rectangle(400, 300, 800, 600, 0x1a1626)
-      .setDepth(-10);
+    this.add.rectangle(400, 300, 800, 600, 0x1a1626).setDepth(-10);
 
     this.add
       .text(400, 48, 'Pet Village', {
@@ -50,26 +48,36 @@ export class AdoptScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    const positions: Record<PetSpecies, number> = { mametchi: 250, kuchipatchi: 550 };
+    const n = PET_SPECIES_LIST.length;
+    const spacing = 230;
+    const startX = 400 - ((n - 1) * spacing) / 2;
+    const cardW = 200;
+    const cardH = 200;
 
-    for (const def of PET_SPECIES_LIST) {
-      const x = positions[def.id];
+    PET_SPECIES_LIST.forEach((def, i) => {
+      const x = startX + i * spacing;
       const ring = this.add
-        .rectangle(x, 260, 200, 210, 0x2a2440, 0.95)
+        .rectangle(x, 255, cardW, cardH, 0x2a2440, 0.95)
         .setStrokeStyle(3, 0x3a3352)
         .setInteractive({ useHandCursor: true });
 
       const sprite = this.add
-        .sprite(x, 230, petTextureKey(def.id, 'idle1'))
-        .setScale(3.2)
+        .sprite(x, 225, petTextureKey(def.id, 'idle1'))
+        .setScale(2.9)
         .setInteractive({ useHandCursor: true });
       sprite.play(petAnimKey(def.id, 'bounce'));
 
       this.add
-        .text(x, 310, def.label, { ...FONT, fontSize: '16px', color: '#ffe066' })
+        .text(x, 305, def.label, { ...FONT, fontSize: '14px', color: '#ffe066' })
         .setOrigin(0.5);
       this.add
-        .text(x, 335, def.blurb, { ...FONT, fontSize: '12px', color: '#a89bc4' })
+        .text(x, 328, def.blurb, {
+          ...FONT,
+          fontSize: '11px',
+          color: '#a89bc4',
+          wordWrap: { width: cardW - 16 },
+          align: 'center',
+        })
         .setOrigin(0.5);
 
       const pick = () => this.selectSpecies(def.id);
@@ -77,7 +85,7 @@ export class AdoptScene extends Phaser.Scene {
       sprite.on('pointerdown', pick);
 
       this.cards[def.id] = { ring, sprite };
-    }
+    });
 
     this.selectSpecies('mametchi');
 
@@ -159,7 +167,7 @@ export class AdoptScene extends Phaser.Scene {
       const on = def.id === species;
       card.ring.setStrokeStyle(3, on ? 0x7ed6a8 : 0x3a3352);
       card.ring.setFillStyle(on ? 0x342a52 : 0x2a2440, 0.95);
-      card.sprite.setScale(on ? 3.6 : 3.2);
+      card.sprite.setScale(on ? 3.3 : 2.9);
     }
     if (this.nameInput) {
       const def = PET_SPECIES[species];
