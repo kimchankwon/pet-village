@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { State } from './GameState';
 import { toast } from './UI';
 import { feetDepth } from './depth';
+import { petAnimKey, petTextureKey, type PetPose } from './pets';
 
 // Tamagotchi companion. Smoothly chases a follow-slot beside the player
 // (no breadcrumb trail — that caused weird U-turns on direction changes).
@@ -20,10 +21,22 @@ export class Pet {
     this.scene = scene;
     this.followX = x;
     this.followY = y;
-    this.sprite = scene.add.sprite(x, y, 'pet-idle1').setScale(1.5);
+    this.sprite = scene.add.sprite(x, y, this.tex('idle1')).setScale(1.5);
     this.sprite.setDepth(feetDepth(this.sprite));
-    this.sprite.play('pet-bounce');
+    this.sprite.play(this.anim('bounce'));
     this.updateMood();
+  }
+
+  private species() {
+    return State.data.petSpecies;
+  }
+
+  private tex(pose: PetPose) {
+    return petTextureKey(this.species(), pose);
+  }
+
+  private anim(kind: 'bounce' | 'walk') {
+    return petAnimKey(this.species(), kind);
   }
 
   update(targetX: number, targetY: number, playerMoving: boolean) {
@@ -67,11 +80,11 @@ export class Pet {
 
     if (State.petMood() === 'sad') {
       if (this.sprite.anims.isPlaying) this.sprite.stop();
-      if (this.sprite.texture.key !== 'pet-sad') this.sprite.setTexture('pet-sad');
+      if (this.sprite.texture.key !== this.tex('sad')) this.sprite.setTexture(this.tex('sad'));
     } else if (moving) {
-      this.sprite.play('pet-walk', true);
+      this.sprite.play(this.anim('walk'), true);
     } else {
-      this.sprite.play('pet-bounce', true);
+      this.sprite.play(this.anim('bounce'), true);
     }
   }
 
@@ -79,17 +92,17 @@ export class Pet {
     if (this.scene.time.now < this.emotionUntil) return;
     if (State.petMood() === 'sad') {
       this.sprite.stop();
-      this.sprite.setTexture('pet-sad');
+      this.sprite.setTexture(this.tex('sad'));
     } else if (!this.sprite.anims.isPlaying) {
-      this.sprite.play('pet-bounce');
+      this.sprite.play(this.anim('bounce'));
     }
   }
 
-  // Show a one-off pose (pet-happy / pet-sleep / pet-jump) for a moment.
-  showEmotion(textureKey: string, ms: number) {
+  // Show a one-off pose for a moment.
+  showEmotion(pose: Extract<PetPose, 'happy' | 'sleep' | 'jump'>, ms: number) {
     this.emotionUntil = this.scene.time.now + ms;
     this.sprite.stop();
-    this.sprite.setTexture(textureKey);
+    this.sprite.setTexture(this.tex(pose));
   }
 
   emitHearts() {
@@ -109,7 +122,7 @@ export class Pet {
 
   celebrate(msg: string) {
     toast(this.scene, this.sprite.x, this.sprite.y - 24, msg, '#ffb3d1');
-    this.showEmotion('pet-happy', 1400);
+    this.showEmotion('happy', 1400);
     this.emitHearts();
   }
 }

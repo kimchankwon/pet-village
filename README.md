@@ -69,15 +69,16 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 
 ## Code map
 
-- `src/scenes/BootScene.ts` — preloads PNG assets (the pet), generates
-  pixel-art textures, defines animations, then starts the town.
+- `src/scenes/BootScene.ts` — preloads pet PNGs, generates pixel-art
+  textures, then starts Adopt (first run) or Town.
+- `src/scenes/AdoptScene.ts` — pick Mametchi / Kuchipatchi and name them.
 - `src/sprites/pixelart.ts` — penguin/world/furniture art, generated at
   boot from character grids. Swap any of it for real PNG loading in
   BootScene later (keep the texture keys).
-- `public/assets/pet/` — Mametchi sprites (Tamagotchi iD) from the
-  Tamagotchi wiki.
+- `public/assets/pet/mametchi/` · `kuchipatchi/` — Tamagotchi iD sprites
+  from the Tamagotchi wiki.
 - `src/systems/GameState.ts` — save data, item catalog, pet-needs decay.
-- `src/systems/Pet.ts` — the follower companion.
+- `src/systems/Pet.ts` — the follower companion (species-aware sprites).
 - `src/systems/UI.ts` — HUD, menus, toasts, prompts.
 - `src/scenes/` — `TownScene` (overworld), `HouseScene` (decorating),
   `PaperTossScene` (minigame).
@@ -86,10 +87,9 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 
 - The penguin is original pixel art inspired by iChibi's fan-made Club
   Penguin sprite sheet (marked "no need to credit").
-- The pet uses actual Mametchi sprites (Tamagotchi iD era) downloaded from
-  the Tamagotchi fandom wiki into `public/assets/pet/`. Mametchi is a
-  Bandai character — fine for a personal project, but these must be
-  replaced with original art before any public or commercial release.
+- Pets use Mametchi + Kuchipatchi sprites (Tamagotchi iD era) from the
+  Tamagotchi fandom wiki. Bandai characters — fine for a personal project,
+  but replace with original art before any public or commercial release.
 - Everything else is original generated pixel art.
 
 ## Roadmap ideas

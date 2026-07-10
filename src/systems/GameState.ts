@@ -2,6 +2,8 @@
 // Pet needs decay is computed from timestamps, so the pet keeps "living"
 // while the game is closed — the Tamagotchi mechanic.
 
+import { isPetSpecies, type PetSpecies } from './pets';
+
 export interface PetStats {
   hunger: number; // 0 = starving, 100 = full
   happiness: number; // 0 = miserable, 100 = delighted
@@ -18,6 +20,9 @@ export interface SaveData {
   version: number;
   coins: number;
   petName: string;
+  petSpecies: PetSpecies;
+  /** False until the player picks a pet + name on first launch. */
+  adopted: boolean;
   pet: PetStats;
   lastSeen: number; // epoch ms, for offline decay
   inventory: Record<string, number>; // itemId -> count (food + unplaced furniture)
@@ -67,7 +72,9 @@ export function defaultSave(): SaveData {
   return {
     version: 1,
     coins: 30,
-    petName: 'Mochi',
+    petName: '',
+    petSpecies: 'mametchi',
+    adopted: false,
     pet: { hunger: 80, happiness: 80, energy: 90 },
     lastSeen: Date.now(),
     inventory: { fish: 2 },
@@ -79,11 +86,17 @@ export function defaultSave(): SaveData {
   };
 }
 
-function mergeSave(parsed: Partial<SaveData>): SaveData {
+function mergeSave(parsed: Partial<SaveData> & { petSpecies?: unknown }): SaveData {
   const base = defaultSave();
+  const hadPriorSave = parsed.version !== undefined;
+  const species = isPetSpecies(parsed.petSpecies) ? parsed.petSpecies : base.petSpecies;
   return {
     ...base,
     ...parsed,
+    petSpecies: species,
+    // Older saves never had `adopted` — treat them as already playing.
+    adopted: parsed.adopted ?? hadPriorSave,
+    petName: parsed.petName ?? (hadPriorSave ? 'Mochi' : base.petName),
     pet: { ...base.pet, ...parsed.pet },
     inventory: parsed.inventory ?? base.inventory,
     placed: parsed.placed ?? base.placed,
@@ -124,6 +137,8 @@ class GameStateStore {
       version: this.data.version,
       coins: this.data.coins,
       petName: this.data.petName,
+      petSpecies: this.data.petSpecies,
+      adopted: this.data.adopted,
       pet: { ...this.data.pet },
       lastSeen: this.data.lastSeen,
       inventory: { ...this.data.inventory },
@@ -256,6 +271,15 @@ class GameStateStore {
     if (avg >= 60) return 'happy';
     if (avg >= 30) return 'ok';
     return 'sad';
+  }
+
+  adopt(species: PetSpecies, name: string) {
+    const trimmed = name.trim().slice(0, 12);
+    if (!trimmed) throw new Error('Name your pet');
+    this.data.petSpecies = species;
+    this.data.petName = trimmed;
+    this.data.adopted = true;
+    this.save();
   }
 }
 

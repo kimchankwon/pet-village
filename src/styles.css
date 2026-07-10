@@ -216,6 +216,10 @@ body {
   gap: 0.75rem;
 }
 
+.btn.tiny.back {
+  flex-shrink: 0;
+}
+
 .topbar-brand {
   font-family: 'Press Start 2P', monospace;
   font-size: 0.55rem;
@@ -232,6 +236,7 @@ body {
 }
 
 .game-host {
+  position: relative;
   width: min(800px, 100%);
   aspect-ratio: 4 / 3;
   image-rendering: pixelated;

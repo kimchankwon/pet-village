@@ -31,7 +31,9 @@ export function AuthPanel({ onGuest }: { onGuest: () => void }) {
   function onGoogle() {
     setError(null);
     setBusy(true);
-    void signIn('google', { redirectTo: import.meta.env.BASE_URL }).catch((err: unknown) => {
+    // SITE_URL already includes the Vite base path (e.g. …/pet-village).
+    // Pass "/" so Convex does not append BASE_URL again and 404.
+    void signIn('google', { redirectTo: '/' }).catch((err: unknown) => {
       setBusy(false);
       setError(err instanceof Error ? err.message : 'Google sign-in failed');
     });
@@ -43,7 +45,7 @@ export function AuthPanel({ onGuest }: { onGuest: () => void }) {
         <p className="brand">Pet Village</p>
         <h1>{mode === 'signIn' ? 'Sign in' : 'Create account'}</h1>
         <p className="lede">
-          Cloud saves keep Mochi safe across devices. Or play as a guest with local saves only.
+          Cloud saves keep your pet safe across devices. Or play as a guest with local saves only.
         </p>
 
         <button type="button" className="btn google" onClick={onGoogle} disabled={busy}>

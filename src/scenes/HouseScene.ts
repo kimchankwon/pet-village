@@ -5,6 +5,7 @@ import { HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
+import { blockUi, isUiBlocked, unblockUi } from '../systems/nav';
 
 const TILE = 48;
 const COLS = 12;
@@ -88,7 +89,7 @@ export class HouseScene extends Phaser.Scene {
     this.clickMove = new ClickMove(this);
 
     this.add
-      .text(400, 40, 'Your House — click to walk · I: decorate · click furniture: pick up · E at door: leave', {
+      .text(400, 40, 'Your House — click to walk · I: decorate · ESC: leave · E at door: leave', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#c8c8dc',
@@ -240,10 +241,12 @@ export class HouseScene extends Phaser.Scene {
 
   private startPlacing(id: string) {
     this.placing = id;
+    blockUi();
     this.ghost = this.add.image(0, 0, ITEMS[id].texture).setAlpha(0.6).setScale(1.2).setDepth(3000);
   }
 
   private stopPlacing() {
+    if (this.placing) unblockUi();
     this.placing = null;
     this.ghost?.destroy();
     this.ghost = null;
@@ -270,7 +273,7 @@ export class HouseScene extends Phaser.Scene {
         onSelect: () => {
           State.petSleep();
           toast(this, this.pet.sprite.x, this.pet.sprite.y - 24, 'Zzz... so cozy!', '#ffb3d1');
-          this.pet.showEmotion('pet-sleep', 2500);
+          this.pet.showEmotion('sleep', 2500);
           this.hud.refresh();
           this.menuOpen = false;
         },
@@ -390,6 +393,8 @@ export class HouseScene extends Phaser.Scene {
       if (Phaser.Input.Keyboard.JustDown(this.keyEsc)) {
         this.stopPlacing();
       }
+    } else if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !isUiBlocked()) {
+      this.scene.start('Town', { spawn: 'house' });
     }
 
     if (!this.menuOpen && !this.placing) {

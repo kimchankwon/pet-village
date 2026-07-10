@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { State } from './GameState';
+import { blockUi, unblockUi } from './nav';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 const FONT_SM = { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff' };
@@ -148,6 +149,7 @@ export class Menu {
       .setDepth(2002);
     this.objects.push(hint);
 
+    blockUi();
     this.escKey = scene.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     this.escKey?.on('down', () => this.close());
   }
@@ -156,6 +158,7 @@ export class Menu {
     this.escKey?.off('down');
     this.objects.forEach((o) => o.destroy());
     this.objects = [];
+    unblockUi();
     this.onClose?.();
   }
 }

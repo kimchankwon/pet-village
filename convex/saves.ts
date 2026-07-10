@@ -18,6 +18,10 @@ const saveFields = {
   version: v.number(),
   coins: v.number(),
   petName: v.string(),
+  petSpecies: v.optional(
+    v.union(v.literal("mametchi"), v.literal("kuchipatchi")),
+  ),
+  adopted: v.optional(v.boolean()),
   pet: petStats,
   lastSeen: v.number(),
   inventory: v.record(v.string(), v.number()),

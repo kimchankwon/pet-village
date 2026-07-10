@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { BootScene } from '../scenes/BootScene';
+import { AdoptScene } from '../scenes/AdoptScene';
 import { TownScene } from '../scenes/TownScene';
 import { HouseScene } from '../scenes/HouseScene';
 import { PaperTossScene } from '../scenes/PaperTossScene';
@@ -21,7 +22,7 @@ export function startGame(parent: HTMLElement): Phaser.Game {
       default: 'arcade',
       arcade: { debug: false },
     },
-    scene: [BootScene, TownScene, HouseScene, PaperTossScene],
+    scene: [BootScene, AdoptScene, TownScene, HouseScene, PaperTossScene],
   });
 
   const onUnload = () => {

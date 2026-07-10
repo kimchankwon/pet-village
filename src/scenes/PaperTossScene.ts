@@ -32,6 +32,7 @@ export class PaperTossScene extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text;
   private bestText!: Phaser.GameObjects.Text;
   private keyE!: Phaser.Input.Keyboard.Key;
+  private keyEsc!: Phaser.Input.Keyboard.Key;
 
   constructor() {
     super('PaperToss');
@@ -70,7 +71,7 @@ export class PaperTossScene extends Phaser.Scene {
       .text(780, 16, `Best: ${State.data.bestPaperToss}`, { ...FONT, color: '#c8c8dc' })
       .setOrigin(1, 0);
     this.add
-      .text(400, 574, 'Drag from the paper ball and release to throw — watch the wind!', {
+      .text(400, 574, 'Drag to throw · ESC / Back to leave — watch the wind!', {
         ...FONT,
         fontSize: '12px',
         color: '#c8c8dc',
@@ -78,6 +79,15 @@ export class PaperTossScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.keyE = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.keyEsc = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+
+    // Always-visible leave control
+    const backBtn = this.add
+      .text(780, 44, '[ Back ]', { ...FONT, color: '#ffb3d1' })
+      .setOrigin(1, 0)
+      .setDepth(51)
+      .setInteractive({ useHandCursor: true });
+    backBtn.on('pointerdown', () => this.scene.start('Town', { spawn: 'arcade' }));
 
     this.newThrow(true);
 
@@ -242,6 +252,10 @@ export class PaperTossScene extends Phaser.Scene {
     }
 
     if (this.mode === 'done' && Phaser.Input.Keyboard.JustDown(this.keyE)) {
+      this.scene.start('Town', { spawn: 'arcade' });
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.keyEsc)) {
       this.scene.start('Town', { spawn: 'arcade' });
     }
   }

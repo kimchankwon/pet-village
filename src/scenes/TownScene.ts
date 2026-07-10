@@ -5,6 +5,7 @@ import { HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
+import { isUiBlocked, requestLeave } from '../systems/nav';
 
 const TILE = 48;
 const WORLD_W = 32 * TILE;
@@ -24,6 +25,7 @@ export class TownScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private keyE!: Phaser.Input.Keyboard.Key;
+  private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
   private prompt!: Prompt;
   private interactables: Interactable[] = [];
@@ -70,6 +72,7 @@ export class TownScene extends Phaser.Scene {
     this.cursors = kb.createCursorKeys();
     this.wasd = kb.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.hud = new HUD(this);
     this.prompt = new Prompt(this);
@@ -106,7 +109,7 @@ export class TownScene extends Phaser.Scene {
 
     if (!localStorage.getItem('pet-village-welcomed')) {
       localStorage.setItem('pet-village-welcomed', '1');
-      toast(this, sx, sy - 70, 'Welcome to Pet Village!', '#ffe066');
+      toast(this, sx, sy - 70, `Welcome, ${State.data.petName}!`, '#ffe066');
     }
   }
 
@@ -386,6 +389,10 @@ export class TownScene extends Phaser.Scene {
       }
     } else {
       this.prompt.hide();
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !isUiBlocked()) {
+      requestLeave();
     }
   }
 }
