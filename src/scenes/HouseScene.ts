@@ -3,6 +3,7 @@ import { generateTextures } from '../sprites/pixelart';
 import { State, ITEMS } from '../systems/GameState';
 import { HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
+import { ClickMove } from '../systems/ClickMove';
 
 const TILE = 48;
 const COLS = 12;
@@ -23,6 +24,8 @@ export class HouseScene extends Phaser.Scene {
   private menuOpen = false;
   private facing: 'up' | 'down' | 'side' = 'down';
   private furnitureSprites: Phaser.GameObjects.Image[] = [];
+  private clickMove!: ClickMove;
+  private keyEsc!: Phaser.Input.Keyboard.Key;
   // Placement mode: a ghost of the selected item follows the mouse.
   private placing: string | null = null;
   private ghost: Phaser.GameObjects.Image | null = null;
@@ -77,12 +80,14 @@ export class HouseScene extends Phaser.Scene {
     this.wasd = kb.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
+    this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.hud = new HUD(this);
     this.prompt = new Prompt(this);
+    this.clickMove = new ClickMove(this);
 
     this.add
-      .text(400, 40, 'Your House — I: decorate · click furniture: pick up · E at door: leave', {
+      .text(400, 40, 'Your House — click to walk · I: decorate · click furniture: pick up · E at door: leave', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#c8c8dc',
@@ -103,9 +108,9 @@ export class HouseScene extends Phaser.Scene {
     });
     this.time.addEvent({ delay: 500, loop: true, callback: () => this.hud.refresh() });
 
-    // Clicks: place ghost item, or pick up placed furniture.
+    // Clicks: place ghost item, pick up furniture, or walk to a floor tile.
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (this.menuOpen || this.time.now < this.ignoreClicksUntil) return;
+      if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
       const g = this.pointerToGrid(pointer);
       if (this.placing) {
         if (g && this.canPlaceAt(g.gx, g.gy)) {
@@ -123,7 +128,14 @@ export class HouseScene extends Phaser.Scene {
         if (picked) {
           toast(this, pointer.x, pointer.y - 20, `${ITEMS[picked].name} → inventory`, '#ffe066');
           this.renderFurniture();
+          this.clickMove.clear();
+          return;
         }
+        // Empty floor tile → walk there (Club Penguin style).
+        this.clickMove.setTarget(
+          ROOM_X + g.gx * TILE + TILE / 2,
+          ROOM_Y + g.gy * TILE + TILE / 2,
+        );
       }
     });
   }
@@ -275,12 +287,23 @@ export class HouseScene extends Phaser.Scene {
     const speed = 200;
     let vx = 0;
     let vy = 0;
-    if (!this.menuOpen) {
+    if (!this.menuOpen && !this.placing) {
       if (this.cursors.left.isDown || this.wasd.A.isDown) vx = -speed;
       else if (this.cursors.right.isDown || this.wasd.D.isDown) vx = speed;
       if (this.cursors.up.isDown || this.wasd.W.isDown) vy = -speed;
       else if (this.cursors.down.isDown || this.wasd.S.isDown) vy = speed;
     }
+
+    if (vx !== 0 || vy !== 0) {
+      this.clickMove.clear();
+    } else if (!this.menuOpen && !this.placing) {
+      const step = this.clickMove.step(this.player.x, this.player.y, speed);
+      vx = step.vx;
+      vy = step.vy;
+    } else {
+      this.clickMove.clear();
+    }
+
     this.player.setVelocity(vx, vy);
     if (vx !== 0 && vy !== 0) this.player.body!.velocity.normalize().scale(speed);
 
@@ -318,7 +341,7 @@ export class HouseScene extends Phaser.Scene {
       } else {
         this.ghost.setVisible(false);
       }
-      if (this.input.keyboard && Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('ESC'))) {
+      if (Phaser.Input.Keyboard.JustDown(this.keyEsc)) {
         this.stopPlacing();
       }
     }

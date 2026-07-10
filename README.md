@@ -25,6 +25,7 @@ Deployed to GitHub Pages from the `gh-pages` branch (static `dist/` build).
 | Input | Action |
 |---|---|
 | WASD / arrows | Walk around |
+| Click / tap | Walk to that spot |
 | E | Interact (door, shop, arcade, your pet) |
 | I | (in house) open the decorate menu |
 | Click furniture | (in house) pick it up into inventory |

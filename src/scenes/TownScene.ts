@@ -3,6 +3,7 @@ import { generateTextures } from '../sprites/pixelart';
 import { State, ITEMS } from '../systems/GameState';
 import { HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
+import { ClickMove } from '../systems/ClickMove';
 
 const TILE = 48;
 const WORLD_W = 32 * TILE;
@@ -27,6 +28,7 @@ export class TownScene extends Phaser.Scene {
   private interactables: Interactable[] = [];
   private menuOpen = false;
   private facing: 'up' | 'down' | 'side' = 'down';
+  private clickMove!: ClickMove;
 
   constructor() {
     super('Town');
@@ -70,6 +72,13 @@ export class TownScene extends Phaser.Scene {
 
     this.hud = new HUD(this);
     this.prompt = new Prompt(this);
+    this.clickMove = new ClickMove(this);
+
+    // Club Penguin-style: left-click / tap the ground to walk there.
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (this.menuOpen || pointer.button !== 0) return;
+      this.clickMove.setTarget(pointer.worldX, pointer.worldY);
+    });
 
     // Live tamagotchi tick: 1 minute of play = 1 minute of decay.
     this.time.addEvent({
@@ -291,6 +300,17 @@ export class TownScene extends Phaser.Scene {
       else if (this.cursors.right.isDown || this.wasd.D.isDown) vx = speed;
       if (this.cursors.up.isDown || this.wasd.W.isDown) vy = -speed;
       else if (this.cursors.down.isDown || this.wasd.S.isDown) vy = speed;
+    }
+
+    // Keyboard overrides click-to-move; otherwise steer toward the tap target.
+    if (vx !== 0 || vy !== 0) {
+      this.clickMove.clear();
+    } else if (!this.menuOpen) {
+      const step = this.clickMove.step(this.player.x, this.player.y, speed);
+      vx = step.vx;
+      vy = step.vy;
+    } else {
+      this.clickMove.clear();
     }
 
     this.player.setVelocity(vx, vy);
