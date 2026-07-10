@@ -4,8 +4,10 @@ A cozy single-player pet village game — Club Penguin-style movement, an
 Animal Crossing-style decoratable house, and a Tamagotchi companion whose
 needs keep decaying even while the game is closed.
 
-Built with Phaser 3 + TypeScript + Vite. No backend: everything persists to
-`localStorage`.
+Built with Phaser 3 + TypeScript + Vite + Convex.
+
+Saves: `localStorage` for guests; signed-in players sync durable cloud
+saves via Convex (email/password auth).
 
 ## Play
 
@@ -15,10 +17,16 @@ https://kimchankwon.github.io/pet-village/
 
 ```sh
 npm install
-npm run dev
+npm run dev   # starts Convex + Vite together
 ```
 
+Open http://localhost:5173/pet-village/
+
+Requires `.env.local` with `VITE_CONVEX_URL` (created by `npx convex dev`).
+
 Deployed to GitHub Pages from the `gh-pages` branch (static `dist/` build).
+For production auth redirects, set Convex `SITE_URL` to your live origin
+(e.g. `https://kimchankwon.github.io/pet-village`).
 
 ## How to play
 

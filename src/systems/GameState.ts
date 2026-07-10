@@ -1,4 +1,4 @@
-// Central game state with localStorage persistence.
+// Central game state with localStorage + optional Convex cloud sync.
 // Pet needs decay is computed from timestamps, so the pet keeps "living"
 // while the game is closed — the Tamagotchi mechanic.
 
@@ -57,11 +57,13 @@ const MAX_OFFLINE_HOURS = 12;
 
 const KEY = 'pet-village-save-v1';
 
+type CloudSaver = (data: SaveData) => void;
+
 function clamp(v: number, lo = 0, hi = 100) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function defaultSave(): SaveData {
+export function defaultSave(): SaveData {
   return {
     version: 1,
     coins: 30,
@@ -77,36 +79,95 @@ function defaultSave(): SaveData {
   };
 }
 
+function mergeSave(parsed: Partial<SaveData>): SaveData {
+  const base = defaultSave();
+  return {
+    ...base,
+    ...parsed,
+    pet: { ...base.pet, ...parsed.pet },
+    inventory: parsed.inventory ?? base.inventory,
+    placed: parsed.placed ?? base.placed,
+  };
+}
+
 class GameStateStore {
   data: SaveData;
+  private cloudSaver: CloudSaver | null = null;
+  private cloudTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    this.data = this.load();
+    this.data = this.loadLocal();
     this.applyOfflineDecay();
   }
 
-  private load(): SaveData {
+  private loadLocal(): SaveData {
     try {
       const raw = localStorage.getItem(KEY);
       if (!raw) return defaultSave();
-      const parsed = JSON.parse(raw) as SaveData;
+      const parsed = JSON.parse(raw) as Partial<SaveData>;
       if (!parsed.version) return defaultSave();
-      return { ...defaultSave(), ...parsed, pet: { ...defaultSave().pet, ...parsed.pet } };
+      return mergeSave(parsed);
     } catch {
       return defaultSave();
     }
   }
 
-  save() {
+  /** Replace in-memory state from a cloud (or other) save, then apply offline decay. */
+  hydrate(raw: Partial<SaveData>) {
+    this.data = mergeSave(raw);
+    this.applyOfflineDecay();
+    this.persistLocal();
+  }
+
+  snapshot(): SaveData {
+    return {
+      version: this.data.version,
+      coins: this.data.coins,
+      petName: this.data.petName,
+      pet: { ...this.data.pet },
+      lastSeen: this.data.lastSeen,
+      inventory: { ...this.data.inventory },
+      placed: this.data.placed.map((p) => ({ ...p })),
+      bestPaperToss: this.data.bestPaperToss,
+    };
+  }
+
+  setCloudSaver(saver: CloudSaver | null) {
+    if (this.cloudTimer) {
+      clearTimeout(this.cloudTimer);
+      this.cloudTimer = null;
+    }
+    this.cloudSaver = saver;
+  }
+
+  private persistLocal() {
     this.data.lastSeen = Date.now();
     localStorage.setItem(KEY, JSON.stringify(this.data));
+  }
+
+  save() {
+    this.persistLocal();
+    if (!this.cloudSaver) return;
+    if (this.cloudTimer) clearTimeout(this.cloudTimer);
+    this.cloudTimer = setTimeout(() => {
+      this.cloudSaver?.(this.snapshot());
+    }, 700);
+  }
+
+  /** Flush pending cloud write immediately (e.g. beforeunload). */
+  flushCloud() {
+    if (this.cloudTimer) {
+      clearTimeout(this.cloudTimer);
+      this.cloudTimer = null;
+    }
+    if (this.cloudSaver) this.cloudSaver(this.snapshot());
   }
 
   private applyOfflineDecay() {
     const hours = Math.min(MAX_OFFLINE_HOURS, (Date.now() - this.data.lastSeen) / 3_600_000);
     if (hours <= 0) return;
     this.decay(hours);
-    this.save();
+    this.persistLocal();
   }
 
   // Called with fractional hours; also used for live ticking while playing.
