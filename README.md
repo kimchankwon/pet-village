@@ -18,7 +18,7 @@ npm install
 npm run dev
 ```
 
-Deployed to GitHub Pages on every push to `main` (see `.github/workflows/deploy-pages.yml`).
+Deployed to GitHub Pages from the `gh-pages` branch (static `dist/` build).
 
 ## How to play
 
