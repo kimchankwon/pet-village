@@ -235,6 +235,55 @@ body {
   white-space: nowrap;
 }
 
+/* Exit confirmation — styled like the in-game pixel menus. */
+.confirm-dim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.confirm-card {
+  width: min(380px, calc(100vw - 2rem));
+  padding: 1.2rem 1.3rem 1.35rem;
+  background: #2a2440;
+  border: 3px solid #ffb3d1;
+  text-align: center;
+}
+
+.confirm-card h2 {
+  margin: 0 0 0.6rem;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.8rem;
+  color: #ffb3d1;
+}
+
+.confirm-card p {
+  margin: 0 0 1.1rem;
+  color: var(--muted);
+  font-size: 1.2rem;
+  line-height: 1.35;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.confirm-actions .btn.ghost {
+  width: auto;
+  margin-top: 0;
+}
+
+.btn.danger {
+  color: #12101a;
+  background: var(--danger);
+  box-shadow: 3px 3px 0 #7a2230;
+}
+
 .game-host {
   position: relative;
   width: min(800px, 100%);

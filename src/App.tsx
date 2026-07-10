@@ -12,19 +12,38 @@ function PlayChrome({
   userLabel,
   onLeave,
   leaveLabel,
+  exitNote,
   onChangePet,
   children,
 }: {
   userLabel: string;
   onLeave: () => void;
   leaveLabel: string;
+  exitNote: string;
   onChangePet?: () => void;
   children: ReactNode;
 }) {
+  const [confirmExit, setConfirmExit] = useState(false);
+
+  // Every exit path (topbar buttons, pause-menu "Exit game") goes through a
+  // game-styled confirmation modal before actually leaving.
   useEffect(() => {
-    setLeaveHandler(onLeave);
+    setLeaveHandler(() => setConfirmExit(true));
     return () => setLeaveHandler(null);
-  }, [onLeave]);
+  }, []);
+
+  // ESC closes the modal. Capture phase + stopPropagation so Phaser's own
+  // window keydown listener doesn't also see it and reopen the pause menu.
+  useEffect(() => {
+    if (!confirmExit) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setConfirmExit(false);
+    }
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [confirmExit]);
 
   // No window-level ESC fallback here: the canvas is never the focus target,
   // so a keydown fallback would fire on every ESC and exit the game outright.
@@ -33,7 +52,7 @@ function PlayChrome({
   return (
     <div className="play-shell">
       <header className="topbar">
-        <button type="button" className="btn tiny back" onClick={onLeave}>
+        <button type="button" className="btn tiny back" onClick={() => setConfirmExit(true)}>
           ← Back
         </button>
         <span className="topbar-brand">Pet Village</span>
@@ -43,11 +62,34 @@ function PlayChrome({
             Change pet
           </button>
         )}
-        <button type="button" className="btn tiny" onClick={onLeave}>
+        <button type="button" className="btn tiny" onClick={() => setConfirmExit(true)}>
           {leaveLabel}
         </button>
       </header>
       {children}
+      {confirmExit && (
+        <div className="confirm-dim" onClick={() => setConfirmExit(false)}>
+          <div
+            className="confirm-card"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2>Exit game?</h2>
+            <p>
+              {State.data.petName || 'Your pet'} keeps living while you&apos;re away. {exitNote}
+            </p>
+            <div className="confirm-actions">
+              <button type="button" className="btn ghost" onClick={() => setConfirmExit(false)}>
+                Back to game
+              </button>
+              <button type="button" className="btn danger" onClick={onLeave}>
+                {leaveLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -124,6 +166,7 @@ function CloudGame() {
     <PlayChrome
       userLabel={viewer?.email ?? 'Signed in'}
       leaveLabel="Sign out"
+      exitNote="Your village is synced to the cloud."
       onLeave={() => {
         // save() persists locally and arms the cloud debounce; flushCloud()
         // fires it now, so hydrated decay reaches the cloud before sign-out.
@@ -167,6 +210,7 @@ function GuestGame({ onBack }: { onBack: () => void }) {
     <PlayChrome
       userLabel="Guest · local save"
       leaveLabel="Sign in"
+      exitNote="Your progress is saved on this device."
       onLeave={onBack}
       onChangePet={changePet}
     >

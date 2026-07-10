@@ -53,6 +53,13 @@ export const ITEMS: Record<string, ItemDef> = {
   bed: { id: 'bed', name: 'Dream Bed', texture: 'item-bed', kind: 'furniture', price: 50 },
   bookshelf: { id: 'bookshelf', name: 'Bookshelf', texture: 'item-bookshelf', kind: 'furniture', price: 45 },
   tv: { id: 'tv', name: 'Retro TV', texture: 'item-tv', kind: 'furniture', price: 60 },
+  lightstick: {
+    id: 'lightstick',
+    name: 'SVT Lightstick VER.3 Anniversary',
+    texture: 'item-lightstick',
+    kind: 'furniture',
+    price: 88,
+  },
 };
 
 // Decay rates: points lost per hour.
