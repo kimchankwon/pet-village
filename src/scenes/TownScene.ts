@@ -32,6 +32,8 @@ export class TownScene extends Phaser.Scene {
   private menuOpen = false;
   private facing: 'up' | 'down' | 'side' = 'down';
   private clickMove!: ClickMove;
+  // Menu option clicks must not also trigger walk/interact underneath.
+  private ignoreClicksUntil = 0;
 
   constructor() {
     super('Town');
@@ -41,6 +43,7 @@ export class TownScene extends Phaser.Scene {
     generateTextures(this);
     this.interactables = [];
     this.menuOpen = false;
+    this.ignoreClicksUntil = 0;
 
     this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
     this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
@@ -80,7 +83,7 @@ export class TownScene extends Phaser.Scene {
 
     // Club Penguin-style: click ground to walk; click a nearby interactable to use it.
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (this.menuOpen || pointer.button !== 0) return;
+      if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
       const near = this.nearestInteractable();
       if (near) {
         const clickDist = Phaser.Math.Distance.Between(pointer.worldX, pointer.worldY, near.x, near.y);
@@ -239,11 +242,16 @@ export class TownScene extends Phaser.Scene {
           toast(this, this.player.x, this.player.y - 50, `Bought ${item.name}!`, '#a8e6cf');
           this.hud.refresh();
         }
-        this.menuOpen = false;
+        this.closeMenu();
       },
     }));
     const menu = new Menu(this, "Bella's Shop", options, `You have ${State.coins} coins`);
-    menu.onClose = () => (this.menuOpen = false);
+    menu.onClose = () => this.closeMenu();
+  }
+
+  private closeMenu() {
+    this.menuOpen = false;
+    this.ignoreClicksUntil = this.time.now + 250;
   }
 
   private openPetMenu() {
@@ -266,7 +274,7 @@ export class TownScene extends Phaser.Scene {
             this.pet.updateMood();
             this.hud.refresh();
           }
-          this.menuOpen = false;
+          this.closeMenu();
         },
       },
     ];
@@ -277,7 +285,7 @@ export class TownScene extends Phaser.Scene {
       options,
       `Food ${Math.round(p.hunger)} · Happy ${Math.round(p.happiness)} · Energy ${Math.round(p.energy)}`,
     );
-    menu.onClose = () => (this.menuOpen = false);
+    menu.onClose = () => this.closeMenu();
   }
 
   private openFeedMenu() {
@@ -294,12 +302,12 @@ export class TownScene extends Phaser.Scene {
             this.pet.updateMood();
             this.hud.refresh();
           }
-          this.menuOpen = false;
+          this.closeMenu();
         },
       };
     });
     const menu = new Menu(this, `Feed ${State.data.petName}`, options);
-    menu.onClose = () => (this.menuOpen = false);
+    menu.onClose = () => this.closeMenu();
   }
 
   private nearestInteractable(): Interactable | null {
