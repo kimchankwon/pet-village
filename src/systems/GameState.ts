@@ -61,7 +61,7 @@ const DECAY_PER_HOUR = { hunger: 6, happiness: 4, energy: 3 };
 const MAX_OFFLINE_HOURS = 12;
 
 const KEY = 'pet-village-save-v1';
-const WELCOME_KEY = 'pet-village-welcomed';
+export const WELCOME_KEY = 'pet-village-welcomed';
 
 type CloudSaver = (data: SaveData) => void;
 
@@ -170,13 +170,15 @@ class GameStateStore {
     }, 700);
   }
 
-  /** Flush pending cloud write immediately (e.g. beforeunload). */
+  /**
+   * Flush a *pending* debounced cloud write immediately (e.g. beforeunload,
+   * sign-out). No-op when nothing is pending — the last write already synced.
+   */
   flushCloud() {
-    if (this.cloudTimer) {
-      clearTimeout(this.cloudTimer);
-      this.cloudTimer = null;
-    }
-    if (this.cloudSaver) this.cloudSaver(this.snapshot());
+    if (!this.cloudTimer) return;
+    clearTimeout(this.cloudTimer);
+    this.cloudTimer = null;
+    this.cloudSaver?.(this.snapshot());
   }
 
   private applyOfflineDecay() {

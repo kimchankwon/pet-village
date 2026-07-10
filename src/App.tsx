@@ -26,17 +26,9 @@ function PlayChrome({
     return () => setLeaveHandler(null);
   }, [onLeave]);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return;
-      // Phaser scenes handle Escape for menus / nested rooms; this is a fallback
-      // when focus is outside the canvas (e.g. topbar).
-      if (e.target instanceof HTMLElement && e.target.closest('.game-host')) return;
-      onLeave();
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onLeave]);
+  // No window-level ESC fallback here: the canvas is never the focus target,
+  // so a keydown fallback would fire on every ESC and exit the game outright.
+  // ESC is owned by the Phaser scenes (menus, house, and the pause menu).
 
   return (
     <div className="play-shell">
@@ -66,11 +58,16 @@ function CloudGame() {
   const viewer = useQuery(api.users.viewer);
   const { signOut } = useAuthActions();
   const [hydrated, setHydrated] = useState(false);
+  const hydratedRef = useRef(false);
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
 
+  // Hydrate exactly once, from the first cloud snapshot. Every save echoes
+  // back through this subscription; re-hydrating from an echo would clobber
+  // anything the player did since that (already stale) snapshot was taken.
   useEffect(() => {
-    if (cloudSave === undefined) return;
+    if (cloudSave === undefined || hydratedRef.current) return;
+    hydratedRef.current = true;
 
     if (cloudSave) {
       State.hydrate({
@@ -88,17 +85,20 @@ function CloudGame() {
     } else {
       void upsert(State.snapshot());
     }
+    setHydrated(true);
+  }, [cloudSave, upsert]);
 
+  useEffect(() => {
     State.setCloudSaver((data) => {
       void upsert(data);
     });
-    setHydrated(true);
-
     return () => {
-      State.setCloudSaver(null);
+      // Flush any pending debounced write before dropping the saver —
+      // the other order silently discards it.
       State.flushCloud();
+      State.setCloudSaver(null);
     };
-  }, [cloudSave, upsert]);
+  }, [upsert]);
 
   useEffect(() => {
     if (!hydrated || !hostRef.current) return;

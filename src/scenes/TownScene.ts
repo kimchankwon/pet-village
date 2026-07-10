@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
-import { State, ITEMS } from '../systems/GameState';
+import { State, ITEMS, WELCOME_KEY } from '../systems/GameState';
 import { HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
-import { isUiBlocked, requestLeave } from '../systems/nav';
+import { forceLeave, isUiBlocked } from '../systems/nav';
 
 const TILE = 48;
 const WORLD_W = 32 * TILE;
@@ -110,8 +110,8 @@ export class TownScene extends Phaser.Scene {
     });
     this.time.addEvent({ delay: 500, loop: true, callback: () => this.hud.refresh() });
 
-    if (!localStorage.getItem('pet-village-welcomed')) {
-      localStorage.setItem('pet-village-welcomed', '1');
+    if (!localStorage.getItem(WELCOME_KEY)) {
+      localStorage.setItem(WELCOME_KEY, '1');
       toast(this, sx, sy - 70, `Welcome, ${State.data.petName}!`, '#ffe066');
     }
   }
@@ -252,6 +252,17 @@ export class TownScene extends Phaser.Scene {
   private closeMenu() {
     this.menuOpen = false;
     this.ignoreClicksUntil = this.time.now + 250;
+  }
+
+  // ESC pause menu: resume, or leave the game (back to the title screen).
+  private openEscapeMenu() {
+    this.menuOpen = true;
+    const options = [
+      { label: 'Back to game', onSelect: () => {} },
+      { label: 'Exit game', onSelect: () => forceLeave() },
+    ];
+    const menu = new Menu(this, 'Paused', options, `${State.data.petName} keeps living while you're away`);
+    menu.onClose = () => this.closeMenu();
   }
 
   private openPetMenu() {
@@ -399,8 +410,8 @@ export class TownScene extends Phaser.Scene {
       this.prompt.hide();
     }
 
-    if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !isUiBlocked()) {
-      requestLeave();
+    if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !this.menuOpen && !isUiBlocked()) {
+      this.openEscapeMenu();
     }
   }
 }
