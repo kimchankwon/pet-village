@@ -7,12 +7,18 @@ needs keep decaying even while the game is closed.
 Built with Phaser 3 + TypeScript + Vite. No backend: everything persists to
 `localStorage`.
 
+## Play
+
+https://kimchankwon.github.io/pet-village/
+
 ## Run it
 
 ```sh
 npm install
 npm run dev
 ```
+
+Deployed to GitHub Pages on every push to `main` (see `.github/workflows/deploy-pages.yml`).
 
 ## How to play
 

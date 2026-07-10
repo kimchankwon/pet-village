@@ -9,6 +9,8 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload() {
+    // Vite base path (e.g. /pet-village/ on GitHub Pages)
+    this.load.setPath(import.meta.env.BASE_URL);
     this.load.image('pet-idle1', 'assets/pet/neutral1.png');
     this.load.image('pet-idle2', 'assets/pet/neutral2.png');
     this.load.image('pet-walk1', 'assets/pet/walk1.png');
