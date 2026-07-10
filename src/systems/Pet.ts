@@ -2,53 +2,71 @@ import Phaser from 'phaser';
 import { State } from './GameState';
 import { toast } from './UI';
 
-// The tamagotchi companion (Mametchi, Tamagotchi iD sprites). Follows the
-// player along a breadcrumb trail of recent positions, so it retraces the
-// player's path like a duckling.
+// Tamagotchi companion. Smoothly chases a follow-slot beside the player
+// (no breadcrumb trail — that caused weird U-turns on direction changes).
 export class Pet {
   sprite: Phaser.GameObjects.Sprite;
-  private trail: { x: number; y: number }[] = [];
   private scene: Phaser.Scene;
-  private readonly FOLLOW_DISTANCE = 18; // breadcrumbs behind the player
+  // Softened follow point so player flip/turnarounds don't yank the pet.
+  private followX: number;
+  private followY: number;
+  private facingLeft = false;
+  private readonly ARRIVE = 3;
   // While an emotion pose (happy/sleep/jump) is showing, walk/idle don't override it.
   private emotionUntil = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
+    this.followX = x;
+    this.followY = y;
     this.sprite = scene.add.sprite(x, y, 'pet-idle1').setScale(1.5).setDepth(y);
     this.sprite.play('pet-bounce');
     this.updateMood();
   }
 
   update(targetX: number, targetY: number, playerMoving: boolean) {
+    const dt = Math.min(this.scene.game.loop.delta / 1000, 0.05);
     const prevX = this.sprite.x;
-    if (playerMoving) {
-      this.trail.push({ x: targetX, y: targetY });
-      if (this.trail.length > this.FOLLOW_DISTANCE) {
-        const p = this.trail.shift()!;
-        this.sprite.x = Phaser.Math.Linear(this.sprite.x, p.x, 0.6);
-        this.sprite.y = Phaser.Math.Linear(this.sprite.y, p.y, 0.6);
-      }
-    } else if (this.trail.length > 0) {
-      // Catch up to the player after they stop, then idle beside them.
-      const p = this.trail[0];
-      this.sprite.x = Phaser.Math.Linear(this.sprite.x, p.x, 0.15);
-      this.sprite.y = Phaser.Math.Linear(this.sprite.y, p.y, 0.15);
-      if (Phaser.Math.Distance.Between(this.sprite.x, this.sprite.y, p.x, p.y) < 2) {
-        this.trail.shift();
-      }
+
+    // Ease the desired slot (side-swap on flip is gradual, not instant).
+    const slotRate = playerMoving ? 7 : 4;
+    const slotT = 1 - Math.exp(-slotRate * dt);
+    this.followX += (targetX - this.followX) * slotT;
+    this.followY += (targetY - this.followY) * slotT;
+
+    const dx = this.followX - this.sprite.x;
+    const dy = this.followY - this.sprite.y;
+    const dist = Math.hypot(dx, dy);
+
+    let moving = false;
+    if (dist > this.ARRIVE) {
+      // Match player pace when close; boost when lagging after a long dash.
+      const base = playerMoving ? 175 : 110;
+      const boost = Phaser.Math.Clamp((dist - 40) * 2.5, 0, 180);
+      const speed = base + boost;
+      const step = Math.min(speed * dt, dist);
+      this.sprite.x += (dx / dist) * step;
+      this.sprite.y += (dy / dist) * step;
+      moving = step > 0.4;
+    } else {
+      this.sprite.x = this.followX;
+      this.sprite.y = this.followY;
     }
+
     this.sprite.setDepth(this.sprite.y);
 
     if (this.scene.time.now < this.emotionUntil) return;
 
-    const dx = this.sprite.x - prevX;
-    if (Math.abs(dx) > 0.5) this.sprite.setFlipX(dx < 0);
+    // Hysteresis so tiny corrections don't flicker facing.
+    const movedX = this.sprite.x - prevX;
+    if (movedX < -1.0) this.facingLeft = true;
+    else if (movedX > 1.0) this.facingLeft = false;
+    this.sprite.setFlipX(this.facingLeft);
 
     if (State.petMood() === 'sad') {
       if (this.sprite.anims.isPlaying) this.sprite.stop();
       if (this.sprite.texture.key !== 'pet-sad') this.sprite.setTexture('pet-sad');
-    } else if (Math.abs(dx) > 0.5 || this.trail.length > 2) {
+    } else if (moving) {
       this.sprite.play('pet-walk', true);
     } else {
       this.sprite.play('pet-bounce', true);
