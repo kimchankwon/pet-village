@@ -108,7 +108,7 @@ export class HouseScene extends Phaser.Scene {
     });
     this.time.addEvent({ delay: 500, loop: true, callback: () => this.hud.refresh() });
 
-    // Clicks: place ghost item, pick up furniture, or walk to a floor tile.
+    // Clicks: place / pick up furniture, interact when close, or walk.
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
       const g = this.pointerToGrid(pointer);
@@ -131,13 +131,58 @@ export class HouseScene extends Phaser.Scene {
           this.clickMove.clear();
           return;
         }
-        // Empty floor tile → walk there (Club Penguin style).
+      }
+
+      const near = this.nearestHouseInteractable();
+      if (near) {
+        const clickDist = Phaser.Math.Distance.Between(pointer.worldX, pointer.worldY, near.x, near.y);
+        if (clickDist < near.radius + 20) {
+          this.clickMove.clear();
+          near.action();
+          return;
+        }
+      }
+
+      if (g) {
         this.clickMove.setTarget(
           ROOM_X + g.gx * TILE + TILE / 2,
           ROOM_Y + g.gy * TILE + TILE / 2,
         );
       }
     });
+  }
+
+  private nearestHouseInteractable(): {
+    x: number;
+    y: number;
+    radius: number;
+    label: string;
+    action: () => void;
+  } | null {
+    const doorX = ROOM_X + Math.floor(COLS / 2) * TILE + TILE / 2;
+    const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
+    const nearDoor = Phaser.Math.Distance.Between(this.player.x, this.player.y, doorX, doorY) < 55;
+    if (nearDoor) {
+      return {
+        x: doorX,
+        y: doorY,
+        radius: 55,
+        label: 'E / click — Leave house',
+        action: () => this.scene.start('Town', { spawn: 'house' }),
+      };
+    }
+    const nearPet =
+      Phaser.Math.Distance.Between(this.player.x, this.player.y, this.pet.sprite.x, this.pet.sprite.y) < 50;
+    if (nearPet) {
+      return {
+        x: this.pet.sprite.x,
+        y: this.pet.sprite.y,
+        radius: 50,
+        label: `E / click — ${State.data.petName} (your pet)`,
+        action: () => this.openPetMenuInHouse(),
+      };
+    }
+    return null;
   }
 
   private pointerToGrid(pointer: Phaser.Input.Pointer): { gx: number; gy: number } | null {
@@ -349,19 +394,10 @@ export class HouseScene extends Phaser.Scene {
     if (!this.menuOpen && !this.placing) {
       if (Phaser.Input.Keyboard.JustDown(this.keyI)) this.openDecorateMenu();
 
-      // Interactions: door to leave, pet nearby
-      const doorX = ROOM_X + Math.floor(COLS / 2) * TILE + TILE / 2;
-      const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
-      const nearDoor = Phaser.Math.Distance.Between(this.player.x, this.player.y, doorX, doorY) < 55;
-      const nearPet =
-        Phaser.Math.Distance.Between(this.player.x, this.player.y, this.pet.sprite.x, this.pet.sprite.y) < 50;
-
-      if (nearDoor) {
-        this.prompt.show('E — Leave house');
-        if (Phaser.Input.Keyboard.JustDown(this.keyE)) this.scene.start('Town', { spawn: 'house' });
-      } else if (nearPet) {
-        this.prompt.show(`E — ${State.data.petName} (your pet)`);
-        if (Phaser.Input.Keyboard.JustDown(this.keyE)) this.openPetMenuInHouse();
+      const near = this.nearestHouseInteractable();
+      if (near) {
+        this.prompt.show(near.label);
+        if (Phaser.Input.Keyboard.JustDown(this.keyE)) near.action();
       } else {
         this.prompt.hide();
       }

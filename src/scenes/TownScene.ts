@@ -74,9 +74,19 @@ export class TownScene extends Phaser.Scene {
     this.prompt = new Prompt(this);
     this.clickMove = new ClickMove(this);
 
-    // Club Penguin-style: left-click / tap the ground to walk there.
+    // Club Penguin-style: click ground to walk; click a nearby interactable to use it.
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || pointer.button !== 0) return;
+      const near = this.nearestInteractable();
+      if (near) {
+        const clickDist = Phaser.Math.Distance.Between(pointer.worldX, pointer.worldY, near.x, near.y);
+        // Click on/near the thing (or right on the player while in range) → interact.
+        if (clickDist < near.radius + 20) {
+          this.clickMove.clear();
+          near.action();
+          return;
+        }
+      }
       this.clickMove.setTarget(pointer.worldX, pointer.worldY);
     });
 
@@ -133,7 +143,7 @@ export class TownScene extends Phaser.Scene {
       x: 6.5 * TILE,
       y: 8.2 * TILE,
       radius: 70,
-      label: 'E — Enter house',
+      label: 'E / click — Enter house',
       action: () => this.scene.start('House'),
     });
 
@@ -156,7 +166,7 @@ export class TownScene extends Phaser.Scene {
       x: 25 * TILE,
       y: 8.6 * TILE,
       radius: 80,
-      label: 'E — Talk to Bella',
+      label: 'E / click — Talk to Bella',
       action: () => this.openShop(),
     });
 
@@ -178,7 +188,7 @@ export class TownScene extends Phaser.Scene {
       y: 15 * TILE,
       // must exceed the collider's diagonal reach or some approach angles can never interact
       radius: 90,
-      label: 'E — Play Paper Toss',
+      label: 'E / click — Play Paper Toss',
       action: () => this.scene.start('PaperToss'),
     });
 
@@ -288,6 +298,32 @@ export class TownScene extends Phaser.Scene {
     menu.onClose = () => (this.menuOpen = false);
   }
 
+  private nearestInteractable(): Interactable | null {
+    let best: Interactable | null = null;
+    let bestDist = Infinity;
+    for (const it of this.interactables) {
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, it.x, it.y);
+      if (d < it.radius && d < bestDist) {
+        best = it;
+        bestDist = d;
+      }
+    }
+    // Pet is the fallback — it follows so closely it would otherwise shadow every prompt.
+    if (!best) {
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.pet.sprite.x, this.pet.sprite.y);
+      if (d < 50) {
+        return {
+          x: this.pet.sprite.x,
+          y: this.pet.sprite.y,
+          radius: 50,
+          label: `E / click — ${State.data.petName} (your pet)`,
+          action: () => this.openPetMenu(),
+        };
+      }
+    }
+    return best;
+  }
+
   update() {
     if (!this.player) return;
 
@@ -340,31 +376,8 @@ export class TownScene extends Phaser.Scene {
 
     this.pet.update(this.player.x - (this.player.flipX ? -26 : 26), this.player.y + 8, moving);
 
-    // Nearest interactable (pet is also interactable when close)
     if (!this.menuOpen) {
-      let best: Interactable | null = null;
-      let bestDist = Infinity;
-      for (const it of this.interactables) {
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, it.x, it.y);
-        if (d < it.radius && d < bestDist) {
-          best = it;
-          bestDist = d;
-        }
-      }
-      // Pet is the fallback interactable — it follows so closely it would
-      // otherwise shadow every other prompt.
-      if (!best) {
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.pet.sprite.x, this.pet.sprite.y);
-        if (d < 50) {
-          best = {
-            x: this.pet.sprite.x,
-            y: this.pet.sprite.y,
-            radius: 50,
-            label: `E — ${State.data.petName} (your pet)`,
-            action: () => this.openPetMenu(),
-          };
-        }
-      }
+      const best = this.nearestInteractable();
       if (best) {
         this.prompt.show(best.label);
         if (Phaser.Input.Keyboard.JustDown(this.keyE)) best.action();

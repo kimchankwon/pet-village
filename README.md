@@ -26,7 +26,7 @@ Deployed to GitHub Pages from the `gh-pages` branch (static `dist/` build).
 |---|---|
 | WASD / arrows | Walk around |
 | Click / tap | Walk to that spot |
-| E | Interact (door, shop, arcade, your pet) |
+| E / click | Interact when close (door, shop, arcade, pet) |
 | I | (in house) open the decorate menu |
 | Click furniture | (in house) pick it up into inventory |
 | Drag + release | (paper toss) slingshot the paper ball |
