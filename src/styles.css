@@ -306,6 +306,38 @@ body {
   margin-top: 0;
 }
 
+/* Menu panel: stacked, thumb-sized options. */
+.menu-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.menu-list .btn {
+  width: 100%;
+  margin: 0;
+}
+
+/* Penguin colour picker — the classic dozen. */
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.color-swatch {
+  appearance: none;
+  aspect-ratio: 1;
+  width: 100%;
+  border: 3px solid #1a1a2e;
+  cursor: pointer;
+  padding: 0;
+}
+
+.color-swatch.current {
+  border-color: #ffe066;
+}
+
 .btn.danger {
   color: #12101a;
   background: var(--danger);

@@ -44,16 +44,45 @@ const PALETTE: Record<string, string> = {
   z: '#b8b8c0', // belly soft shadow
 };
 
-// Penguin body colourways: the v/V/u palette slots are swapped before the
-// penguin textures are generated (or regenerated on change).
-export const PENGUIN_COLORS: Record<string, { label: string; v: string; V: string; u: string }> = {
-  blue: { label: 'Classic Blue', v: '#0a3d6e', V: '#062848', u: '#14528a' },
-  red: { label: 'Cherry Red', v: '#b3303a', V: '#7a1f27', u: '#d4555e' },
-  pink: { label: 'Bubblegum Pink', v: '#d4548c', V: '#9c3465', u: '#e87bac' },
-  green: { label: 'Forest Green', v: '#2e7d52', V: '#1d5437', u: '#4aa878' },
-  purple: { label: 'Royal Purple', v: '#6d3fa8', V: '#4a2a75', u: '#8f63c9' },
-  black: { label: 'Midnight', v: '#2d2d3a', V: '#17171f', u: '#4a4a5e' },
-};
+// Penguin body colourways — the classic Club Penguin (PC3) dozen, sampled
+// from the original colour picker. The v/V/u palette slots are swapped
+// before the penguin textures are generated (or regenerated on change).
+function shadeHex(hex: string, f: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const adj = (v: number) => {
+    const nv = f < 0 ? v * (1 + f) : v + (255 - v) * f;
+    return Math.max(0, Math.min(255, Math.round(nv)));
+  };
+  return (
+    '#' +
+    [adj((n >> 16) & 255), adj((n >> 8) & 255), adj(n & 255)]
+      .map((v) => v.toString(16).padStart(2, '0'))
+      .join('')
+  );
+}
+
+const CP_COLOURS: [string, string, string][] = [
+  ['blue', 'Blue', '#006090'],
+  ['green', 'Green', '#009000'],
+  ['pink', 'Pink', '#f03090'],
+  ['black', 'Black', '#303030'],
+  ['red', 'Red', '#c00000'],
+  ['purple', 'Purple', '#9000f0'],
+  ['orange', 'Orange', '#f06000'],
+  ['darkpurple', 'Dark Purple', '#600090'],
+  ['brown', 'Brown', '#906000'],
+  ['peach', 'Peach', '#f06060'],
+  ['darkgreen', 'Dark Green', '#006000'],
+  ['lightblue', 'Light Blue', '#0090c0'],
+];
+
+export const PENGUIN_COLORS: Record<string, { label: string; v: string; V: string; u: string }> =
+  Object.fromEntries(
+    CP_COLOURS.map(([id, label, base]) => [
+      id,
+      { label, v: base, V: shadeHex(base, -0.4), u: shadeHex(base, 0.25) },
+    ]),
+  );
 
 function setPenguinPalette(color: string) {
   const c = PENGUIN_COLORS[color] ?? PENGUIN_COLORS.blue;

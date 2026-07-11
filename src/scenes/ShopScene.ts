@@ -5,49 +5,45 @@ import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
-import { blockUi, forceLeave, isUiBlocked, unblockUi } from '../systems/nav';
+import { forceLeave, isUiBlocked } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 
 const TILE = 48;
 const COLS = 12;
 const ROWS = 9;
-const ROOM_X = (800 - COLS * TILE) / 2; // center the room
+const ROOM_X = (800 - COLS * TILE) / 2;
 const ROOM_Y = 90;
 const WALL_ROWS = 2;
 
-export class HouseScene extends Phaser.Scene {
+// Daniel's shop interior: browse the counter, buy things, head back out.
+export class ShopScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private pet!: Pet;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private keyE!: Phaser.Input.Keyboard.Key;
-  private keyI!: Phaser.Input.Keyboard.Key;
+  private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
   private prompt!: Prompt;
-  private menuOpen = false;
-  private facing: 'up' | 'down' | 'side' = 'down';
-  private furnitureSprites: Phaser.GameObjects.Image[] = [];
   private clickMove!: ClickMove;
   private joystick!: Joystick;
   private pointerHeld = false;
-  private keyEsc!: Phaser.Input.Keyboard.Key;
-  // Placement mode: a ghost of the selected item follows the mouse.
-  private placing: string | null = null;
-  private ghost: Phaser.GameObjects.Image | null = null;
+  private menuOpen = false;
+  private facing: 'up' | 'down' | 'side' = 'up';
+  private bunny!: Phaser.GameObjects.Image;
   private doorMat!: Phaser.GameObjects.Image;
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
-  // The pointerdown that closes a menu must not also place/pick up furniture.
   private ignoreClicksUntil = 0;
 
   constructor() {
-    super('House');
+    super('Shop');
   }
 
   create() {
     generateTextures(this);
     this.menuOpen = false;
-    this.placing = null;
-    this.ghost = null;
+    this.pointerHeld = false;
+    this.ignoreClicksUntil = 0;
 
     this.cameras.main.setBackgroundColor('#241f38');
 
@@ -66,13 +62,44 @@ export class HouseScene extends Phaser.Scene {
       .setTint(0x8d6e63)
       .setScale(1.3);
 
-    this.renderFurniture();
+    // Counter across the middle-top with Daniel behind it
+    for (let gx = 4; gx <= 7; gx++) {
+      const t = this.add
+        .image(ROOM_X + gx * TILE + TILE / 2, ROOM_Y + 3 * TILE + TILE / 2, 'item-table')
+        .setScale(1.3);
+      t.setDepth(t.y);
+    }
+    this.bunny = this.add
+      .image(ROOM_X + 6 * TILE, ROOM_Y + 2.7 * TILE, 'bunny')
+      .setScale(1.4);
+    this.bunny.setDepth(this.bunny.y);
+
+    // Shelf dressing: wares on display
+    const dressing: [number, number, string][] = [
+      [1.5, 2.6, 'item-bookshelf'],
+      [10.5, 2.6, 'item-bookshelf'],
+      [1.5, 5.5, 'item-plant'],
+      [10.5, 5.5, 'item-lamp'],
+      [10.5, 4, 'item-lightstick'],
+    ];
+    for (const [gx, gy, tex] of dressing) {
+      const img = this.add.image(ROOM_X + gx * TILE, ROOM_Y + gy * TILE, tex).setScale(1.2);
+      img.setDepth(img.y);
+    }
+
+    this.add
+      .text(470, 40, "Daniel's Shop — E / tap Daniel to browse · ESC / door to leave", {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#c8c8dc',
+      })
+      .setOrigin(0.5)
+      .setDepth(1000);
 
     const px = ROOM_X + doorGx * TILE + TILE / 2;
     const py = ROOM_Y + (ROWS - 2) * TILE;
     this.player = this.physics.add.sprite(px, py, 'penguin-up', 0);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
-    // Keep the penguin inside the floor area of the room.
     const b = this.player.body as Phaser.Physics.Arcade.Body;
     b.setBoundsRectangle(
       new Phaser.Geom.Rectangle(ROOM_X, ROOM_Y + WALL_ROWS * TILE - 20, COLS * TILE, (ROWS - WALL_ROWS) * TILE + 20),
@@ -86,55 +113,25 @@ export class HouseScene extends Phaser.Scene {
     this.cursors = kb.createCursorKeys();
     this.wasd = kb.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-    this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.hud = new HUD(this);
     this.prompt = new Prompt(this);
     this.clickMove = new ClickMove(this);
     this.joystick = new Joystick(this);
-    this.pointerHeld = false;
 
     bottomButtons(
       this,
       [
         { label: '[ Menu ]', onTap: () => forceLeave() },
-        { label: '[ Pet ]', onTap: () => { if (!this.menuOpen && !this.placing) this.openPetMenuInHouse(); } },
+        { label: '[ Pet ]', onTap: () => this.openPetMenu() },
       ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;
       },
     );
 
-    this.add
-      .text(400, 40, 'Your House — click to walk · I: decorate · ESC: leave · E at door: leave', {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#c8c8dc',
-      })
-      .setOrigin(0.5)
-      .setDepth(1000);
-
-    // Clickable Decorate button (same as pressing I).
-    const decorateBtn = this.add
-      .text(790, 10, '[ Decorate ]', {
-        fontFamily: 'monospace',
-        fontSize: '18px',
-        color: '#a8e6cf',
-        padding: { x: 8, y: 8 },
-      })
-      .setOrigin(1, 0)
-      .setDepth(1000)
-      .setInteractive({ useHandCursor: true });
-    decorateBtn.on('pointerover', () => decorateBtn.setColor('#d3f5e6'));
-    decorateBtn.on('pointerout', () => decorateBtn.setColor('#a8e6cf'));
-    decorateBtn.on('pointerdown', () => {
-      // Swallow this click so the scene handler doesn't also walk/pick up.
-      this.ignoreClicksUntil = this.time.now + 150;
-      if (!this.menuOpen && !this.placing) this.openDecorateMenu();
-    });
-
-    // Same live tamagotchi tick as town (scene-scoped, cleaned up on shutdown)
+    // Same live tamagotchi tick as everywhere else
     this.time.addEvent({
       delay: 60_000,
       loop: true,
@@ -147,33 +144,10 @@ export class HouseScene extends Phaser.Scene {
     });
     this.time.addEvent({ delay: 500, loop: true, callback: () => this.hud.refresh() });
 
-    // Clicks: place / pick up furniture, interact when close, or walk.
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
-      if (this.joystick.owns(pointer)) return; // joystick captured this touch
-      const g = this.pointerToGrid(pointer);
-      if (this.placing) {
-        if (g && this.canPlaceAt(g.gx, g.gy)) {
-          State.placeItem(this.placing, g.gx, g.gy);
-          toast(this, pointer.x, pointer.y - 20, 'Placed!', '#a8e6cf');
-          this.stopPlacing();
-          this.renderFurniture();
-        } else {
-          toast(this, pointer.x, pointer.y - 20, "Can't place there", '#ff6b6b');
-        }
-        return;
-      }
-      if (g) {
-        const picked = State.pickUpItem(g.gx, g.gy);
-        if (picked) {
-          toast(this, pointer.x, pointer.y - 20, `${ITEMS[picked].name} → inventory`, '#ffe066');
-          this.renderFurniture();
-          this.clickMove.clear();
-          return;
-        }
-      }
-
-      const near = this.nearestHouseInteractable();
+      if (this.joystick.owns(pointer)) return;
+      const near = this.nearestInteractable();
       if (near) {
         const clickDist = Phaser.Math.Distance.Between(pointer.worldX, pointer.worldY, near.x, near.y);
         if (clickDist < near.radius + 20) {
@@ -182,14 +156,8 @@ export class HouseScene extends Phaser.Scene {
           return;
         }
       }
-
-      if (g) {
-        this.clickMove.setTarget(
-          ROOM_X + g.gx * TILE + TILE / 2,
-          ROOM_Y + g.gy * TILE + TILE / 2,
-        );
-        this.pointerHeld = true;
-      }
+      this.clickMove.setTarget(pointer.worldX, pointer.worldY);
+      this.pointerHeld = true;
     });
     const endHold = () => {
       this.pointerHeld = false;
@@ -198,7 +166,7 @@ export class HouseScene extends Phaser.Scene {
     this.input.on('pointerupoutside', endHold);
   }
 
-  private nearestHouseInteractable(): {
+  private nearestInteractable(): {
     x: number;
     y: number;
     radius: number;
@@ -206,16 +174,27 @@ export class HouseScene extends Phaser.Scene {
     action: () => void;
     targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[];
   } | null {
+    const nearBunny =
+      Phaser.Math.Distance.Between(this.player.x, this.player.y, this.bunny.x, this.bunny.y + 40) < 90;
+    if (nearBunny) {
+      return {
+        x: this.bunny.x,
+        y: this.bunny.y,
+        radius: 90,
+        label: 'E / click — Talk to Daniel',
+        action: () => this.openShop(),
+        targets: [this.bunny],
+      };
+    }
     const doorX = ROOM_X + Math.floor(COLS / 2) * TILE + TILE / 2;
     const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
-    const nearDoor = Phaser.Math.Distance.Between(this.player.x, this.player.y, doorX, doorY) < 55;
-    if (nearDoor) {
+    if (Phaser.Math.Distance.Between(this.player.x, this.player.y, doorX, doorY) < 55) {
       return {
         x: doorX,
         y: doorY,
         radius: 55,
-        label: 'E / click — Leave house',
-        action: () => this.scene.start('Town', { spawn: 'house' }),
+        label: 'E / click — Leave shop',
+        action: () => this.scene.start('Town', { spawn: 'shop' }),
         targets: [this.doorMat],
       };
     }
@@ -227,14 +206,13 @@ export class HouseScene extends Phaser.Scene {
         y: this.pet.sprite.y,
         radius: 50,
         label: `E / click — ${State.data.petName} (your pet)`,
-        action: () => this.openPetMenuInHouse(),
+        action: () => this.openPetMenu(),
         targets: [this.pet.sprite],
       };
     }
     return null;
   }
 
-  // Outline glow on whatever the player can currently interact with.
   private setHighlight(targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[]) {
     const next = targets ?? [];
     if (next[0] === this.glowed[0] && next.length === this.glowed.length) return;
@@ -243,96 +221,40 @@ export class HouseScene extends Phaser.Scene {
     for (const o of this.glowed) o.postFX?.addGlow(0xffe066, 4);
   }
 
-  private pointerToGrid(pointer: Phaser.Input.Pointer): { gx: number; gy: number } | null {
-    const gx = Math.floor((pointer.x - ROOM_X) / TILE);
-    const gy = Math.floor((pointer.y - ROOM_Y) / TILE);
-    if (gx < 0 || gx >= COLS || gy < WALL_ROWS || gy >= ROWS) return null;
-    return { gx, gy };
+  private closeMenu() {
+    this.menuOpen = false;
+    this.ignoreClicksUntil = this.time.now + 250;
   }
 
-  private canPlaceAt(gx: number, gy: number): boolean {
-    const doorGx = Math.floor(COLS / 2);
-    if (gx === doorGx && gy === ROWS - 1) return false; // keep the doorway clear
-    return !State.data.placed.some((p) => p.gx === gx && p.gy === gy);
-  }
-
-  private renderFurniture() {
-    this.furnitureSprites.forEach((s) => s.destroy());
-    this.furnitureSprites = [];
-    for (const p of State.data.placed) {
-      const def = ITEMS[p.id];
-      if (!def) continue;
-      const x = ROOM_X + p.gx * TILE + TILE / 2;
-      const y = ROOM_Y + p.gy * TILE + TILE / 2;
-      const img = this.add.image(x, y, def.texture).setScale(1.2);
-      img.setDepth(p.id === 'rug' ? -50 : y);
-      this.furnitureSprites.push(img);
-    }
-  }
-
-  private openDecorateMenu() {
-    const furniture = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'furniture');
-    if (furniture.length === 0) {
-      toast(this, 400, 300, 'No furniture in inventory — visit the shop!', '#ff6b6b');
-      return;
-    }
+  private openShop() {
     this.menuOpen = true;
-    const options = furniture.map(([id, count]) => {
-      const item = ITEMS[id];
-      return {
-        label: `${item.name} x${count}`,
-        icon: item.texture,
-        onSelect: () => {
-          this.menuOpen = false;
-          this.startPlacing(id);
-        },
-      };
-    });
-    const menu = new Menu(this, 'Decorate — pick an item', options, 'Then click a floor tile to place it');
-    menu.onClose = () => {
-      this.menuOpen = false;
-      this.ignoreClicksUntil = this.time.now + 200;
-    };
+    const options = Object.values(ITEMS).map((item) => ({
+      label: `${item.name} — ${item.price}c`,
+      icon: item.texture,
+      disabled: State.coins < item.price,
+      onSelect: () => {
+        if (State.spendCoins(item.price)) {
+          State.addItem(item.id);
+          toast(this, this.player.x, this.player.y - 50, `Bought ${item.name}!`, '#a8e6cf');
+          this.hud.refresh();
+        }
+        this.closeMenu();
+      },
+    }));
+    const menu = new Menu(this, "Daniel's Shop", options, `You have ${State.coins} coins`);
+    menu.onClose = () => this.closeMenu();
   }
 
-  private startPlacing(id: string) {
-    this.placing = id;
-    blockUi();
-    this.ghost = this.add.image(0, 0, ITEMS[id].texture).setAlpha(0.6).setScale(1.2).setDepth(3000);
-  }
-
-  private stopPlacing() {
-    if (this.placing) unblockUi();
-    this.placing = null;
-    this.ghost?.destroy();
-    this.ghost = null;
-  }
-
-  private openPetMenuInHouse() {
+  private openPetMenu() {
+    if (this.menuOpen) return;
     this.menuOpen = true;
-    const hasBed = State.data.placed.some((p) => p.id === 'bed');
     const foods = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'food');
     const options = [
       {
-        label: `Feed ${State.data.petName}`,
+        label: `Feed ${State.data.petName}${foods.length === 0 ? ' (no food — ask Daniel!)' : ''}`,
         icon: 'fish',
         disabled: foods.length === 0,
-        onSelect: () => {
-          this.menuOpen = false;
-          this.openFeedMenu();
-        },
-      },
-      {
-        label: hasBed ? 'Tuck into bed (full energy!)' : 'Tuck into bed (needs a Dream Bed)',
-        icon: 'item-bed',
-        disabled: !hasBed,
-        onSelect: () => {
-          State.petSleep();
-          toast(this, this.pet.sprite.x, this.pet.sprite.y - 24, 'Zzz... so cozy!', '#ffb3d1');
-          this.pet.showEmotion('sleep', 2500);
-          this.hud.refresh();
-          this.menuOpen = false;
-        },
+        onSelect: () => this.openFeedMenu(),
       },
       {
         label: 'Play together (+happy, -energy)',
@@ -344,7 +266,7 @@ export class HouseScene extends Phaser.Scene {
             this.pet.updateMood();
             this.hud.refresh();
           }
-          this.menuOpen = false;
+          this.closeMenu();
         },
       },
     ];
@@ -355,10 +277,7 @@ export class HouseScene extends Phaser.Scene {
       options,
       `Food ${Math.round(p.hunger)} · Happy ${Math.round(p.happiness)} · Energy ${Math.round(p.energy)}`,
     );
-    menu.onClose = () => {
-      this.menuOpen = false;
-      this.ignoreClicksUntil = this.time.now + 200;
-    };
+    menu.onClose = () => this.closeMenu();
   }
 
   private openFeedMenu() {
@@ -375,15 +294,12 @@ export class HouseScene extends Phaser.Scene {
             this.pet.updateMood();
             this.hud.refresh();
           }
-          this.menuOpen = false;
+          this.closeMenu();
         },
       };
     });
     const menu = new Menu(this, `Feed ${State.data.petName}`, options);
-    menu.onClose = () => {
-      this.menuOpen = false;
-      this.ignoreClicksUntil = this.time.now + 200;
-    };
+    menu.onClose = () => this.closeMenu();
   }
 
   update() {
@@ -392,22 +308,21 @@ export class HouseScene extends Phaser.Scene {
     const speed = 200;
     let vx = 0;
     let vy = 0;
-    if (!this.menuOpen && !this.placing) {
+    if (!this.menuOpen) {
       if (this.cursors.left.isDown || this.wasd.A.isDown) vx = -speed;
       else if (this.cursors.right.isDown || this.wasd.D.isDown) vx = speed;
       if (this.cursors.up.isDown || this.wasd.W.isDown) vy = -speed;
       else if (this.cursors.down.isDown || this.wasd.S.isDown) vy = speed;
     }
 
-    // Priority: keyboard > joystick > click/hold-to-move.
     const j = this.joystick.vec;
     if (vx !== 0 || vy !== 0) {
       this.clickMove.clear();
-    } else if (!this.menuOpen && !this.placing && (Math.abs(j.x) > 0.18 || Math.abs(j.y) > 0.18)) {
+    } else if (!this.menuOpen && (Math.abs(j.x) > 0.18 || Math.abs(j.y) > 0.18)) {
       this.clickMove.clear();
       vx = j.x * speed;
       vy = j.y * speed;
-    } else if (!this.menuOpen && !this.placing) {
+    } else if (!this.menuOpen) {
       const ap = this.input.activePointer;
       if (this.pointerHeld && ap.isDown && !this.joystick.active) {
         ap.updateWorldPoint(this.cameras.main);
@@ -446,28 +361,8 @@ export class HouseScene extends Phaser.Scene {
     this.player.setDepth(feetDepth(this.player));
     this.pet.update(this.player.x - (this.player.flipX ? -26 : 26), this.player.y + 8, moving);
 
-    // Ghost follows the mouse, snapped to the grid
-    if (this.placing && this.ghost) {
-      const g = this.pointerToGrid(this.input.activePointer);
-      if (g) {
-        this.ghost.setVisible(true);
-        this.ghost.x = ROOM_X + g.gx * TILE + TILE / 2;
-        this.ghost.y = ROOM_Y + g.gy * TILE + TILE / 2;
-        this.ghost.setTint(this.canPlaceAt(g.gx, g.gy) ? 0xffffff : 0xff6b6b);
-      } else {
-        this.ghost.setVisible(false);
-      }
-      if (Phaser.Input.Keyboard.JustDown(this.keyEsc)) {
-        this.stopPlacing();
-      }
-    } else if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !isUiBlocked()) {
-      this.scene.start('Town', { spawn: 'house' });
-    }
-
-    if (!this.menuOpen && !this.placing) {
-      if (Phaser.Input.Keyboard.JustDown(this.keyI)) this.openDecorateMenu();
-
-      const near = this.nearestHouseInteractable();
+    if (!this.menuOpen) {
+      const near = this.nearestInteractable();
       this.setHighlight(near?.targets);
       if (near) {
         this.prompt.show(near.label);
@@ -478,6 +373,10 @@ export class HouseScene extends Phaser.Scene {
     } else {
       this.prompt.hide();
       this.setHighlight(undefined);
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !this.menuOpen && !isUiBlocked()) {
+      this.scene.start('Town', { spawn: 'shop' });
     }
   }
 }

@@ -59,15 +59,18 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 | Click furniture | (in house) pick it up into inventory |
 | Drag + release | (paper toss) slingshot the paper ball |
 | ESC / click outside | close a menu |
-| ESC (in town) | pause menu — resume, penguin colour, or exit |
+| ESC (in town) | game menu — resume, penguin colour, change pet, exit |
+| [ Pet ] / [ Menu ] (bottom-right) | pet care · game menu, no walking required |
 | Exit / Back / Sign out | asks for confirmation first |
 
 - **Mochi** (your pet) follows you everywhere. Its Food / Happy / Energy
   bars decay in real time — including while the game is closed (capped at
   12h so a holiday isn't fatal). Feed it snacks, play with it, and tuck it
   into a bed to restore energy.
-- **Daniel's Shop** (bunny NPC) sells food and furniture for coins —
-  including the SVT Lightstick VER.3 Anniversary for superfan rooms.
+- **Daniel's Shop** — walk up to the shop building and step inside;
+  Daniel the bunny waits at the counter selling food and furniture for
+  coins, including the SVT Lightstick VER.3 Anniversary for superfan
+  rooms.
 - **Paper Toss** (arcade cabinet) earns coins, and your pet does the
   tossing. 4 stages: sink 3 baskets within 5 throws to clear a stage and
   unlock the next; run out of throws and you can retry the same stage

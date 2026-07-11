@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
-import { applyPenguinColor, generateTextures, PENGUIN_COLORS } from '../sprites/pixelart';
+import { generateTextures } from '../sprites/pixelart';
 import { State, ITEMS, WELCOME_KEY } from '../systems/GameState';
-import { HUD, Menu, Prompt, toast } from '../systems/UI';
+import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
@@ -39,6 +39,7 @@ export class TownScene extends Phaser.Scene {
   // Hold-to-move: while the walk pointer stays down, keep steering at it.
   private pointerHeld = false;
   private houseImg!: Phaser.GameObjects.Image;
+  private shopImg!: Phaser.GameObjects.Image;
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   // Menu option clicks must not also trigger walk/interact underneath.
   private ignoreClicksUntil = 0;
@@ -47,7 +48,7 @@ export class TownScene extends Phaser.Scene {
     super('Town');
   }
 
-  create(data: { spawn?: 'house' | 'arcade' }) {
+  create(data: { spawn?: 'house' | 'arcade' | 'shop' }) {
     generateTextures(this);
     this.interactables = [];
     this.menuOpen = false;
@@ -67,6 +68,9 @@ export class TownScene extends Phaser.Scene {
     } else if (data?.spawn === 'arcade') {
       sx = 24 * TILE;
       sy = 16 * TILE;
+    } else if (data?.spawn === 'shop') {
+      sx = 25 * TILE;
+      sy = 9.4 * TILE;
     }
 
     this.player = this.physics.add.sprite(sx, sy, 'penguin-down', 0);
@@ -91,6 +95,18 @@ export class TownScene extends Phaser.Scene {
     this.joystick = new Joystick(this);
     this.pointerHeld = false;
 
+    // Always-reachable actions: pet care + the game menu.
+    bottomButtons(
+      this,
+      [
+        { label: '[ Menu ]', onTap: () => forceLeave() },
+        { label: '[ Pet ]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } },
+      ],
+      () => {
+        this.ignoreClicksUntil = this.time.now + 150;
+      },
+    );
+
     // Club Penguin-style: click ground to walk; click a nearby interactable to use it.
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
@@ -104,6 +120,16 @@ export class TownScene extends Phaser.Scene {
           this.scene.start('House');
         } else {
           this.clickMove.setTarget(6.5 * TILE, 8.4 * TILE);
+        }
+        return;
+      }
+      if (this.shopImg.getBounds().contains(pointer.worldX, pointer.worldY)) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, 25 * TILE, 6.3 * TILE);
+        if (d < 150) {
+          this.clickMove.clear();
+          this.scene.start('Shop');
+        } else {
+          this.clickMove.setTarget(25 * TILE, 8.6 * TILE);
         }
         return;
       }
@@ -187,11 +213,10 @@ export class TownScene extends Phaser.Scene {
       targets: [house],
     });
 
-    // Shop with Daniel the bunny keeper
+    // Daniel's shop — Daniel is inside; walk near and enter.
     const shop = this.add.image(25 * TILE, 6 * TILE, 'shop').setScale(2);
     shop.setDepth(shop.y + shop.displayHeight / 2);
-    const bunny = this.add.image(25 * TILE, 8.6 * TILE, 'bunny').setScale(1.2);
-    bunny.setDepth(bunny.y + bunny.displayHeight / 2);
+    this.shopImg = shop;
     this.add
       .text(25 * TILE, 6 * TILE - shop.displayHeight / 2 - 12, "Daniel's Shop", {
         fontFamily: 'monospace',
@@ -204,11 +229,11 @@ export class TownScene extends Phaser.Scene {
       .setDepth(900);
     this.interactables.push({
       x: 25 * TILE,
-      y: 8.6 * TILE,
-      radius: 80,
-      label: 'E / click — Talk to Daniel',
-      action: () => this.openShop(),
-      targets: [bunny],
+      y: 6.3 * TILE,
+      radius: 130,
+      label: "E / click — Enter Daniel's Shop",
+      action: () => this.scene.start('Shop'),
+      targets: [shop],
     });
 
     // Arcade cabinet → paper toss minigame
@@ -265,63 +290,12 @@ export class TownScene extends Phaser.Scene {
     this.physics.add.collider(this.player, solids);
   }
 
-  private openShop() {
-    this.menuOpen = true;
-    const options = Object.values(ITEMS).map((item) => ({
-      label: `${item.name} — ${item.price}c`,
-      icon: item.texture,
-      disabled: State.coins < item.price,
-      onSelect: () => {
-        if (State.spendCoins(item.price)) {
-          State.addItem(item.id);
-          toast(this, this.player.x, this.player.y - 50, `Bought ${item.name}!`, '#a8e6cf');
-          this.hud.refresh();
-        }
-        this.closeMenu();
-      },
-    }));
-    const menu = new Menu(this, "Daniel's Shop", options, `You have ${State.coins} coins`);
-    menu.onClose = () => this.closeMenu();
-  }
-
   private closeMenu() {
     this.menuOpen = false;
     this.ignoreClicksUntil = this.time.now + 250;
   }
 
-  // ESC pause menu: resume, restyle the penguin, or leave the game.
-  private openEscapeMenu() {
-    this.menuOpen = true;
-    const options = [
-      { label: 'Back to game', onSelect: () => {} },
-      { label: 'Penguin colour', onSelect: () => this.openPenguinColorMenu() },
-      { label: 'Exit game', onSelect: () => forceLeave() },
-    ];
-    const menu = new Menu(this, 'Paused', options, `${State.data.petName} keeps living while you're away`);
-    menu.onClose = () => this.closeMenu();
-  }
 
-  // Pick a colourway; textures + walk anims rebuild on the spot.
-  private openPenguinColorMenu() {
-    this.menuOpen = true;
-    const current = State.data.penguinColor ?? 'blue';
-    const options = Object.entries(PENGUIN_COLORS).map(([id, def]) => ({
-      label: `${def.label}${id === current ? '  ✓' : ''}`,
-      onSelect: () => {
-        State.setPenguinColor(id);
-        applyPenguinColor(this, id);
-        // Rebind the player to the freshly generated texture.
-        this.player.setTexture(
-          this.facing === 'up' ? 'penguin-up' : this.facing === 'side' ? 'penguin-side' : 'penguin-down',
-          0,
-        );
-        toast(this, this.player.x, this.player.y - 60, def.label + '!', '#a8e6cf');
-        this.closeMenu();
-      },
-    }));
-    const menu = new Menu(this, 'Penguin colour', options, 'Pick your look');
-    menu.onClose = () => this.closeMenu();
-  }
 
   private openPetMenu() {
     this.menuOpen = true;
@@ -441,6 +415,11 @@ export class TownScene extends Phaser.Scene {
       // Holding the pointer down keeps steering toward it as it moves.
       const ap = this.input.activePointer;
       if (this.pointerHeld && ap.isDown && !this.joystick.active) {
+        // LoL-style held move: re-derive the world point under the pointer
+        // every frame — worldX/Y go stale as the camera scrolls while the
+        // pointer sits still, which made the player drift in the swipe
+        // direction instead of walking to the held spot.
+        ap.updateWorldPoint(this.cameras.main);
         this.clickMove.setTarget(ap.worldX, ap.worldY, true);
       }
       const step = this.clickMove.step(this.player.x, this.player.y, speed);
@@ -491,7 +470,8 @@ export class TownScene extends Phaser.Scene {
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !this.menuOpen && !isUiBlocked()) {
-      this.openEscapeMenu();
+      // The React shell owns the game menu (resume / colour / pet / exit).
+      forceLeave();
     }
   }
 }

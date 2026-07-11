@@ -172,6 +172,38 @@ export class Menu {
   }
 }
 
+/**
+ * Bottom-right action buttons ([ Pet ] opens the pet menu without needing
+ * to stand next to it; [ Menu ] opens the game menu). `before` runs first
+ * so scenes can swallow the click (ignoreClicksUntil).
+ */
+export function bottomButtons(
+  scene: Phaser.Scene,
+  buttons: { label: string; onTap: () => void }[],
+  before: () => void,
+) {
+  let x = 786;
+  for (const def of buttons) {
+    const b = scene.add
+      .text(x, 556, def.label, {
+        ...FONT,
+        fontSize: '17px',
+        color: '#ffe066',
+        backgroundColor: '#1a1a2ecc',
+        padding: { x: 12, y: 9 },
+      })
+      .setOrigin(1, 0.5)
+      .setScrollFactor(0)
+      .setDepth(1450)
+      .setInteractive({ useHandCursor: true });
+    b.on('pointerdown', () => {
+      before();
+      def.onTap();
+    });
+    x -= b.width + 12;
+  }
+}
+
 // Bottom-of-screen contextual prompt ("E — Talk to Bella").
 export class Prompt {
   private text: Phaser.GameObjects.Text;
