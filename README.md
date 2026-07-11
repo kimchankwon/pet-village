@@ -54,7 +54,7 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 | Click / tap | Walk to that spot |
 | Hold / drag | Keep walking toward the pointer |
 | Joystick (bottom-left) | Walk — made for touch |
-| E / click | Interact when close (door, shop, arcade, pet) |
+| E / click | Interact when close (door, shop, arcade) |
 | I / Decorate button | (in house) open the decorate menu |
 | Click furniture | (in house) pick it up into inventory |
 | Drag + release | (paper toss) slingshot the paper ball |
@@ -73,8 +73,8 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   rooms.
 - **Paper Toss** (arcade cabinet) earns coins, and your pet does the
   tossing. 4 stages: sink 3 baskets within 5 throws to clear a stage and
-  unlock the next; run out of throws and you can retry the same stage
-  (run totals carry over). Each stage brings stronger wind and more
+  unlock the next; run out of throws and you retry the same stage
+  with the identical wind/obstacle combination (run totals carry over). Each stage brings stronger wind and more
   randomly placed obstacle planks the ball bounces off, plus a
   wider-wandering bin. The wind readout sits at the bottom and streaks
   drift across the room showing which way it blows. Throw power caps out
