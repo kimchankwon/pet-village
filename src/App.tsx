@@ -6,7 +6,7 @@ import { AuthPanel } from './ui/AuthPanel';
 import { startGame } from './game/startGame';
 import { State } from './systems/GameState';
 import { applyPenguinColor, PENGUIN_COLORS } from './sprites/pixelart';
-import { resetUiBlock, setLeaveHandler } from './systems/nav';
+import { blockUi, resetUiBlock, setLeaveHandler, unblockUi } from './systems/nav';
 import type Phaser from 'phaser';
 
 // Game-styled confirmation dialog. ESC cancels via a capture-phase listener
@@ -78,6 +78,15 @@ function PlayChrome({
     setLeaveHandler(() => setPanel('menu'));
     return () => setLeaveHandler(null);
   }, []);
+
+  // While any shell panel is open, the Phaser scenes must stop moving the
+  // player (keyboard/joystick input still reaches window listeners behind
+  // the modal). blockUi() flips nav.isUiBlocked(), which the scenes gate on.
+  useEffect(() => {
+    if (!panel) return;
+    blockUi();
+    return () => unblockUi();
+  }, [panel]);
 
   // ESC closes the open panel. Capture phase + stopPropagation so Phaser's
   // own window keydown listener doesn't also see it.

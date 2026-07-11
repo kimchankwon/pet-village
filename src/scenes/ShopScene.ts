@@ -109,6 +109,22 @@ export class ShopScene extends Phaser.Scene {
 
     this.pet = new Pet(this, px - 30, py + 10);
 
+    // Solid fixtures: the counter (and displays) block walking, so you
+    // browse from the customer side instead of phasing through Daniel.
+    const solids: Phaser.GameObjects.Rectangle[] = [];
+    const addSolid = (x: number, y: number, w: number, h: number) => {
+      const r = this.add.rectangle(x, y, w, h, 0x000000, 0);
+      this.physics.add.existing(r, true);
+      solids.push(r);
+    };
+    addSolid(ROOM_X + 6 * TILE, ROOM_Y + 3.5 * TILE + 6, 4 * TILE + 12, 34); // counter
+    addSolid(ROOM_X + 1.5 * TILE, ROOM_Y + 2.8 * TILE, 44, 30); // left shelf
+    addSolid(ROOM_X + 10.5 * TILE, ROOM_Y + 2.8 * TILE, 44, 30); // right shelf
+    addSolid(ROOM_X + 1.5 * TILE, ROOM_Y + 5.6 * TILE, 36, 26); // plant
+    addSolid(ROOM_X + 10.5 * TILE, ROOM_Y + 5.6 * TILE, 36, 26); // lamp
+    addSolid(ROOM_X + 10.5 * TILE, ROOM_Y + 4.1 * TILE, 30, 24); // lightstick display
+    this.physics.add.collider(this.player, solids);
+
     const kb = this.input.keyboard!;
     this.cursors = kb.createCursorKeys();
     this.wasd = kb.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
@@ -306,9 +322,11 @@ export class ShopScene extends Phaser.Scene {
     if (!this.player) return;
 
     const speed = 200;
+    // The shell (React) menu blocks input via nav; treat it like a menu.
+    const uiOpen = this.menuOpen || isUiBlocked();
     let vx = 0;
     let vy = 0;
-    if (!this.menuOpen) {
+    if (!uiOpen) {
       if (this.cursors.left.isDown || this.wasd.A.isDown) vx = -speed;
       else if (this.cursors.right.isDown || this.wasd.D.isDown) vx = speed;
       if (this.cursors.up.isDown || this.wasd.W.isDown) vy = -speed;
@@ -318,11 +336,11 @@ export class ShopScene extends Phaser.Scene {
     const j = this.joystick.vec;
     if (vx !== 0 || vy !== 0) {
       this.clickMove.clear();
-    } else if (!this.menuOpen && (Math.abs(j.x) > 0.18 || Math.abs(j.y) > 0.18)) {
+    } else if (!uiOpen && (Math.abs(j.x) > 0.18 || Math.abs(j.y) > 0.18)) {
       this.clickMove.clear();
       vx = j.x * speed;
       vy = j.y * speed;
-    } else if (!this.menuOpen) {
+    } else if (!uiOpen) {
       const ap = this.input.activePointer;
       if (this.pointerHeld && ap.isDown && !this.joystick.active) {
         ap.updateWorldPoint(this.cameras.main);

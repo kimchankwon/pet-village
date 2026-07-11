@@ -393,10 +393,11 @@ export class TownScene extends Phaser.Scene {
     if (!this.player) return;
 
     const speed = 220;
+    // The shell (React) menu blocks input via nav; treat it like a menu.
+    const uiOpen = this.menuOpen || isUiBlocked();
     let vx = 0;
     let vy = 0;
-
-    if (!this.menuOpen) {
+    if (!uiOpen) {
       if (this.cursors.left.isDown || this.wasd.A.isDown) vx = -speed;
       else if (this.cursors.right.isDown || this.wasd.D.isDown) vx = speed;
       if (this.cursors.up.isDown || this.wasd.W.isDown) vy = -speed;
@@ -407,11 +408,11 @@ export class TownScene extends Phaser.Scene {
     const j = this.joystick.vec;
     if (vx !== 0 || vy !== 0) {
       this.clickMove.clear();
-    } else if (!this.menuOpen && (Math.abs(j.x) > 0.18 || Math.abs(j.y) > 0.18)) {
+    } else if (!uiOpen && (Math.abs(j.x) > 0.18 || Math.abs(j.y) > 0.18)) {
       this.clickMove.clear();
       vx = j.x * speed;
       vy = j.y * speed;
-    } else if (!this.menuOpen) {
+    } else if (!uiOpen) {
       // Holding the pointer down keeps steering toward it as it moves.
       const ap = this.input.activePointer;
       if (this.pointerHeld && ap.isDown && !this.joystick.active) {
