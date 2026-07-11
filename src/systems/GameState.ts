@@ -290,6 +290,9 @@ class GameStateStore {
     this.data.petName = trimmed;
     this.data.adopted = true;
     this.save();
+    // Adoption is a milestone — push it to the cloud immediately instead of
+    // trusting the debounce to survive a quick tab close.
+    this.flushCloud();
   }
 
   /** Guest-only: wipe local progress and return to the adopt screen. */

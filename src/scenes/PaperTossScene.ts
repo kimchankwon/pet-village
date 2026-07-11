@@ -144,6 +144,18 @@ export class PaperTossScene extends Phaser.Scene {
     this.keyE = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.keyEsc = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
+    // The pet keeps living while you're at the arcade — same tamagotchi
+    // tick as Town/House. Without it, coin saves refresh lastSeen and the
+    // arcade time silently escaped the decay clock.
+    this.time.addEvent({
+      delay: 60_000,
+      loop: true,
+      callback: () => {
+        State.decay(1 / 60);
+        State.save();
+      },
+    });
+
     // Always-visible leave control
     const backBtn = this.add
       .text(780, 44, '[ Back ]', { ...FONT, color: '#ffb3d1' })
