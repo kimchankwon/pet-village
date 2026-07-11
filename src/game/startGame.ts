@@ -25,14 +25,31 @@ export function startGame(parent: HTMLElement): Phaser.Game {
     scene: [BootScene, AdoptScene, TownScene, HouseScene, PaperTossScene],
   });
 
-  const onUnload = () => {
-    // save() persists locally and arms the cloud debounce; flush fires it now.
+  // save() persists locally and arms the cloud debounce; flush fires it now.
+  const persistNow = () => {
     State.save();
     State.flushCloud();
   };
-  window.addEventListener('beforeunload', onUnload);
+  // beforeunload alone is unreliable (mobile backgrounding / tab kill never
+  // fire it, and network sends during unload often die). visibilitychange →
+  // hidden fires early — while the page can still deliver the cloud write —
+  // and pagehide covers iOS Safari.
+  const onHide = () => {
+    if (document.visibilityState === 'hidden') {
+      persistNow();
+    } else {
+      // Coming back: Phaser's clocks were suspended and the hide-flush
+      // advanced lastSeen — apply the decay the hidden interval earned.
+      State.reconcileElapsedDecay();
+    }
+  };
+  window.addEventListener('beforeunload', persistNow);
+  window.addEventListener('pagehide', persistNow);
+  document.addEventListener('visibilitychange', onHide);
   game.events.once(Phaser.Core.Events.DESTROY, () => {
-    window.removeEventListener('beforeunload', onUnload);
+    window.removeEventListener('beforeunload', persistNow);
+    window.removeEventListener('pagehide', persistNow);
+    document.removeEventListener('visibilitychange', onHide);
   });
 
   (window as unknown as { __game: Phaser.Game }).__game = game;
