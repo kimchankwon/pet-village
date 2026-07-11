@@ -35,7 +35,13 @@ export function startGame(parent: HTMLElement): Phaser.Game {
   // hidden fires early — while the page can still deliver the cloud write —
   // and pagehide covers iOS Safari.
   const onHide = () => {
-    if (document.visibilityState === 'hidden') persistNow();
+    if (document.visibilityState === 'hidden') {
+      persistNow();
+    } else {
+      // Coming back: Phaser's clocks were suspended and the hide-flush
+      // advanced lastSeen — apply the decay the hidden interval earned.
+      State.reconcileElapsedDecay();
+    }
   };
   window.addEventListener('beforeunload', persistNow);
   window.addEventListener('pagehide', persistNow);

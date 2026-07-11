@@ -195,6 +195,16 @@ class GameStateStore {
     this.persistLocal();
   }
 
+  /**
+   * Reconcile decay for time spent with the tab hidden. Phaser's timers
+   * pause while animation frames are suspended, and the hide-flush advances
+   * lastSeen — without this, backgrounding the tab would pause the pet's
+   * clock entirely. Same 12h cap as any offline period.
+   */
+  reconcileElapsedDecay() {
+    this.applyOfflineDecay();
+  }
+
   // Called with fractional hours; also used for live ticking while playing.
   decay(hours: number) {
     const p = this.data.pet;
