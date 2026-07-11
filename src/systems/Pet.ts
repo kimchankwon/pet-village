@@ -3,6 +3,7 @@ import { State } from './GameState';
 import { toast } from './UI';
 import { feetDepth } from './depth';
 import { petAnimKey, petTextureKey, type PetPose } from './pets';
+import { ACCESSORIES } from './accessories';
 
 /**
  * Companion that stays a short distance *behind* the player along their
@@ -21,6 +22,7 @@ export class Pet {
   private readonly ARRIVE = 4;
   private readonly FOLLOW_DIST = 46;
   private emotionUntil = 0;
+  private accessorySprites: Phaser.GameObjects.Image[] = [];
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
@@ -29,6 +31,7 @@ export class Pet {
     this.sprite = scene.add.sprite(x, y, this.tex('idle1')).setScale(1.5);
     this.sprite.setDepth(feetDepth(this.sprite));
     this.sprite.play(this.anim('bounce'));
+    this.refreshAccessories();
     this.updateMood();
   }
 
@@ -42,6 +45,35 @@ export class Pet {
 
   private anim(kind: 'bounce' | 'walk') {
     return petAnimKey(this.species(), kind);
+  }
+
+  /** Rebuild equipped accessory overlays (call after equip changes). */
+  refreshAccessories() {
+    for (const img of this.accessorySprites) img.destroy();
+    this.accessorySprites = [];
+    for (const id of State.equippedAccessoryIds()) {
+      const def = ACCESSORIES[id];
+      if (!def) continue;
+      if (!this.scene.textures.exists(def.texture)) continue;
+      const img = this.scene.add
+        .image(this.sprite.x, this.sprite.y, def.texture)
+        .setScale(this.sprite.scaleX)
+        .setFlipX(this.facingLeft);
+      this.accessorySprites.push(img);
+    }
+    this.syncAccessories();
+  }
+
+  private syncAccessories() {
+    const depth = feetDepth(this.sprite) + 1;
+    for (const img of this.accessorySprites) {
+      img.setPosition(this.sprite.x, this.sprite.y);
+      img.setScale(this.sprite.scaleX);
+      img.setFlipX(this.facingLeft);
+      img.setDepth(depth);
+      img.setVisible(this.sprite.visible);
+      img.setAlpha(this.sprite.alpha);
+    }
   }
 
   /**
@@ -95,7 +127,10 @@ export class Pet {
 
     this.sprite.setDepth(feetDepth(this.sprite));
 
-    if (this.scene.time.now < this.emotionUntil) return;
+    if (this.scene.time.now < this.emotionUntil) {
+      this.syncAccessories();
+      return;
+    }
 
     const movedX = this.sprite.x - prevX;
     if (movedX < -1.0) this.facingLeft = true;
@@ -110,6 +145,7 @@ export class Pet {
     } else {
       this.sprite.play(this.anim('bounce'), true);
     }
+    this.syncAccessories();
   }
 
   updateMood() {
@@ -120,12 +156,14 @@ export class Pet {
     } else if (!this.sprite.anims.isPlaying) {
       this.sprite.play(this.anim('bounce'));
     }
+    this.syncAccessories();
   }
 
   showEmotion(pose: Extract<PetPose, 'happy' | 'sleep' | 'jump'>, ms: number) {
     this.emotionUntil = this.scene.time.now + ms;
     this.sprite.stop();
     this.sprite.setTexture(this.tex(pose));
+    this.syncAccessories();
   }
 
   emitHearts() {

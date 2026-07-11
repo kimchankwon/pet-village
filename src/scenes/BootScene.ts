@@ -1,6 +1,10 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
 import {
+  ACCESSORY_ASSET_PATH,
+  ACCESSORY_LIST,
+} from '../systems/accessories';
+import {
   PET_ASSET_FILES,
   PET_SPECIES_LIST,
   petAnimKey,
@@ -11,6 +15,7 @@ import {
 import { State } from '../systems/GameState';
 
 const CINNA_POSES = ['idle', 'walk1', 'walk2', 'happy', 'sad', 'jump'] as const;
+const BONG_POSES = ['idle', 'walk1', 'walk2', 'happy', 'sad', 'jump'] as const;
 
 // Loads pet + NPC sprites, then Adopt (first run) or Town.
 export class BootScene extends Phaser.Scene {
@@ -28,6 +33,12 @@ export class BootScene extends Phaser.Scene {
     }
     for (const pose of CINNA_POSES) {
       this.load.image(`cinna-${pose}`, `assets/npc/cinnamoroll/${pose}.png`);
+    }
+    for (const pose of BONG_POSES) {
+      this.load.image(`bong-${pose}`, `assets/npc/bongbongee/${pose}.png`);
+    }
+    for (const acc of ACCESSORY_LIST) {
+      this.load.image(acc.texture, ACCESSORY_ASSET_PATH[acc.id]);
     }
   }
 
@@ -64,6 +75,19 @@ export class BootScene extends Phaser.Scene {
     this.anims.create({
       key: 'cinna-walk',
       frames: [{ key: 'cinna-walk1' }, { key: 'cinna-walk2' }],
+      frameRate: 5,
+      repeat: -1,
+    });
+
+    this.anims.create({
+      key: 'bong-bounce',
+      frames: [{ key: 'bong-idle' }, { key: 'bong-happy' }],
+      frameRate: 2,
+      repeat: -1,
+    });
+    this.anims.create({
+      key: 'bong-walk',
+      frames: [{ key: 'bong-walk1' }, { key: 'bong-walk2' }],
       frameRate: 5,
       repeat: -1,
     });

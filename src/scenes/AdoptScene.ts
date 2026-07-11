@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { State } from '../systems/GameState';
 import {
   CLASSIC_PETS,
+  MASCOT_PETS,
   PET_SPECIES,
   PET_SPECIES_LIST,
   PUFFLE_PETS,
@@ -44,7 +45,7 @@ export class AdoptScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(400, 92, 'Tamagotchi classics or Club Penguin puffles — then pick a name.', {
+      .text(400, 92, 'Tamagotchi, puffles, or CARAT’s Bongbongee — then pick a name.', {
         ...FONT,
         fontSize: '12px',
         color: '#a89bc4',
@@ -55,16 +56,20 @@ export class AdoptScene extends Phaser.Scene {
       .text(400, 118, 'Tamagotchi', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
 
-    this.layoutRow(CLASSIC_PETS, 195, 200, 2.4);
+    this.layoutRow(CLASSIC_PETS, 185, 200, 2.2);
     this.add
-      .text(400, 278, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .text(400, 255, 'Bongbongee', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
-    this.layoutRow(PUFFLE_PETS, 340, 88, 1.7);
+    this.layoutRow(MASCOT_PETS, 300, 220, 2.0);
+    this.add
+      .text(400, 355, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .setOrigin(0.5);
+    this.layoutRow(PUFFLE_PETS, 410, 88, 1.55);
 
     this.selectSpecies('mametchi');
 
     this.add
-      .text(400, 430, 'Pet name', { ...FONT, fontSize: '13px', color: '#c8c8dc' })
+      .text(400, 455, 'Pet name', { ...FONT, fontSize: '13px', color: '#c8c8dc' })
       .setOrigin(0.5);
 
     this.nameInput = document.createElement('input');
@@ -121,7 +126,7 @@ export class AdoptScene extends Phaser.Scene {
   }
 
   private layoutRow(
-    defs: typeof CLASSIC_PETS | typeof PUFFLE_PETS,
+    defs: typeof CLASSIC_PETS | typeof PUFFLE_PETS | typeof MASCOT_PETS,
     centerY: number,
     spacing: number,
     scale: number,
@@ -129,7 +134,7 @@ export class AdoptScene extends Phaser.Scene {
     const n = defs.length;
     const startX = 400 - ((n - 1) * spacing) / 2;
     const cardW = Math.min(190, spacing - 8);
-    const cardH = defs[0]?.group === 'puffle' ? 100 : 130;
+    const cardH = defs[0]?.group === 'puffle' ? 90 : defs[0]?.group === 'mascot' ? 110 : 120;
 
     defs.forEach((def, i) => {
       const x = startX + i * spacing;
@@ -167,7 +172,7 @@ export class AdoptScene extends Phaser.Scene {
     const scaleX = canvasRect.width / this.scale.width;
     const scaleY = canvasRect.height / this.scale.height;
     const left = canvasRect.left - parentRect.left + 400 * scaleX - 110;
-    const top = canvasRect.top - parentRect.top + 455 * scaleY - 17;
+    const top = canvasRect.top - parentRect.top + 480 * scaleY - 17;
     this.nameInput.style.left = `${left}px`;
     this.nameInput.style.top = `${top}px`;
   }
@@ -180,7 +185,7 @@ export class AdoptScene extends Phaser.Scene {
       const on = def.id === species;
       card.ring.setStrokeStyle(2, on ? 0x7ed6a8 : 0x3a3352);
       card.ring.setFillStyle(on ? 0x342a52 : 0x2a2440, 0.95);
-      const base = def.group === 'puffle' ? 1.7 : 2.4;
+      const base = def.group === 'puffle' ? 1.55 : def.group === 'mascot' ? 2.0 : 2.2;
       card.sprite.setScale(on ? base + 0.35 : base);
     }
     if (this.nameInput) {

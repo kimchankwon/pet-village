@@ -1,7 +1,10 @@
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
-import { petSpeciesValidator } from "./lib/validators";
+import {
+  equippedAccessoriesValidator,
+  petSpeciesValidator,
+} from "./lib/validators";
 
 const petStats = v.object({
   hunger: v.number(),
@@ -26,6 +29,8 @@ const saveFields = {
   inventory: v.record(v.string(), v.number()),
   placed: v.array(placedItem),
   bestPaperToss: v.number(),
+  ownedAccessories: v.optional(v.array(v.string())),
+  equippedAccessories: equippedAccessoriesValidator,
 };
 
 const saveDoc = v.object({

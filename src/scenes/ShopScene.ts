@@ -3,6 +3,7 @@ import { generateTextures } from '../sprites/pixelart';
 import { State, ITEMS } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
+import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
 import { forceLeave, isUiBlocked } from '../systems/nav';
@@ -274,6 +275,12 @@ export class ShopScene extends Phaser.Scene {
           this.closeMenu();
         },
       },
+      clothesPetMenuOption(this, this.pet, {
+        closeMenu: () => this.closeMenu(),
+        keepMenuOpen: () => {
+          this.menuOpen = true;
+        },
+      }),
     ];
     const p = State.data.pet;
     const menu = new Menu(

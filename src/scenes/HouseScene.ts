@@ -3,6 +3,7 @@ import { generateTextures } from '../sprites/pixelart';
 import { State, ITEMS } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
+import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
 import { blockUi, forceLeave, isUiBlocked, unblockUi } from '../systems/nav';
@@ -336,6 +337,15 @@ export class HouseScene extends Phaser.Scene {
           this.menuOpen = false;
         },
       },
+      clothesPetMenuOption(this, this.pet, {
+        closeMenu: () => {
+          this.menuOpen = false;
+          this.ignoreClicksUntil = this.time.now + 200;
+        },
+        keepMenuOpen: () => {
+          this.menuOpen = true;
+        },
+      }),
     ];
     const p = State.data.pet;
     const menu = new Menu(

@@ -8,7 +8,7 @@ export type PuffleColor =
   | 'red'
   | 'yellow'
   | 'white';
-export type PetSpecies = ClassicSpecies | `puffle-${PuffleColor}`;
+export type PetSpecies = ClassicSpecies | `puffle-${PuffleColor}` | 'bongbongee';
 
 export const PUFFLE_COLORS: PuffleColor[] = [
   'blue',
@@ -21,7 +21,13 @@ export const PUFFLE_COLORS: PuffleColor[] = [
   'white',
 ];
 
-type PetDef = { id: PetSpecies; label: string; defaultName: string; blurb: string; group: 'classic' | 'puffle' };
+type PetDef = {
+  id: PetSpecies;
+  label: string;
+  defaultName: string;
+  blurb: string;
+  group: 'classic' | 'puffle' | 'mascot';
+};
 
 const CLASSIC: PetDef[] = [
   {
@@ -66,13 +72,24 @@ const PUFFLES: PetDef[] = PUFFLE_COLORS.map((color) => ({
   group: 'puffle' as const,
 }));
 
+const MASCOT: PetDef[] = [
+  {
+    id: 'bongbongee',
+    label: 'Bongbongee',
+    defaultName: 'Bong',
+    blurb: 'SEVENTEEN CARAT mascot · loves sparkles',
+    group: 'mascot',
+  },
+];
+
 export const PET_SPECIES: Record<PetSpecies, PetDef> = Object.fromEntries(
-  [...CLASSIC, ...PUFFLES].map((d) => [d.id, d]),
+  [...CLASSIC, ...PUFFLES, ...MASCOT].map((d) => [d.id, d]),
 ) as Record<PetSpecies, PetDef>;
 
 export const PET_SPECIES_LIST = Object.values(PET_SPECIES);
 export const CLASSIC_PETS = CLASSIC;
 export const PUFFLE_PETS = PUFFLES;
+export const MASCOT_PETS = MASCOT;
 
 /** File stem under public/assets/pet/<species>/ */
 export const PET_ASSET_FILES = [
@@ -123,5 +140,6 @@ export const petSpeciesValidatorLiterals = [
   'mametchi',
   'kuchipatchi',
   'mimitchi',
+  'bongbongee',
   ...PUFFLE_COLORS.map((c) => `puffle-${c}`),
 ] as const;

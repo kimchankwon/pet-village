@@ -5,6 +5,7 @@ export const petSpeciesValidator = v.optional(
     v.literal("mametchi"),
     v.literal("kuchipatchi"),
     v.literal("mimitchi"),
+    v.literal("bongbongee"),
     v.literal("puffle-blue"),
     v.literal("puffle-pink"),
     v.literal("puffle-green"),
@@ -14,4 +15,13 @@ export const petSpeciesValidator = v.optional(
     v.literal("puffle-yellow"),
     v.literal("puffle-white"),
   ),
+);
+
+export const equippedAccessoriesValidator = v.optional(
+  v.object({
+    headLeft: v.optional(v.string()),
+    headRight: v.optional(v.string()),
+    body: v.optional(v.string()),
+    extra: v.optional(v.string()),
+  }),
 );

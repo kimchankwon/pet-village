@@ -1,7 +1,10 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
-import { petSpeciesValidator } from "./lib/validators";
+import {
+  equippedAccessoriesValidator,
+  petSpeciesValidator,
+} from "./lib/validators";
 
 const petStats = v.object({
   hunger: v.number(),
@@ -32,6 +35,8 @@ export default defineSchema({
     inventory: v.record(v.string(), v.number()),
     placed: v.array(placedItem),
     bestPaperToss: v.number(),
+    ownedAccessories: v.optional(v.array(v.string())),
+    equippedAccessories: equippedAccessoriesValidator,
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),
 });

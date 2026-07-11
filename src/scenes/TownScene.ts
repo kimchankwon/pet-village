@@ -8,6 +8,8 @@ import { feetDepth } from '../systems/depth';
 import { forceLeave, isUiBlocked } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { CinnamorollNpc } from '../systems/CinnamorollNpc';
+import { BongbongeeNpc } from '../systems/BongbongeeNpc';
+import { clothesPetMenuOption } from '../systems/petClothesMenu';
 
 const TILE = 48;
 const WORLD_W = 32 * TILE;
@@ -27,6 +29,7 @@ export class TownScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private pet!: Pet;
   private cinna!: CinnamorollNpc;
+  private bong!: BongbongeeNpc;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private keyE!: Phaser.Input.Keyboard.Key;
@@ -89,6 +92,15 @@ export class TownScene extends Phaser.Scene {
       { x: 16 * TILE, y: 18 * TILE },
       { x: 8 * TILE, y: 16 * TILE },
       { x: 26 * TILE, y: 14 * TILE },
+    ]);
+
+    this.bong = new BongbongeeNpc(this, [
+      { x: 12 * TILE, y: 15 * TILE },
+      { x: 18 * TILE, y: 11 * TILE },
+      { x: 27 * TILE, y: 12 * TILE },
+      { x: 14 * TILE, y: 19 * TILE },
+      { x: 7 * TILE, y: 13 * TILE },
+      { x: 21 * TILE, y: 17 * TILE },
     ]);
 
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
@@ -332,6 +344,12 @@ export class TownScene extends Phaser.Scene {
           this.closeMenu();
         },
       },
+      clothesPetMenuOption(this, this.pet, {
+        closeMenu: () => this.closeMenu(),
+        keepMenuOpen: () => {
+          this.menuOpen = true;
+        },
+      }),
     ];
     const p = State.data.pet;
     const menu = new Menu(
@@ -399,6 +417,34 @@ export class TownScene extends Phaser.Scene {
             );
           },
           targets: [this.cinna.sprite],
+        };
+        bestDist = d;
+      }
+    }
+    if (this.bong) {
+      const d = Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        this.bong.sprite.x,
+        this.bong.sprite.y,
+      );
+      if (d < 55 && d < bestDist) {
+        best = {
+          x: this.bong.sprite.x,
+          y: this.bong.sprite.y,
+          radius: 55,
+          label: 'E / click — Talk to Bongbongee',
+          action: () => {
+            this.menuOpen = true;
+            this.bong.talk(
+              () => this.closeMenu(),
+              () => {
+                this.menuOpen = true;
+              },
+              () => this.pet.refreshAccessories(),
+            );
+          },
+          targets: [this.bong.sprite],
         };
       }
     }
@@ -482,6 +528,7 @@ export class TownScene extends Phaser.Scene {
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
     this.cinna?.update();
+    this.bong?.update();
 
     if (!this.menuOpen) {
       const best = this.nearestInteractable();
