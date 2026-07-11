@@ -60,6 +60,14 @@ export class PaperTossScene extends Phaser.Scene {
   private windStreaks: { rect: Phaser.GameObjects.Rectangle; baseY: number; seed: number }[] = [];
   private swatches: Phaser.GameObjects.Rectangle[] = [];
   private scored = false;
+  // Per-flight state for skill bonuses and settle detection.
+  private rimTouched = false;
+  private banked = false;
+  private floorBounces = 0;
+  private flightTime = 0;
+  private slowTime = 0;
+  private trailTimer = 0;
+  private roundCoins = 0;
   private dragStart: { x: number; y: number } | null = null;
   private aimGfx!: Phaser.GameObjects.Graphics;
   private windText!: Phaser.GameObjects.Text;
@@ -83,6 +91,7 @@ export class PaperTossScene extends Phaser.Scene {
     this.obstacles = [];
     this.windStreaks = [];
     this.swatches = [];
+    this.roundCoins = 0;
     this.dragStart = null;
 
     // Backdrop: cozy arcade room
@@ -125,7 +134,7 @@ export class PaperTossScene extends Phaser.Scene {
       .text(780, 16, `Best: ${State.data.bestPaperToss}`, { ...FONT, color: '#c8c8dc' })
       .setOrigin(1, 0);
     this.add
-      .text(400, 574, 'Drag anywhere to throw · ESC / Back to leave — watch the wind!', {
+      .text(400, 574, 'Drag anywhere to throw · Swish +1 · Bank off a plank +2 · Streak +2 — watch the wind!', {
         ...FONT,
         fontSize: '12px',
         color: '#c8c8dc',
@@ -163,6 +172,12 @@ export class PaperTossScene extends Phaser.Scene {
       this.vy = Math.min(c.dy * POWER, 400); // never hurl it straight down
       this.mode = 'flying';
       this.scored = false;
+      this.rimTouched = false;
+      this.banked = false;
+      this.floorBounces = 0;
+      this.flightTime = 0;
+      this.slowTime = 0;
+      this.trailTimer = 0;
     };
     this.input.on('pointerup', release);
     // Letting go outside the game canvas still counts as the throw.
@@ -186,6 +201,90 @@ export class PaperTossScene extends Phaser.Scene {
       });
       this.swatches.push(s);
     });
+  }
+
+  // One physics substep: integrate, then resolve plank / rim / mouth /
+  // floor / bounds. Returns the throw's outcome, if it ended.
+  private stepFlight(sdt: number): 'none' | 'basket' | 'miss' {
+    this.vx += this.wind * WIND_INFLUENCE * sdt;
+    this.vy += GRAVITY * sdt;
+    this.ball.x += this.vx * sdt;
+    this.ball.y += this.vy * sdt;
+    this.ball.angle += this.vx * sdt * 0.5;
+
+    // Bounce off obstacle planks (AABB, resolve the shallower axis).
+    // A plank bounce marks the throw as a bank shot.
+    for (const o of this.obstacles) {
+      const hw = o.rect.width / 2 + BALL_R;
+      const hh = o.rect.height / 2 + BALL_R;
+      const dx = this.ball.x - o.rect.x;
+      const dy = this.ball.y - o.rect.y;
+      if (Math.abs(dx) < hw && Math.abs(dy) < hh) {
+        const px = hw - Math.abs(dx);
+        const py = hh - Math.abs(dy);
+        if (px < py) {
+          this.ball.x += dx > 0 ? px : -px;
+          this.vx = -this.vx * 0.55;
+        } else {
+          this.ball.y += dy > 0 ? py : -py;
+          this.vy = -this.vy * 0.5;
+          this.vx *= 0.85;
+        }
+        this.banked = true;
+      }
+    }
+
+    // Rim physics: two rim knobs at the mouth edges deflect the ball, so
+    // near-misses clip out (or rattle in) instead of ghosting through.
+    const mouthY = this.bin.y - 28;
+    for (const rx of [this.bin.x - 27, this.bin.x + 27]) {
+      const dx = this.ball.x - rx;
+      const dy = this.ball.y - mouthY;
+      const d = Math.hypot(dx, dy);
+      if (d < BALL_R + 5 && d > 0.01) {
+        const nx = dx / d;
+        const ny = dy / d;
+        const dot = this.vx * nx + this.vy * ny;
+        if (dot < 0) {
+          this.vx = (this.vx - 2 * dot * nx) * 0.55;
+          this.vy = (this.vy - 2 * dot * ny) * 0.55;
+          const push = BALL_R + 5 - d;
+          this.ball.x += nx * push;
+          this.ball.y += ny * push;
+          this.rimTouched = true;
+          this.tweens.add({
+            targets: this.bin,
+            angle: { from: this.ball.x < this.bin.x ? -3 : 3, to: 0 },
+            duration: 150,
+          });
+        }
+      }
+    }
+
+    // Bin mouth: score when the ball drops through the opening between the rims.
+    if (
+      !this.scored &&
+      this.vy > 0 &&
+      Math.abs(this.ball.x - this.bin.x) < 18 &&
+      Math.abs(this.ball.y - mouthY) < 12
+    ) {
+      return 'basket';
+    }
+
+    // Floor: a light paper ball hops up to twice before the throw dies —
+    // a lucky hop through the mouth still counts.
+    if (this.ball.y > GROUND_Y - 8 && this.vy > 0) {
+      if (this.floorBounces < 2 && this.vy > 150) {
+        this.floorBounces++;
+        this.ball.y = GROUND_Y - 8;
+        this.vy = -this.vy * 0.45;
+        this.vx *= 0.7;
+      } else {
+        return 'miss';
+      }
+    }
+    if (this.ball.x > 820 || this.ball.x < -20) return 'miss';
+    return 'none';
   }
 
   // The drag vector saturates at MAX_DRAG px — that's full power.
@@ -278,10 +377,19 @@ export class PaperTossScene extends Phaser.Scene {
     this.scored = true;
     this.baskets++;
     this.streak++;
-    const bonus = this.streak >= 3 ? 2 : 0;
-    const earned = COINS_PER_BASKET + bonus;
+    // Skill bonuses: a clean swish pays +1, banking it off a plank +2,
+    // and 3+ in a row keeps the +2 streak bonus.
+    const streakBonus = this.streak >= 3 ? 2 : 0;
+    const swish = !this.rimTouched && !this.banked && this.floorBounces === 0;
+    const earned = COINS_PER_BASKET + streakBonus + (swish ? 1 : 0) + (this.banked ? 2 : 0);
+    const tags = [
+      swish ? 'SWISH!' : '',
+      this.banked ? 'BANK!' : '',
+      streakBonus ? 'streak!' : '',
+    ].filter(Boolean);
     State.addCoins(earned);
-    toast(this, this.bin.x, this.bin.y - 60, bonus ? `+${earned} (streak!)` : `+${earned}`, '#ffe066');
+    this.roundCoins += earned;
+    toast(this, this.bin.x, this.bin.y - 60, tags.length ? `+${earned} ${tags.join(' ')}` : `+${earned}`, '#ffe066');
     this.tweens.add({ targets: this.ball, y: this.bin.y, alpha: 0, scale: 0.6, duration: 200 });
     this.tweens.add({ targets: this.bin, angle: { from: -4, to: 0 }, duration: 250 });
     this.endThrow();
@@ -316,7 +424,10 @@ export class PaperTossScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(51);
     this.add
-      .text(400, 285, `${this.baskets}/${THROWS_PER_ROUND} baskets`, { ...FONT, fontSize: '16px' })
+      .text(400, 285, `${this.baskets}/${THROWS_PER_ROUND} baskets · +${this.roundCoins} coins`, {
+        ...FONT,
+        fontSize: '16px',
+      })
       .setOrigin(0.5)
       .setDepth(51);
     this.add
@@ -376,48 +487,50 @@ export class PaperTossScene extends Phaser.Scene {
       }
     }
 
-    if (this.mode === 'flying') {
-      this.vx += this.wind * WIND_INFLUENCE * dt;
-      this.vy += GRAVITY * dt;
-      this.ball.x += this.vx * dt;
-      this.ball.y += this.vy * dt;
-      this.ball.angle += this.vx * dt * 0.5;
+    // Level 4: the bin creeps side to side while you line up and throw.
+    if (this.level === LEVELS.length && (this.mode === 'aiming' || this.mode === 'flying')) {
+      this.bin.x = this.binX + Math.sin(time / 900) * 40;
+    }
 
-      // Bounce off obstacle planks (AABB, resolve the shallower axis).
-      for (const o of this.obstacles) {
-        const hw = o.rect.width / 2 + BALL_R;
-        const hh = o.rect.height / 2 + BALL_R;
-        const dx = this.ball.x - o.rect.x;
-        const dy = this.ball.y - o.rect.y;
-        if (Math.abs(dx) < hw && Math.abs(dy) < hh) {
-          const px = hw - Math.abs(dx);
-          const py = hh - Math.abs(dy);
-          if (px < py) {
-            this.ball.x += dx > 0 ? px : -px;
-            this.vx = -this.vx * 0.55;
-          } else {
-            this.ball.y += dy > 0 ? py : -py;
-            this.vy = -this.vy * 0.5;
-            this.vx *= 0.85;
-          }
+    if (this.mode === 'flying') {
+      // Fading trail so the arc (and the wind bending it) is readable.
+      this.trailTimer -= dt;
+      if (this.trailTimer <= 0) {
+        this.trailTimer = 0.04;
+        const ghost = this.add
+          .image(this.ball.x, this.ball.y, 'paperball')
+          .setScale(0.7)
+          .setAlpha(0.3)
+          .setTint(this.ball.tintTopLeft)
+          .setDepth(9);
+        this.tweens.add({ targets: ghost, alpha: 0, scale: 0.3, duration: 250, onComplete: () => ghost.destroy() });
+      }
+
+      // Substep the physics so a fast ball can't tunnel through the rim,
+      // the 24px mouth window, or a plank between two frames.
+      const maxV = Math.max(Math.abs(this.vx), Math.abs(this.vy));
+      const steps = Phaser.Math.Clamp(Math.ceil((maxV * dt) / 6), 1, 24);
+      const sdt = dt / steps;
+      for (let i = 0; i < steps; i++) {
+        const outcome = this.stepFlight(sdt);
+        if (outcome === 'basket') {
+          this.basket();
+          return;
+        }
+        if (outcome === 'miss') {
+          this.miss();
+          return;
         }
       }
 
-      // Bin mouth: score when the ball drops through the opening
-      const mouthY = this.bin.y - 28;
-      const mouthHalf = 26;
-      if (
-        !this.scored &&
-        this.vy > 0 &&
-        Math.abs(this.ball.x - this.bin.x) < mouthHalf &&
-        Math.abs(this.ball.y - mouthY) < 12
-      ) {
-        this.basket();
-        return;
-      }
-      // Ground or out of bounds = miss
-      if (this.ball.y > GROUND_Y - 8 || this.ball.x > 820 || this.ball.x < -20) {
+      // Settle failsafes: a ball resting on a plank or dribbling on the
+      // floor must still end the throw.
+      this.flightTime += dt;
+      if (Math.hypot(this.vx, this.vy) < 40) this.slowTime += dt;
+      else this.slowTime = 0;
+      if (this.flightTime > 7 || this.slowTime > 0.5) {
         this.miss();
+        return;
       }
     }
 
