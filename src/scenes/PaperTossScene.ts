@@ -7,8 +7,15 @@ const GROUND_Y = 480;
 const BALL_START = { x: 150, y: 430 };
 const THROWS_PER_LEVEL = 3;
 const COINS_PER_BASKET = 3;
-const GRAVITY = 1500;
+// Slower, floatier flight so the wind has time to bend the arc.
+const GRAVITY = 1100;
 const BALL_R = 12;
+// Drag-to-power: the pull saturates at MAX_DRAG px — dragging further
+// doesn't add speed (the aim line turns red at the cap).
+const MAX_DRAG = 260;
+const POWER = 3.4; // velocity per px of (clamped) drag
+// Wind pushes the ball harder than its raw px/s² value.
+const WIND_INFLUENCE = 1.25;
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 
@@ -24,28 +31,12 @@ interface ObstacleDef {
 }
 
 // 3 throws per level; each level brings stronger wind, a wider-wandering
-// bin, and new obstacle variants the ball bounces off.
-const LEVELS: { windMax: number; binMin: number; binMax: number; obstacles: ObstacleDef[] }[] = [
-  { windMax: 160, binMin: 430, binMax: 600, obstacles: [] },
-  { windMax: 240, binMin: 430, binMax: 650, obstacles: [{ x: 400, y: 330, w: 90, h: 16 }] },
-  {
-    windMax: 320,
-    binMin: 450,
-    binMax: 680,
-    obstacles: [
-      { x: 340, y: 390, w: 80, h: 16 },
-      { x: 520, y: 230, w: 100, h: 16 },
-    ],
-  },
-  {
-    windMax: 400,
-    binMin: 460,
-    binMax: 700,
-    obstacles: [
-      { x: 450, y: 300, w: 96, h: 16, moveY: { range: 90, speed: 1.7 } },
-      { x: 620, y: 200, w: 70, h: 16 },
-    ],
-  },
+// bin, and more randomly placed obstacle planks the ball bounces off.
+const LEVELS: { windMax: number; binMin: number; binMax: number; obstacles: number }[] = [
+  { windMax: 220, binMin: 430, binMax: 600, obstacles: 0 },
+  { windMax: 320, binMin: 430, binMax: 650, obstacles: 1 },
+  { windMax: 440, binMin: 450, binMax: 680, obstacles: 2 },
+  { windMax: 560, binMin: 460, binMax: 700, obstacles: 3 },
 ];
 const THROWS_PER_ROUND = THROWS_PER_LEVEL * LEVELS.length;
 
@@ -66,6 +57,7 @@ export class PaperTossScene extends Phaser.Scene {
   private streak = 0;
   private level = 0; // 1-based once newThrow runs
   private obstacles: { rect: Phaser.GameObjects.Rectangle; def: ObstacleDef; phase: number }[] = [];
+  private windStreaks: { rect: Phaser.GameObjects.Rectangle; baseY: number; seed: number }[] = [];
   private swatches: Phaser.GameObjects.Rectangle[] = [];
   private scored = false;
   private dragStart: { x: number; y: number } | null = null;
@@ -89,6 +81,7 @@ export class PaperTossScene extends Phaser.Scene {
     this.streak = 0;
     this.level = 0;
     this.obstacles = [];
+    this.windStreaks = [];
     this.swatches = [];
     this.dragStart = null;
 
@@ -115,7 +108,19 @@ export class PaperTossScene extends Phaser.Scene {
 
     this.add.text(20, 16, 'PAPER TOSS', { ...FONT, fontSize: '18px', color: '#ffe066' });
     this.statusText = this.add.text(20, 44, '', FONT);
-    this.windText = this.add.text(400, 32, '', { ...FONT, fontSize: '16px' }).setOrigin(0.5, 0);
+    // Wind readout lives at the bottom, over the floor.
+    this.windText = this.add.text(400, 496, '', { ...FONT, fontSize: '16px' }).setOrigin(0.5, 0).setDepth(21);
+
+    // Drifting streaks across the play area animate which way (and how
+    // hard) the wind is blowing.
+    for (let i = 0; i < 12; i++) {
+      const baseY = Phaser.Math.Between(130, 460);
+      const rect = this.add
+        .rectangle(Phaser.Math.Between(0, 800), baseY, 30, 2, 0xcfe8ff, 1)
+        .setAlpha(0.18)
+        .setDepth(3);
+      this.windStreaks.push({ rect, baseY, seed: i * 0.9 });
+    }
     this.bestText = this.add
       .text(780, 16, `Best: ${State.data.bestPaperToss}`, { ...FONT, color: '#c8c8dc' })
       .setOrigin(1, 0);
@@ -153,8 +158,9 @@ export class PaperTossScene extends Phaser.Scene {
       this.aimGfx.clear();
       // Slingshot: pull down-left, ball flies up-right. Require a real pull.
       if (Math.hypot(dx, dy) < 20) return;
-      this.vx = Phaser.Math.Clamp(dx * 4.5, -1200, 1200);
-      this.vy = Phaser.Math.Clamp(dy * 4.5, -1400, 400);
+      const c = this.clampDrag(dx, dy);
+      this.vx = c.dx * POWER;
+      this.vy = Math.min(c.dy * POWER, 400); // never hurl it straight down
       this.mode = 'flying';
       this.scored = false;
     };
@@ -182,16 +188,44 @@ export class PaperTossScene extends Phaser.Scene {
     });
   }
 
-  // Obstacle planks the ball bounces off; layout changes with the level.
+  // The drag vector saturates at MAX_DRAG px — that's full power.
+  private clampDrag(dx: number, dy: number): { dx: number; dy: number; atMax: boolean } {
+    const len = Math.hypot(dx, dy);
+    if (len <= MAX_DRAG) return { dx, dy, atMax: false };
+    const k = MAX_DRAG / len;
+    return { dx: dx * k, dy: dy * k, atMax: true };
+  }
+
+  // Obstacle planks the ball bounces off. Count scales with the level and
+  // positions re-randomise every throw; level 4's first plank oscillates.
   private buildObstacles() {
     this.obstacles.forEach((o) => o.rect.destroy());
-    this.obstacles = LEVELS[this.level - 1].obstacles.map((def, i) => {
+    this.obstacles = [];
+    const count = LEVELS[this.level - 1].obstacles;
+    const placed: { x: number; y: number }[] = [];
+    for (let i = 0; i < count; i++) {
+      let x = 0;
+      let y = 0;
+      // Keep planks spaced out so a clear line to the bin always exists.
+      for (let tries = 0; tries < 20; tries++) {
+        x = Phaser.Math.Between(300, 640);
+        y = Phaser.Math.Between(170, 400);
+        if (!placed.some((p) => Math.abs(p.x - x) < 130 && Math.abs(p.y - y) < 70)) break;
+      }
+      placed.push({ x, y });
+      const def: ObstacleDef = {
+        x,
+        y,
+        w: Phaser.Math.Between(70, 110),
+        h: 16,
+        moveY: this.level === LEVELS.length && i === 0 ? { range: 90, speed: 1.7 } : undefined,
+      };
       const rect = this.add
         .rectangle(def.x, def.y, def.w, def.h, 0x8d6e63)
         .setStrokeStyle(3, 0x5d4037)
         .setDepth(4);
-      return { rect, def, phase: i * 1.3 };
-    });
+      this.obstacles.push({ rect, def, phase: i * 1.3 });
+    }
   }
 
   private newThrow(first = false) {
@@ -199,14 +233,15 @@ export class PaperTossScene extends Phaser.Scene {
     // Reset scale/alpha too — the basket tween shrinks and fades the ball.
     this.ball.setPosition(BALL_START.x, BALL_START.y).setVisible(true).setAlpha(1).setScale(1);
 
-    // Level up every THROWS_PER_LEVEL throws: new obstacles, stronger wind.
+    // Level up every THROWS_PER_LEVEL throws: more obstacles, stronger wind.
     const thrown = THROWS_PER_ROUND - this.throwsLeft;
     const level = Math.min(LEVELS.length, Math.floor(thrown / THROWS_PER_LEVEL) + 1);
     if (level !== this.level) {
       this.level = level;
-      this.buildObstacles();
       if (!first) toast(this, 400, 180, `Level ${level} — stronger wind!`, '#ffe066');
     }
+    // Obstacles re-randomise every throw.
+    this.buildObstacles();
 
     // Fresh wind and a wandering bin every throw; both scale with the level.
     const cfg = LEVELS[this.level - 1];
@@ -225,7 +260,7 @@ export class PaperTossScene extends Phaser.Scene {
     this.windText.setText(label).setColor(strength > 180 ? '#ff6b6b' : strength > 90 ? '#ffe066' : '#a8e6cf');
     this.windArrow.clear();
     const len = (strength / windMax) * 70 + 10;
-    const y = 60;
+    const y = 526;
     this.windArrow.lineStyle(4, 0x87ceeb, 1);
     this.windArrow.lineBetween(400 - (dir * len) / 2, y, 400 + (dir * len) / 2, y);
     this.windArrow.fillStyle(0x87ceeb, 1);
@@ -312,15 +347,27 @@ export class PaperTossScene extends Phaser.Scene {
       }
     }
 
-    // Aim line while dragging
+    // Wind streaks drift with the wind: direction, speed and length all
+    // read the current wind so the blow is visible at a glance.
+    for (const s of this.windStreaks) {
+      s.rect.x += this.wind * WIND_INFLUENCE * dt;
+      s.rect.displayWidth = 16 + Math.abs(this.wind) / 7;
+      s.rect.y = s.baseY + Math.sin(time / 400 + s.seed) * 4;
+      s.rect.setAlpha(this.mode === 'done' ? 0 : 0.1 + Math.min(0.22, Math.abs(this.wind) / 1800));
+      if (s.rect.x > 830) s.rect.x -= 860;
+      else if (s.rect.x < -30) s.rect.x += 860;
+    }
+
+    // Aim line while dragging — clamped at max power (line turns red).
     if (this.mode === 'aiming' && this.dragStart && this.input.activePointer.isDown) {
       const p = this.input.activePointer;
+      const c = this.clampDrag(this.dragStart.x - p.x, this.dragStart.y - p.y);
       this.aimGfx.clear();
-      this.aimGfx.lineStyle(3, 0xffe066, 0.9);
-      this.aimGfx.lineBetween(this.ball.x, this.ball.y, this.ball.x + (this.dragStart.x - p.x), this.ball.y + (this.dragStart.y - p.y));
+      this.aimGfx.lineStyle(3, c.atMax ? 0xff6b6b : 0xffe066, 0.9);
+      this.aimGfx.lineBetween(this.ball.x, this.ball.y, this.ball.x + c.dx, this.ball.y + c.dy);
       // Preview dots along the initial trajectory (without wind — part of the challenge)
-      const pvx = Phaser.Math.Clamp((this.dragStart.x - p.x) * 4.5, -1200, 1200);
-      const pvy = Phaser.Math.Clamp((this.dragStart.y - p.y) * 4.5, -1400, 400);
+      const pvx = c.dx * POWER;
+      const pvy = Math.min(c.dy * POWER, 400);
       this.aimGfx.fillStyle(0xffffff, 0.5);
       for (let t = 0.08; t <= 0.4; t += 0.08) {
         const x = this.ball.x + pvx * t;
@@ -330,7 +377,7 @@ export class PaperTossScene extends Phaser.Scene {
     }
 
     if (this.mode === 'flying') {
-      this.vx += this.wind * dt;
+      this.vx += this.wind * WIND_INFLUENCE * dt;
       this.vy += GRAVITY * dt;
       this.ball.x += this.vx * dt;
       this.ball.y += this.vy * dt;

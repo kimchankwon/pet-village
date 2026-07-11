@@ -17,6 +17,8 @@ interface Interactable {
   radius: number;
   label: string;
   action: () => void;
+  /** Sprites that get an outline glow while this is the active interactable. */
+  targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[];
 }
 
 export class TownScene extends Phaser.Scene {
@@ -32,6 +34,8 @@ export class TownScene extends Phaser.Scene {
   private menuOpen = false;
   private facing: 'up' | 'down' | 'side' = 'down';
   private clickMove!: ClickMove;
+  private houseImg!: Phaser.GameObjects.Image;
+  private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   // Menu option clicks must not also trigger walk/interact underneath.
   private ignoreClicksUntil = 0;
 
@@ -84,6 +88,18 @@ export class TownScene extends Phaser.Scene {
     // Club Penguin-style: click ground to walk; click a nearby interactable to use it.
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
+      // Clicking anywhere on the house enters it when near; otherwise walk
+      // to the door instead of into the walls.
+      if (this.houseImg.getBounds().contains(pointer.worldX, pointer.worldY)) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, 6.5 * TILE, 6.3 * TILE);
+        if (d < 150) {
+          this.clickMove.clear();
+          this.scene.start('House');
+        } else {
+          this.clickMove.setTarget(6.5 * TILE, 8.4 * TILE);
+        }
+        return;
+      }
       const near = this.nearestInteractable();
       if (near) {
         const clickDist = Phaser.Math.Distance.Between(pointer.worldX, pointer.worldY, near.x, near.y);
@@ -133,9 +149,10 @@ export class TownScene extends Phaser.Scene {
       this.add.image(16 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
     }
 
-    // Player's house (enter via door at its base)
+    // Player's house — walk near any side and click anywhere on it to enter.
     const house = this.add.image(6.5 * TILE, 6 * TILE, 'house').setScale(2);
     house.setDepth(house.y + house.displayHeight / 2);
+    this.houseImg = house;
     this.add
       .text(6.5 * TILE, 6 * TILE - house.displayHeight / 2 - 12, 'My House', {
         fontFamily: 'monospace',
@@ -147,11 +164,14 @@ export class TownScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(900);
     this.interactables.push({
+      // Centred on the house body with a radius that covers every side,
+      // so standing anywhere near the house lets you enter.
       x: 6.5 * TILE,
-      y: 8.2 * TILE,
-      radius: 70,
+      y: 6.3 * TILE,
+      radius: 130,
       label: 'E / click — Enter house',
       action: () => this.scene.start('House'),
+      targets: [house],
     });
 
     // Shop with Daniel the bunny keeper
@@ -175,6 +195,7 @@ export class TownScene extends Phaser.Scene {
       radius: 80,
       label: 'E / click — Talk to Daniel',
       action: () => this.openShop(),
+      targets: [bunny],
     });
 
     // Arcade cabinet → paper toss minigame
@@ -197,6 +218,7 @@ export class TownScene extends Phaser.Scene {
       radius: 90,
       label: 'E / click — Play Paper Toss',
       action: () => this.scene.start('PaperToss'),
+      targets: [arcade],
     });
 
     // Trees around the edges and sprinkled through town
@@ -341,10 +363,20 @@ export class TownScene extends Phaser.Scene {
           radius: 50,
           label: `E / click — ${State.data.petName} (your pet)`,
           action: () => this.openPetMenu(),
+          targets: [this.pet.sprite],
         };
       }
     }
     return best;
+  }
+
+  // Outline glow on whatever the player can currently interact with.
+  private setHighlight(targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[]) {
+    const next = targets ?? [];
+    if (next[0] === this.glowed[0] && next.length === this.glowed.length) return;
+    for (const o of this.glowed) o.postFX?.clear();
+    this.glowed = next;
+    for (const o of this.glowed) o.postFX?.addGlow(0xffe066, 4);
   }
 
   update() {
@@ -400,6 +432,7 @@ export class TownScene extends Phaser.Scene {
 
     if (!this.menuOpen) {
       const best = this.nearestInteractable();
+      this.setHighlight(best?.targets);
       if (best) {
         this.prompt.show(best.label);
         if (Phaser.Input.Keyboard.JustDown(this.keyE)) best.action();
@@ -408,6 +441,7 @@ export class TownScene extends Phaser.Scene {
       }
     } else {
       this.prompt.hide();
+      this.setHighlight(undefined);
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !this.menuOpen && !isUiBlocked()) {
