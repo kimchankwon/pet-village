@@ -100,8 +100,13 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   BootScene later (keep the texture keys).
 - `public/assets/pet/mametchi/` · `kuchipatchi/` · `mimitchi/` · `puffle-*` —
   Tamagotchi iD and Club Penguin–style Puffle sprites.
-- `public/assets/npc/cinnamoroll/` — wandering town NPC (Sanrio-inspired).
-- `src/systems/CinnamorollNpc.ts` — shy/friendly dialogue + path wander.
+- `public/assets/npc/` — wandering town NPCs: Cinnamoroll (Sanrio-inspired),
+  Bongbongee (SEVENTEEN's CARAT mascot), and the 13 MINITEEN villagers
+  (SEVENTEEN's official mini characters — regenerate with
+  `npx tsx scripts/generate-miniteen.mts`).
+- `src/systems/WandererNpc.ts` — shared waypoint-wander base for NPCs;
+  `CinnamorollNpc` / `BongbongeeNpc` / `miniteen.ts` build dialogue on top.
+  Each MINITEEN villager hands out a small once-per-day coin gift.
 - `src/systems/GameState.ts` — save data, item catalog, pet-needs decay.
 - `src/systems/Pet.ts` — the follower companion (species-aware sprites).
 - `src/systems/UI.ts` — HUD, menus, toasts, prompts.

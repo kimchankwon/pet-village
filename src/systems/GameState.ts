@@ -47,6 +47,11 @@ export interface SaveData {
    * along until the server schema gains it.
    */
   penguinColor?: string;
+  /**
+   * Day stamp (Date#toDateString) of each villager's last claimed daily
+   * gift. Device-local like penguinColor: NOT in snapshot().
+   */
+  npcGiftDays?: Record<string, string>;
 }
 
 export interface ItemDef {
@@ -113,6 +118,7 @@ export function defaultSave(): SaveData {
     ownedAccessories: [],
     equippedAccessories: {},
     penguinColor: 'blue',
+    npcGiftDays: {},
   };
 }
 
@@ -183,10 +189,12 @@ class GameStateStore {
 
   /** Replace in-memory state from a cloud (or other) save, then apply offline decay. */
   hydrate(raw: Partial<SaveData>) {
-    // Cloud saves don't carry the (device-local) penguin colour — keep it.
+    // Cloud saves don't carry the device-local fields — keep them.
     const localColor = this.data.penguinColor;
+    const localGiftDays = this.data.npcGiftDays;
     this.data = mergeSave(raw);
     this.data.penguinColor = raw.penguinColor ?? localColor;
+    this.data.npcGiftDays = raw.npcGiftDays ?? localGiftDays;
     this.applyOfflineDecay();
     this.persistLocal();
   }
@@ -275,6 +283,23 @@ class GameStateStore {
   addCoins(n: number) {
     this.data.coins += n;
     this.save();
+  }
+
+  /** Whether a villager's once-per-day gift is still available today. */
+  canClaimNpcGift(npcId: string): boolean {
+    return this.data.npcGiftDays?.[npcId] !== new Date().toDateString();
+  }
+
+  /** Claim a villager's daily coin gift; false if already claimed today. */
+  claimNpcGift(npcId: string, coins: number): boolean {
+    if (!this.canClaimNpcGift(npcId)) return false;
+    const days = this.data.npcGiftDays ?? (this.data.npcGiftDays = {});
+    days[npcId] = new Date().toDateString();
+    this.data.coins += coins;
+    // Making a friend cheers the pet up a little, too.
+    this.data.pet.happiness = clamp(this.data.pet.happiness + 3);
+    this.save();
+    return true;
   }
 
   spendCoins(n: number): boolean {

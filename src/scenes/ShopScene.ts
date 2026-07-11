@@ -6,7 +6,7 @@ import { Pet } from '../systems/Pet';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
-import { forceLeave, isUiBlocked } from '../systems/nav';
+import { isUiBlocked } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 
 const TILE = 48;
@@ -137,12 +137,10 @@ export class ShopScene extends Phaser.Scene {
     this.clickMove = new ClickMove(this);
     this.joystick = new Joystick(this);
 
+    // Pet care only — the game menu lives on the shell's top-bar Menu button.
     bottomButtons(
       this,
-      [
-        { label: '[ Menu ]', onTap: () => forceLeave() },
-        { label: '[ Pet ]', onTap: () => this.openPetMenu() },
-      ],
+      [{ label: '[ Pet ]', onTap: () => this.openPetMenu() }],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;
       },

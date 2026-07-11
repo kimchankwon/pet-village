@@ -53,23 +53,20 @@ export class AdoptScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(400, 118, 'Tamagotchi', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .text(400, 118, 'Tamagotchi & Bongbongee', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
 
-    this.layoutRow(CLASSIC_PETS, 185, 200, 2.2);
+    // One row of the four "big" companions, one row of the eight puffles.
+    this.layoutRow([...CLASSIC_PETS, ...MASCOT_PETS], 182, 186, 2.1, 108);
     this.add
-      .text(400, 255, 'Bongbongee', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .text(400, 254, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
-    this.layoutRow(MASCOT_PETS, 300, 220, 2.0);
-    this.add
-      .text(400, 355, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
-      .setOrigin(0.5);
-    this.layoutRow(PUFFLE_PETS, 410, 88, 1.55);
+    this.layoutRow(PUFFLE_PETS, 314, 88, 1.55, 96);
 
     this.selectSpecies('mametchi');
 
     this.add
-      .text(400, 455, 'Pet name', { ...FONT, fontSize: '13px', color: '#c8c8dc' })
+      .text(400, 396, 'Pet name', { ...FONT, fontSize: '13px', color: '#c8c8dc' })
       .setOrigin(0.5);
 
     this.nameInput = document.createElement('input');
@@ -99,11 +96,11 @@ export class AdoptScene extends Phaser.Scene {
     this.scale.on('resize', () => this.positionNameInput());
 
     this.errorText = this.add
-      .text(400, 490, '', { ...FONT, fontSize: '13px', color: '#ff6b6b' })
+      .text(400, 462, '', { ...FONT, fontSize: '13px', color: '#ff6b6b' })
       .setOrigin(0.5);
 
     const start = this.add
-      .text(400, 535, '[ Start adventure ]', {
+      .text(400, 512, '[ Start adventure ]', {
         ...FONT,
         fontSize: '18px',
         color: '#7ed6a8',
@@ -130,11 +127,11 @@ export class AdoptScene extends Phaser.Scene {
     centerY: number,
     spacing: number,
     scale: number,
+    cardH: number,
   ) {
     const n = defs.length;
     const startX = 400 - ((n - 1) * spacing) / 2;
-    const cardW = Math.min(190, spacing - 8);
-    const cardH = defs[0]?.group === 'puffle' ? 90 : defs[0]?.group === 'mascot' ? 110 : 120;
+    const cardW = Math.min(180, spacing - 8);
 
     defs.forEach((def, i) => {
       const x = startX + i * spacing;
@@ -144,15 +141,15 @@ export class AdoptScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
 
       const sprite = this.add
-        .sprite(x, centerY - (defs[0]?.group === 'puffle' ? 8 : 12), petTextureKey(def.id, 'idle1'))
+        .sprite(x, centerY - (def.group === 'puffle' ? 8 : 10), petTextureKey(def.id, 'idle1'))
         .setScale(scale)
         .setInteractive({ useHandCursor: true });
       sprite.play(petAnimKey(def.id, 'bounce'));
 
       this.add
-        .text(x, centerY + cardH / 2 - 14, def.label.replace(' Puffle', ''), {
+        .text(x, centerY + cardH / 2 - 13, def.label.replace(' Puffle', ''), {
           ...FONT,
-          fontSize: defs[0]?.group === 'puffle' ? '11px' : '12px',
+          fontSize: def.group === 'puffle' ? '11px' : '12px',
           color: '#ffe066',
         })
         .setOrigin(0.5);
@@ -172,7 +169,7 @@ export class AdoptScene extends Phaser.Scene {
     const scaleX = canvasRect.width / this.scale.width;
     const scaleY = canvasRect.height / this.scale.height;
     const left = canvasRect.left - parentRect.left + 400 * scaleX - 110;
-    const top = canvasRect.top - parentRect.top + 480 * scaleY - 17;
+    const top = canvasRect.top - parentRect.top + 428 * scaleY - 17;
     this.nameInput.style.left = `${left}px`;
     this.nameInput.style.top = `${top}px`;
   }
@@ -185,7 +182,7 @@ export class AdoptScene extends Phaser.Scene {
       const on = def.id === species;
       card.ring.setStrokeStyle(2, on ? 0x7ed6a8 : 0x3a3352);
       card.ring.setFillStyle(on ? 0x342a52 : 0x2a2440, 0.95);
-      const base = def.group === 'puffle' ? 1.55 : def.group === 'mascot' ? 2.0 : 2.2;
+      const base = def.group === 'puffle' ? 1.55 : 2.1;
       card.sprite.setScale(on ? base + 0.35 : base);
     }
     if (this.nameInput) {
