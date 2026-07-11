@@ -84,7 +84,7 @@ function PlayChrome({
     <div className="play-shell">
       <header className="topbar">
         <button type="button" className="btn tiny back" onClick={() => setConfirm('exit')}>
-          ← Back
+          Menu
         </button>
         <span className="topbar-brand">Pet Village</span>
         <span className="topbar-user">{userLabel}</span>
