@@ -71,10 +71,13 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   randomly placed obstacle planks the ball bounces off, plus a
   wider-wandering bin. The wind readout sits at the bottom and streaks
   drift across the room showing which way it blows. Throw power caps out
-  (the aim line turns red at max). 3 coins per basket, +2 streak bonus
-  from 3 in a row. Drag anywhere on screen to slingshot (releasing
-  outside the game still throws), and pick your paper-ball colour with
-  the swatches.
+  (the aim line turns red at max). The bin has real rims — near-misses
+  rattle out (or in) — and the paper ball hops off the floor up to twice,
+  so a lucky bounce still counts. At level 4 the bin creeps while you
+  aim. Scoring: 3 coins per basket, +1 for a clean swish, +2 for banking
+  it off a plank, +2 streak bonus from 3 in a row. Drag anywhere on
+  screen to slingshot (releasing outside the game still throws), and
+  pick your paper-ball colour with the swatches.
 - Anything you can interact with (house, Daniel, arcade, your pet, the
   door mat) lights up with an outline when you're close enough.
 - **Your house** is decoratable on a grid: buy furniture, place it with
