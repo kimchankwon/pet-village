@@ -40,7 +40,9 @@ OAuth Web client, add:
 
 `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` are set on the Convex deployments.
 
-Deployed to GitHub Pages from the `gh-pages` branch (static `dist/` build).
+Deploys to GitHub Pages automatically on every merge to `main`
+(`.github/workflows/deploy.yml` builds `dist/` and publishes via
+`actions/deploy-pages`; the old `gh-pages` branch is no longer used).
 For production auth redirects, set Convex `SITE_URL` to your live origin
 (e.g. `https://kimchankwon.github.io/pet-village`).
 
