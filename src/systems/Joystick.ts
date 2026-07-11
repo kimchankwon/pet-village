@@ -16,7 +16,7 @@ export class Joystick {
   // dead zone (and in the house it overlaps valid floor cells).
   private enabled: boolean;
 
-  constructor(scene: Phaser.Scene, x = 82, y = 512, radius = 54) {
+  constructor(scene: Phaser.Scene, x = 118, y = 462, radius = 54) {
     this.cx = x;
     this.cy = y;
     this.radius = radius;

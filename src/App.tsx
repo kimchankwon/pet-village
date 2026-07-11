@@ -5,7 +5,8 @@ import { api } from '../convex/_generated/api';
 import { AuthPanel } from './ui/AuthPanel';
 import { startGame } from './game/startGame';
 import { State } from './systems/GameState';
-import { resetUiBlock, setLeaveHandler } from './systems/nav';
+import { applyPenguinColor, PENGUIN_COLORS } from './sprites/pixelart';
+import { blockUi, resetUiBlock, setLeaveHandler, unblockUi } from './systems/nav';
 import type Phaser from 'phaser';
 
 // Game-styled confirmation dialog. ESC cancels via a capture-phase listener
@@ -58,6 +59,7 @@ function PlayChrome({
   leaveLabel,
   exitNote,
   onChangePet,
+  onPenguinColor,
   children,
 }: {
   userLabel: string;
@@ -65,58 +67,118 @@ function PlayChrome({
   leaveLabel: string;
   exitNote: string;
   onChangePet?: () => void;
+  onPenguinColor?: (id: string) => void;
   children: ReactNode;
 }) {
-  const [confirm, setConfirm] = useState<'exit' | 'pet' | null>(null);
+  // The game menu: root panel, colour picker, or change-pet confirm.
+  const [panel, setPanel] = useState<'menu' | 'color' | 'pet' | null>(null);
 
-  // Every exit path (topbar buttons, pause-menu "Exit game") goes through a
-  // game-styled confirmation modal before actually leaving.
+  // ESC in-game and the topbar button both open the menu.
   useEffect(() => {
-    setLeaveHandler(() => setConfirm('exit'));
+    setLeaveHandler(() => setPanel('menu'));
     return () => setLeaveHandler(null);
   }, []);
 
-  // No window-level ESC fallback here: the canvas is never the focus target,
-  // so a keydown fallback would fire on every ESC and exit the game outright.
-  // ESC is owned by the Phaser scenes (menus, house, and the pause menu).
+  // While any shell panel is open, the Phaser scenes must stop moving the
+  // player (keyboard/joystick input still reaches window listeners behind
+  // the modal). blockUi() flips nav.isUiBlocked(), which the scenes gate on.
+  useEffect(() => {
+    if (!panel) return;
+    blockUi();
+    return () => unblockUi();
+  }, [panel]);
+
+  // ESC closes the open panel. Capture phase + stopPropagation so Phaser's
+  // own window keydown listener doesn't also see it.
+  useEffect(() => {
+    if (!panel) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setPanel(null);
+    }
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [panel]);
+
+  const currentColor = State.data.penguinColor ?? 'blue';
 
   return (
     <div className="play-shell">
       <header className="topbar">
-        <button type="button" className="btn tiny back" onClick={() => setConfirm('exit')}>
+        <button type="button" className="btn tiny back" onClick={() => setPanel('menu')}>
           Menu
         </button>
         <span className="topbar-brand">Pet Village</span>
         <span className="topbar-user">{userLabel}</span>
-        {onChangePet && (
-          <button type="button" className="btn tiny" onClick={() => setConfirm('pet')}>
-            Change pet
-          </button>
-        )}
-        <button type="button" className="btn tiny" onClick={() => setConfirm('exit')}>
-          {leaveLabel}
-        </button>
       </header>
       {children}
-      {confirm === 'exit' && (
-        <ConfirmModal
-          title="Exit game?"
-          body={`${State.data.petName || 'Your pet'} keeps living while you're away. ${exitNote}`}
-          confirmLabel={leaveLabel}
-          onConfirm={onLeave}
-          onCancel={() => setConfirm(null)}
-        />
+      {panel === 'menu' && (
+        <div className="confirm-dim" onClick={() => setPanel(null)}>
+          <div className="confirm-card" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h2>Menu</h2>
+            <p>
+              {State.data.petName || 'Your pet'} keeps living while you&apos;re away. {exitNote}
+            </p>
+            <div className="menu-list">
+              <button type="button" className="btn ghost wide" onClick={() => setPanel(null)}>
+                Back to game
+              </button>
+              {onPenguinColor && (
+                <button type="button" className="btn ghost wide" onClick={() => setPanel('color')}>
+                  Penguin colour
+                </button>
+              )}
+              {onChangePet && (
+                <button type="button" className="btn ghost wide" onClick={() => setPanel('pet')}>
+                  Change pet
+                </button>
+              )}
+              <button type="button" className="btn danger wide" onClick={onLeave}>
+                {leaveLabel}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
-      {confirm === 'pet' && onChangePet && (
+      {panel === 'color' && onPenguinColor && (
+        <div className="confirm-dim" onClick={() => setPanel('menu')}>
+          <div className="confirm-card" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h2>Penguin colour</h2>
+            <div className="color-grid">
+              {Object.entries(PENGUIN_COLORS).map(([id, def]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`color-swatch${id === currentColor ? ' current' : ''}`}
+                  style={{ background: def.v }}
+                  title={def.label}
+                  aria-label={def.label}
+                  onClick={() => {
+                    onPenguinColor(id);
+                    setPanel(null);
+                  }}
+                />
+              ))}
+            </div>
+            <div className="menu-list">
+              <button type="button" className="btn ghost wide" onClick={() => setPanel('menu')}>
+                Back
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {panel === 'pet' && onChangePet && (
         <ConfirmModal
           title="Change pet?"
           body="This resets your whole village — coins, furniture, inventory, and best scores — and returns you to the adopt screen."
           confirmLabel="Reset village"
           onConfirm={() => {
-            setConfirm(null);
+            setPanel(null);
             onChangePet();
           }}
-          onCancel={() => setConfirm(null)}
+          onCancel={() => setPanel('menu')}
         />
       )}
     </div>
@@ -188,6 +250,14 @@ function CloudGame() {
     };
   }, [hydrated, gameKey]);
 
+  // Swap the penguin's colourway on the running game; scenes rebind their
+  // sprites to the regenerated textures on the next frame.
+  function penguinColor(id: string) {
+    State.setPenguinColor(id);
+    const scene = gameRef.current?.scene.getScenes(true)[0];
+    if (scene) applyPenguinColor(scene, id);
+  }
+
   // Wipe the save (local + cloud) and relaunch into the adopt screen.
   // The cloud echo of the reset can't clobber anything: hydration is
   // one-shot, so later query updates are ignored.
@@ -217,6 +287,7 @@ function CloudGame() {
         void signOut();
       }}
       onChangePet={changePet}
+      onPenguinColor={penguinColor}
     >
       <div ref={hostRef} id="game" className="game-host" />
     </PlayChrome>
@@ -241,6 +312,12 @@ function GuestGame({ onBack }: { onBack: () => void }) {
     };
   }, [gameKey]);
 
+  function penguinColor(id: string) {
+    State.setPenguinColor(id);
+    const scene = gameRef.current?.scene.getScenes(true)[0];
+    if (scene) applyPenguinColor(scene, id);
+  }
+
   // PlayChrome's "Change pet?" modal has already confirmed by the time
   // this runs. Guest saves are local-only, so no cloud write here.
   function changePet() {
@@ -257,6 +334,7 @@ function GuestGame({ onBack }: { onBack: () => void }) {
       exitNote="Your progress is saved on this device."
       onLeave={onBack}
       onChangePet={changePet}
+      onPenguinColor={penguinColor}
     >
       <div ref={hostRef} id="game" className="game-host" />
     </PlayChrome>

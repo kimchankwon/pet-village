@@ -175,7 +175,7 @@ export class PaperTossScene extends Phaser.Scene {
     const backBtn = this.add
       .text(14, 10, '[ Back ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', padding: { x: 8, y: 8 } })
       .setOrigin(0, 0)
-      .setDepth(51)
+      .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     backBtn.on('pointerdown', () => {
       this.ignoreClicksUntil = this.time.now + 150;
@@ -524,32 +524,38 @@ export class PaperTossScene extends Phaser.Scene {
   private endPanel(title: string, titleColor: string, primaryLabel: string, restartData: object) {
     this.mode = 'done';
     this.updateBest();
-    this.add.rectangle(400, 300, 440, 220, 0x2a2440, 0.97).setStrokeStyle(3, 0xffe066).setDepth(50);
+    // Depth above toasts (1500) so lingering "+SWISH!" text can't overlap
+    // the buttons; interactive so clicks don't leak to the scene.
+    this.add
+      .rectangle(400, 300, 460, 236, 0x2a2440, 0.97)
+      .setStrokeStyle(3, 0xffe066)
+      .setDepth(1600)
+      .setInteractive();
     this.add
       .text(400, 232, title, { ...FONT, fontSize: '22px', color: titleColor })
       .setOrigin(0.5)
-      .setDepth(51);
+      .setDepth(1601);
     this.add
-      .text(400, 278, `${this.baskets} baskets this run · +${this.roundCoins} coins`, {
+      .text(400, 278, `${this.baskets} basket${this.baskets === 1 ? '' : 's'} this run · +${this.roundCoins} coins`, {
         ...FONT,
         fontSize: '16px',
       })
       .setOrigin(0.5)
-      .setDepth(51);
+      .setDepth(1601);
     this.add
       .text(400, 306, `Best: ${State.data.bestPaperToss}`, { ...FONT, color: '#c8c8dc' })
       .setOrigin(0.5)
-      .setDepth(51);
+      .setDepth(1601);
     const again = this.add
-      .text(290, 362, `[ ${primaryLabel} ]`, { ...FONT, fontSize: '18px', color: '#a8e6cf', padding: { x: 8, y: 6 } })
+      .text(280, 368, `[ ${primaryLabel} ]`, { ...FONT, fontSize: '18px', color: '#a8e6cf', padding: { x: 10, y: 8 } })
       .setOrigin(0.5)
-      .setDepth(51)
+      .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     again.on('pointerdown', () => this.scene.restart(restartData));
     const leave = this.add
-      .text(530, 362, '[ Back to town ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', padding: { x: 8, y: 6 } })
+      .text(535, 368, '[ Back to town ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', padding: { x: 10, y: 8 } })
       .setOrigin(0.5)
-      .setDepth(51)
+      .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     leave.on('pointerdown', () => this.scene.start('Town', { spawn: 'arcade' }));
   }
