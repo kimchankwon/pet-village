@@ -53,7 +53,7 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 | WASD / arrows | Walk around |
 | Click / tap | Walk to that spot |
 | E / click | Interact when close (door, shop, arcade, pet) |
-| I | (in house) open the decorate menu |
+| I / Decorate button | (in house) open the decorate menu |
 | Click furniture | (in house) pick it up into inventory |
 | Drag + release | (paper toss) slingshot the paper ball |
 | ESC / click outside | close a menu |
@@ -67,11 +67,16 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 - **Daniel's Shop** (bunny NPC) sells food and furniture for coins —
   including the SVT Lightstick VER.3 Anniversary for superfan rooms.
 - **Paper Toss** (arcade cabinet) earns coins: 12 throws per round across
-  4 levels (3 throws each). Each level brings stronger wind, new obstacle
-  planks the ball bounces off, and a wider-wandering bin. 3 coins per
-  basket, +2 streak bonus from 3 in a row. Drag anywhere on screen to
-  slingshot (releasing outside the game still throws), and pick your
-  paper-ball colour with the swatches.
+  4 levels (3 throws each). Each level brings stronger wind and more
+  randomly placed obstacle planks the ball bounces off, plus a
+  wider-wandering bin. The wind readout sits at the bottom and streaks
+  drift across the room showing which way it blows. Throw power caps out
+  (the aim line turns red at max). 3 coins per basket, +2 streak bonus
+  from 3 in a row. Drag anywhere on screen to slingshot (releasing
+  outside the game still throws), and pick your paper-ball colour with
+  the swatches.
+- Anything you can interact with (house, Daniel, arcade, your pet, the
+  door mat) lights up with an outline when you're close enough.
 - **Your house** is decoratable on a grid: buy furniture, place it with
   `I`, click to pick it back up.
 

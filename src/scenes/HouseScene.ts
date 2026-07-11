@@ -31,6 +31,8 @@ export class HouseScene extends Phaser.Scene {
   // Placement mode: a ghost of the selected item follows the mouse.
   private placing: string | null = null;
   private ghost: Phaser.GameObjects.Image | null = null;
+  private doorMat!: Phaser.GameObjects.Image;
+  private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   // The pointerdown that closes a menu must not also place/pick up furniture.
   private ignoreClicksUntil = 0;
 
@@ -55,7 +57,7 @@ export class HouseScene extends Phaser.Scene {
     }
     // Door mat at bottom center
     const doorGx = Math.floor(COLS / 2);
-    this.add
+    this.doorMat = this.add
       .image(ROOM_X + doorGx * TILE + TILE / 2, ROOM_Y + (ROWS - 1) * TILE + TILE / 2, 'item-rug')
       .setDepth(-99)
       .setTint(0x8d6e63)
@@ -96,6 +98,20 @@ export class HouseScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(1000);
+
+    // Clickable Decorate button (same as pressing I).
+    const decorateBtn = this.add
+      .text(786, 16, '[ Decorate ]', { fontFamily: 'monospace', fontSize: '14px', color: '#a8e6cf' })
+      .setOrigin(1, 0)
+      .setDepth(1000)
+      .setInteractive({ useHandCursor: true });
+    decorateBtn.on('pointerover', () => decorateBtn.setColor('#d3f5e6'));
+    decorateBtn.on('pointerout', () => decorateBtn.setColor('#a8e6cf'));
+    decorateBtn.on('pointerdown', () => {
+      // Swallow this click so the scene handler doesn't also walk/pick up.
+      this.ignoreClicksUntil = this.time.now + 150;
+      if (!this.menuOpen && !this.placing) this.openDecorateMenu();
+    });
 
     // Same live tamagotchi tick as town (scene-scoped, cleaned up on shutdown)
     this.time.addEvent({
@@ -160,6 +176,7 @@ export class HouseScene extends Phaser.Scene {
     radius: number;
     label: string;
     action: () => void;
+    targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[];
   } | null {
     const doorX = ROOM_X + Math.floor(COLS / 2) * TILE + TILE / 2;
     const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
@@ -171,6 +188,7 @@ export class HouseScene extends Phaser.Scene {
         radius: 55,
         label: 'E / click — Leave house',
         action: () => this.scene.start('Town', { spawn: 'house' }),
+        targets: [this.doorMat],
       };
     }
     const nearPet =
@@ -182,9 +200,19 @@ export class HouseScene extends Phaser.Scene {
         radius: 50,
         label: `E / click — ${State.data.petName} (your pet)`,
         action: () => this.openPetMenuInHouse(),
+        targets: [this.pet.sprite],
       };
     }
     return null;
+  }
+
+  // Outline glow on whatever the player can currently interact with.
+  private setHighlight(targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[]) {
+    const next = targets ?? [];
+    if (next[0] === this.glowed[0] && next.length === this.glowed.length) return;
+    for (const o of this.glowed) o.postFX?.clear();
+    this.glowed = next;
+    for (const o of this.glowed) o.postFX?.addGlow(0xffe066, 4);
   }
 
   private pointerToGrid(pointer: Phaser.Input.Pointer): { gx: number; gy: number } | null {
@@ -401,6 +429,7 @@ export class HouseScene extends Phaser.Scene {
       if (Phaser.Input.Keyboard.JustDown(this.keyI)) this.openDecorateMenu();
 
       const near = this.nearestHouseInteractable();
+      this.setHighlight(near?.targets);
       if (near) {
         this.prompt.show(near.label);
         if (Phaser.Input.Keyboard.JustDown(this.keyE)) near.action();
@@ -409,6 +438,7 @@ export class HouseScene extends Phaser.Scene {
       }
     } else {
       this.prompt.hide();
+      this.setHighlight(undefined);
     }
   }
 }
