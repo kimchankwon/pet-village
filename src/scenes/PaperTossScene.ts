@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
 import { State } from '../systems/GameState';
-import { toast } from '../systems/UI';
+import { Menu, toast } from '../systems/UI';
+import { isUiBlocked } from '../systems/nav';
 
 const GROUND_Y = 480;
 const BALL_START = { x: 150, y: 430 };
@@ -68,6 +69,9 @@ export class PaperTossScene extends Phaser.Scene {
   private slowTime = 0;
   private trailTimer = 0;
   private roundCoins = 0;
+  private menuOpen = false;
+  // A click that closes the leave menu must not also start a drag.
+  private ignoreClicksUntil = 0;
   private dragStart: { x: number; y: number } | null = null;
   private aimGfx!: Phaser.GameObjects.Graphics;
   private windText!: Phaser.GameObjects.Text;
@@ -92,6 +96,8 @@ export class PaperTossScene extends Phaser.Scene {
     this.windStreaks = [];
     this.swatches = [];
     this.roundCoins = 0;
+    this.menuOpen = false;
+    this.ignoreClicksUntil = 0;
     this.dragStart = null;
 
     // Backdrop: cozy arcade room
@@ -115,7 +121,7 @@ export class PaperTossScene extends Phaser.Scene {
     this.aimGfx = this.add.graphics().setDepth(20);
     this.windArrow = this.add.graphics().setDepth(20);
 
-    this.add.text(20, 16, 'PAPER TOSS', { ...FONT, fontSize: '18px', color: '#ffe066' });
+    this.add.text(110, 16, 'PAPER TOSS', { ...FONT, fontSize: '18px', color: '#ffe066' });
     this.statusText = this.add.text(20, 44, '', FONT);
     // Wind readout lives at the bottom, over the floor.
     this.windText = this.add.text(400, 496, '', { ...FONT, fontSize: '16px' }).setOrigin(0.5, 0).setDepth(21);
@@ -156,19 +162,22 @@ export class PaperTossScene extends Phaser.Scene {
       },
     });
 
-    // Always-visible leave control
+    // Always-visible leave control — top-left, confirms before leaving.
     const backBtn = this.add
-      .text(780, 44, '[ Back ]', { ...FONT, color: '#ffb3d1' })
-      .setOrigin(1, 0)
+      .text(20, 16, '[ Back ]', { ...FONT, color: '#ffb3d1' })
+      .setOrigin(0, 0)
       .setDepth(51)
       .setInteractive({ useHandCursor: true });
-    backBtn.on('pointerdown', () => this.scene.start('Town', { spawn: 'arcade' }));
+    backBtn.on('pointerdown', () => {
+      this.ignoreClicksUntil = this.time.now + 150;
+      this.requestLeave();
+    });
 
     this.newThrow(true);
 
     // Start the drag anywhere on screen — both halves work.
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.mode !== 'aiming') return;
+      if (this.mode !== 'aiming' || this.menuOpen || this.time.now < this.ignoreClicksUntil) return;
       this.dragStart = { x: p.x, y: p.y };
     });
     const release = (p: Phaser.Input.Pointer) => {
@@ -354,6 +363,29 @@ export class PaperTossScene extends Phaser.Scene {
         .setDepth(4);
       this.obstacles.push({ rect, def, phase: i * 1.3 });
     }
+  }
+
+  // Round over → leave straight away; mid-round → confirm first, since
+  // leaving forfeits the round's remaining throws.
+  private requestLeave() {
+    if (this.mode === 'done') {
+      this.scene.start('Town', { spawn: 'arcade' });
+      return;
+    }
+    this.menuOpen = true;
+    const menu = new Menu(
+      this,
+      'Leave Paper Toss?',
+      [
+        { label: 'Keep playing', onSelect: () => {} },
+        { label: 'Back to town', onSelect: () => this.scene.start('Town', { spawn: 'arcade' }) },
+      ],
+      'The round ends here — coins earned are yours',
+    );
+    menu.onClose = () => {
+      this.menuOpen = false;
+      this.ignoreClicksUntil = this.time.now + 250;
+    };
   }
 
   private newThrow(first = false) {
@@ -569,8 +601,8 @@ export class PaperTossScene extends Phaser.Scene {
       this.scene.start('Town', { spawn: 'arcade' });
     }
 
-    if (Phaser.Input.Keyboard.JustDown(this.keyEsc)) {
-      this.scene.start('Town', { spawn: 'arcade' });
+    if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !this.menuOpen && !isUiBlocked()) {
+      this.requestLeave();
     }
   }
 }
