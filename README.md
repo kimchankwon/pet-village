@@ -56,15 +56,20 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 | Drag + release | (paper toss) slingshot the paper ball |
 | ESC / click outside | close a menu |
 | ESC (in town) | pause menu — back to game, or exit |
+| Exit / Back / Sign out | asks for confirmation first |
 
 - **Mochi** (your pet) follows you everywhere. Its Food / Happy / Energy
   bars decay in real time — including while the game is closed (capped at
   12h so a holiday isn't fatal). Feed it snacks, play with it, and tuck it
   into a bed to restore energy.
-- **Bella's Shop** (bunny NPC) sells food and furniture for coins.
-- **Paper Toss** (arcade cabinet) earns coins: 10 throws per round, 3 coins
-  per basket, +2 streak bonus from 3 in a row. The wind changes every throw
-  and the bin wanders.
+- **Daniel's Shop** (bunny NPC) sells food and furniture for coins —
+  including the SVT Lightstick VER.3 Anniversary for superfan rooms.
+- **Paper Toss** (arcade cabinet) earns coins: 12 throws per round across
+  4 levels (3 throws each). Each level brings stronger wind, new obstacle
+  planks the ball bounces off, and a wider-wandering bin. 3 coins per
+  basket, +2 streak bonus from 3 in a row. Drag anywhere on screen to
+  slingshot (releasing outside the game still throws), and pick your
+  paper-ball colour with the swatches.
 - **Your house** is decoratable on a grid: buy furniture, place it with
   `I`, click to pick it back up.
 

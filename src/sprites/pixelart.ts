@@ -313,6 +313,22 @@ const TV: Grid = [
   '............',
   '............',
 ];
+// SVT Lightstick VER.3 Anniversary (Carat Bong): faceted crystal
+// diamond head, rose-gold collar, pearl handle.
+const LIGHTSTICK: Grid = [
+  '....kkkk....',
+  '...kWWssk...',
+  '..kWsssssk..',
+  '..kssWWssk..',
+  '...kssssk...',
+  '....kssk....',
+  '....kppk....',
+  '....kWCk....',
+  '....kCWk....',
+  '....kWCk....',
+  '....kppk....',
+  '.....kk.....',
+];
 const FLOWER: Grid = [
   '............',
   '....kPPk....',
@@ -558,6 +574,7 @@ export function generateTextures(scene: Phaser.Scene) {
   makeTexture(scene, 'item-bookshelf', [BOOKSHELF]);
   makeTexture(scene, 'item-tv', [TV]);
   makeTexture(scene, 'item-flower', [FLOWER]);
+  makeTexture(scene, 'item-lightstick', [LIGHTSTICK]);
 
   makeTile(scene, 'tile-grass', '#7ec850', '#6ab53f', 14);
   makeTile(scene, 'tile-path', '#e0c9a6', '#cdb28a', 10);

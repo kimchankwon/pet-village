@@ -154,13 +154,13 @@ export class TownScene extends Phaser.Scene {
       action: () => this.scene.start('House'),
     });
 
-    // Shop with bunny keeper
+    // Shop with Daniel the bunny keeper
     const shop = this.add.image(25 * TILE, 6 * TILE, 'shop').setScale(2);
     shop.setDepth(shop.y + shop.displayHeight / 2);
     const bunny = this.add.image(25 * TILE, 8.6 * TILE, 'bunny').setScale(1.2);
     bunny.setDepth(bunny.y + bunny.displayHeight / 2);
     this.add
-      .text(25 * TILE, 6 * TILE - shop.displayHeight / 2 - 12, "Bella's Shop", {
+      .text(25 * TILE, 6 * TILE - shop.displayHeight / 2 - 12, "Daniel's Shop", {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#ffffff',
@@ -173,7 +173,7 @@ export class TownScene extends Phaser.Scene {
       x: 25 * TILE,
       y: 8.6 * TILE,
       radius: 80,
-      label: 'E / click — Talk to Bella',
+      label: 'E / click — Talk to Daniel',
       action: () => this.openShop(),
     });
 
@@ -245,7 +245,7 @@ export class TownScene extends Phaser.Scene {
         this.closeMenu();
       },
     }));
-    const menu = new Menu(this, "Bella's Shop", options, `You have ${State.coins} coins`);
+    const menu = new Menu(this, "Daniel's Shop", options, `You have ${State.coins} coins`);
     menu.onClose = () => this.closeMenu();
   }
 
