@@ -16,6 +16,14 @@ export function requestLeave() {
   leaveHandler?.();
 }
 
+/**
+ * Explicit leave (e.g. the escape menu's "Exit game" option). Skips the
+ * suppress window that closing the menu itself just armed.
+ */
+export function forceLeave() {
+  leaveHandler?.();
+}
+
 /** Menus / placement mode — Escape should close UI, not leave the game. */
 export function blockUi() {
   uiBlockDepth += 1;

@@ -26,8 +26,9 @@ export function startGame(parent: HTMLElement): Phaser.Game {
   });
 
   const onUnload = () => {
-    State.flushCloud();
+    // save() persists locally and arms the cloud debounce; flush fires it now.
     State.save();
+    State.flushCloud();
   };
   window.addEventListener('beforeunload', onUnload);
   game.events.once(Phaser.Core.Events.DESTROY, () => {

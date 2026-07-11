@@ -55,6 +55,7 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 | Click furniture | (in house) pick it up into inventory |
 | Drag + release | (paper toss) slingshot the paper ball |
 | ESC / click outside | close a menu |
+| ESC (in town) | pause menu — back to game, or exit |
 
 - **Mochi** (your pet) follows you everywhere. Its Food / Happy / Energy
   bars decay in real time — including while the game is closed (capped at

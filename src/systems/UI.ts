@@ -5,9 +5,10 @@ import { blockUi, unblockUi } from './nav';
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 const FONT_SM = { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff' };
 
-// Heads-up display: coins + pet need bars. Fixed to camera.
+// Heads-up display: pet name, coins + pet need bars. Fixed to camera.
 export class HUD {
   private scene: Phaser.Scene;
+  private nameText!: Phaser.GameObjects.Text;
   private coinText!: Phaser.GameObjects.Text;
   private bars: { key: 'hunger' | 'happiness' | 'energy'; fill: Phaser.GameObjects.Rectangle }[] = [];
 
@@ -15,11 +16,15 @@ export class HUD {
     this.scene = scene;
     const c = scene.add.container(0, 0).setScrollFactor(0).setDepth(1000);
 
-    const panel = scene.add.rectangle(10, 10, 190, 108, 0x1a1a2e, 0.75).setOrigin(0);
+    const panel = scene.add.rectangle(10, 10, 190, 128, 0x1a1a2e, 0.75).setOrigin(0);
     c.add(panel);
 
-    const coin = scene.add.image(26, 28, 'coin').setScale(0.9);
-    this.coinText = scene.add.text(40, 20, '0', FONT);
+    // Pet name headlines the panel, above the need bars.
+    this.nameText = scene.add.text(18, 18, '', { ...FONT, color: '#ffb3d1' });
+    c.add(this.nameText);
+
+    const coin = scene.add.image(26, 48, 'coin').setScale(0.9);
+    this.coinText = scene.add.text(40, 40, '0', FONT);
     c.add([coin, this.coinText]);
 
     const defs: { key: 'hunger' | 'happiness' | 'energy'; label: string; color: number }[] = [
@@ -28,7 +33,7 @@ export class HUD {
       { key: 'energy', label: 'Energy', color: 0x74b9ff },
     ];
     defs.forEach((d, i) => {
-      const y = 48 + i * 20;
+      const y = 68 + i * 20;
       c.add(scene.add.text(18, y - 6, d.label, { ...FONT_SM, color: '#c8c8dc' }));
       c.add(scene.add.rectangle(78, y, 110, 10, 0x3d3d5c).setOrigin(0, 0.5));
       const fill = scene.add.rectangle(78, y, 110, 10, d.color).setOrigin(0, 0.5);
@@ -40,6 +45,7 @@ export class HUD {
   }
 
   refresh() {
+    this.nameText.setText(State.data.petName || 'Your pet');
     this.coinText.setText(String(State.coins));
     for (const b of this.bars) {
       b.fill.width = Math.max(0, (State.data.pet[b.key] / 100) * 110);
