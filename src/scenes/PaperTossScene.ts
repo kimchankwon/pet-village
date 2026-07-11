@@ -60,6 +60,10 @@ export class PaperTossScene extends Phaser.Scene {
   private stage = 1; // 1-based
   private stageThrows = 0;
   private stageBaskets = 0;
+  // Every stage attempt draws wind/bin/obstacles from a seeded RNG, so
+  // failing a stage lets you retry the exact same combination.
+  private stageSeed = '';
+  private rng!: Phaser.Math.RandomDataGenerator;
   private obstacles: { rect: Phaser.GameObjects.Rectangle; def: ObstacleDef; phase: number }[] = [];
   private windStreaks: { rect: Phaser.GameObjects.Rectangle; baseY: number; seed: number }[] = [];
   private swatches: Phaser.GameObjects.Rectangle[] = [];
@@ -89,13 +93,14 @@ export class PaperTossScene extends Phaser.Scene {
     super('PaperToss');
   }
 
-  create(data?: { stage?: number; baskets?: number; roundCoins?: number }) {
+  create(data?: { stage?: number; baskets?: number; roundCoins?: number; seed?: string }) {
     generateTextures(this);
     this.mode = 'aiming';
     this.stage = data?.stage ?? 1;
     this.baskets = data?.baskets ?? 0;
     this.stageThrows = 0;
     this.stageBaskets = 0;
+    this.startStage(data?.seed);
     this.streak = 0;
     this.obstacles = [];
     this.windStreaks = [];
@@ -348,13 +353,13 @@ export class PaperTossScene extends Phaser.Scene {
     const corridorHalf = 58 + (this.stage === STAGES.length ? 40 : 0);
     const placed: { x: number; y: number }[] = [];
     for (let i = 0; i < count; i++) {
-      const w = Phaser.Math.Between(70, 110);
+      const w = this.rng.between(70, 110);
       let x = 0;
       let y = 0;
       let ok = false;
       for (let tries = 0; tries < 30 && !ok; tries++) {
-        x = Phaser.Math.Between(300, 640);
-        y = Phaser.Math.Between(170, 400);
+        x = this.rng.between(300, 640);
+        y = this.rng.between(170, 400);
         // Keep planks spaced out AND out of the bin's entry corridor
         // (plank extent + ball radius must clear the protected strip).
         ok =
@@ -405,15 +410,23 @@ export class PaperTossScene extends Phaser.Scene {
     };
   }
 
+  // (Re)start the current stage's RNG. Same seed → same sequence of wind,
+  // bin positions and obstacle layouts, throw for throw.
+  private startStage(seed?: string) {
+    this.stageSeed = seed ?? Math.random().toString(36).slice(2, 10);
+    this.rng = new Phaser.Math.RandomDataGenerator([this.stageSeed]);
+  }
+
   private newThrow(first = false) {
     this.mode = 'aiming';
     // Reset scale/alpha too — the basket tween shrinks and fades the ball.
     this.ball.setPosition(BALL_START.x, BALL_START.y).setVisible(true).setAlpha(1).setScale(1);
 
-    // Fresh wind and a wandering bin every throw; both scale with the stage.
+    // Fresh wind and a wandering bin every throw; both scale with the stage
+    // and come from the stage's seeded RNG so retries replay the combo.
     const cfg = STAGES[this.stage - 1];
-    this.wind = Phaser.Math.Between(-cfg.windMax, cfg.windMax);
-    if (!first) this.binX = Phaser.Math.Between(cfg.binMin, cfg.binMax);
+    this.wind = this.rng.between(-cfg.windMax, cfg.windMax);
+    this.binX = this.rng.between(cfg.binMin, cfg.binMax);
     this.bin.x = this.binX;
 
     // Obstacles re-randomise every throw — placed AFTER the bin so they can
@@ -501,6 +514,7 @@ export class PaperTossScene extends Phaser.Scene {
     this.stage++;
     this.stageThrows = 0;
     this.stageBaskets = 0;
+    this.startStage(); // new stage, new combination
     toast(
       this,
       400,
@@ -562,10 +576,12 @@ export class PaperTossScene extends Phaser.Scene {
 
   // Out of throws — offer the same stage again (run totals carry over).
   private stageFailed() {
+    // The seed rides along so Try again replays the identical combination.
     this.endPanel(`Stage ${this.stage} failed!`, '#ff6b6b', 'Try again', {
       stage: this.stage,
       baskets: this.baskets,
       roundCoins: this.roundCoins,
+      seed: this.stageSeed,
     });
   }
 

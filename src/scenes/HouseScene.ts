@@ -219,18 +219,7 @@ export class HouseScene extends Phaser.Scene {
         targets: [this.doorMat],
       };
     }
-    const nearPet =
-      Phaser.Math.Distance.Between(this.player.x, this.player.y, this.pet.sprite.x, this.pet.sprite.y) < 50;
-    if (nearPet) {
-      return {
-        x: this.pet.sprite.x,
-        y: this.pet.sprite.y,
-        radius: 50,
-        label: `E / click — ${State.data.petName} (your pet)`,
-        action: () => this.openPetMenuInHouse(),
-        targets: [this.pet.sprite],
-      };
-    }
+    // (Pet care lives on the bottom [ Pet ] button — no proximity interaction.)
     return null;
   }
 

@@ -363,20 +363,7 @@ export class TownScene extends Phaser.Scene {
         bestDist = d;
       }
     }
-    // Pet is the fallback — it follows so closely it would otherwise shadow every prompt.
-    if (!best) {
-      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.pet.sprite.x, this.pet.sprite.y);
-      if (d < 50) {
-        return {
-          x: this.pet.sprite.x,
-          y: this.pet.sprite.y,
-          radius: 50,
-          label: `E / click — ${State.data.petName} (your pet)`,
-          action: () => this.openPetMenu(),
-          targets: [this.pet.sprite],
-        };
-      }
-    }
+    // (Pet care lives on the bottom [ Pet ] button — no proximity interaction.)
     return best;
   }
 
