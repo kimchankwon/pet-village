@@ -6,7 +6,8 @@ import { isUiBlocked } from '../systems/nav';
 import { petAnimKey, petTextureKey } from '../systems/pets';
 
 const GROUND_Y = 480;
-const BALL_START = { x: 150, y: 430 };
+// The ball sits right at the pet thrower's hands.
+const BALL_START = { x: 138, y: 436 };
 const THROWS_PER_STAGE = 5;
 const BASKETS_TO_CLEAR = 3;
 const COINS_PER_BASKET = 3;
@@ -112,10 +113,12 @@ export class PaperTossScene extends Phaser.Scene {
       this.add.rectangle(50 + i * 100, 100, 40, 8, 0x5d5490); // ceiling slats
     }
 
-    // Your pet does the tossing
+    // Your pet does the tossing — it holds the paper ball and visibly
+    // hurls it on release (the ball is the projectile, never the pet).
     this.thrower = this.add
-      .sprite(BALL_START.x - 48, GROUND_Y - 26, petTextureKey(State.data.petSpecies, 'idle1'))
-      .setScale(2.2);
+      .sprite(BALL_START.x - 36, GROUND_Y - 26, petTextureKey(State.data.petSpecies, 'idle1'))
+      .setScale(2.2)
+      .setDepth(8);
     this.thrower.play(petAnimKey(State.data.petSpecies, 'bounce'));
 
     this.ball = this.add.image(BALL_START.x, BALL_START.y, 'paperball').setDepth(10);
@@ -127,7 +130,7 @@ export class PaperTossScene extends Phaser.Scene {
     this.aimGfx = this.add.graphics().setDepth(20);
     this.windArrow = this.add.graphics().setDepth(20);
 
-    this.add.text(110, 16, 'PAPER TOSS', { ...FONT, fontSize: '18px', color: '#ffe066' });
+    this.add.text(140, 16, 'PAPER TOSS', { ...FONT, fontSize: '18px', color: '#ffe066' });
     this.statusText = this.add.text(20, 44, '', FONT);
     // Wind readout lives at the bottom, over the floor.
     this.windText = this.add.text(400, 496, '', { ...FONT, fontSize: '16px' }).setOrigin(0.5, 0).setDepth(21);
@@ -197,6 +200,14 @@ export class PaperTossScene extends Phaser.Scene {
       const c = this.clampDrag(dx, dy);
       this.vx = c.dx * POWER;
       this.vy = Math.min(c.dy * POWER, 400); // never hurl it straight down
+      // Wind-up: the pet jumps into the throw, then settles back to idle.
+      this.thrower.stop();
+      this.thrower.setTexture(petTextureKey(State.data.petSpecies, 'jump'));
+      this.time.delayedCall(450, () => {
+        if (this.thrower.texture.key === petTextureKey(State.data.petSpecies, 'jump')) {
+          this.thrower.play(petAnimKey(State.data.petSpecies, 'bounce'));
+        }
+      });
       this.mode = 'flying';
       this.scored = false;
       this.rimTouched = false;
