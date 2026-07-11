@@ -52,12 +52,14 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 |---|---|
 | WASD / arrows | Walk around |
 | Click / tap | Walk to that spot |
+| Hold / drag | Keep walking toward the pointer |
+| Joystick (bottom-left) | Walk — made for touch |
 | E / click | Interact when close (door, shop, arcade, pet) |
 | I / Decorate button | (in house) open the decorate menu |
 | Click furniture | (in house) pick it up into inventory |
 | Drag + release | (paper toss) slingshot the paper ball |
 | ESC / click outside | close a menu |
-| ESC (in town) | pause menu — back to game, or exit |
+| ESC (in town) | pause menu — resume, penguin colour, or exit |
 | Exit / Back / Sign out | asks for confirmation first |
 
 - **Mochi** (your pet) follows you everywhere. Its Food / Happy / Energy
@@ -66,18 +68,20 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   into a bed to restore energy.
 - **Daniel's Shop** (bunny NPC) sells food and furniture for coins —
   including the SVT Lightstick VER.3 Anniversary for superfan rooms.
-- **Paper Toss** (arcade cabinet) earns coins: 12 throws per round across
-  4 levels (3 throws each). Each level brings stronger wind and more
+- **Paper Toss** (arcade cabinet) earns coins, and your pet does the
+  tossing. 4 stages: sink 3 baskets within 5 throws to clear a stage and
+  unlock the next; run out of throws and you can retry the same stage
+  (run totals carry over). Each stage brings stronger wind and more
   randomly placed obstacle planks the ball bounces off, plus a
   wider-wandering bin. The wind readout sits at the bottom and streaks
   drift across the room showing which way it blows. Throw power caps out
   (the aim line turns red at max). The bin has real rims — near-misses
   rattle out (or in) — and the paper ball hops off the floor up to twice,
-  so a lucky bounce still counts. At level 4 the bin creeps while you
-  aim. Scoring: 3 coins per basket, +1 for a clean swish, +2 for banking
-  it off a plank, +2 streak bonus from 3 in a row. Drag anywhere on
-  screen to slingshot (releasing outside the game still throws), and
-  pick your paper-ball colour with the swatches.
+  so a lucky bounce still counts. On the final stage the bin creeps
+  while you aim. Scoring: 3 coins per basket, +1 for a clean swish, +2
+  for banking it off a plank, +2 streak bonus from 3 in a row. Drag
+  anywhere on screen to slingshot (releasing outside the game still
+  throws), and pick your paper-ball colour with the swatches.
 - Anything you can interact with (house, Daniel, arcade, your pet, the
   door mat) lights up with an outline when you're close enough.
 - **Your house** is decoratable on a grid: buy furniture, place it with

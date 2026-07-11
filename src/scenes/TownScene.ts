@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
-import { generateTextures } from '../sprites/pixelart';
+import { applyPenguinColor, generateTextures, PENGUIN_COLORS } from '../sprites/pixelart';
 import { State, ITEMS, WELCOME_KEY } from '../systems/GameState';
 import { HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
 import { forceLeave, isUiBlocked } from '../systems/nav';
+import { Joystick } from '../systems/Joystick';
 
 const TILE = 48;
 const WORLD_W = 32 * TILE;
@@ -34,6 +35,9 @@ export class TownScene extends Phaser.Scene {
   private menuOpen = false;
   private facing: 'up' | 'down' | 'side' = 'down';
   private clickMove!: ClickMove;
+  private joystick!: Joystick;
+  // Hold-to-move: while the walk pointer stays down, keep steering at it.
+  private pointerHeld = false;
   private houseImg!: Phaser.GameObjects.Image;
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   // Menu option clicks must not also trigger walk/interact underneath.
@@ -84,10 +88,13 @@ export class TownScene extends Phaser.Scene {
     this.hud = new HUD(this);
     this.prompt = new Prompt(this);
     this.clickMove = new ClickMove(this);
+    this.joystick = new Joystick(this);
+    this.pointerHeld = false;
 
     // Club Penguin-style: click ground to walk; click a nearby interactable to use it.
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
+      if (this.joystick.owns(pointer)) return; // joystick captured this touch
       // Clicking anywhere on the house enters it when near; otherwise walk
       // to the door instead of into the walls.
       if (this.houseImg.getBounds().contains(pointer.worldX, pointer.worldY)) {
@@ -111,7 +118,13 @@ export class TownScene extends Phaser.Scene {
         }
       }
       this.clickMove.setTarget(pointer.worldX, pointer.worldY);
+      this.pointerHeld = true;
     });
+    const endHold = () => {
+      this.pointerHeld = false;
+    };
+    this.input.on('pointerup', endHold);
+    this.input.on('pointerupoutside', endHold);
 
     // Live tamagotchi tick: 1 minute of play = 1 minute of decay.
     this.time.addEvent({
@@ -276,14 +289,37 @@ export class TownScene extends Phaser.Scene {
     this.ignoreClicksUntil = this.time.now + 250;
   }
 
-  // ESC pause menu: resume, or leave the game (back to the title screen).
+  // ESC pause menu: resume, restyle the penguin, or leave the game.
   private openEscapeMenu() {
     this.menuOpen = true;
     const options = [
       { label: 'Back to game', onSelect: () => {} },
+      { label: 'Penguin colour', onSelect: () => this.openPenguinColorMenu() },
       { label: 'Exit game', onSelect: () => forceLeave() },
     ];
     const menu = new Menu(this, 'Paused', options, `${State.data.petName} keeps living while you're away`);
+    menu.onClose = () => this.closeMenu();
+  }
+
+  // Pick a colourway; textures + walk anims rebuild on the spot.
+  private openPenguinColorMenu() {
+    this.menuOpen = true;
+    const current = State.data.penguinColor ?? 'blue';
+    const options = Object.entries(PENGUIN_COLORS).map(([id, def]) => ({
+      label: `${def.label}${id === current ? '  ✓' : ''}`,
+      onSelect: () => {
+        State.setPenguinColor(id);
+        applyPenguinColor(this, id);
+        // Rebind the player to the freshly generated texture.
+        this.player.setTexture(
+          this.facing === 'up' ? 'penguin-up' : this.facing === 'side' ? 'penguin-side' : 'penguin-down',
+          0,
+        );
+        toast(this, this.player.x, this.player.y - 60, def.label + '!', '#a8e6cf');
+        this.closeMenu();
+      },
+    }));
+    const menu = new Menu(this, 'Penguin colour', options, 'Pick your look');
     menu.onClose = () => this.closeMenu();
   }
 
@@ -393,10 +429,20 @@ export class TownScene extends Phaser.Scene {
       else if (this.cursors.down.isDown || this.wasd.S.isDown) vy = speed;
     }
 
-    // Keyboard overrides click-to-move; otherwise steer toward the tap target.
+    // Priority: keyboard > joystick > click/hold-to-move.
+    const j = this.joystick.vec;
     if (vx !== 0 || vy !== 0) {
       this.clickMove.clear();
+    } else if (!this.menuOpen && (Math.abs(j.x) > 0.18 || Math.abs(j.y) > 0.18)) {
+      this.clickMove.clear();
+      vx = j.x * speed;
+      vy = j.y * speed;
     } else if (!this.menuOpen) {
+      // Holding the pointer down keeps steering toward it as it moves.
+      const ap = this.input.activePointer;
+      if (this.pointerHeld && ap.isDown && !this.joystick.active) {
+        this.clickMove.setTarget(ap.worldX, ap.worldY, true);
+      }
       const step = this.clickMove.step(this.player.x, this.player.y, speed);
       vx = step.vx;
       vy = step.vy;

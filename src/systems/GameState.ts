@@ -28,6 +28,12 @@ export interface SaveData {
   inventory: Record<string, number>; // itemId -> count (food + unplaced furniture)
   placed: PlacedItem[];
   bestPaperToss: number;
+  /**
+   * Penguin colourway. Device-local: deliberately NOT in snapshot() — the
+   * deployed Convex validator rejects unknown fields, so it can't ride
+   * along until the server schema gains it.
+   */
+  penguinColor?: string;
 }
 
 export interface ItemDef {
@@ -91,6 +97,7 @@ export function defaultSave(): SaveData {
       { id: 'rug', gx: 5, gy: 4 },
     ],
     bestPaperToss: 0,
+    penguinColor: 'blue',
   };
 }
 
@@ -135,7 +142,10 @@ class GameStateStore {
 
   /** Replace in-memory state from a cloud (or other) save, then apply offline decay. */
   hydrate(raw: Partial<SaveData>) {
+    // Cloud saves don't carry the (device-local) penguin colour — keep it.
+    const localColor = this.data.penguinColor;
     this.data = mergeSave(raw);
+    this.data.penguinColor = raw.penguinColor ?? localColor;
     this.applyOfflineDecay();
     this.persistLocal();
   }
@@ -267,6 +277,11 @@ class GameStateStore {
 
   petSleep() {
     this.data.pet.energy = 100;
+    this.save();
+  }
+
+  setPenguinColor(color: string) {
+    this.data.penguinColor = color;
     this.save();
   }
 

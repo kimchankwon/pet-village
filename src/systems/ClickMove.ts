@@ -12,10 +12,11 @@ export class ClickMove {
     this.scene = scene;
   }
 
-  setTarget(x: number, y: number) {
+  /** quiet: update the target without the click-marker ping (hold-to-move). */
+  setTarget(x: number, y: number, quiet = false) {
     this.target = { x, y };
     this.stuckFrames = 0;
-    this.showMarker(x, y);
+    if (!quiet) this.showMarker(x, y);
   }
 
   clear() {
