@@ -6,6 +6,7 @@ import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
 import { blockUi, isUiBlocked, unblockUi } from '../systems/nav';
+import { Joystick } from '../systems/Joystick';
 
 const TILE = 48;
 const COLS = 12;
@@ -27,6 +28,8 @@ export class HouseScene extends Phaser.Scene {
   private facing: 'up' | 'down' | 'side' = 'down';
   private furnitureSprites: Phaser.GameObjects.Image[] = [];
   private clickMove!: ClickMove;
+  private joystick!: Joystick;
+  private pointerHeld = false;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   // Placement mode: a ghost of the selected item follows the mouse.
   private placing: string | null = null;
@@ -89,6 +92,8 @@ export class HouseScene extends Phaser.Scene {
     this.hud = new HUD(this);
     this.prompt = new Prompt(this);
     this.clickMove = new ClickMove(this);
+    this.joystick = new Joystick(this);
+    this.pointerHeld = false;
 
     this.add
       .text(400, 40, 'Your House — click to walk · I: decorate · ESC: leave · E at door: leave', {
@@ -101,7 +106,12 @@ export class HouseScene extends Phaser.Scene {
 
     // Clickable Decorate button (same as pressing I).
     const decorateBtn = this.add
-      .text(786, 16, '[ Decorate ]', { fontFamily: 'monospace', fontSize: '14px', color: '#a8e6cf' })
+      .text(790, 10, '[ Decorate ]', {
+        fontFamily: 'monospace',
+        fontSize: '18px',
+        color: '#a8e6cf',
+        padding: { x: 8, y: 8 },
+      })
       .setOrigin(1, 0)
       .setDepth(1000)
       .setInteractive({ useHandCursor: true });
@@ -129,6 +139,7 @@ export class HouseScene extends Phaser.Scene {
     // Clicks: place / pick up furniture, interact when close, or walk.
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
+      if (this.joystick.owns(pointer)) return; // joystick captured this touch
       const g = this.pointerToGrid(pointer);
       if (this.placing) {
         if (g && this.canPlaceAt(g.gx, g.gy)) {
@@ -166,8 +177,14 @@ export class HouseScene extends Phaser.Scene {
           ROOM_X + g.gx * TILE + TILE / 2,
           ROOM_Y + g.gy * TILE + TILE / 2,
         );
+        this.pointerHeld = true;
       }
     });
+    const endHold = () => {
+      this.pointerHeld = false;
+    };
+    this.input.on('pointerup', endHold);
+    this.input.on('pointerupoutside', endHold);
   }
 
   private nearestHouseInteractable(): {
@@ -371,9 +388,19 @@ export class HouseScene extends Phaser.Scene {
       else if (this.cursors.down.isDown || this.wasd.S.isDown) vy = speed;
     }
 
+    // Priority: keyboard > joystick > click/hold-to-move.
+    const j = this.joystick.vec;
     if (vx !== 0 || vy !== 0) {
       this.clickMove.clear();
+    } else if (!this.menuOpen && !this.placing && (Math.abs(j.x) > 0.18 || Math.abs(j.y) > 0.18)) {
+      this.clickMove.clear();
+      vx = j.x * speed;
+      vy = j.y * speed;
     } else if (!this.menuOpen && !this.placing) {
+      const ap = this.input.activePointer;
+      if (this.pointerHeld && ap.isDown && !this.joystick.active) {
+        this.clickMove.setTarget(ap.worldX, ap.worldY, true);
+      }
       const step = this.clickMove.step(this.player.x, this.player.y, speed);
       vx = step.vx;
       vy = step.vy;

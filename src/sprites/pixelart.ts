@@ -1,3 +1,5 @@
+import { State } from '../systems/GameState';
+
 // Pixel-art textures generated at runtime from character grids.
 // Each sprite is an array of strings; each character maps to a palette color,
 // '.' is transparent. Everything renders at SCALE px per pixel-art pixel.
@@ -41,6 +43,24 @@ const PALETTE: Record<string, string> = {
   u: '#14528a', // penguin navy highlight
   z: '#b8b8c0', // belly soft shadow
 };
+
+// Penguin body colourways: the v/V/u palette slots are swapped before the
+// penguin textures are generated (or regenerated on change).
+export const PENGUIN_COLORS: Record<string, { label: string; v: string; V: string; u: string }> = {
+  blue: { label: 'Classic Blue', v: '#0a3d6e', V: '#062848', u: '#14528a' },
+  red: { label: 'Cherry Red', v: '#b3303a', V: '#7a1f27', u: '#d4555e' },
+  pink: { label: 'Bubblegum Pink', v: '#d4548c', V: '#9c3465', u: '#e87bac' },
+  green: { label: 'Forest Green', v: '#2e7d52', V: '#1d5437', u: '#4aa878' },
+  purple: { label: 'Royal Purple', v: '#6d3fa8', V: '#4a2a75', u: '#8f63c9' },
+  black: { label: 'Midnight', v: '#2d2d3a', V: '#17171f', u: '#4a4a5e' },
+};
+
+function setPenguinPalette(color: string) {
+  const c = PENGUIN_COLORS[color] ?? PENGUIN_COLORS.blue;
+  PALETTE.v = c.v;
+  PALETTE.V = c.V;
+  PALETTE.u = c.u;
+}
 
 type Grid = string[];
 
@@ -547,12 +567,35 @@ function makeTile(scene: Phaser.Scene, key: string, base: string, speck: string,
   scene.textures.addCanvas(key, canvas);
 }
 
-export function generateTextures(scene: Phaser.Scene) {
-  if (scene.textures.exists('penguin-down')) return;
-
+function makePenguin(scene: Phaser.Scene) {
   makeTexture(scene, 'penguin-down', [PENGUIN_DOWN_0, PENGUIN_DOWN_1]);
   makeTexture(scene, 'penguin-up', [PENGUIN_UP_0, PENGUIN_UP_1]);
   makeTexture(scene, 'penguin-side', [PENGUIN_SIDE_0, PENGUIN_SIDE_1]);
+  const anims = scene.anims;
+  if (!anims.exists('walk-down')) {
+    anims.create({ key: 'walk-down', frames: anims.generateFrameNumbers('penguin-down', { start: 0, end: 1 }), frameRate: 6, repeat: -1 });
+    anims.create({ key: 'walk-up', frames: anims.generateFrameNumbers('penguin-up', { start: 0, end: 1 }), frameRate: 6, repeat: -1 });
+    anims.create({ key: 'walk-side', frames: anims.generateFrameNumbers('penguin-side', { start: 0, end: 1 }), frameRate: 6, repeat: -1 });
+  }
+}
+
+/** Swap the penguin's colourway and rebuild its textures + walk anims. */
+export function applyPenguinColor(scene: Phaser.Scene, color: string) {
+  setPenguinPalette(color);
+  for (const key of ['penguin-down', 'penguin-up', 'penguin-side']) {
+    if (scene.textures.exists(key)) scene.textures.remove(key);
+  }
+  for (const key of ['walk-down', 'walk-up', 'walk-side']) {
+    if (scene.anims.exists(key)) scene.anims.remove(key);
+  }
+  makePenguin(scene);
+}
+
+export function generateTextures(scene: Phaser.Scene) {
+  if (scene.textures.exists('penguin-down')) return;
+
+  setPenguinPalette(State.data.penguinColor ?? 'blue');
+  makePenguin(scene);
   makeTexture(scene, 'bunny', [BUNNY]);
   makeTexture(scene, 'tree', [TREE]);
   makeTexture(scene, 'house', [HOUSE]);
@@ -582,11 +625,4 @@ export function generateTextures(scene: Phaser.Scene) {
   makeTile(scene, 'tile-wall', '#b085c9', '#9e6fbc', 6);
   makeTile(scene, 'tile-snow', '#eef3f8', '#dde7f0', 8);
 
-  // Animations
-  const anims = scene.anims;
-  if (!anims.exists('walk-down')) {
-    anims.create({ key: 'walk-down', frames: anims.generateFrameNumbers('penguin-down', { start: 0, end: 1 }), frameRate: 6, repeat: -1 });
-    anims.create({ key: 'walk-up', frames: anims.generateFrameNumbers('penguin-up', { start: 0, end: 1 }), frameRate: 6, repeat: -1 });
-    anims.create({ key: 'walk-side', frames: anims.generateFrameNumbers('penguin-side', { start: 0, end: 1 }), frameRate: 6, repeat: -1 });
-  }
 }

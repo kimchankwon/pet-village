@@ -82,8 +82,9 @@ export class Menu {
     const cam = scene.cameras.main;
     // Widen to fit the longest label (12px monospace ≈ 7.2px/char + icon + padding).
     const maxChars = options.reduce((m, o) => Math.max(m, o.label.length), subtitle?.length ?? 0);
-    const w = Phaser.Math.Clamp(100 + maxChars * 7.2, 340, 560);
-    const rowH = 34;
+    const w = Phaser.Math.Clamp(110 + maxChars * 8.5, 360, 600);
+    // Generous touch targets.
+    const rowH = 44;
     const h = 70 + options.length * rowH + (subtitle ? 18 : 0);
     const cx = cam.width / 2;
     const cy = cam.height / 2;
@@ -137,13 +138,13 @@ export class Menu {
       }
       let tx = cx - w / 2 + 24;
       if (opt.icon) {
-        const icon = scene.add.image(tx, y, opt.icon).setScrollFactor(0).setDepth(2003);
-        icon.setScale(Math.min(1, 22 / icon.height));
+        const icon = scene.add.image(tx + 4, y, opt.icon).setScrollFactor(0).setDepth(2003);
+        icon.setScale(Math.min(1.2, 30 / icon.height));
         this.objects.push(icon);
-        tx += 20;
+        tx += 26;
       }
       const label = scene.add
-        .text(tx, y, opt.label, { ...FONT_SM, color: opt.disabled ? '#8a8a9e' : '#ffffff' })
+        .text(tx, y, opt.label, { ...FONT, color: opt.disabled ? '#8a8a9e' : '#ffffff' })
         .setOrigin(0, 0.5)
         .setScrollFactor(0)
         .setDepth(2003);
