@@ -366,7 +366,8 @@ export class ShopScene extends Phaser.Scene {
       );
     }
     this.player.setDepth(feetDepth(this.player));
-    this.pet.update(this.player.x - (this.player.flipX ? -26 : 26), this.player.y + 8, moving);
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
 
     if (!this.menuOpen) {
       const near = this.nearestInteractable();

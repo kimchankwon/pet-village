@@ -98,8 +98,10 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 - `src/sprites/pixelart.ts` — penguin/world/furniture art, generated at
   boot from character grids. Swap any of it for real PNG loading in
   BootScene later (keep the texture keys).
-- `public/assets/pet/mametchi/` · `kuchipatchi/` · `mimitchi/` — Tamagotchi iD
-  sprites from the Tamagotchi wiki.
+- `public/assets/pet/mametchi/` · `kuchipatchi/` · `mimitchi/` · `puffle-*` —
+  Tamagotchi iD and Club Penguin–style Puffle sprites.
+- `public/assets/npc/cinnamoroll/` — wandering town NPC (Sanrio-inspired).
+- `src/systems/CinnamorollNpc.ts` — shy/friendly dialogue + path wander.
 - `src/systems/GameState.ts` — save data, item catalog, pet-needs decay.
 - `src/systems/Pet.ts` — the follower companion (species-aware sprites).
 - `src/systems/UI.ts` — HUD, menus, toasts, prompts.

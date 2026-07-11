@@ -4,17 +4,22 @@ import { toast } from './UI';
 import { feetDepth } from './depth';
 import { petAnimKey, petTextureKey, type PetPose } from './pets';
 
-// Tamagotchi companion. Smoothly chases a follow-slot beside the player
-// (no breadcrumb trail — that caused weird U-turns on direction changes).
+/**
+ * Companion that stays a short distance *behind* the player along their
+ * recent travel direction — never glued to their side (which caused the
+ * pet to flip in front/behind when the player stood still and flipped).
+ */
 export class Pet {
   sprite: Phaser.GameObjects.Sprite;
   private scene: Phaser.Scene;
-  // Softened follow point so player flip/turnarounds don't yank the pet.
   private followX: number;
   private followY: number;
+  /** Unit vector pointing from player toward the pet's preferred slot (behind). */
+  private trailX = 0;
+  private trailY = 1;
   private facingLeft = false;
-  private readonly ARRIVE = 3;
-  // While an emotion pose (happy/sleep/jump) is showing, walk/idle don't override it.
+  private readonly ARRIVE = 4;
+  private readonly FOLLOW_DIST = 46;
   private emotionUntil = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -39,30 +44,50 @@ export class Pet {
     return petAnimKey(this.species(), kind);
   }
 
-  update(targetX: number, targetY: number, playerMoving: boolean) {
+  /**
+   * @param playerX player world x
+   * @param playerY player world y
+   * @param playerVx player velocity x (px/s)
+   * @param playerVy player velocity y (px/s)
+   */
+  update(playerX: number, playerY: number, playerVx: number, playerVy: number) {
     const dt = Math.min(this.scene.game.loop.delta / 1000, 0.05);
     const prevX = this.sprite.x;
+    const speed = Math.hypot(playerVx, playerVy);
+    const moving = speed > 12;
 
-    // Ease the desired slot (side-swap on flip is gradual, not instant).
-    const slotRate = playerMoving ? 7 : 4;
+    if (moving) {
+      // Behind = opposite of travel direction. Ease so sharp turns don't yank.
+      const behindX = -playerVx / speed;
+      const behindY = -playerVy / speed;
+      const turn = 1 - Math.exp(-5 * dt);
+      this.trailX += (behindX - this.trailX) * turn;
+      this.trailY += (behindY - this.trailY) * turn;
+      const tlen = Math.hypot(this.trailX, this.trailY) || 1;
+      this.trailX /= tlen;
+      this.trailY /= tlen;
+    }
+
+    const slotX = playerX + this.trailX * this.FOLLOW_DIST;
+    const slotY = playerY + this.trailY * this.FOLLOW_DIST + 4;
+
+    const slotRate = moving ? 8 : 3.5;
     const slotT = 1 - Math.exp(-slotRate * dt);
-    this.followX += (targetX - this.followX) * slotT;
-    this.followY += (targetY - this.followY) * slotT;
+    this.followX += (slotX - this.followX) * slotT;
+    this.followY += (slotY - this.followY) * slotT;
 
     const dx = this.followX - this.sprite.x;
     const dy = this.followY - this.sprite.y;
     const dist = Math.hypot(dx, dy);
 
-    let moving = false;
+    let petMoving = false;
     if (dist > this.ARRIVE) {
-      // Match player pace when close; boost when lagging after a long dash.
-      const base = playerMoving ? 175 : 110;
-      const boost = Phaser.Math.Clamp((dist - 40) * 2.5, 0, 180);
-      const speed = base + boost;
-      const step = Math.min(speed * dt, dist);
+      const base = moving ? 170 : 95;
+      const boost = Phaser.Math.Clamp((dist - 50) * 2.2, 0, 160);
+      const step = Math.min((base + boost) * dt, dist);
       this.sprite.x += (dx / dist) * step;
       this.sprite.y += (dy / dist) * step;
-      moving = step > 0.4;
+      petMoving = step > 0.35;
     } else {
       this.sprite.x = this.followX;
       this.sprite.y = this.followY;
@@ -72,7 +97,6 @@ export class Pet {
 
     if (this.scene.time.now < this.emotionUntil) return;
 
-    // Hysteresis so tiny corrections don't flicker facing.
     const movedX = this.sprite.x - prevX;
     if (movedX < -1.0) this.facingLeft = true;
     else if (movedX > 1.0) this.facingLeft = false;
@@ -81,7 +105,7 @@ export class Pet {
     if (State.petMood() === 'sad') {
       if (this.sprite.anims.isPlaying) this.sprite.stop();
       if (this.sprite.texture.key !== this.tex('sad')) this.sprite.setTexture(this.tex('sad'));
-    } else if (moving) {
+    } else if (petMoving) {
       this.sprite.play(this.anim('walk'), true);
     } else {
       this.sprite.play(this.anim('bounce'), true);
@@ -98,7 +122,6 @@ export class Pet {
     }
   }
 
-  // Show a one-off pose for a moment.
   showEmotion(pose: Extract<PetPose, 'happy' | 'sleep' | 'jump'>, ms: number) {
     this.emotionUntil = this.scene.time.now + ms;
     this.sprite.stop();

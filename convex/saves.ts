@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
+import { petSpeciesValidator } from "./lib/validators";
 
 const petStats = v.object({
   hunger: v.number(),
@@ -18,13 +19,7 @@ const saveFields = {
   version: v.number(),
   coins: v.number(),
   petName: v.string(),
-  petSpecies: v.optional(
-    v.union(
-      v.literal("mametchi"),
-      v.literal("kuchipatchi"),
-      v.literal("mimitchi"),
-    ),
-  ),
+  petSpecies: petSpeciesValidator,
   adopted: v.optional(v.boolean()),
   pet: petStats,
   lastSeen: v.number(),

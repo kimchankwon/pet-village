@@ -10,7 +10,9 @@ import {
 } from '../systems/pets';
 import { State } from '../systems/GameState';
 
-// Loads pet sprites + pixel-art textures, then Adopt (first run) or Town.
+const CINNA_POSES = ['idle', 'walk1', 'walk2', 'happy', 'sad', 'jump'] as const;
+
+// Loads pet + NPC sprites, then Adopt (first run) or Town.
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('Boot');
@@ -23,6 +25,9 @@ export class BootScene extends Phaser.Scene {
         const pose = poseFromAssetFile(file);
         this.load.image(petTextureKey(species.id, pose), petAssetPath(species.id, file));
       }
+    }
+    for (const pose of CINNA_POSES) {
+      this.load.image(`cinna-${pose}`, `assets/npc/cinnamoroll/${pose}.png`);
     }
   }
 
@@ -49,6 +54,19 @@ export class BootScene extends Phaser.Scene {
         repeat: -1,
       });
     }
+
+    this.anims.create({
+      key: 'cinna-bounce',
+      frames: [{ key: 'cinna-idle' }, { key: 'cinna-happy' }],
+      frameRate: 2,
+      repeat: -1,
+    });
+    this.anims.create({
+      key: 'cinna-walk',
+      frames: [{ key: 'cinna-walk1' }, { key: 'cinna-walk2' }],
+      frameRate: 5,
+      repeat: -1,
+    });
 
     if (!State.data.adopted) {
       this.scene.start('Adopt');

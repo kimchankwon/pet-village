@@ -7,6 +7,7 @@ import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
 import { forceLeave, isUiBlocked } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
+import { CinnamorollNpc } from '../systems/CinnamorollNpc';
 
 const TILE = 48;
 const WORLD_W = 32 * TILE;
@@ -25,6 +26,7 @@ interface Interactable {
 export class TownScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private pet!: Pet;
+  private cinna!: CinnamorollNpc;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private keyE!: Phaser.Input.Keyboard.Key;
@@ -78,6 +80,16 @@ export class TownScene extends Phaser.Scene {
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
 
     this.pet = new Pet(this, sx - 30, sy + 10);
+
+    this.cinna = new CinnamorollNpc(this, [
+      { x: 10 * TILE, y: 12.5 * TILE },
+      { x: 16 * TILE, y: 12.5 * TILE },
+      { x: 22 * TILE, y: 12.5 * TILE },
+      { x: 16 * TILE, y: 8 * TILE },
+      { x: 16 * TILE, y: 18 * TILE },
+      { x: 8 * TILE, y: 16 * TILE },
+      { x: 26 * TILE, y: 14 * TILE },
+    ]);
 
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
@@ -363,7 +375,33 @@ export class TownScene extends Phaser.Scene {
         bestDist = d;
       }
     }
-    // (Pet care lives on the bottom [ Pet ] button — no proximity interaction.)
+    // Moving NPC — use live position.
+    if (this.cinna) {
+      const d = Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        this.cinna.sprite.x,
+        this.cinna.sprite.y,
+      );
+      if (d < 55 && d < bestDist) {
+        best = {
+          x: this.cinna.sprite.x,
+          y: this.cinna.sprite.y,
+          radius: 55,
+          label: 'E / click — Talk to Cinnamoroll',
+          action: () => {
+            this.menuOpen = true;
+            this.cinna.talk(
+              () => this.closeMenu(),
+              () => {
+                this.menuOpen = true;
+              },
+            );
+          },
+          targets: [this.cinna.sprite],
+        };
+      }
+    }
     return best;
   }
 
@@ -441,7 +479,9 @@ export class TownScene extends Phaser.Scene {
       );
     }
     this.player.setDepth(feetDepth(this.player));
-    this.pet.update(this.player.x - (this.player.flipX ? -26 : 26), this.player.y + 8, moving);
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
+    this.cinna?.update();
 
     if (!this.menuOpen) {
       const best = this.nearestInteractable();

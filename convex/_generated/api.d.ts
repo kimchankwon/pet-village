@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
+import type * as lib_validators from "../lib/validators.js";
 import type * as saves from "../saves.js";
 import type * as users from "../users.js";
 
@@ -22,6 +23,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   http: typeof http;
+  "lib/validators": typeof lib_validators;
   saves: typeof saves;
   users: typeof users;
 }>;

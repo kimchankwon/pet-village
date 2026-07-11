@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
 import { State } from '../systems/GameState';
 import {
+  CLASSIC_PETS,
   PET_SPECIES,
   PET_SPECIES_LIST,
+  PUFFLE_PETS,
   petAnimKey,
   petTextureKey,
   type PetSpecies,
@@ -11,12 +13,13 @@ import {
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#efe8ff' };
 
 /**
- * First-run screen: pick a Tamagotchi companion and give them a name.
+ * First-run screen: pick a Tamagotchi or Club Penguin Puffle and name them.
  */
 export class AdoptScene extends Phaser.Scene {
   private selected: PetSpecies = 'mametchi';
-  private cards: Record<PetSpecies, { ring: Phaser.GameObjects.Rectangle; sprite: Phaser.GameObjects.Sprite }> =
-    {} as AdoptScene['cards'];
+  private cards: Partial<
+    Record<PetSpecies, { ring: Phaser.GameObjects.Rectangle; sprite: Phaser.GameObjects.Sprite }>
+  > = {};
   private nameInput!: HTMLInputElement;
   private errorText!: Phaser.GameObjects.Text;
 
@@ -29,68 +32,39 @@ export class AdoptScene extends Phaser.Scene {
     this.add.rectangle(400, 300, 800, 600, 0x1a1626).setDepth(-10);
 
     this.add
-      .text(400, 48, 'Pet Village', {
+      .text(400, 36, 'Pet Village', {
         fontFamily: '"Press Start 2P", monospace',
-        fontSize: '18px',
+        fontSize: '16px',
         color: '#7ed6a8',
       })
       .setOrigin(0.5);
 
     this.add
-      .text(400, 88, 'Choose your pet', { ...FONT, fontSize: '22px', color: '#ffb3d1' })
+      .text(400, 68, 'Choose your pet', { ...FONT, fontSize: '20px', color: '#ffb3d1' })
       .setOrigin(0.5);
 
     this.add
-      .text(400, 118, "They'll live with you in town — name them something you'll remember.", {
+      .text(400, 92, 'Tamagotchi classics or Club Penguin puffles — then pick a name.', {
         ...FONT,
-        fontSize: '13px',
+        fontSize: '12px',
         color: '#a89bc4',
       })
       .setOrigin(0.5);
 
-    const n = PET_SPECIES_LIST.length;
-    const spacing = 230;
-    const startX = 400 - ((n - 1) * spacing) / 2;
-    const cardW = 200;
-    const cardH = 200;
+    this.add
+      .text(400, 118, 'Tamagotchi', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .setOrigin(0.5);
 
-    PET_SPECIES_LIST.forEach((def, i) => {
-      const x = startX + i * spacing;
-      const ring = this.add
-        .rectangle(x, 255, cardW, cardH, 0x2a2440, 0.95)
-        .setStrokeStyle(3, 0x3a3352)
-        .setInteractive({ useHandCursor: true });
-
-      const sprite = this.add
-        .sprite(x, 225, petTextureKey(def.id, 'idle1'))
-        .setScale(2.9)
-        .setInteractive({ useHandCursor: true });
-      sprite.play(petAnimKey(def.id, 'bounce'));
-
-      this.add
-        .text(x, 305, def.label, { ...FONT, fontSize: '14px', color: '#ffe066' })
-        .setOrigin(0.5);
-      this.add
-        .text(x, 328, def.blurb, {
-          ...FONT,
-          fontSize: '11px',
-          color: '#a89bc4',
-          wordWrap: { width: cardW - 16 },
-          align: 'center',
-        })
-        .setOrigin(0.5);
-
-      const pick = () => this.selectSpecies(def.id);
-      ring.on('pointerdown', pick);
-      sprite.on('pointerdown', pick);
-
-      this.cards[def.id] = { ring, sprite };
-    });
+    this.layoutRow(CLASSIC_PETS, 195, 200, 2.4);
+    this.add
+      .text(400, 278, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .setOrigin(0.5);
+    this.layoutRow(PUFFLE_PETS, 340, 88, 1.7);
 
     this.selectSpecies('mametchi');
 
     this.add
-      .text(400, 400, 'Pet name', { ...FONT, fontSize: '13px', color: '#c8c8dc' })
+      .text(400, 430, 'Pet name', { ...FONT, fontSize: '13px', color: '#c8c8dc' })
       .setOrigin(0.5);
 
     this.nameInput = document.createElement('input');
@@ -103,7 +77,7 @@ export class AdoptScene extends Phaser.Scene {
     Object.assign(this.nameInput.style, {
       position: 'absolute',
       width: '220px',
-      height: '36px',
+      height: '34px',
       border: '3px solid #3a3352',
       borderRadius: '0',
       background: '#161225',
@@ -120,11 +94,11 @@ export class AdoptScene extends Phaser.Scene {
     this.scale.on('resize', () => this.positionNameInput());
 
     this.errorText = this.add
-      .text(400, 470, '', { ...FONT, fontSize: '13px', color: '#ff6b6b' })
+      .text(400, 490, '', { ...FONT, fontSize: '13px', color: '#ff6b6b' })
       .setOrigin(0.5);
 
     const start = this.add
-      .text(400, 520, '[ Start adventure ]', {
+      .text(400, 535, '[ Start adventure ]', {
         ...FONT,
         fontSize: '18px',
         color: '#7ed6a8',
@@ -146,16 +120,54 @@ export class AdoptScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.DESTROY, () => this.teardownDom());
   }
 
+  private layoutRow(
+    defs: typeof CLASSIC_PETS | typeof PUFFLE_PETS,
+    centerY: number,
+    spacing: number,
+    scale: number,
+  ) {
+    const n = defs.length;
+    const startX = 400 - ((n - 1) * spacing) / 2;
+    const cardW = Math.min(190, spacing - 8);
+    const cardH = defs[0]?.group === 'puffle' ? 100 : 130;
+
+    defs.forEach((def, i) => {
+      const x = startX + i * spacing;
+      const ring = this.add
+        .rectangle(x, centerY, cardW, cardH, 0x2a2440, 0.95)
+        .setStrokeStyle(2, 0x3a3352)
+        .setInteractive({ useHandCursor: true });
+
+      const sprite = this.add
+        .sprite(x, centerY - (defs[0]?.group === 'puffle' ? 8 : 12), petTextureKey(def.id, 'idle1'))
+        .setScale(scale)
+        .setInteractive({ useHandCursor: true });
+      sprite.play(petAnimKey(def.id, 'bounce'));
+
+      this.add
+        .text(x, centerY + cardH / 2 - 14, def.label.replace(' Puffle', ''), {
+          ...FONT,
+          fontSize: defs[0]?.group === 'puffle' ? '11px' : '12px',
+          color: '#ffe066',
+        })
+        .setOrigin(0.5);
+
+      const pick = () => this.selectSpecies(def.id);
+      ring.on('pointerdown', pick);
+      sprite.on('pointerdown', pick);
+      this.cards[def.id] = { ring, sprite };
+    });
+  }
+
   private positionNameInput() {
     const parent = this.game.canvas.parentElement;
     if (!parent) return;
     const canvasRect = this.game.canvas.getBoundingClientRect();
     const parentRect = parent.getBoundingClientRect();
-    // Game coords 400, 430 → screen, relative to game-host
     const scaleX = canvasRect.width / this.scale.width;
     const scaleY = canvasRect.height / this.scale.height;
     const left = canvasRect.left - parentRect.left + 400 * scaleX - 110;
-    const top = canvasRect.top - parentRect.top + 430 * scaleY - 18;
+    const top = canvasRect.top - parentRect.top + 455 * scaleY - 17;
     this.nameInput.style.left = `${left}px`;
     this.nameInput.style.top = `${top}px`;
   }
@@ -164,14 +176,15 @@ export class AdoptScene extends Phaser.Scene {
     this.selected = species;
     for (const def of PET_SPECIES_LIST) {
       const card = this.cards[def.id];
+      if (!card) continue;
       const on = def.id === species;
-      card.ring.setStrokeStyle(3, on ? 0x7ed6a8 : 0x3a3352);
+      card.ring.setStrokeStyle(2, on ? 0x7ed6a8 : 0x3a3352);
       card.ring.setFillStyle(on ? 0x342a52 : 0x2a2440, 0.95);
-      card.sprite.setScale(on ? 3.3 : 2.9);
+      const base = def.group === 'puffle' ? 1.7 : 2.4;
+      card.sprite.setScale(on ? base + 0.35 : base);
     }
     if (this.nameInput) {
       const def = PET_SPECIES[species];
-      // Only auto-fill if the field still holds the other species' default.
       const otherDefaults = PET_SPECIES_LIST.map((s) => s.defaultName);
       if (!this.nameInput.value.trim() || otherDefaults.includes(this.nameInput.value.trim())) {
         this.nameInput.value = def.defaultName;
