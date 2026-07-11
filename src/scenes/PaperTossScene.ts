@@ -309,27 +309,44 @@ export class PaperTossScene extends Phaser.Scene {
 
   // Obstacle planks the ball bounces off. Count scales with the level and
   // positions re-randomise every throw; level 4's first plank oscillates.
+  // A vertical entry corridor above the bin's mouth is ALWAYS kept clear
+  // (≥25% of the obstacle band) so every layout is sinkable; a plank that
+  // can't find a legal spot is dropped rather than allowed to block it.
   private buildObstacles() {
     this.obstacles.forEach((o) => o.rect.destroy());
     this.obstacles = [];
     const count = LEVELS[this.level - 1].obstacles;
+    // Corridor half-width: 58px each side of the mouth (~116px ≈ 26% of the
+    // ~450px band planks can cover). Level 4's bin creeps ±40px, so widen
+    // the protected strip to cover everywhere the mouth can be.
+    const corridorHalf = 58 + (this.level === LEVELS.length ? 40 : 0);
     const placed: { x: number; y: number }[] = [];
     for (let i = 0; i < count; i++) {
+      const w = Phaser.Math.Between(70, 110);
       let x = 0;
       let y = 0;
-      // Keep planks spaced out so a clear line to the bin always exists.
-      for (let tries = 0; tries < 20; tries++) {
+      let ok = false;
+      for (let tries = 0; tries < 30 && !ok; tries++) {
         x = Phaser.Math.Between(300, 640);
         y = Phaser.Math.Between(170, 400);
-        if (!placed.some((p) => Math.abs(p.x - x) < 130 && Math.abs(p.y - y) < 70)) break;
+        // Keep planks spaced out AND out of the bin's entry corridor
+        // (plank extent + ball radius must clear the protected strip).
+        ok =
+          Math.abs(x - this.binX) > corridorHalf + w / 2 + BALL_R &&
+          !placed.some((p) => Math.abs(p.x - x) < 130 && Math.abs(p.y - y) < 70);
       }
+      if (!ok) continue; // no legal spot — fewer planks beats a blocked bin
       placed.push({ x, y });
       const def: ObstacleDef = {
         x,
         y,
-        w: Phaser.Math.Between(70, 110),
+        w,
         h: 16,
-        moveY: this.level === LEVELS.length && i === 0 ? { range: 90, speed: 1.7 } : undefined,
+        // First plank that actually lands is the level-4 mover.
+        moveY:
+          this.level === LEVELS.length && this.obstacles.length === 0
+            ? { range: 90, speed: 1.7 }
+            : undefined,
       };
       const rect = this.add
         .rectangle(def.x, def.y, def.w, def.h, 0x8d6e63)
@@ -351,14 +368,16 @@ export class PaperTossScene extends Phaser.Scene {
       this.level = level;
       if (!first) toast(this, 400, 180, `Level ${level} — stronger wind!`, '#ffe066');
     }
-    // Obstacles re-randomise every throw.
-    this.buildObstacles();
-
     // Fresh wind and a wandering bin every throw; both scale with the level.
     const cfg = LEVELS[this.level - 1];
     this.wind = Phaser.Math.Between(-cfg.windMax, cfg.windMax);
     if (!first) this.binX = Phaser.Math.Between(cfg.binMin, cfg.binMax);
     this.bin.x = this.binX;
+
+    // Obstacles re-randomise every throw — placed AFTER the bin so they can
+    // guarantee a clear entry corridor above its mouth.
+    this.buildObstacles();
+
     this.drawWind();
     this.updateStatus();
   }
