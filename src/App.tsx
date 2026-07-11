@@ -8,6 +8,50 @@ import { State } from './systems/GameState';
 import { resetUiBlock, setLeaveHandler } from './systems/nav';
 import type Phaser from 'phaser';
 
+// Game-styled confirmation dialog. ESC cancels via a capture-phase listener
+// with stopPropagation so Phaser's own window keydown listener doesn't also
+// see it (and e.g. reopen the pause menu underneath).
+function ConfirmModal({
+  title,
+  body,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onCancel();
+    }
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onCancel]);
+
+  return (
+    <div className="confirm-dim" onClick={onCancel}>
+      <div className="confirm-card" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <h2>{title}</h2>
+        <p>{body}</p>
+        <div className="confirm-actions">
+          <button type="button" className="btn ghost" onClick={onCancel}>
+            Back to game
+          </button>
+          <button type="button" className="btn danger" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PlayChrome({
   userLabel,
   onLeave,
@@ -23,27 +67,14 @@ function PlayChrome({
   onChangePet?: () => void;
   children: ReactNode;
 }) {
-  const [confirmExit, setConfirmExit] = useState(false);
+  const [confirm, setConfirm] = useState<'exit' | 'pet' | null>(null);
 
   // Every exit path (topbar buttons, pause-menu "Exit game") goes through a
   // game-styled confirmation modal before actually leaving.
   useEffect(() => {
-    setLeaveHandler(() => setConfirmExit(true));
+    setLeaveHandler(() => setConfirm('exit'));
     return () => setLeaveHandler(null);
   }, []);
-
-  // ESC closes the modal. Capture phase + stopPropagation so Phaser's own
-  // window keydown listener doesn't also see it and reopen the pause menu.
-  useEffect(() => {
-    if (!confirmExit) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return;
-      e.stopPropagation();
-      setConfirmExit(false);
-    }
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [confirmExit]);
 
   // No window-level ESC fallback here: the canvas is never the focus target,
   // so a keydown fallback would fire on every ESC and exit the game outright.
@@ -52,43 +83,41 @@ function PlayChrome({
   return (
     <div className="play-shell">
       <header className="topbar">
-        <button type="button" className="btn tiny back" onClick={() => setConfirmExit(true)}>
+        <button type="button" className="btn tiny back" onClick={() => setConfirm('exit')}>
           ← Back
         </button>
         <span className="topbar-brand">Pet Village</span>
         <span className="topbar-user">{userLabel}</span>
         {onChangePet && (
-          <button type="button" className="btn tiny" onClick={onChangePet}>
+          <button type="button" className="btn tiny" onClick={() => setConfirm('pet')}>
             Change pet
           </button>
         )}
-        <button type="button" className="btn tiny" onClick={() => setConfirmExit(true)}>
+        <button type="button" className="btn tiny" onClick={() => setConfirm('exit')}>
           {leaveLabel}
         </button>
       </header>
       {children}
-      {confirmExit && (
-        <div className="confirm-dim" onClick={() => setConfirmExit(false)}>
-          <div
-            className="confirm-card"
-            role="dialog"
-            aria-modal="true"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2>Exit game?</h2>
-            <p>
-              {State.data.petName || 'Your pet'} keeps living while you&apos;re away. {exitNote}
-            </p>
-            <div className="confirm-actions">
-              <button type="button" className="btn ghost" onClick={() => setConfirmExit(false)}>
-                Back to game
-              </button>
-              <button type="button" className="btn danger" onClick={onLeave}>
-                {leaveLabel}
-              </button>
-            </div>
-          </div>
-        </div>
+      {confirm === 'exit' && (
+        <ConfirmModal
+          title="Exit game?"
+          body={`${State.data.petName || 'Your pet'} keeps living while you're away. ${exitNote}`}
+          confirmLabel={leaveLabel}
+          onConfirm={onLeave}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+      {confirm === 'pet' && onChangePet && (
+        <ConfirmModal
+          title="Change pet?"
+          body="This resets your whole village — coins, furniture, inventory, and best scores — and returns you to the adopt screen."
+          confirmLabel="Reset village"
+          onConfirm={() => {
+            setConfirm(null);
+            onChangePet();
+          }}
+          onCancel={() => setConfirm(null)}
+        />
       )}
     </div>
   );
@@ -100,6 +129,7 @@ function CloudGame() {
   const viewer = useQuery(api.users.viewer);
   const { signOut } = useAuthActions();
   const [hydrated, setHydrated] = useState(false);
+  const [gameKey, setGameKey] = useState(0);
   const hydratedRef = useRef(false);
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -156,7 +186,19 @@ function CloudGame() {
       gameRef.current = null;
       resetUiBlock();
     };
-  }, [hydrated]);
+  }, [hydrated, gameKey]);
+
+  // Wipe the save (local + cloud) and relaunch into the adopt screen.
+  // The cloud echo of the reset can't clobber anything: hydration is
+  // one-shot, so later query updates are ignored.
+  function changePet() {
+    gameRef.current?.destroy(true);
+    gameRef.current = null;
+    State.resetToPetSelect();
+    State.save(); // arms the cloud debounce with the fresh default save
+    State.flushCloud(); // push the wipe now, not 700ms later
+    setGameKey((k) => k + 1);
+  }
 
   if (cloudSave === undefined || !hydrated) {
     return <div className="boot">Loading your village…</div>;
@@ -174,6 +216,7 @@ function CloudGame() {
         State.flushCloud();
         void signOut();
       }}
+      onChangePet={changePet}
     >
       <div ref={hostRef} id="game" className="game-host" />
     </PlayChrome>
@@ -198,8 +241,9 @@ function GuestGame({ onBack }: { onBack: () => void }) {
     };
   }, [gameKey]);
 
+  // PlayChrome's "Change pet?" modal has already confirmed by the time
+  // this runs. Guest saves are local-only, so no cloud write here.
   function changePet() {
-    if (!window.confirm('Reset your guest save and choose a new pet?')) return;
     gameRef.current?.destroy(true);
     gameRef.current = null;
     State.resetToPetSelect();
