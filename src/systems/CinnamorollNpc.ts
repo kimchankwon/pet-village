@@ -34,7 +34,7 @@ export class CinnamorollNpc extends WandererNpc {
     });
   }
 
-  override talk(cbs: NpcTalkCallbacks) {
+  protected override openTalk(cbs: NpcTalkCallbacks) {
     const line = this.pickLine(LINES);
     this.playBounce();
     const menu = new Menu(

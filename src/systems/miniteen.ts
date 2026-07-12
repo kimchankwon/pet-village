@@ -253,7 +253,7 @@ export class MiniteenNpc extends WandererNpc {
     this.def = def;
   }
 
-  override talk(cbs: NpcTalkCallbacks) {
+  protected override openTalk(cbs: NpcTalkCallbacks) {
     const line = this.pickLine(this.def.lines);
     this.playBounce();
     const canGift = State.canClaimNpcGift(this.def.id);

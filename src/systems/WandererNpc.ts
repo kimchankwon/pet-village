@@ -44,6 +44,8 @@ export class WandererNpc {
   /** Off-map / mid enter-exit — hidden from interact prompts. */
   private present = true;
   private transit: { x: number; y: number; onDone: () => void } | null = null;
+  /** True while a dialogue menu with this NPC is open — don't wander away. */
+  private conversing = false;
 
   constructor(scene: Phaser.Scene, opts: WandererOptions) {
     this.scene = scene;
@@ -103,9 +105,25 @@ export class WandererNpc {
     return `${this.prefix}-idle`;
   }
 
-  /** Open this NPC's dialogue. Subclasses build their own menu. */
+  /**
+   * Open this NPC's dialogue. Freezes wandering until the menu closes;
+   * subclasses implement the menu in `openTalk`.
+   */
+  talk(cbs: NpcTalkCallbacks) {
+    this.conversing = true;
+    this.playBounce();
+    this.openTalk({
+      ...cbs,
+      onClose: () => {
+        this.conversing = false;
+        cbs.onClose();
+      },
+    });
+  }
+
+  /** Build the dialogue menu. Called by `talk` after freezing movement. */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  talk(_cbs: NpcTalkCallbacks) {}
+  protected openTalk(_cbs: NpcTalkCallbacks) {}
 
   private lastLineIdx = -1;
 
@@ -187,6 +205,15 @@ export class WandererNpc {
 
     // An emote/hop is playing — leave texture, animation and position be.
     if (this.scene.time.now < this.emoteUntil) {
+      this.sprite.setDepth(feetDepth(this.sprite));
+      return;
+    }
+
+    // Dialogue open — idle bounce in place (emotes/hops still work above).
+    if (this.conversing) {
+      if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) {
+        this.playBounce();
+      }
       this.sprite.setDepth(feetDepth(this.sprite));
       return;
     }
