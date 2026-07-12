@@ -1,11 +1,15 @@
 /**
  * Generates the 13 MINITEEN villager NPC sprites (SEVENTEEN's official
- * mini characters, per kprofiles.com/miniteen-seventeen-members-profile):
- *   CHOITCHERRY white rabbit (cherry tail) · JJONGTORAM squirrel in a pink
- *   bunny suit · SHUASUMI deer · O.C.L cat · TAMTAM orange tiger ·
- *   FOXDUNGEE purple six-tailed fox · PPYOPULI steamed-rice ball · DOA
- *   puppy · KIMJA potato · THEpalee princely frog · BBOOGYULI tangerine ·
- *   NONVER human in a polar-bear hood · CHANDALEE otter.
+ * mini characters) as original low-res pixel interpretations, drawn from
+ * their documented traits:
+ *   CHOITCHERRY sleepy white rabbit (red inner ears, tongue, cherry tail) ·
+ *   JJONGTORAM child in a pink bunny suit · SHUASUMI fawn deer (antlers +
+ *   round ears) · O.C.L a stack of three cats (white/gray/black) · TAMTAM
+ *   yellow tiger · FOXDUNGEE lilac fox with round glasses · PPYOPULI fluffy
+ *   white rice puff · DOA fluffy cream puppy · KIMJA sprouting potato ·
+ *   THEpalee bright-eyed frog · BBOOGYULI tangerine (leaf + swirl) ·
+ *   NONVER kid in a gray animal hood · CHANDALEE otter (white muzzle band).
+ * Chibi build: big head + small body with stubby arms and feet, 32x42.
  * Poses match the other NPCs: idle, walk1, walk2, happy, sad, jump.
  */
 import fs from 'fs';
@@ -21,8 +25,11 @@ type RGBA = [number, number, number, number];
 type Pose = 'idle' | 'walk1' | 'walk2' | 'happy' | 'sad' | 'jump';
 const POSES: Pose[] = ['idle', 'walk1', 'walk2', 'happy', 'sad', 'jump'];
 
-function blank(w = 32, h = 32) {
-  const png = new PNG({ width: w, height: h });
+const W = 32;
+const H = 42;
+
+function blank() {
+  const png = new PNG({ width: W, height: H });
   png.data.fill(0);
   return png;
 }
@@ -65,7 +72,7 @@ function ellipse(
     for (let x = -rx - 1; x <= rx + 1; x++) {
       const d = Math.hypot(x / rx, y / ry);
       if (d <= 1 - 0.08) set(png, cx + x, cy + y, rgba);
-      else if (outline && d <= 1 + 0.06) set(png, cx + x, cy + y, outline);
+      else if (outline && d <= 1 + 0.07) set(png, cx + x, cy + y, outline);
     }
   }
 }
@@ -75,442 +82,575 @@ function save(png: InstanceType<typeof PNG>, file: string) {
   fs.writeFileSync(file, PNG.sync.write(png));
 }
 
-const OUT: RGBA = [30, 30, 40, 255];
+const OUT: RGBA = [42, 36, 46, 255];
 const WHITE: RGBA = [255, 255, 255, 255];
-const BLUSH: RGBA = [255, 170, 190, 255];
+const BLUSH: RGBA = [255, 168, 186, 255];
+
+// ------------------------------------------------------------------ frames
 
 interface Frame {
   png: InstanceType<typeof PNG>;
   pose: Pose;
-  /** body centre */
-  cx: number;
-  cy: number;
-  foot: number; // walk foot shuffle offset
+  /** vertical lift (jump) */
+  dy: number;
+  /** walk leg shuffle */
+  leg: number;
 }
+
+const CX = 16;
+const HEAD_Y = 15; // head centre
+const HEAD_R = 9;
+const BODY_Y = 30; // body centre
+const FEET_Y = 38; // foot top
 
 function frame(pose: Pose): Frame {
-  const png = blank();
-  const cy = pose === 'jump' ? 14 : pose === 'walk2' ? 18 : 17;
-  const foot = pose === 'walk1' ? -2 : pose === 'walk2' ? 2 : 0;
-  return { png, pose, cx: 16, cy, foot };
+  return {
+    png: blank(),
+    pose,
+    dy: pose === 'jump' ? -3 : 0,
+    leg: pose === 'walk1' ? -2 : pose === 'walk2' ? 2 : 0,
+  };
 }
 
-/** Standard eyes: dots normally, ^^ when happy, slanted when sad. */
-function eyes(f: Frame, dx = 4, dy = -2, ink: RGBA = OUT) {
-  const { png, pose, cx, cy } = f;
-  const y = cy + dy;
+/**
+ * Small torso under the head: round belly, stubby arms and two feet.
+ * Draw BEFORE the head so the chin overlaps the body top.
+ */
+function chibiBody(f: Frame, body: RGBA, opts: { belly?: RGBA; feet?: RGBA } = {}) {
+  const { png, pose, dy, leg } = f;
+  const armsUp = pose === 'happy' || pose === 'jump';
+  // Feet first (behind the body bottom)
+  const feet = opts.feet ?? body;
+  fill(png, CX - 6 + leg, FEET_Y + dy, CX - 3 + leg, FEET_Y + 2 + dy, feet);
+  fill(png, CX + 3 - leg, FEET_Y + dy, CX + 6 - leg, FEET_Y + 2 + dy, feet);
+  set(png, CX - 6 + leg, FEET_Y + 3 + dy, OUT);
+  set(png, CX + 6 - leg, FEET_Y + 3 + dy, OUT);
+  // Torso
+  ellipse(png, CX, BODY_Y + dy, 7, 8, body, OUT);
+  if (opts.belly) ellipse(png, CX, BODY_Y + 3 + dy, 4, 4, opts.belly);
+  // Stubby arms
+  if (armsUp) {
+    fill(png, CX - 10, BODY_Y - 6 + dy, CX - 8, BODY_Y - 2 + dy, body);
+    fill(png, CX + 8, BODY_Y - 6 + dy, CX + 10, BODY_Y - 2 + dy, body);
+    set(png, CX - 10, BODY_Y - 7 + dy, OUT);
+    set(png, CX + 10, BODY_Y - 7 + dy, OUT);
+  } else {
+    fill(png, CX - 9, BODY_Y - 2 + dy, CX - 7, BODY_Y + 2 + dy, body);
+    fill(png, CX + 7, BODY_Y - 2 + dy, CX + 9, BODY_Y + 2 + dy, body);
+    set(png, CX - 9, BODY_Y + 3 + dy, OUT);
+    set(png, CX + 9, BODY_Y + 3 + dy, OUT);
+  }
+}
+
+type EyeStyle = 'sparkle' | 'dot' | 'sleepy' | 'calm';
+
+/** Eyes at head level; happy/sad poses override the character's style. */
+function eyes(f: Frame, style: EyeStyle, dx = 3, ey = HEAD_Y + 1) {
+  const { png, pose, dy } = f;
+  const y = ey + dy;
   if (pose === 'happy') {
-    set(png, cx - dx - 1, y, ink);
-    set(png, cx - dx, y - 1, ink);
-    set(png, cx - dx + 1, y, ink);
-    set(png, cx + dx - 1, y, ink);
-    set(png, cx + dx, y - 1, ink);
-    set(png, cx + dx + 1, y, ink);
-  } else if (pose === 'sad') {
-    set(png, cx - dx - 1, y - 1, ink);
-    set(png, cx - dx, y, ink);
-    set(png, cx + dx, y, ink);
-    set(png, cx + dx + 1, y - 1, ink);
-  } else {
-    set(png, cx - dx, y, ink);
-    set(png, cx - dx + 1, y, ink);
-    set(png, cx + dx - 1, y, ink);
-    set(png, cx + dx, y, ink);
+    for (const s of [-1, 1]) {
+      set(png, CX + s * dx - 1, y, OUT);
+      set(png, CX + s * dx, y - 1, OUT);
+      set(png, CX + s * dx + 1, y, OUT);
+    }
+    return;
   }
-}
-
-function mouth(f: Frame, dy = 2, ink: RGBA = OUT) {
-  const { png, pose, cx, cy } = f;
   if (pose === 'sad') {
-    set(png, cx - 1, cy + dy + 1, ink);
-    set(png, cx, cy + dy, ink);
-    set(png, cx + 1, cy + dy + 1, ink);
+    set(png, CX - dx - 1, y - 1, OUT);
+    set(png, CX - dx, y, OUT);
+    set(png, CX + dx, y, OUT);
+    set(png, CX + dx + 1, y - 1, OUT);
+    return;
+  }
+  if (style === 'sleepy') {
+    for (const s of [-1, 1]) {
+      set(png, CX + s * dx - 1, y, OUT);
+      set(png, CX + s * dx, y, OUT);
+      set(png, CX + s * dx + 1, y, OUT);
+    }
+  } else if (style === 'calm') {
+    for (const s of [-1, 1]) {
+      set(png, CX + s * dx, y, OUT);
+      set(png, CX + s * dx + s, y, OUT);
+    }
+  } else if (style === 'dot') {
+    for (const s of [-1, 1]) {
+      fill(png, CX + s * dx, y - 1, CX + s * dx + (s > 0 ? 0 : 0), y, OUT);
+    }
   } else {
-    set(png, cx - 1, cy + dy, ink);
-    set(png, cx, cy + dy + 1, ink);
-    set(png, cx + 1, cy + dy, ink);
+    // sparkle: 2x3 shiny anime eyes
+    for (const s of [-1, 1]) {
+      fill(png, CX + s * dx - 1, y - 2, CX + s * dx + 1, y + 1, OUT);
+      set(png, CX + s * dx - (s > 0 ? 1 : -1), y - 1, WHITE);
+      set(png, CX + s * dx + (s > 0 ? 1 : -1), y + 1, WHITE);
+    }
   }
 }
 
-function cheeks(f: Frame, dx = 6, dy = 1, color: RGBA = BLUSH) {
-  const { png, cx, cy } = f;
-  set(png, cx - dx, cy + dy, color);
-  set(png, cx - dx + 1, cy + dy, color);
-  set(png, cx + dx - 1, cy + dy, color);
-  set(png, cx + dx, cy + dy, color);
+function smile(f: Frame, my = HEAD_Y + 5, tongue?: RGBA) {
+  const { png, pose, dy } = f;
+  const y = my + dy;
+  if (pose === 'sad') {
+    set(png, CX - 1, y + 1, OUT);
+    set(png, CX, y, OUT);
+    set(png, CX + 1, y + 1, OUT);
+    return;
+  }
+  set(png, CX - 1, y, OUT);
+  set(png, CX, y + 1, OUT);
+  set(png, CX + 1, y, OUT);
+  if (tongue && pose !== 'sad') {
+    set(png, CX, y + 2, tongue);
+    set(png, CX, y + 3, tongue);
+  }
 }
 
-function feet(f: Frame, color: RGBA) {
-  const { png, cx, cy, foot } = f;
-  fill(png, cx - 5 + foot, cy + 7, cx - 2 + foot, cy + 8, color);
-  fill(png, cx + 2 - foot, cy + 7, cx + 5 - foot, cy + 8, color);
+function cheeks(f: Frame, dx = 6, cy = HEAD_Y + 4, color: RGBA = BLUSH) {
+  const { png, dy } = f;
+  fill(png, CX - dx - 1, cy + dy, CX - dx, cy + dy, color);
+  fill(png, CX + dx, cy + dy, CX + dx + 1, cy + dy, color);
 }
 
 // ---------------------------------------------------------------- characters
 
 const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
-  // S.Coups — white rabbit, sharp brows, cherry-shaped tail.
+  // S.Coups — sleepy-eyed white rabbit; red inner ears, tongue, cherry tail.
   choitcherry(pose) {
     const f = frame(pose);
-    const { png, cx, cy } = f;
-    const earLift = pose === 'jump' || pose === 'happy' ? -2 : pose === 'sad' ? 2 : 0;
-    const PINK_IN: RGBA = [255, 190, 205, 255];
-    for (const side of [-5, 3]) {
-      fill(png, cx + side, cy - 16 + earLift, cx + side + 2, cy - 7 + earLift, WHITE);
-      fill(png, cx + side + 1, cy - 13 + earLift, cx + side + 1, cy - 10 + earLift, PINK_IN);
-      for (let y = cy - 16 + earLift; y <= cy - 8 + earLift; y++) {
-        set(png, cx + side - 1, y, OUT);
-        set(png, cx + side + 3, y, OUT);
-      }
-      for (let x = cx + side - 1; x <= cx + side + 3; x++) set(png, x, cy - 17 + earLift, OUT);
+    const { png, dy } = f;
+    const RED_IN: RGBA = [178, 34, 52, 255];
+    const earLift = pose === 'jump' || pose === 'happy' ? -1 : pose === 'sad' ? 2 : 0;
+    // Tall upright ears with deep-red inner, rooted in the head
+    for (const s of [-1, 1]) {
+      const ex = CX + s * 4;
+      ellipse(png, ex, HEAD_Y - 10 + earLift + dy, 2, 5, WHITE, OUT);
+      fill(png, ex, HEAD_Y - 13 + earLift + dy, ex, HEAD_Y - 8 + earLift + dy, RED_IN);
     }
-    circle(png, cx, cy, 8, WHITE, OUT);
-    // Sharp brows
-    set(png, cx - 5, cy - 5, OUT);
-    set(png, cx - 4, cy - 4, OUT);
-    set(png, cx + 4, cy - 4, OUT);
-    set(png, cx + 5, cy - 5, OUT);
-    eyes(f);
-    mouth(f);
-    cheeks(f);
-    // Cherry tail: two red balls + stem, at the right side
-    const RED: RGBA = [220, 50, 70, 255];
-    circle(png, cx + 9, cy + 4, 1, RED, OUT);
-    circle(png, cx + 11, cy + 6, 1, RED, OUT);
-    set(png, cx + 10, cy + 2, [90, 140, 60, 255]);
-    feet(f, WHITE);
+    // Cherry tail peeking out beside the body
+    circle(png, CX + 10, BODY_Y + 4 + dy, 1, [210, 40, 60, 255], OUT);
+    circle(png, CX + 12, BODY_Y + 6 + dy, 1, [210, 40, 60, 255], OUT);
+    chibiBody(f, WHITE);
+    circle(png, CX, HEAD_Y + dy, HEAD_R, WHITE, OUT);
+    eyes(f, 'sleepy', 4);
+    // Little lash ticks over the sleepy eyes
+    if (pose !== 'happy' && pose !== 'sad') {
+      set(png, CX - 5, HEAD_Y - 1 + dy, OUT);
+      set(png, CX + 5, HEAD_Y - 1 + dy, OUT);
+    }
+    smile(f, HEAD_Y + 4);
+    if (pose !== 'sad') set(png, CX, HEAD_Y + 6 + dy, [225, 60, 80, 255]); // tongue tip
     return png;
   },
 
-  // Jeonghan — squirrel wearing a pink bunny costume, fluffy brown tail.
+  // Jeonghan — a kid tucked into a pink bunny suit, ears splayed like wings.
   jjongtoram(pose) {
     const f = frame(pose);
-    const { png, cx, cy } = f;
-    const PINK: RGBA = [250, 175, 200, 255];
-    const CREAM: RGBA = [255, 240, 220, 255];
-    const BROWN: RGBA = [165, 115, 70, 255];
-    const earLift = pose === 'jump' || pose === 'happy' ? -2 : pose === 'sad' ? 1 : 0;
-    // Floppy pink bunny-hood ears
-    for (const side of [-6, 4]) {
-      fill(png, cx + side, cy - 14 + earLift, cx + side + 2, cy - 7 + earLift, PINK);
-      set(png, cx + side + 1, cy - 11 + earLift, CREAM);
+    const { png, dy } = f;
+    const PINK: RGBA = [242, 168, 192, 255];
+    const PINK_IN: RGBA = [255, 210, 224, 255];
+    const SKIN: RGBA = [255, 228, 205, 255];
+    const HAIR: RGBA = [72, 56, 52, 255];
+    const earLift = pose === 'jump' || pose === 'happy' ? -1 : 0;
+    // Splayed bunny-hood ears
+    for (const s of [-1, 1]) {
+      const ex = CX + s * 7;
+      ellipse(png, ex, HEAD_Y - 10 + earLift + dy, 3, 5, PINK, OUT);
+      ellipse(png, ex, HEAD_Y - 10 + earLift + dy, 1, 3, PINK_IN);
     }
-    // Fluffy squirrel tail peeking out
-    circle(png, cx + 10, cy + 1, 3, BROWN, OUT);
-    circle(png, cx + 9, cy - 2, 2, BROWN);
-    circle(png, cx, cy, 8, PINK, OUT); // costume body
-    circle(png, cx, cy - 1, 5, CREAM); // face opening
-    eyes(f, 3);
-    mouth(f);
-    cheeks(f, 5);
-    feet(f, PINK);
+    chibiBody(f, PINK, { belly: PINK_IN });
+    circle(png, CX, HEAD_Y + dy, HEAD_R, PINK, OUT); // hood
+    circle(png, CX, HEAD_Y + 1 + dy, 6, SKIN); // face opening
+    // Bangs under the hood rim
+    fill(png, CX - 4, HEAD_Y - 4 + dy, CX + 4, HEAD_Y - 3 + dy, HAIR);
+    set(png, CX - 2, HEAD_Y - 2 + dy, HAIR);
+    set(png, CX + 1, HEAD_Y - 2 + dy, HAIR);
+    eyes(f, 'dot', 3, HEAD_Y + 2);
+    smile(f, HEAD_Y + 5);
+    cheeks(f, 5, HEAD_Y + 4);
     return png;
   },
 
-  // Joshua — gentle deer with little antlers; squeaky clean.
+  // Joshua — gentle fawn deer: antlers, round ears, sparkly eyes, spots.
   shuasumi(pose) {
     const f = frame(pose);
-    const { png, cx, cy } = f;
-    const FAWN: RGBA = [225, 185, 140, 255];
-    const DARK: RGBA = [150, 105, 60, 255];
-    const lift = pose === 'jump' ? -2 : 0;
+    const { png, dy } = f;
+    const FAWN: RGBA = [240, 178, 120, 255];
+    const CREAM: RGBA = [255, 240, 218, 255];
+    const ANTLER: RGBA = [150, 100, 60, 255];
+    const lift = pose === 'jump' ? -1 : 0;
     // Antlers
     for (const s of [-1, 1]) {
-      const ax = cx + s * 5;
-      fill(png, ax, cy - 14 + lift, ax, cy - 9 + lift, DARK);
-      set(png, ax + s, cy - 12 + lift, DARK);
-      set(png, ax + s * 2, cy - 13 + lift, DARK);
+      const ax = CX + s * 4;
+      fill(png, ax, HEAD_Y - 14 + lift + dy, ax, HEAD_Y - 9 + lift + dy, ANTLER);
+      set(png, ax + s, HEAD_Y - 12 + lift + dy, ANTLER);
+      set(png, ax + s * 2, HEAD_Y - 13 + lift + dy, ANTLER);
     }
-    // Small ears
-    ellipse(png, cx - 7, cy - 7 + lift, 2, 1, FAWN, OUT);
-    ellipse(png, cx + 7, cy - 7 + lift, 2, 1, FAWN, OUT);
-    circle(png, cx, cy, 8, FAWN, OUT);
-    // Back spots
-    set(png, cx - 3, cy - 6, WHITE);
-    set(png, cx + 2, cy - 7, WHITE);
-    set(png, cx + 5, cy - 4, WHITE);
-    eyes(f);
-    mouth(f);
-    cheeks(f);
-    feet(f, FAWN);
+    // Round ears
+    for (const s of [-1, 1]) {
+      ellipse(png, CX + s * 8, HEAD_Y - 6 + lift + dy, 2, 2, FAWN, OUT);
+    }
+    chibiBody(f, FAWN, { belly: CREAM });
+    circle(png, CX, HEAD_Y + dy, HEAD_R, FAWN, OUT);
+    ellipse(png, CX, HEAD_Y + 4 + dy, 4, 3, CREAM); // muzzle
+    // Fawn spots on the crown
+    set(png, CX - 3, HEAD_Y - 6 + dy, CREAM);
+    set(png, CX + 2, HEAD_Y - 7 + dy, CREAM);
+    eyes(f, 'sparkle', 4, HEAD_Y);
+    set(png, CX, HEAD_Y + 3 + dy, OUT); // nose
+    smile(f, HEAD_Y + 5);
+    cheeks(f, 6, HEAD_Y + 3);
     return png;
   },
 
-  // Jun — mysterious cat (Open, Close & Lock are triplets; one greets town).
+  // Jun — Open, Close & Lock: three cats stacked in a wobbly tower.
   ocl(pose) {
     const f = frame(pose);
-    const { png, cx, cy } = f;
-    const GRAY: RGBA = [120, 125, 145, 255];
-    const lift = pose === 'jump' || pose === 'happy' ? -1 : 0;
-    // Pointy ears
-    for (const s of [-1, 1]) {
-      const ex = cx + s * 5;
-      set(png, ex, cy - 12 + lift, OUT);
-      set(png, ex, cy - 11 + lift, GRAY);
-      fill(png, ex - 1, cy - 10 + lift, ex + 1, cy - 8 + lift, GRAY);
-      fill(png, ex - 2, cy - 7 + lift, ex + 2, cy - 6 + lift, GRAY);
+    const { png, pose: p, dy, leg } = f;
+    const GRAY: RGBA = [168, 170, 182, 255];
+    const BLACK: RGBA = [72, 70, 84, 255];
+    const wob = leg; // the tower sways as it walks
+    const stack: { color: RGBA; cy: number; ox: number }[] = [
+      { color: BLACK, cy: 34, ox: 0 },
+      { color: GRAY, cy: 24, ox: wob },
+      { color: WHITE, cy: 13, ox: -wob },
+    ];
+    // Feet on the bottom cat
+    fill(png, CX - 5 + leg, FEET_Y + 1 + dy, CX - 2 + leg, FEET_Y + 2 + dy, BLACK);
+    fill(png, CX + 2 - leg, FEET_Y + 1 + dy, CX + 5 - leg, FEET_Y + 2 + dy, BLACK);
+    for (const cat of stack) {
+      const cx = CX + cat.ox;
+      const cy = cat.cy + dy;
+      // Pointy ears
+      for (const s of [-1, 1]) {
+        set(png, cx + s * 4, cy - 7, OUT);
+        fill(png, cx + s * 4 - 1, cy - 6, cx + s * 4 + 1, cy - 5, cat.color);
+      }
+      ellipse(png, cx, cy, 7, 5.5, cat.color, OUT);
     }
-    circle(png, cx, cy, 8, WHITE, OUT);
-    // Gray patch over one eye + curled tail
-    fill(png, cx + 2, cy - 6, cx + 6, cy - 3, GRAY);
-    set(png, cx + 10, cy + 3, GRAY);
-    set(png, cx + 11, cy + 2, GRAY);
-    set(png, cx + 11, cy + 1, GRAY);
-    set(png, cx + 10, cy, GRAY);
-    eyes(f);
-    // Cat mouth: little w
-    set(png, cx - 1, cy + 3, OUT);
-    set(png, cx, cy + 2, OUT);
-    set(png, cx + 1, cy + 3, OUT);
-    // Whiskers
-    set(png, cx - 8, cy + 1, OUT);
-    set(png, cx + 8, cy + 1, OUT);
-    feet(f, WHITE);
+    // Faces: top >< happy, middle sleepy, bottom calm dots
+    const face = (cx: number, cy: number, ink: RGBA, style: 'squint' | 'sleepy' | 'dot') => {
+      if (p === 'sad') {
+        set(png, cx - 3, cy - 1, ink);
+        set(png, cx - 2, cy, ink);
+        set(png, cx + 2, cy, ink);
+        set(png, cx + 3, cy - 1, ink);
+      } else if (style === 'squint' || p === 'happy') {
+        set(png, cx - 3, cy, ink);
+        set(png, cx - 2, cy - 1, ink);
+        set(png, cx + 2, cy - 1, ink);
+        set(png, cx + 3, cy, ink);
+      } else if (style === 'sleepy') {
+        fill(png, cx - 3, cy, cx - 2, cy, ink);
+        fill(png, cx + 2, cy, cx + 3, cy, ink);
+      } else {
+        set(png, cx - 2, cy, ink);
+        set(png, cx + 2, cy, ink);
+      }
+      // w mouth
+      set(png, cx - 1, cy + 2, ink);
+      set(png, cx, cy + 1, ink);
+      set(png, cx + 1, cy + 2, ink);
+    };
+    face(CX - wob, 13 + dy, OUT, 'squint');
+    face(CX + wob, 24 + dy, OUT, 'sleepy');
+    face(CX, 34 + dy, [235, 235, 245, 255], 'dot');
     return png;
   },
 
-  // Hoshi — lucky orange tiger with a cute tummy. Horanghae!
+  // Hoshi — chubby yellow tiger with brown stripes. Horanghae!
   tamtam(pose) {
     const f = frame(pose);
-    const { png, cx, cy } = f;
-    const ORANGE: RGBA = [245, 150, 60, 255];
-    const STRIPE: RGBA = [120, 70, 25, 255];
+    const { png, dy } = f;
+    const YELLOW: RGBA = [250, 205, 90, 255];
+    const STRIPE: RGBA = [146, 96, 40, 255];
+    const CREAM: RGBA = [255, 244, 220, 255];
     const lift = pose === 'jump' || pose === 'happy' ? -1 : 0;
-    circle(png, cx - 6, cy - 7 + lift, 2, ORANGE, OUT);
-    circle(png, cx + 6, cy - 7 + lift, 2, ORANGE, OUT);
-    circle(png, cx, cy, 8, ORANGE, OUT);
-    // Cute white tummy
-    ellipse(png, cx, cy + 4, 4, 3, WHITE);
-    // Head stripes
-    set(png, cx, cy - 7, STRIPE);
-    set(png, cx, cy - 6, STRIPE);
-    set(png, cx - 2, cy - 7, STRIPE);
-    set(png, cx + 2, cy - 7, STRIPE);
-    // Side stripes
-    fill(png, cx - 8, cy - 1, cx - 7, cy - 1, STRIPE);
-    fill(png, cx + 7, cy - 1, cx + 8, cy - 1, STRIPE);
-    eyes(f);
-    mouth(f);
-    cheeks(f);
-    feet(f, ORANGE);
+    // Round ears
+    for (const s of [-1, 1]) {
+      circle(png, CX + s * 7, HEAD_Y - 7 + lift + dy, 2, YELLOW, OUT);
+    }
+    chibiBody(f, YELLOW, { belly: CREAM });
+    // Body stripes
+    fill(png, CX - 7, BODY_Y - 1 + dy, CX - 6, BODY_Y + 1 + dy, STRIPE);
+    fill(png, CX + 6, BODY_Y - 1 + dy, CX + 7, BODY_Y + 1 + dy, STRIPE);
+    circle(png, CX, HEAD_Y + dy, HEAD_R, YELLOW, OUT);
+    // Forehead + temple stripes
+    fill(png, CX, HEAD_Y - 8 + dy, CX, HEAD_Y - 6 + dy, STRIPE);
+    fill(png, CX - 3, HEAD_Y - 8 + dy, CX - 3, HEAD_Y - 7 + dy, STRIPE);
+    fill(png, CX + 3, HEAD_Y - 8 + dy, CX + 3, HEAD_Y - 7 + dy, STRIPE);
+    fill(png, CX - 9, HEAD_Y + dy, CX - 8, HEAD_Y + 1 + dy, STRIPE);
+    fill(png, CX + 8, HEAD_Y + dy, CX + 9, HEAD_Y + 1 + dy, STRIPE);
+    ellipse(png, CX, HEAD_Y + 4 + dy, 4, 3, CREAM); // muzzle
+    eyes(f, 'dot', 4, HEAD_Y);
+    set(png, CX, HEAD_Y + 3 + dy, OUT); // nose
+    smile(f, HEAD_Y + 5, [235, 110, 120, 255]); // open smile + tongue
     return png;
   },
 
-  // Wonwoo — curious purple fox with six tails.
+  // Wonwoo — lilac fox in round glasses, fluffy white-tipped tail.
   foxdungee(pose) {
     const f = frame(pose);
-    const { png, cx, cy } = f;
-    const PURPLE: RGBA = [165, 110, 220, 255];
-    const LILAC: RGBA = [210, 180, 245, 255];
-    const lift = pose === 'jump' || pose === 'happy' ? -2 : 0; // ears perk up
-    // Six tails fanned behind
-    const tails = [
-      [-11, 2], [-9, -2], [-5, -5],
-      [11, 2], [9, -2], [5, -5],
-    ];
-    for (const [tx, ty] of tails) {
-      ellipse(png, cx + tx, cy + ty, 2, 3, PURPLE, OUT);
-      set(png, cx + tx, cy + ty - 2, LILAC);
-    }
-    // Pointy ears
+    const { png, pose: p, dy } = f;
+    const LILAC: RGBA = [186, 148, 220, 255];
+    const DEEP: RGBA = [140, 100, 180, 255];
+    const CREAM: RGBA = [248, 240, 255, 255];
+    const lift = p === 'jump' || p === 'happy' ? -2 : 0; // ears perk up
+    // Big pointed ears with pale inner
     for (const s of [-1, 1]) {
-      const ex = cx + s * 5;
-      set(png, ex, cy - 12 + lift, OUT);
-      set(png, ex, cy - 11 + lift, PURPLE);
-      fill(png, ex - 1, cy - 10 + lift, ex + 1, cy - 8 + lift, PURPLE);
+      const ex = CX + s * 6;
+      set(png, ex, HEAD_Y - 13 + lift + dy, OUT);
+      fill(png, ex - 1, HEAD_Y - 12 + lift + dy, ex + 1, HEAD_Y - 10 + lift + dy, DEEP);
+      fill(png, ex - 2, HEAD_Y - 9 + lift + dy, ex + 2, HEAD_Y - 7 + lift + dy, LILAC);
+      set(png, ex, HEAD_Y - 10 + lift + dy, CREAM);
     }
-    circle(png, cx, cy, 8, PURPLE, OUT);
-    ellipse(png, cx, cy + 2, 4, 3, LILAC); // muzzle
-    // White eye whites so the eyes read against the purple fur
-    if (pose !== 'happy' && pose !== 'sad') {
-      fill(png, cx - 5, cy - 3, cx - 3, cy - 1, WHITE);
-      fill(png, cx + 3, cy - 3, cx + 5, cy - 1, WHITE);
+    // Fluffy tail with pale tip
+    ellipse(png, CX + 11, BODY_Y + 2 + dy, 3, 4, LILAC, OUT);
+    ellipse(png, CX + 11, BODY_Y - 1 + dy, 2, 1.5, CREAM);
+    chibiBody(f, LILAC, { belly: CREAM });
+    circle(png, CX, HEAD_Y + dy, HEAD_R, LILAC, OUT);
+    ellipse(png, CX, HEAD_Y + 4 + dy, 4, 3, CREAM); // muzzle
+    // Round glasses — the signature
+    if (p !== 'happy' && p !== 'sad') {
+      for (const s of [-1, 1]) {
+        circle(png, CX + s * 4, HEAD_Y + dy, 2.6, [0, 0, 0, 0], OUT);
+      }
+      set(png, CX - 1, HEAD_Y + dy, OUT); // bridge
+      set(png, CX + 1, HEAD_Y + dy, OUT);
+      // pupils behind the lenses
+      set(png, CX - 4, HEAD_Y + dy, OUT);
+      set(png, CX + 4, HEAD_Y + dy, OUT);
+    } else {
+      eyes(f, 'dot', 4, HEAD_Y);
     }
-    eyes(f);
-    set(png, cx, cy + 1, OUT); // nose
-    feet(f, PURPLE);
+    set(png, CX, HEAD_Y + 3 + dy, OUT); // nose
+    smile(f, HEAD_Y + 6);
     return png;
   },
 
-  // Woozi — steamed-rice ball whose colour shifts with mood.
+  // Woozi — a fluffy white puff of steamed rice; blushes when pleased.
   ppyopuli(pose) {
     const f = frame(pose);
-    const { png, pose: p, cx, cy } = f;
-    // Colour follows the mood, per the character bio
-    const body: RGBA = p === 'happy' ? [255, 240, 245, 255] : p === 'sad' ? [225, 230, 245, 255] : [250, 250, 250, 255];
-    // Rice-mound: dome over a flat base
-    circle(png, cx, cy - 1, 7, body, OUT);
-    fill(png, cx - 7, cy + 1, cx + 7, cy + 6, body);
-    for (let x = cx - 7; x <= cx + 7; x++) set(png, x, cy + 7, OUT);
-    set(png, cx - 8, cy + 5, OUT);
-    set(png, cx + 8, cy + 5, OUT);
-    // Steam wisps
-    const STEAM: RGBA = [220, 225, 235, 255];
-    set(png, cx - 3, cy - 11, STEAM);
-    set(png, cx - 2, cy - 12, STEAM);
-    set(png, cx + 3, cy - 12, STEAM);
-    set(png, cx + 4, cy - 11, STEAM);
-    eyes(f, 3, -1);
-    mouth(f, 3);
-    cheeks(f, 5, 2);
+    const { png, pose: p, dy, leg } = f;
+    const body: RGBA = p === 'happy' ? [255, 244, 248, 255] : [250, 250, 252, 255];
+    const cy = 22 + dy;
+    // Nub feet
+    fill(png, CX - 5 + leg, 36 + dy, CX - 2 + leg, 38 + dy, body);
+    fill(png, CX + 2 - leg, 36 + dy, CX + 5 - leg, 38 + dy, body);
+    set(png, CX - 5 + leg, 39 + dy, OUT);
+    set(png, CX + 5 - leg, 39 + dy, OUT);
+    // Fluffy cloud: overlapping lobes around a fat core
+    circle(png, CX, cy, 9, body, OUT);
+    for (const [ox, oy] of [[-7, -6], [0, -9], [7, -6], [-9, 1], [9, 1], [-6, 7], [6, 7]]) {
+      circle(png, CX + ox, cy + oy, 4, body, OUT);
+    }
+    // Re-fill the interior so lobe outlines don't cross the face
+    circle(png, CX, cy, 8, body);
+    for (const [ox, oy] of [[-7, -6], [0, -9], [7, -6], [-9, 1], [9, 1], [-6, 7], [6, 7]]) {
+      circle(png, CX + ox, cy + oy, 3, body);
+    }
+    // Simple face: chunky dot eyes + kissy mouth so it reads on the white
+    if (pose === 'happy' || pose === 'sad') {
+      eyes(f, 'dot', 3, cy - 1);
+    } else {
+      for (const s of [-1, 1]) fill(png, CX + s * 3, cy - 2, CX + s * 3 + (s > 0 ? 1 : -1), cy - 1, OUT);
+    }
+    set(png, CX, cy + 1, OUT);
+    set(png, CX + 1, cy + 2, OUT);
+    set(png, CX, cy + 3, OUT);
+    cheeks(f, 6, cy, [255, 150, 170, 255]);
     return png;
   },
 
-  // DK — sunny puppy, goes crazy for food.
+  // DK — fluffy cream puppy: poofy crown, floppy ears, tongue out.
   doa(pose) {
     const f = frame(pose);
-    const { png, cx, cy } = f;
-    const CREAM: RGBA = [250, 230, 185, 255];
-    const BROWN: RGBA = [170, 120, 70, 255];
-    const droop = pose === 'sad' ? 2 : pose === 'jump' || pose === 'happy' ? -1 : 0;
+    const { png, pose: p, dy } = f;
+    const CREAM: RGBA = [250, 236, 205, 255];
+    const FLUFF: RGBA = [255, 248, 230, 255];
+    const droop = p === 'sad' ? 2 : 0;
     // Floppy ears
-    fill(png, cx - 9, cy - 8 + droop, cx - 6, cy - 1 + droop, BROWN);
-    fill(png, cx + 6, cy - 8 + droop, cx + 9, cy - 1 + droop, BROWN);
-    circle(png, cx, cy, 8, CREAM, OUT);
-    eyes(f);
-    set(png, cx, cy, OUT); // nose
-    mouth(f);
-    if (pose === 'happy') set(png, cx, cy + 4, [255, 130, 150, 255]); // tongue
-    cheeks(f);
-    feet(f, CREAM);
+    for (const s of [-1, 1]) {
+      ellipse(png, CX + s * 8, HEAD_Y - 1 + droop + dy, 2.5, 5, CREAM, OUT);
+    }
+    chibiBody(f, CREAM, { belly: FLUFF });
+    circle(png, CX, HEAD_Y + dy, HEAD_R, FLUFF, OUT);
+    // Poofy fur bumps on the crown
+    for (const [ox, oy] of [[-6, -6], [-2, -8], [3, -8], [6, -5]]) {
+      circle(png, CX + ox, HEAD_Y + oy + dy, 2.5, FLUFF, OUT);
+    }
+    circle(png, CX, HEAD_Y + dy, HEAD_R - 1, FLUFF);
+    eyes(f, 'dot', 3, HEAD_Y);
+    set(png, CX, HEAD_Y + 3 + dy, [110, 80, 60, 255]); // nose
+    smile(f, HEAD_Y + 5, [240, 120, 130, 255]); // tongue
+    cheeks(f, 6, HEAD_Y + 3);
     return png;
   },
 
-  // Mingyu — the leader of potatoes; bigger than you expect.
+  // Mingyu — the leader of potatoes: tall spud, sprout, freckles, big grin.
   kimja(pose) {
     const f = frame(pose);
-    const { png, cx, cy } = f;
-    const TAN: RGBA = [210, 170, 110, 255];
-    const DIMPLE: RGBA = [165, 125, 75, 255];
-    const SPROUT: RGBA = [110, 190, 90, 255];
-    ellipse(png, cx, cy, 10, 8, TAN, OUT);
-    // Sprout on top
-    set(png, cx, cy - 9, SPROUT);
-    set(png, cx, cy - 10, SPROUT);
-    set(png, cx - 1, cy - 11, SPROUT);
-    set(png, cx + 1, cy - 11, SPROUT);
-    // Dimples
-    set(png, cx - 6, cy - 4, DIMPLE);
-    set(png, cx + 7, cy - 2, DIMPLE);
-    set(png, cx - 4, cy + 5, DIMPLE);
-    eyes(f);
-    mouth(f);
-    cheeks(f);
+    const { png, pose: p, dy, leg } = f;
+    const SPUD: RGBA = [226, 190, 110, 255];
+    const DARK: RGBA = [176, 138, 70, 255];
+    const SPROUT: RGBA = [124, 190, 92, 255];
+    const cy = 22 + dy;
+    // Feet nubs
+    fill(png, CX - 5 + leg, 37 + dy, CX - 2 + leg, 39 + dy, SPUD);
+    fill(png, CX + 2 - leg, 37 + dy, CX + 5 - leg, 39 + dy, SPUD);
+    // Tall potato body (head and body in one)
+    ellipse(png, CX, cy, 9, 13, SPUD, OUT);
+    // Sprout tuft
+    set(png, CX, cy - 14, SPROUT);
+    set(png, CX - 1, cy - 15, SPROUT);
+    set(png, CX + 1, cy - 15, SPROUT);
+    set(png, CX + 2, cy - 16, SPROUT);
+    // Stubby arms
+    const armY = p === 'happy' || p === 'jump' ? cy - 2 : cy + 3;
+    fill(png, CX - 11, armY, CX - 9, armY + 3, SPUD);
+    fill(png, CX + 9, armY, CX + 11, armY + 3, SPUD);
+    // Freckles
+    set(png, CX - 6, cy - 1, DARK);
+    set(png, CX + 6, cy - 1, DARK);
+    set(png, CX - 7, cy + 4, DARK);
+    set(png, CX + 7, cy + 4, DARK);
+    eyes(f, 'sparkle', 4, cy - 4);
+    set(png, CX, cy - 1, [140, 100, 55, 255]); // nose
+    // Wide grin
+    if (p === 'sad') {
+      fill(png, CX - 2, cy + 3, CX + 2, cy + 3, OUT);
+      set(png, CX - 3, cy + 4, OUT);
+      set(png, CX + 3, cy + 4, OUT);
+    } else {
+      set(png, CX - 3, cy + 2, OUT);
+      fill(png, CX - 2, cy + 3, CX + 2, cy + 3, OUT);
+      set(png, CX + 3, cy + 2, OUT);
+      set(png, CX, cy + 4, [230, 130 , 140, 255]);
+    }
     return png;
   },
 
-  // The8 — a princely frog who likes rain, tea and quiet.
+  // The8 — calm frog with huge glossy eyes on top of his head.
   thepalee(pose) {
     const f = frame(pose);
-    const { png, cx, cy } = f;
-    const GREEN: RGBA = [115, 200, 115, 255];
-    const BELLY: RGBA = [215, 245, 205, 255];
-    const GOLD: RGBA = [255, 210, 80, 255];
-    const lift = pose === 'jump' ? -2 : 0;
-    // Eye bumps on top
-    circle(png, cx - 4, cy - 8 + lift, 3, GREEN, OUT);
-    circle(png, cx + 4, cy - 8 + lift, 3, GREEN, OUT);
-    circle(png, cx, cy, 8, GREEN, OUT);
-    ellipse(png, cx, cy + 3, 4, 3, BELLY);
-    // Eyes sit on the bumps
-    if (pose === 'happy') {
-      set(png, cx - 5, cy - 8 + lift, OUT);
-      set(png, cx - 4, cy - 9 + lift, OUT);
-      set(png, cx - 3, cy - 8 + lift, OUT);
-      set(png, cx + 3, cy - 8 + lift, OUT);
-      set(png, cx + 4, cy - 9 + lift, OUT);
-      set(png, cx + 5, cy - 8 + lift, OUT);
-    } else if (pose === 'sad') {
-      set(png, cx - 5, cy - 9 + lift, OUT);
-      set(png, cx - 4, cy - 8 + lift, OUT);
-      set(png, cx + 4, cy - 8 + lift, OUT);
-      set(png, cx + 5, cy - 9 + lift, OUT);
-    } else {
-      set(png, cx - 4, cy - 8 + lift, OUT);
-      set(png, cx + 4, cy - 8 + lift, OUT);
+    const { png, pose: p, dy } = f;
+    const GREEN: RGBA = [150, 200, 96, 255];
+    const BELLY: RGBA = [226, 244, 198, 255];
+    const lift = p === 'jump' ? -1 : 0;
+    chibiBody(f, GREEN, { belly: BELLY });
+    circle(png, CX, HEAD_Y + 1 + dy, HEAD_R, GREEN, OUT);
+    // Eye bumps merged into the crown
+    for (const s of [-1, 1]) {
+      circle(png, CX + s * 5, HEAD_Y - 7 + lift + dy, 4, GREEN, OUT);
+      circle(png, CX + s * 5, HEAD_Y - 7 + lift + dy, 3.4, GREEN);
     }
-    // Tiny gold crown between the bumps
-    set(png, cx - 1, cy - 12 + lift, GOLD);
-    set(png, cx + 1, cy - 12 + lift, GOLD);
-    fill(png, cx - 1, cy - 11 + lift, cx + 1, cy - 11 + lift, GOLD);
-    // Wide frog smile
-    if (pose === 'sad') {
-      set(png, cx - 2, cy + 2, OUT);
-      set(png, cx - 1, cy + 1, OUT);
-      set(png, cx, cy + 1, OUT);
-      set(png, cx + 1, cy + 1, OUT);
-      set(png, cx + 2, cy + 2, OUT);
-    } else {
-      set(png, cx - 2, cy + 1, OUT);
-      set(png, cx - 1, cy + 2, OUT);
-      set(png, cx, cy + 2, OUT);
-      set(png, cx + 1, cy + 2, OUT);
-      set(png, cx + 2, cy + 1, OUT);
+    // Huge glossy eyes (or squints on emotion poses)
+    for (const s of [-1, 1]) {
+      const ex = CX + s * 5;
+      const ey = HEAD_Y - 7 + lift + dy;
+      if (p === 'happy') {
+        set(png, ex - 1, ey, OUT);
+        set(png, ex, ey - 1, OUT);
+        set(png, ex + 1, ey, OUT);
+      } else if (p === 'sad') {
+        set(png, ex - 1, ey, OUT);
+        set(png, ex + 1, ey - 1, OUT);
+      } else {
+        circle(png, ex, ey, 2.4, OUT);
+        set(png, ex - 1, ey - 1, WHITE);
+        set(png, ex + 1, ey + 1, WHITE);
+      }
     }
-    feet(f, GREEN);
+    // Wide little smile + rosy cheeks
+    if (p === 'sad') {
+      set(png, CX - 2, HEAD_Y + 4 + dy, OUT);
+      set(png, CX - 1, HEAD_Y + 3 + dy, OUT);
+      set(png, CX + 1, HEAD_Y + 3 + dy, OUT);
+      set(png, CX + 2, HEAD_Y + 4 + dy, OUT);
+    } else {
+      set(png, CX - 2, HEAD_Y + 3 + dy, OUT);
+      set(png, CX - 1, HEAD_Y + 4 + dy, OUT);
+      set(png, CX, HEAD_Y + 4 + dy, OUT);
+      set(png, CX + 1, HEAD_Y + 4 + dy, OUT);
+      set(png, CX + 2, HEAD_Y + 3 + dy, OUT);
+    }
+    cheeks(f, 6, HEAD_Y + 3, [244, 150, 130, 255]);
     return png;
   },
 
-  // Seungkwan — a Jeju tangerine whose eyes shine like diamonds.
+  // Seungkwan — Jeju tangerine with a leaf, swirl top and shining eyes.
   bboogyuli(pose) {
     const f = frame(pose);
-    const { png, cx, cy } = f;
-    const TANG: RGBA = [255, 165, 55, 255];
-    const LEAF: RGBA = [95, 180, 85, 255];
-    circle(png, cx, cy, 8, TANG, OUT);
+    const { png, dy } = f;
+    const TANG: RGBA = [250, 158, 58, 255];
+    const TANG_D: RGBA = [216, 122, 34, 255];
+    const LEAF: RGBA = [104, 182, 88, 255];
+    chibiBody(f, TANG);
+    circle(png, CX, HEAD_Y + dy, HEAD_R, TANG, OUT);
+    // Peel swirl on the crown
+    set(png, CX - 1, HEAD_Y - 6 + dy, TANG_D);
+    set(png, CX, HEAD_Y - 7 + dy, TANG_D);
+    set(png, CX + 1, HEAD_Y - 6 + dy, TANG_D);
+    set(png, CX, HEAD_Y - 5 + dy, TANG_D);
     // Stem + leaf
-    set(png, cx, cy - 9, [120, 90, 50, 255]);
-    fill(png, cx + 1, cy - 11, cx + 3, cy - 10, LEAF);
-    eyes(f);
-    // Diamond-shine glints
-    if (pose !== 'sad') {
-      set(png, cx - 3, cy - 3, WHITE);
-      set(png, cx + 5, cy - 3, WHITE);
-    }
-    mouth(f);
-    cheeks(f);
-    feet(f, TANG);
+    set(png, CX, HEAD_Y - 9 + dy, [124, 90, 48, 255]);
+    fill(png, CX + 1, HEAD_Y - 11 + dy, CX + 4, HEAD_Y - 10 + dy, LEAF);
+    set(png, CX + 2, HEAD_Y - 12 + dy, LEAF);
+    eyes(f, 'sparkle', 4, HEAD_Y);
+    set(png, CX, HEAD_Y + 3 + dy, [210, 60, 60, 255]); // little red nose
+    smile(f, HEAD_Y + 5);
+    cheeks(f, 6, HEAD_Y + 3);
     return png;
   },
 
-  // Vernon — the chill human of the bunch, hood up like a polar bear.
+  // Vernon — chill kid in a gray animal hood, calm straight gaze.
   nonver(pose) {
     const f = frame(pose);
-    const { png, cx, cy } = f;
-    const HOOD: RGBA = [245, 245, 250, 255];
-    const SKIN: RGBA = pose === 'happy' ? [255, 225, 200, 255] : pose === 'sad' ? [225, 210, 225, 255] : [250, 220, 190, 255];
-    const lift = pose === 'jump' ? -1 : 0;
-    // Bear ears on the hood
-    circle(png, cx - 6, cy - 8 + lift, 2, HOOD, OUT);
-    circle(png, cx + 6, cy - 8 + lift, 2, HOOD, OUT);
-    circle(png, cx, cy, 8, HOOD, OUT); // hood
-    circle(png, cx, cy + 1, 5, SKIN); // face peeking out
-    eyes(f, 3, 0);
-    mouth(f, 3);
-    feet(f, HOOD);
+    const { png, dy } = f;
+    const HOOD: RGBA = [172, 176, 188, 255];
+    const SUIT: RGBA = [108, 110, 124, 255];
+    const SKIN: RGBA = [255, 226, 200, 255];
+    const HAIR: RGBA = [96, 72, 56, 255];
+    // Round hood ears
+    for (const s of [-1, 1]) {
+      circle(png, CX + s * 6, HEAD_Y - 8 + dy, 2.5, HOOD, OUT);
+    }
+    chibiBody(f, SUIT, { feet: SUIT });
+    circle(png, CX, HEAD_Y + dy, HEAD_R, HOOD, OUT);
+    circle(png, CX, HEAD_Y + 1 + dy, 6, SKIN); // face opening
+    // Fringe under the hood
+    fill(png, CX - 4, HEAD_Y - 3 + dy, CX + 4, HEAD_Y - 3 + dy, HAIR);
+    set(png, CX - 3, HEAD_Y - 2 + dy, HAIR);
+    set(png, CX + 2, HEAD_Y - 2 + dy, HAIR);
+    eyes(f, 'calm', 3, HEAD_Y + 2);
+    // Neutral flat mouth (small smile when happy)
+    if (pose === 'happy') smile(f, HEAD_Y + 5);
+    else if (pose === 'sad') smile(f, HEAD_Y + 5);
+    else fill(png, CX - 1, HEAD_Y + 5 + dy, CX + 1, HEAD_Y + 5 + dy, OUT);
     return png;
   },
 
-  // Dino — an ambitious otter who laughs a lot.
+  // Dino — cheerful otter: brown crown, white muzzle band, round ears.
   chandalee(pose) {
     const f = frame(pose);
-    const { png, cx, cy } = f;
-    const BROWN: RGBA = [155, 115, 80, 255];
-    const MUZZLE: RGBA = [235, 210, 175, 255];
+    const { png, dy } = f;
+    const BROWN: RGBA = [188, 138, 92, 255];
+    const CREAM: RGBA = [255, 246, 230, 255];
     const lift = pose === 'jump' || pose === 'happy' ? -1 : 0;
-    circle(png, cx - 6, cy - 7 + lift, 2, BROWN, OUT);
-    circle(png, cx + 6, cy - 7 + lift, 2, BROWN, OUT);
-    circle(png, cx, cy, 8, BROWN, OUT);
-    ellipse(png, cx, cy + 2, 5, 4, MUZZLE);
-    eyes(f);
-    set(png, cx, cy, OUT); // nose
-    mouth(f, 3);
-    // Whisker dots
-    set(png, cx - 4, cy + 2, OUT);
-    set(png, cx + 4, cy + 2, OUT);
-    // Flat tail to the side
-    ellipse(png, cx + 10, cy + 6, 3, 2, BROWN, OUT);
-    feet(f, BROWN);
+    // Small round ears
+    for (const s of [-1, 1]) {
+      circle(png, CX + s * 7, HEAD_Y - 7 + lift + dy, 2, BROWN, OUT);
+    }
+    // Flat tail
+    ellipse(png, CX + 11, BODY_Y + 5 + dy, 3, 2, BROWN, OUT);
+    chibiBody(f, BROWN, { belly: CREAM });
+    circle(png, CX, HEAD_Y + dy, HEAD_R, BROWN, OUT);
+    // White muzzle band across the lower face
+    ellipse(png, CX, HEAD_Y + 4 + dy, 6.5, 4, CREAM);
+    eyes(f, 'dot', 4, HEAD_Y - 1);
+    ellipse(png, CX, HEAD_Y + 2 + dy, 1.4, 1, [90, 62, 48, 255]); // big otter nose
+    smile(f, HEAD_Y + 5);
+    cheeks(f, 7, HEAD_Y + 2);
     return png;
   },
 };
@@ -520,4 +660,4 @@ for (const [id, fn] of Object.entries(draw)) {
     save(fn(pose), path.join(ROOT, id, `${pose}.png`));
   }
 }
-console.log(`Wrote ${Object.keys(draw).length} MINITEEN villagers × ${POSES.length} poses`);
+console.log(`Wrote ${Object.keys(draw).length} MINITEEN villagers × ${POSES.length} poses (${W}x${H})`);
