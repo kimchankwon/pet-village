@@ -37,6 +37,7 @@ const PALETTE: RGBA[] = [
   [255, 255, 247, 255],
   [193, 234, 240, 255],
   [47, 68, 77, 255], // muted blue-black eyes; avoids saturated face artifacts
+  [46, 70, 78, 255], // intentional blue-black eye pixels; preserved inside fill
   [249, 185, 182, 255],
 ];
 
@@ -104,6 +105,59 @@ function cleanup(output: InstanceType<typeof PNG>, bottom: number) {
   }
 }
 
+function closeOutlineGaps(output: InstanceType<typeof PNG>) {
+  // Bridge 1–2px breaks in the dark outline (anti-aliased in the source),
+  // so interior regions can't leak to the border through them.
+  const [dr, dg, db] = PALETTE[0]!;
+  for (let pass = 0; pass < 2; pass++) {
+    const add: number[] = [];
+    for (let y = 0; y < output.height; y++) for (let x = 0; x < output.width; x++) {
+      const i = (y * output.width + x) * 4;
+      if (output.data[i + 3] !== 0) continue;
+      let dark = 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= output.width || ny >= output.height) continue;
+        const n = (ny * output.width + nx) * 4;
+        if (output.data[n + 3] !== 0 && output.data[n] === dr && output.data[n + 1] === dg && output.data[n + 2] === db) dark++;
+      }
+      if (dark >= 3) add.push(i);
+    }
+    for (const i of add) { output.data[i] = dr; output.data[i + 1] = dg; output.data[i + 2] = db; output.data[i + 3] = 255; }
+  }
+}
+
+function fillInteriorHoles(output: InstanceType<typeof PNG>) {
+  // Transparency that can't reach the canvas border is a hole punched by
+  // paper-coloured anti-alias/shading pixels inside the body — refill it
+  // with fur so the sprite is solid inside its outline.
+  const w = output.width, h = output.height;
+  const outside = new Uint8Array(w * h);
+  const queue: number[] = [];
+  const add = (x: number, y: number) => {
+    const index = y * w + x;
+    if (!outside[index] && output.data[index * 4 + 3] === 0) { outside[index] = 1; queue.push(index); }
+  };
+  for (let x = 0; x < w; x++) { add(x, 0); add(x, h - 1); }
+  for (let y = 1; y < h - 1; y++) { add(0, y); add(w - 1, y); }
+  for (let i = 0; i < queue.length; i++) {
+    const index = queue[i]!; const x = index % w; const y = Math.floor(index / w);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < w && ny < h) add(nx, ny);
+    }
+  }
+  const white = PALETTE[1]!;
+  for (let index = 0; index < w * h; index++) {
+    if (output.data[index * 4 + 3] === 0 && !outside[index]) {
+      output.data[index * 4] = white[0];
+      output.data[index * 4 + 1] = white[1];
+      output.data[index * 4 + 2] = white[2];
+      output.data[index * 4 + 3] = white[3];
+    }
+  }
+}
+
 function trimWhiteOutsideOutline(output: InstanceType<typeof PNG>) {
   const [wr, wg, wb] = PALETTE[1]!;
   // A correct outline shields fur from transparency. Any white pixel exposed to
@@ -149,19 +203,22 @@ function extract(source: InstanceType<typeof PNG>, crop: Crop) {
     if (!outside[index]) {
       const color = read(source, crop.x + x, crop.y + y);
       if (!isPaper(color)) {
-        const pixel = quantize(color);
-        const white = PALETTE[1]!;
+        // Trust quantize(): dark outline, white fur, cyan shading/eyes and
+        // blue-black eye pixels pass through; warm reddish pixels are blush.
+        let pixel = quantize(color);
+        if (pixel === PALETTE[4]) pixel = PALETTE[5]!;
         const i = index * 4;
-        if (pixel[0] === 32 && pixel[1] === 39 && pixel[2] === 40) {
-          output.data[i] = pixel[0]; output.data[i + 1] = pixel[1]; output.data[i + 2] = pixel[2]; output.data[i + 3] = pixel[3];
-        } else {
-          output.data[i] = white[0]; output.data[i + 1] = white[1]; output.data[i + 2] = white[2]; output.data[i + 3] = white[3];
-        }
+        output.data[i] = pixel[0]; output.data[i + 1] = pixel[1]; output.data[i + 2] = pixel[2]; output.data[i + 3] = pixel[3];
       }
     }
   }
   cleanup(output, crop.bottom);
+  // Close interior holes BEFORE the outside trim, so the trim can only
+  // erode from the true silhouette edge — not outward from speckles.
+  closeOutlineGaps(output);
+  fillInteriorHoles(output);
   trimWhiteOutsideOutline(output);
+  fillInteriorHoles(output); // holes the trim may have re-opened behind the outline
   return output;
 }
 
