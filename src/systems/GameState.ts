@@ -232,8 +232,9 @@ class GameStateStore {
 
   constructor() {
     this.data = this.loadLocal();
-    this.stripUnwearableAccessories();
+    // Decay before strip — strip may persist and would clobber lastSeen.
     this.applyOfflineDecay();
+    this.stripUnwearableAccessories();
   }
 
   private loadLocal(): SaveData {
@@ -256,8 +257,9 @@ class GameStateStore {
     this.data = mergeSave(raw);
     this.data.penguinColor = raw.penguinColor ?? localColor;
     this.data.npcGiftDays = raw.npcGiftDays ?? localGiftDays;
-    this.stripUnwearableAccessories();
+    // Decay before strip — strip may persist and would clobber lastSeen.
     this.applyOfflineDecay();
+    this.stripUnwearableAccessories();
     this.persistLocal();
   }
 

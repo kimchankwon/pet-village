@@ -20,8 +20,10 @@ export function rememberBongbongee(npc: WandererNpc) {
 }
 
 export function rememberMiniteens(npcs: MiniteenNpc[]) {
+  // Only settled NPCs — mid walk-off/arrive positions are transient and
+  // would restore leavers at the map edge while dropping incoming villagers.
   miniteenSnaps = npcs
-    .filter((n) => n.isPresent())
+    .filter((n) => n.canLeave())
     .map((n) => ({
       id: n.defId,
       x: n.sprite.x,

@@ -94,9 +94,12 @@ export function openClothesMenu(
     .join(', ');
   const wearingLine = equippedNames ? `Wearing: ${equippedNames}` : 'Wearing: nothing yet';
 
+  // Menu.initialSelected indexes into enabled rows only (skips disabled).
+  const enabledFocus = options.slice(0, focusIndex).filter((option) => !option.disabled).length;
+
   clothesMenu = new Menu(scene, 'Pet clothes', options, {
     subtitle: wearingLine,
-    initialSelected: focusIndex,
+    initialSelected: enabledFocus,
   });
   clothesMenu.onClose = () => {
     clothesMenu = null;
