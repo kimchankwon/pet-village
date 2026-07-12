@@ -7,7 +7,6 @@ import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
 import { forceLeave, isUiBlocked } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
-import { CinnamorollNpc } from '../systems/CinnamorollNpc';
 import { BongbongeeNpc } from '../systems/BongbongeeNpc';
 import { MiniteenRoster } from '../systems/MiniteenRoster';
 import type { WandererNpc } from '../systems/WandererNpc';
@@ -47,6 +46,7 @@ export class TownScene extends Phaser.Scene {
   private pointerHeld = false;
   private houseImg!: Phaser.GameObjects.Image;
   private shopImg!: Phaser.GameObjects.Image;
+  private cafeImg!: Phaser.GameObjects.Image;
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   // Menu option clicks must not also trigger walk/interact underneath.
   private ignoreClicksUntil = 0;
@@ -57,7 +57,7 @@ export class TownScene extends Phaser.Scene {
     super('Town');
   }
 
-  create(data: { spawn?: 'house' | 'arcade' | 'shop' }) {
+  create(data: { spawn?: 'house' | 'arcade' | 'shop' | 'cafe' }) {
     generateTextures(this);
     this.interactables = [];
     this.menuOpen = false;
@@ -75,11 +75,14 @@ export class TownScene extends Phaser.Scene {
       sx = 6.5 * TILE;
       sy = 8.5 * TILE;
     } else if (data?.spawn === 'arcade') {
-      sx = 24 * TILE;
-      sy = 16 * TILE;
+      sx = 25 * TILE;
+      sy = 17.2 * TILE;
     } else if (data?.spawn === 'shop') {
       sx = 25 * TILE;
       sy = 9.4 * TILE;
+    } else if (data?.spawn === 'cafe') {
+      sx = 7 * TILE;
+      sy = 18.5 * TILE;
     }
 
     this.player = this.physics.add.sprite(sx, sy, 'penguin-down', 0);
@@ -95,19 +98,12 @@ export class TownScene extends Phaser.Scene {
     });
 
     this.npcs = [
-      // Clothes stall near the shop — shy Cafe Cinnamon boutique.
-      new CinnamorollNpc(this, [
-        { x: 22.5 * TILE, y: 9.2 * TILE },
-        { x: 24 * TILE, y: 10.5 * TILE },
-        { x: 21.5 * TILE, y: 10.8 * TILE },
-        { x: 23.5 * TILE, y: 8.8 * TILE },
-      ]),
+      // Bongbongee wanders town; Cinnamoroll is inside Cafe Cinnamon.
       new BongbongeeNpc(this, [
         { x: 12 * TILE, y: 15 * TILE },
         { x: 18 * TILE, y: 11 * TILE },
         { x: 27 * TILE, y: 12 * TILE },
         { x: 14 * TILE, y: 19 * TILE },
-        { x: 7 * TILE, y: 13 * TILE },
         { x: 21 * TILE, y: 17 * TILE },
       ]),
     ];
@@ -163,6 +159,16 @@ export class TownScene extends Phaser.Scene {
           this.scene.start('Shop');
         } else {
           this.clickMove.setTarget(25 * TILE, 8.6 * TILE);
+        }
+        return;
+      }
+      if (this.cafeImg.getBounds().contains(pointer.worldX, pointer.worldY)) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, 7 * TILE, 16.3 * TILE);
+        if (d < 150) {
+          this.clickMove.clear();
+          this.scene.start('ClothesShop');
+        } else {
+          this.clickMove.setTarget(7 * TILE, 18.2 * TILE);
         }
         return;
       }
@@ -269,11 +275,34 @@ export class TownScene extends Phaser.Scene {
       targets: [shop],
     });
 
-    // Arcade cabinet → paper toss minigame
-    const arcade = this.add.image(24 * TILE, 15 * TILE, 'arcade').setScale(1.5);
+    // Cafe Cinnamon — SW; Cinnamoroll sells pet clothes inside.
+    const cafe = this.add.image(7 * TILE, 16 * TILE, 'cafe').setScale(2);
+    cafe.setDepth(cafe.y + cafe.displayHeight / 2);
+    this.cafeImg = cafe;
+    this.add
+      .text(7 * TILE, 16 * TILE - cafe.displayHeight / 2 - 12, 'Cafe Cinnamon', {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#ffe6f2',
+        stroke: '#1a1a2e',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(900);
+    this.interactables.push({
+      x: 7 * TILE,
+      y: 16.3 * TILE,
+      radius: 130,
+      label: 'E / click — Enter Cafe Cinnamon',
+      action: () => this.scene.start('ClothesShop'),
+      targets: [cafe],
+    });
+
+    // Arcade cabinet → paper toss minigame (SE, near Daniel's side of town)
+    const arcade = this.add.image(25 * TILE, 16 * TILE, 'arcade').setScale(1.5);
     arcade.setDepth(arcade.y + arcade.displayHeight / 2);
     this.add
-      .text(24 * TILE, 15 * TILE - 50, 'Paper Toss', {
+      .text(25 * TILE, 16 * TILE - 50, 'Paper Toss', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#ffffff',
@@ -283,22 +312,20 @@ export class TownScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(900);
     this.interactables.push({
-      x: 24 * TILE,
-      y: 15 * TILE,
-      // must exceed the collider's diagonal reach or some approach angles can never interact
+      x: 25 * TILE,
+      y: 16 * TILE,
       radius: 90,
       label: 'E / click — Play Paper Toss',
       action: () => this.scene.start('PaperToss'),
       targets: [arcade],
     });
 
-    // Path spur to the arcade
-    for (let ty = 14; ty <= 15; ty++) {
-      for (let tx = 22; tx <= 25; tx++) {
+    // Path spurs to buildings (keep paths clear of clutter)
+    for (let ty = 14; ty <= 16; ty++) {
+      for (let tx = 23; tx <= 26; tx++) {
         this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
       }
     }
-    // Short walks up to house / shop doors
     for (let ty = 8; ty <= 11; ty++) {
       this.add.image(6 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
       this.add.image(7 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
@@ -307,13 +334,16 @@ export class TownScene extends Phaser.Scene {
       this.add.image(24 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
       this.add.image(25 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
     }
+    for (let ty = 14; ty <= 17; ty++) {
+      this.add.image(6 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      this.add.image(7 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+    }
 
     this.scatterTownDecor();
   }
 
   /**
-   * Prop placement for a lived-in village: trees + bushes, flowers, benches,
-   * lamps, a fountain plaza, fence around the house, Cinna's clothes rack, etc.
+   * Light outdoor décor — corners and path edges only, so buildings stay readable.
    * `solid` = [width, height, yOffset] for physics; omit for walk-through décor.
    */
   private scatterTownDecor() {
@@ -326,93 +356,47 @@ export class TownScene extends Phaser.Scene {
     };
 
     const trees: Spot[] = [
-      { tex: 'tree', tx: 2, ty: 2, scale: 1.5, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 10, ty: 2.5, scale: 1.45, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 19, ty: 2, scale: 1.5, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 29, ty: 3, scale: 1.55, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 2, ty: 10, scale: 1.4, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 29.5, ty: 10, scale: 1.5, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 3, ty: 17, scale: 1.5, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 10, ty: 19.5, scale: 1.45, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 20, ty: 19, scale: 1.5, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 28, ty: 17.5, scale: 1.5, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 29, ty: 21, scale: 1.4, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 2, ty: 2.5, scale: 1.5, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 29.5, ty: 3, scale: 1.5, solid: [40, 30, 20] },
       { tex: 'tree', tx: 2, ty: 21, scale: 1.5, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 29.5, ty: 21, scale: 1.5, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 29.5, ty: 10, scale: 1.45, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 2, ty: 10.5, scale: 1.45, solid: [40, 30, 20] },
     ];
 
     const bushes: Spot[] = [
-      { tex: 'bush', tx: 4.2, ty: 3.2, scale: 1.3, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 8.5, ty: 4, scale: 1.2, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 11.5, ty: 3, scale: 1.25, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 18, ty: 3.5, scale: 1.3, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 27, ty: 4, scale: 1.2, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 3.5, ty: 11.2, scale: 1.25, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 28, ty: 11, scale: 1.3, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 4, ty: 18.5, scale: 1.2, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 12, ty: 18, scale: 1.25, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 22, ty: 20, scale: 1.3, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 26.5, ty: 18, scale: 1.2, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 9, ty: 15.5, scale: 1.15, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 13.5, ty: 9.5, scale: 1.2, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 4.5, ty: 4, scale: 1.25, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 10, ty: 3.5, scale: 1.2, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 22, ty: 3.5, scale: 1.25, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 27.5, ty: 4.2, scale: 1.2, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 11, ty: 19, scale: 1.2, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 20, ty: 19.5, scale: 1.25, solid: [28, 18, 8] },
     ];
 
     const flowers: Spot[] = [
-      { tex: 'wildflower', tx: 5, ty: 8.5, scale: 1.4 },
-      { tex: 'wildflower', tx: 8, ty: 9, scale: 1.3 },
-      { tex: 'wildflower', tx: 11, ty: 7, scale: 1.35 },
-      { tex: 'wildflower', tx: 18.5, ty: 8, scale: 1.4 },
-      { tex: 'wildflower', tx: 22, ty: 7.5, scale: 1.3 },
-      { tex: 'wildflower', tx: 27.5, ty: 8.5, scale: 1.35 },
-      { tex: 'wildflower', tx: 4.5, ty: 14.5, scale: 1.3 },
-      { tex: 'wildflower', tx: 9, ty: 16.5, scale: 1.4 },
-      { tex: 'wildflower', tx: 18, ty: 17, scale: 1.3 },
-      { tex: 'wildflower', tx: 21.5, ty: 18.5, scale: 1.35 },
-      { tex: 'wildflower', tx: 27, ty: 15, scale: 1.3 },
-      { tex: 'wildflower', tx: 14, ty: 20.5, scale: 1.4 },
-      { tex: 'item-flower', tx: 5.5, ty: 5.2, scale: 1.2 },
-      { tex: 'item-flower', tx: 8.2, ty: 6.8, scale: 1.15 },
-      { tex: 'item-flower', tx: 23, ty: 5.5, scale: 1.2 },
-      { tex: 'item-plant', tx: 26.5, ty: 5.2, scale: 1.15 },
-      { tex: 'item-plant', tx: 4, ty: 7.2, scale: 1.2 },
+      { tex: 'wildflower', tx: 5, ty: 8.8, scale: 1.35 },
+      { tex: 'wildflower', tx: 9, ty: 9.2, scale: 1.3 },
+      { tex: 'wildflower', tx: 23, ty: 8.8, scale: 1.35 },
+      { tex: 'wildflower', tx: 27, ty: 9.2, scale: 1.3 },
+      { tex: 'wildflower', tx: 10, ty: 17.5, scale: 1.3 },
+      { tex: 'wildflower', tx: 22, ty: 18, scale: 1.35 },
     ];
 
     const hardscape: Spot[] = [
-      // Plaza fountain just off the crossroads
-      { tex: 'fountain', tx: 12.5, ty: 10.2, scale: 1.6, solid: [50, 36, 10] },
-      // Path benches
-      { tex: 'bench', tx: 14, ty: 11.2, scale: 1.35, solid: [56, 22, 6] },
-      { tex: 'bench', tx: 18.5, ty: 14.2, scale: 1.35, solid: [56, 22, 6] },
-      { tex: 'bench', tx: 9.5, ty: 13.8, scale: 1.3, solid: [56, 22, 6] },
-      { tex: 'bench', tx: 26, ty: 13.2, scale: 1.3, solid: [56, 22, 6] },
-      // Lamps along main roads
-      { tex: 'streetlamp', tx: 14.2, ty: 8, scale: 1.5, solid: [18, 16, 22] },
-      { tex: 'streetlamp', tx: 17.8, ty: 8, scale: 1.5, solid: [18, 16, 22] },
-      { tex: 'streetlamp', tx: 14.2, ty: 16.5, scale: 1.5, solid: [18, 16, 22] },
-      { tex: 'streetlamp', tx: 17.8, ty: 16.5, scale: 1.5, solid: [18, 16, 22] },
-      { tex: 'streetlamp', tx: 8, ty: 12.8, scale: 1.45, solid: [18, 16, 22] },
-      { tex: 'streetlamp', tx: 22, ty: 12.8, scale: 1.45, solid: [18, 16, 22] },
-      { tex: 'streetlamp', tx: 28.5, ty: 12.8, scale: 1.45, solid: [18, 16, 22] },
-      { tex: 'streetlamp', tx: 4, ty: 12.8, scale: 1.45, solid: [18, 16, 22] },
-      // House yard
-      { tex: 'mailbox', tx: 8.6, ty: 8.2, scale: 1.35, solid: [24, 20, 8] },
-      { tex: 'fence', tx: 4.2, ty: 8.6, scale: 1.4, solid: [60, 18, 4] },
-      { tex: 'fence', tx: 9, ty: 8.6, scale: 1.4, solid: [60, 18, 4] },
-      { tex: 'signpost', tx: 9.2, ty: 9.5, scale: 1.3, solid: [20, 16, 10] },
-      { tex: 'signpost', tx: 22.5, ty: 9.6, scale: 1.3, solid: [20, 16, 10] },
-      { tex: 'signpost', tx: 22.8, ty: 14.2, scale: 1.25, solid: [20, 16, 10] },
-      // Cinna's stall
-      { tex: 'clothes-rack', tx: 22.2, ty: 8.4, scale: 1.45, solid: [48, 24, 8] },
-      // Rocks & whimsy
-      { tex: 'rock', tx: 1.5, ty: 14, scale: 1.4, solid: [32, 20, 6] },
-      { tex: 'rock', tx: 30, ty: 15.5, scale: 1.35, solid: [32, 20, 6] },
-      { tex: 'rock', tx: 15.5, ty: 21.5, scale: 1.3, solid: [32, 20, 6] },
-      { tex: 'rock', tx: 7, ty: 20, scale: 1.25, solid: [28, 18, 6] },
-      { tex: 'stump', tx: 11.2, ty: 15.5, scale: 1.35, solid: [28, 18, 4] },
-      { tex: 'stump', tx: 25.5, ty: 18.5, scale: 1.3, solid: [28, 18, 4] },
-      { tex: 'mushroom', tx: 3.2, ty: 15.5, scale: 1.4 },
-      { tex: 'mushroom', tx: 12.8, ty: 20, scale: 1.3 },
-      { tex: 'mushroom', tx: 27.5, ty: 20.5, scale: 1.35 },
-      { tex: 'mushroom', tx: 19.5, ty: 10.5, scale: 1.25 },
+      { tex: 'fountain', tx: 12.5, ty: 10.2, scale: 1.55, solid: [50, 36, 10] },
+      { tex: 'bench', tx: 14, ty: 11.2, scale: 1.3, solid: [56, 22, 6] },
+      { tex: 'bench', tx: 18.5, ty: 14.2, scale: 1.3, solid: [56, 22, 6] },
+      { tex: 'streetlamp', tx: 14.2, ty: 8.2, scale: 1.45, solid: [18, 16, 22] },
+      { tex: 'streetlamp', tx: 17.8, ty: 8.2, scale: 1.45, solid: [18, 16, 22] },
+      { tex: 'streetlamp', tx: 14.2, ty: 16.2, scale: 1.45, solid: [18, 16, 22] },
+      { tex: 'streetlamp', tx: 17.8, ty: 16.2, scale: 1.45, solid: [18, 16, 22] },
+      { tex: 'mailbox', tx: 8.6, ty: 8.2, scale: 1.3, solid: [24, 20, 8] },
+      { tex: 'fence', tx: 4.2, ty: 8.6, scale: 1.35, solid: [60, 18, 4] },
+      { tex: 'fence', tx: 9, ty: 8.6, scale: 1.35, solid: [60, 18, 4] },
+      { tex: 'signpost', tx: 9.5, ty: 11.5, scale: 1.25, solid: [20, 16, 10] },
+      { tex: 'signpost', tx: 22.5, ty: 11.5, scale: 1.25, solid: [20, 16, 10] },
+      { tex: 'rock', tx: 30, ty: 15, scale: 1.3, solid: [32, 20, 6] },
+      { tex: 'rock', tx: 1.8, ty: 14.5, scale: 1.3, solid: [32, 20, 6] },
     ];
 
     this.decoSolids = [];
@@ -424,28 +408,6 @@ export class TownScene extends Phaser.Scene {
         this.decoSolids.push({ x: spot.tx * TILE, y: spot.ty * TILE + oy, w: sw, h: sh });
       }
     }
-
-    // Little labels on the plaza / stall
-    this.add
-      .text(12.5 * TILE, 10.2 * TILE - 42, 'Plaza', {
-        fontFamily: 'monospace',
-        fontSize: '11px',
-        color: '#ffffff',
-        stroke: '#1a1a2e',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setDepth(900);
-    this.add
-      .text(22.2 * TILE, 8.4 * TILE - 40, 'Clothes', {
-        fontFamily: 'monospace',
-        fontSize: '11px',
-        color: '#ffe6f2',
-        stroke: '#1a1a2e',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setDepth(900);
   }
 
   private buildColliders() {
@@ -456,8 +418,9 @@ export class TownScene extends Phaser.Scene {
       solids.push(r);
     };
     addSolid(6.5 * TILE, 6.3 * TILE, 140, 80); // house
-    addSolid(25 * TILE, 6.3 * TILE, 140, 80); // shop
-    addSolid(24 * TILE, 15 * TILE, 60, 40); // arcade
+    addSolid(25 * TILE, 6.3 * TILE, 140, 80); // Daniel's shop
+    addSolid(7 * TILE, 16.3 * TILE, 140, 80); // Cafe Cinnamon
+    addSolid(25 * TILE, 16 * TILE, 60, 40); // arcade
     for (const s of this.decoSolids) addSolid(s.x, s.y, s.w, s.h);
     this.physics.add.collider(this.player, solids);
   }

@@ -643,6 +643,26 @@ const SHOP: Grid = [
   '.kkkkkkkkkkkkkkkkkkkkkk.',
 ];
 
+/** Cafe Cinnamon — cream walls, pink awning, warm door. */
+const CAFE: Grid = [
+  '........................',
+  '....kkkkkkkkkkkkkkkk....',
+  '...kWWWWWWWWWWWWWWWWk...',
+  '..kWWppWWWWWWWWppWWWk..',
+  '.kkkkkkkkkkkkkkkkkkkkkk.',
+  '.kPPwwPPwwPPwwPPwwPPwwk.',
+  '.kwwPPwwPPwwPPwwPPwwPPk.',
+  '.kkkkkkkkkkkkkkkkkkkkkk.',
+  '.kccccccccccccccccccccK.',
+  '.kccsskccccccccccksscck.',
+  '.kcksskcccccccccckssckk.',
+  '.kccccccccNNNNNNccccccK.',
+  '.kccccccccNmmmmNccccccK.',
+  '.kccccccccNmmmmNccccccK.',
+  '.kccccccccNmyymNccccccK.',
+  '.kkkkkkkkkkNNNNkkkkkkkk.',
+];
+
 const ARCADE: Grid = [
   '................',
   '..kkkkkkkkkkkk..',
@@ -820,6 +840,7 @@ export function generateTextures(scene: Phaser.Scene) {
     makeTexture(scene, 'tree', [TREE]);
     makeTexture(scene, 'house', [HOUSE]);
     makeTexture(scene, 'shop', [SHOP]);
+    makeTexture(scene, 'cafe', [CAFE]);
     makeTexture(scene, 'arcade', [ARCADE]);
     makeTexture(scene, 'paperball', [PAPERBALL]);
     makeTexture(scene, 'bin', [BIN]);
@@ -845,6 +866,8 @@ export function generateTextures(scene: Phaser.Scene) {
     makeTile(scene, 'tile-wall', '#b085c9', '#9e6fbc', 6);
     makeTile(scene, 'tile-snow', '#eef3f8', '#dde7f0', 8);
   }
+
+  if (!scene.textures.exists('cafe')) makeTexture(scene, 'cafe', [CAFE]);
 
   // Outdoor décor — ensure on every call so hot reloads pick up new props.
   const outdoor: [string, Grid][] = [

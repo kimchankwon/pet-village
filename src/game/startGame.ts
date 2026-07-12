@@ -4,6 +4,7 @@ import { AdoptScene } from '../scenes/AdoptScene';
 import { TownScene } from '../scenes/TownScene';
 import { HouseScene } from '../scenes/HouseScene';
 import { ShopScene } from '../scenes/ShopScene';
+import { ClothesShopScene } from '../scenes/ClothesShopScene';
 import { PaperTossScene } from '../scenes/PaperTossScene';
 import { State } from '../systems/GameState';
 
@@ -26,7 +27,7 @@ export function startGame(parent: HTMLElement): Phaser.Game {
       default: 'arcade',
       arcade: { debug: false },
     },
-    scene: [BootScene, AdoptScene, TownScene, HouseScene, ShopScene, PaperTossScene],
+    scene: [BootScene, AdoptScene, TownScene, HouseScene, ShopScene, ClothesShopScene, PaperTossScene],
   });
 
   // save() persists locally and arms the cloud debounce; flush fires it now.

@@ -1,7 +1,7 @@
 /**
- * Cinnamoroll NPC frames matching the Sanrio-style sprite sheet reference:
- * white puppy, blue eyes, pink blush, long floppy ears (hang / fly / droop),
- * curly cinnamon-roll tail. Plus Cafe Cinnamon pet-clothes accessories he sells.
+ * Cinnamoroll sprites matching the Sanrio pixel sheet:
+ * white puppy, 1×2 blue eyes, pink cheek squares, soft blue-grey ear shade,
+ * long floppy ears (hang idle / flare jump / droop sad / wink happy).
  */
 import fs from 'fs';
 import path from 'path';
@@ -11,24 +11,21 @@ const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
 
 const ROOT = path.resolve('public/assets');
+const W = 32;
+const H = 32;
 
 type RGBA = [number, number, number, number];
 
-const OUT: RGBA = [30, 30, 40, 255];
-const W: RGBA = [255, 255, 255, 255];
-const SHADE: RGBA = [230, 235, 245, 255];
+const OUT: RGBA = [40, 40, 48, 255];
+const WHITE: RGBA = [255, 255, 255, 255];
+const SHADE: RGBA = [210, 220, 230, 255]; // ear / underside blue-grey
 const BLUE: RGBA = [90, 170, 230, 255];
 const PINK: RGBA = [255, 170, 190, 255];
 const CREAM: RGBA = [255, 230, 200, 255];
 const TAIL: RGBA = [255, 210, 180, 255];
-const APRON: RGBA = [240, 220, 200, 255];
-const APRON_TRIM: RGBA = [210, 160, 130, 255];
-const BOW: RGBA = [255, 150, 180, 255];
-const CLOUD: RGBA = [200, 230, 255, 255];
-const SCARF: RGBA = [255, 200, 170, 255];
 
-function blank(w = 32, h = 32) {
-  const png = new PNG({ width: w, height: h });
+function blank() {
+  const png = new PNG({ width: W, height: H });
   png.data.fill(0);
   return png;
 }
@@ -46,17 +43,15 @@ function fill(png: InstanceType<typeof PNG>, x0: number, y0: number, x1: number,
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) set(png, x, y, rgba);
 }
 
-function circle(png: InstanceType<typeof PNG>, cx: number, cy: number, r: number, fillC: RGBA, outline?: RGBA) {
-  for (let y = -r - 1; y <= r + 1; y++) {
-    for (let x = -r - 1; x <= r + 1; x++) {
-      const d = Math.hypot(x, y);
-      if (d <= r) set(png, cx + x, cy + y, fillC);
-      else if (outline && d <= r + 0.85) set(png, cx + x, cy + y, outline);
-    }
-  }
-}
-
-function oval(png: InstanceType<typeof PNG>, cx: number, cy: number, a: number, b: number, fillC: RGBA, outline?: RGBA) {
+function oval(
+  png: InstanceType<typeof PNG>,
+  cx: number,
+  cy: number,
+  a: number,
+  b: number,
+  fillC: RGBA,
+  outline?: RGBA,
+) {
   for (let y = -b - 1; y <= b + 1; y++) {
     for (let x = -a - 1; x <= a + 1; x++) {
       const n = (x * x) / (a * a) + (y * y) / (b * b);
@@ -73,69 +68,86 @@ function save(png: InstanceType<typeof PNG>, file: string) {
 
 type CinPose = 'idle' | 'walk1' | 'walk2' | 'happy' | 'sad' | 'jump';
 
-/** Ears: hang (idle), lift (walk), wings (jump/happy), droop/up (sad). */
+/**
+ * Ears:
+ * - idle: hang straight down beside body (sheet IDLE)
+ * - walk: slightly swept back
+ * - jump: horizontal wing-ears
+ * - sad: droop low / hurt
+ * - happy: one up / swept (wink pose)
+ */
 function drawEars(png: InstanceType<typeof PNG>, pose: CinPose, bodyY: number) {
   if (pose === 'jump') {
     // Horizontal wing-ears
-    fill(png, 1, bodyY - 4, 8, bodyY + 1, W);
-    fill(png, 23, bodyY - 4, 30, bodyY + 1, W);
-    for (let x = 1; x <= 8; x++) {
-      set(png, x, bodyY - 5, OUT);
+    fill(png, 1, bodyY - 3, 9, bodyY + 1, WHITE);
+    fill(png, 2, bodyY - 2, 8, bodyY, SHADE);
+    fill(png, 23, bodyY - 3, 31, bodyY + 1, WHITE);
+    fill(png, 24, bodyY - 2, 30, bodyY, SHADE);
+    for (let x = 1; x <= 9; x++) {
+      set(png, x, bodyY - 4, OUT);
       set(png, x, bodyY + 2, OUT);
     }
-    for (let x = 23; x <= 30; x++) {
-      set(png, x, bodyY - 5, OUT);
+    for (let x = 23; x <= 31; x++) {
+      set(png, x, bodyY - 4, OUT);
       set(png, x, bodyY + 2, OUT);
     }
-    set(png, 0, bodyY - 2, OUT);
-    set(png, 31, bodyY - 2, OUT);
+    set(png, 0, bodyY - 1, OUT);
+    set(png, 31, bodyY - 1, OUT);
   } else if (pose === 'happy') {
-    // One ear up, one droopy (wink pose)
-    fill(png, 3, bodyY - 10, 8, bodyY - 1, W);
-    fill(png, 23, bodyY - 2, 29, bodyY + 8, W);
-    for (let y = bodyY - 10; y <= bodyY - 1; y++) {
+    // Swept back / wink pose — left ear up a bit, right swept
+    fill(png, 3, bodyY - 9, 8, bodyY - 1, WHITE);
+    fill(png, 4, bodyY - 8, 7, bodyY - 2, SHADE);
+    fill(png, 23, bodyY - 4, 29, bodyY + 6, WHITE);
+    fill(png, 24, bodyY - 3, 28, bodyY + 5, SHADE);
+    for (let y = bodyY - 9; y <= bodyY - 1; y++) {
       set(png, 2, y, OUT);
       set(png, 9, y, OUT);
     }
-    for (let y = bodyY - 2; y <= bodyY + 8; y++) {
+    for (let y = bodyY - 4; y <= bodyY + 6; y++) {
       set(png, 22, y, OUT);
       set(png, 30, y, OUT);
     }
   } else if (pose === 'sad') {
-    // Ears angled up/worried
-    fill(png, 4, bodyY - 11, 9, bodyY - 2, W);
-    fill(png, 22, bodyY - 11, 27, bodyY - 2, W);
-    for (let y = bodyY - 11; y <= bodyY - 2; y++) {
-      set(png, 3, y, OUT);
-      set(png, 10, y, OUT);
-      set(png, 21, y, OUT);
-      set(png, 28, y, OUT);
-    }
-  } else if (pose === 'walk1' || pose === 'walk2') {
-    // Slightly lifted / breeze
-    const lift = pose === 'walk2' ? -1 : 0;
-    fill(png, 2, 8 + lift, 8, 20 + lift, W);
-    fill(png, 23, 7 + lift, 29, 19 + lift, W);
-    for (let y = 8; y <= 20; y++) {
-      set(png, 1, y + lift, OUT);
-      set(png, 9, y + lift, OUT);
-      set(png, 22, y + lift - 1, OUT);
-      set(png, 30, y + lift - 1, OUT);
-    }
-  } else {
-    // Idle — long floppy ears hanging down
-    fill(png, 2, 10, 8, 22, W);
-    fill(png, 23, 10, 29, 22, W);
-    fill(png, 3, 11, 7, 21, SHADE);
-    fill(png, 24, 11, 28, 21, SHADE);
-    for (let y = 10; y <= 22; y++) {
+    // Low droopy ears
+    fill(png, 2, bodyY - 1, 8, bodyY + 10, WHITE);
+    fill(png, 3, bodyY, 7, bodyY + 9, SHADE);
+    fill(png, 24, bodyY - 1, 30, bodyY + 10, WHITE);
+    fill(png, 25, bodyY, 29, bodyY + 9, SHADE);
+    for (let y = bodyY - 1; y <= bodyY + 10; y++) {
       set(png, 1, y, OUT);
       set(png, 9, y, OUT);
-      set(png, 22, y, OUT);
-      set(png, 30, y, OUT);
+      set(png, 23, y, OUT);
+      set(png, 31, y, OUT);
     }
-    for (let x = 2; x <= 8; x++) set(png, x, 23, OUT);
-    for (let x = 23; x <= 29; x++) set(png, x, 23, OUT);
+    for (let x = 2; x <= 8; x++) set(png, x, bodyY + 11, OUT);
+    for (let x = 24; x <= 30; x++) set(png, x, bodyY + 11, OUT);
+  } else if (pose === 'walk1' || pose === 'walk2') {
+    // Slightly swept back while walking
+    const back = pose === 'walk2' ? 1 : 0;
+    fill(png, 1, 9 + back, 7, 22 + back, WHITE);
+    fill(png, 2, 10 + back, 6, 21 + back, SHADE);
+    fill(png, 24, 8 + back, 30, 21 + back, WHITE);
+    fill(png, 25, 9 + back, 29, 20 + back, SHADE);
+    for (let y = 9; y <= 22; y++) {
+      set(png, 0, y + back, OUT);
+      set(png, 8, y + back, OUT);
+      set(png, 23, y + back - 1, OUT);
+      set(png, 31, y + back - 1, OUT);
+    }
+  } else {
+    // IDLE — long floppy ears hanging down to the “floor”
+    fill(png, 2, 10, 8, 24, WHITE);
+    fill(png, 3, 11, 7, 23, SHADE);
+    fill(png, 24, 10, 30, 24, WHITE);
+    fill(png, 25, 11, 29, 23, SHADE);
+    for (let y = 10; y <= 24; y++) {
+      set(png, 1, y, OUT);
+      set(png, 9, y, OUT);
+      set(png, 23, y, OUT);
+      set(png, 31, y, OUT);
+    }
+    for (let x = 2; x <= 8; x++) set(png, x, 25, OUT);
+    for (let x = 24; x <= 30; x++) set(png, x, 25, OUT);
   }
 }
 
@@ -143,40 +155,39 @@ function drawCinnamoroll(pose: CinPose) {
   const png = blank();
   const jump = pose === 'jump' ? -3 : 0;
   const bob = pose === 'walk2' ? 1 : 0;
-  const bodyY = 16 + jump + bob;
+  const bodyY = 15 + jump + bob;
   const foot = pose === 'walk1' ? -2 : pose === 'walk2' ? 2 : 0;
 
   drawEars(png, pose, bodyY);
 
-  // Round body
-  oval(png, 16, bodyY, 8, 7, W, OUT);
+  // Round white head/body
+  oval(png, 16, bodyY, 7, 7, WHITE, OUT);
   // Soft underside shade
   fill(png, 12, bodyY + 2, 20, bodyY + 5, SHADE);
 
-  // Blue eyes (vertical) + pink blush
+  // Eyes: vertical blue 1×2 (sheet style)
   if (pose === 'sad') {
+    // Hurt — closed dashes
+    fill(png, 11, bodyY - 1, 13, bodyY - 1, OUT);
+    fill(png, 19, bodyY - 1, 21, bodyY - 1, OUT);
+  } else if (pose === 'happy') {
+    // Wink: left closed `>`, right open blue
+    set(png, 13, bodyY - 2, OUT);
     set(png, 12, bodyY - 1, OUT);
     set(png, 13, bodyY, OUT);
-    set(png, 19, bodyY - 1, OUT);
-    set(png, 18, bodyY, OUT);
-  } else if (pose === 'happy') {
-    // Wink: left closed, right open blue
-    set(png, 11, bodyY - 1, OUT);
-    set(png, 12, bodyY - 1, OUT);
-    set(png, 13, bodyY - 1, OUT);
-    set(png, 18, bodyY - 2, BLUE);
     set(png, 19, bodyY - 2, BLUE);
-    set(png, 18, bodyY - 1, OUT);
-    set(png, 19, bodyY - 1, OUT);
+    set(png, 19, bodyY - 1, BLUE);
+    set(png, 20, bodyY - 2, BLUE);
+    set(png, 20, bodyY - 1, OUT);
   } else {
+    // Two vertical blue rectangles
     for (const ex of [12, 19]) {
       set(png, ex, bodyY - 2, BLUE);
-      set(png, ex + 1, bodyY - 2, BLUE);
-      set(png, ex, bodyY - 1, OUT);
-      set(png, ex + 1, bodyY - 1, OUT);
+      set(png, ex, bodyY - 1, BLUE);
     }
   }
-  // Blush circles
+
+  // Pink cheek squares under eyes
   set(png, 10, bodyY + 1, PINK);
   set(png, 11, bodyY + 1, PINK);
   set(png, 20, bodyY + 1, PINK);
@@ -184,100 +195,31 @@ function drawCinnamoroll(pose: CinPose) {
 
   // Mouth
   if (pose === 'sad') {
-    set(png, 15, bodyY + 3, OUT);
-    set(png, 16, bodyY + 2, OUT);
-    set(png, 17, bodyY + 3, OUT);
-  } else if (pose === 'happy') {
+    fill(png, 15, bodyY + 2, 17, bodyY + 2, OUT); // flat dash
+  } else if (pose === 'happy' || pose === 'idle') {
     set(png, 15, bodyY + 2, OUT);
     set(png, 16, bodyY + 3, OUT);
     set(png, 17, bodyY + 2, OUT);
-    set(png, 14, bodyY + 2, OUT);
-    set(png, 18, bodyY + 2, OUT);
   } else {
     set(png, 15, bodyY + 2, OUT);
     set(png, 16, bodyY + 3, OUT);
     set(png, 17, bodyY + 2, OUT);
   }
 
-  // Curly cinnamon-roll tail
-  set(png, 24, bodyY + 3, TAIL);
-  set(png, 25, bodyY + 2, TAIL);
-  set(png, 26, bodyY + 3, TAIL);
-  set(png, 25, bodyY + 4, TAIL);
-  set(png, 24, bodyY + 2, OUT);
-  set(png, 26, bodyY + 4, OUT);
+  // Cinnamon-roll tail (right side)
+  set(png, 23, bodyY + 3, TAIL);
+  set(png, 24, bodyY + 2, TAIL);
+  set(png, 25, bodyY + 3, TAIL);
+  set(png, 24, bodyY + 4, TAIL);
+  set(png, 23, bodyY + 2, OUT);
+  set(png, 25, bodyY + 4, OUT);
 
-  // Stubby feet
-  fill(png, 11 + foot, bodyY + 7, 14 + foot, bodyY + 8, CREAM);
-  fill(png, 17 - foot, bodyY + 7, 20 - foot, bodyY + 8, CREAM);
-  for (let x = 11 + foot; x <= 14 + foot; x++) set(png, x, bodyY + 9, OUT);
-  for (let x = 17 - foot; x <= 20 - foot; x++) set(png, x, bodyY + 9, OUT);
+  // Stubby cream feet
+  fill(png, 12 + foot, bodyY + 7, 14 + foot, bodyY + 8, CREAM);
+  fill(png, 18 - foot, bodyY + 7, 20 - foot, bodyY + 8, CREAM);
+  for (let x = 12 + foot; x <= 14 + foot; x++) set(png, x, bodyY + 9, OUT);
+  for (let x = 18 - foot; x <= 20 - foot; x++) set(png, x, bodyY + 9, OUT);
 
-  return png;
-}
-
-function drawCloudBow() {
-  const png = blank();
-  // Soft pink bow on head-left
-  fill(png, 6, 4, 10, 7, BOW);
-  fill(png, 11, 5, 13, 6, BOW);
-  fill(png, 14, 4, 18, 7, BOW);
-  set(png, 12, 5, W);
-  set(png, 12, 6, W);
-  for (let x = 6; x <= 10; x++) {
-    set(png, x, 3, OUT);
-    set(png, x, 8, OUT);
-  }
-  for (let x = 14; x <= 18; x++) {
-    set(png, x, 3, OUT);
-    set(png, x, 8, OUT);
-  }
-  return png;
-}
-
-function drawEarCloud() {
-  const png = blank();
-  // Tiny cloud puff on head-right
-  circle(png, 24, 5, 3, CLOUD, OUT);
-  circle(png, 21, 6, 2, CLOUD, OUT);
-  circle(png, 27, 6, 2, CLOUD, OUT);
-  set(png, 24, 4, W);
-  return png;
-}
-
-function drawCafeApron() {
-  const png = blank();
-  const bodyCy = 20;
-  // Apron bib + skirt over pet torso
-  fill(png, 11, bodyCy - 4, 21, bodyCy + 4, APRON);
-  for (let x = 11; x <= 21; x++) {
-    set(png, x, bodyCy - 5, APRON_TRIM);
-    set(png, x, bodyCy + 5, OUT);
-  }
-  // Neck straps
-  set(png, 12, bodyCy - 6, APRON_TRIM);
-  set(png, 20, bodyCy - 6, APRON_TRIM);
-  // Pocket
-  fill(png, 14, bodyCy, 18, bodyCy + 2, APRON_TRIM);
-  // Tiny cinnamon swirl mark
-  set(png, 16, bodyCy - 2, TAIL);
-  set(png, 17, bodyCy - 1, TAIL);
-  return png;
-}
-
-function drawCinnamonScarf() {
-  const png = blank();
-  // Cream/peach swirl scarf around neck
-  fill(png, 9, 14, 23, 17, SCARF);
-  for (let x = 9; x <= 23; x++) {
-    set(png, x, 13, OUT);
-    set(png, x, 18, OUT);
-  }
-  // Trailing end
-  fill(png, 22, 17, 26, 22, SCARF);
-  for (let y = 17; y <= 22; y++) set(png, 27, y, OUT);
-  set(png, 24, 19, TAIL);
-  set(png, 25, 20, TAIL);
   return png;
 }
 
@@ -286,9 +228,4 @@ for (const pose of POSES) {
   save(drawCinnamoroll(pose), path.join(ROOT, 'npc/cinnamoroll', `${pose}.png`));
 }
 
-save(drawCloudBow(), path.join(ROOT, 'accessories/cloud-bow.png'));
-save(drawEarCloud(), path.join(ROOT, 'accessories/ear-cloud.png'));
-save(drawCafeApron(), path.join(ROOT, 'accessories/cafe-apron.png'));
-save(drawCinnamonScarf(), path.join(ROOT, 'accessories/cinnamon-scarf.png'));
-
-console.log('Generated Cinnamoroll NPC frames + Cafe Cinnamon clothes');
+console.log('Regenerated Cinnamoroll sprites from sheet reference');
