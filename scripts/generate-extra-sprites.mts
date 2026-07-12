@@ -206,13 +206,13 @@ function drawPuffle(color: [number, number, number, number], pose: PufflePose, a
     for (const s of [-1, 1]) {
       for (let y = -4; y <= 4; y++) {
         for (let x = -3; x <= 3; x++) {
-          const n = Math.hypot(x / 2.6, y / 2.9);
+          const n = Math.hypot(x / 3.1, y / 2.9);
           const exx = cx + s * 3 + x;
           const eyy = eyeY + y;
           if (n <= 0.99) set(png, exx, eyy, W);
           else if (n <= 1.28) {
             // outline only where not overlapping the other eye's white
-            const other = Math.hypot((exx - (cx - s * 3)) / 2.6, (eyy - eyeY) / 2.9);
+            const other = Math.hypot((exx - (cx - s * 3)) / 3.1, (eyy - eyeY) / 2.9);
             if (other > 0.99) set(png, exx, eyy, OUT);
           }
         }
@@ -222,7 +222,7 @@ function drawPuffle(color: [number, number, number, number], pose: PufflePose, a
     for (const s of [-1, 1]) {
       for (let y = -4; y <= 4; y++) {
         for (let x = -3; x <= 3; x++) {
-          if (Math.hypot(x / 2.6, y / 2.9) <= 0.99) set(png, cx + s * 3 + x, eyeY + y, W);
+          if (Math.hypot(x / 3.1, y / 2.9) <= 0.99) set(png, cx + s * 3 + x, eyeY + y, W);
         }
       }
     }
