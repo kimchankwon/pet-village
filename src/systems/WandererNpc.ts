@@ -46,6 +46,8 @@ export class WandererNpc {
   private transit: { x: number; y: number; onDone: () => void } | null = null;
   /** True while a dialogue menu with this NPC is open — don't wander away. */
   private conversing = false;
+  /** Nested Menu depth so follow-up dialogues keep the freeze. */
+  private talkDepth = 0;
 
   constructor(scene: Phaser.Scene, opts: WandererOptions) {
     this.scene = scene;
@@ -106,19 +108,36 @@ export class WandererNpc {
   }
 
   /**
-   * Open this NPC's dialogue. Freezes wandering until the menu closes;
-   * subclasses implement the menu in `openTalk`.
+   * Open this NPC's dialogue. Freezes wandering until the full menu chain
+   * closes (including nested follow-ups opened via `keepMenuOpen`).
+   * Subclasses implement the menu in `openTalk`.
    */
   talk(cbs: NpcTalkCallbacks) {
-    this.conversing = true;
-    this.playBounce();
+    this.pushTalk();
     this.openTalk({
       ...cbs,
+      // First Menu closes before onSelect runs, which would clear the freeze;
+      // re-push so nested gift/shop menus keep the NPC still.
+      keepMenuOpen: () => {
+        this.pushTalk();
+        cbs.keepMenuOpen();
+      },
       onClose: () => {
-        this.conversing = false;
+        this.popTalk();
         cbs.onClose();
       },
     });
+  }
+
+  private pushTalk() {
+    this.talkDepth += 1;
+    this.conversing = true;
+    if (this.talkDepth === 1) this.playBounce();
+  }
+
+  private popTalk() {
+    this.talkDepth = Math.max(0, this.talkDepth - 1);
+    if (this.talkDepth === 0) this.conversing = false;
   }
 
   /** Build the dialogue menu. Called by `talk` after freezing movement. */
