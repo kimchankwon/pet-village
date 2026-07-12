@@ -112,7 +112,7 @@ export class HouseScene extends Phaser.Scene {
     );
 
     this.add
-      .text(400, 40, 'Your House — click to walk · I: decorate · ESC: leave · E at door: leave', {
+      .text(400, 40, 'Your House — click to walk · I: pet · [Decorate] · ESC/E at door: leave', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#c8c8dc',
@@ -120,7 +120,7 @@ export class HouseScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(1000);
 
-    // Clickable Decorate button (same as pressing I).
+    // Clickable Decorate button.
     const decorateBtn = this.add
       .text(790, 10, '[ Decorate ]', {
         fontFamily: 'monospace',
@@ -479,8 +479,9 @@ export class HouseScene extends Phaser.Scene {
     }
 
     if (!this.menuOpen && !this.placing) {
-      if (Phaser.Input.Keyboard.JustDown(this.keyI)) this.openDecorateMenu();
-
+      if (Phaser.Input.Keyboard.JustDown(this.keyI) && !isUiBlocked()) {
+        this.openPetMenuInHouse();
+      }
       const near = this.nearestHouseInteractable();
       this.setHighlight(near?.targets);
       if (near) {
