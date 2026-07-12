@@ -29,7 +29,9 @@ export class BongbongeeNpc extends WandererNpc {
   override talk(cbs: NpcTalkCallbacks) {
     const line = this.pickLine(LINES);
     this.playBounce();
-    const missing = ACCESSORY_LIST.filter((a) => !State.ownsAccessory(a.id));
+    const missing = ACCESSORY_LIST.filter(
+      (a) => a.owner === 'bongbongee' && !State.ownsAccessory(a.id),
+    );
     const options = [
       {
         label: missing.length
