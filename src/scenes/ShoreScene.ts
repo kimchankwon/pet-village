@@ -283,30 +283,7 @@ export class ShoreScene extends Phaser.Scene {
       targets: [this.dockImg],
     });
 
-    // North return to town
-    const northX = 9 * TILE;
-    const northY = 0.9 * TILE;
-    const sign = this.add.image(northX + 36, northY, 'signpost').setScale(1.15);
-    sign.setDepth(propDepth(sign, northY));
-    this.add
-      .text(northX, northY - 26, '← Town', {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#ffffff',
-        stroke: '#1a1a2e',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setDepth(900);
-    this.interactables.push({
-      x: northX,
-      y: northY,
-      radius: 80,
-      label: 'E / click — Back to town',
-      action: () => this.scene.start('Town', { spawn: 'shore' }),
-      targets: [sign],
-    });
-
+    // North edge auto-returns to town (no interactable — walk off the path).
     this.scatterDecor();
   }
 

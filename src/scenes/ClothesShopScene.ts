@@ -38,7 +38,7 @@ export class ClothesShopScene extends Phaser.Scene {
   private pointerHeld = false;
   private menuOpen = false;
   private facing: 'up' | 'down' | 'side' = 'up';
-  private doorMat!: Phaser.GameObjects.Image;
+  private doorMats: Phaser.GameObjects.Image[] = [];
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   private ignoreClicksUntil = 0;
 
@@ -66,12 +66,16 @@ export class ClothesShopScene extends Phaser.Scene {
       }
     }
 
-    const doorGx = Math.floor(COLS / 2);
-    this.doorMat = this.add
-      .image(this.roomX + doorGx * TILE + TILE / 2, ROOM_Y + (ROWS - 1) * TILE + TILE / 2, 'item-rug')
-      .setDepth(-99)
-      .setTint(0xffb3d1)
-      .setScale(1.3);
+    const doorLeft = COLS / 2 - 1;
+    const doorRight = doorLeft + 1;
+    const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
+    this.doorMats = [doorLeft, doorRight].map((gx) =>
+      this.add
+        .image(this.roomX + gx * TILE + TILE / 2, doorY, 'item-rug')
+        .setDepth(-99)
+        .setTint(0xffb3d1)
+        .setScale(1.3),
+    );
 
     for (let gx = 4; gx <= 7; gx++) {
       const t = this.add
@@ -110,7 +114,7 @@ export class ClothesShopScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(1000);
 
-    const px = this.roomX + doorGx * TILE + TILE / 2;
+    const px = this.roomX + (COLS * TILE) / 2;
     const py = ROOM_Y + (ROWS - 2) * TILE;
     this.player = this.physics.add.sprite(px, py, 'penguin-up', 0);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
@@ -226,16 +230,16 @@ export class ClothesShopScene extends Phaser.Scene {
         targets: [this.cinna.sprite],
       };
     }
-    const doorX = this.roomX + Math.floor(COLS / 2) * TILE + TILE / 2;
+    const doorX = this.roomX + (COLS * TILE) / 2;
     const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
-    if (Phaser.Math.Distance.Between(this.player.x, this.player.y, doorX, doorY) < 55) {
+    if (Phaser.Math.Distance.Between(this.player.x, this.player.y, doorX, doorY) < 70) {
       return {
         x: doorX,
         y: doorY,
-        radius: 55,
+        radius: 70,
         label: 'E / click — Leave Cafe Cinnamon',
         action: () => this.scene.start('Town', { spawn: 'cafe' }),
-        targets: [this.doorMat],
+        targets: this.doorMats,
       };
     }
     return null;
