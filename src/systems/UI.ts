@@ -12,26 +12,30 @@ const ROW_DISABLED = 0x3d3d5c;
 /** Max option rows before the menu paginates (fits a 600px-tall bottom sheet). */
 const DEFAULT_PAGE_SIZE = 6;
 
-// Heads-up display: pet name, coins + pet need bars. Fixed to camera.
+// Heads-up display: pet name, coins + pet need bars. Fixed to camera,
+// anchored bottom-left (clears the touch joystick / bottom-right pet button).
 export class HUD {
   private scene: Phaser.Scene;
+  private root!: Phaser.GameObjects.Container;
   private nameText!: Phaser.GameObjects.Text;
   private coinText!: Phaser.GameObjects.Text;
   private bars: { key: 'hunger' | 'happiness' | 'energy'; fill: Phaser.GameObjects.Rectangle }[] = [];
+  private readonly panelW = 190;
+  private readonly panelH = 128;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    const c = scene.add.container(0, 0).setScrollFactor(0).setDepth(1000);
+    this.root = scene.add.container(0, 0).setScrollFactor(0).setDepth(1000);
 
-    const panel = scene.add.rectangle(10, 10, 190, 128, 0x1a1a2e, 0.75).setOrigin(0);
-    c.add(panel);
+    const panel = scene.add.rectangle(0, 0, this.panelW, this.panelH, 0x1a1a2e, 0.75).setOrigin(0);
+    this.root.add(panel);
 
-    this.nameText = scene.add.text(18, 18, '', { ...FONT, color: '#ffb3d1' });
-    c.add(this.nameText);
+    this.nameText = scene.add.text(8, 8, '', { ...FONT, color: '#ffb3d1' });
+    this.root.add(this.nameText);
 
-    const coin = scene.add.image(26, 48, 'coin').setScale(0.9);
-    this.coinText = scene.add.text(40, 40, '0', FONT);
-    c.add([coin, this.coinText]);
+    const coin = scene.add.image(16, 38, 'coin').setScale(0.9);
+    this.coinText = scene.add.text(30, 30, '0', FONT);
+    this.root.add([coin, this.coinText]);
 
     const defs: { key: 'hunger' | 'happiness' | 'energy'; label: string; color: number }[] = [
       { key: 'hunger', label: 'Food', color: 0xff9f43 },
@@ -39,16 +43,30 @@ export class HUD {
       { key: 'energy', label: 'Energy', color: 0x74b9ff },
     ];
     defs.forEach((d, i) => {
-      const y = 68 + i * 20;
-      c.add(scene.add.text(18, y - 6, d.label, { ...FONT_SM, color: '#c8c8dc' }));
-      c.add(scene.add.rectangle(78, y, 110, 10, 0x3d3d5c).setOrigin(0, 0.5));
-      const fill = scene.add.rectangle(78, y, 110, 10, d.color).setOrigin(0, 0.5);
-      c.add(fill);
+      const y = 58 + i * 20;
+      this.root.add(scene.add.text(8, y - 6, d.label, { ...FONT_SM, color: '#c8c8dc' }));
+      this.root.add(scene.add.rectangle(68, y, 110, 10, 0x3d3d5c).setOrigin(0, 0.5));
+      const fill = scene.add.rectangle(68, y, 110, 10, d.color).setOrigin(0, 0.5);
+      this.root.add(fill);
       this.bars.push({ key: d.key, fill });
+    });
+
+    this.place();
+    scene.scale.on('resize', this.place);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      scene.scale.off('resize', this.place);
     });
 
     this.refresh();
   }
+
+  private place = () => {
+    const cam = this.scene.cameras.main;
+    const pad = 10;
+    // Touch: sit above the bottom-left joystick. Desktop: flush bottom-left.
+    const aboveJoystick = this.scene.sys.game.device.input.touch ? 128 : pad;
+    this.root.setPosition(pad, cam.height - this.panelH - aboveJoystick);
+  };
 
   refresh() {
     this.nameText.setText(State.data.petName || 'Your pet');
