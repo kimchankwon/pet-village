@@ -27,7 +27,7 @@ export class BongbongeeNpc extends WandererNpc {
   }
 
   override talk(cbs: NpcTalkCallbacks) {
-    const line = LINES[Phaser.Math.Between(0, LINES.length - 1)] ?? LINES[0]!;
+    const line = this.pickLine(LINES);
     this.playBounce();
     const missing = ACCESSORY_LIST.filter((a) => !State.ownsAccessory(a.id));
     const options = [

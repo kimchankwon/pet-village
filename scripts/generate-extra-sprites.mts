@@ -150,61 +150,117 @@ const PUFFLE_COLORS: Record<string, [number, number, number, number]> = {
 
 type PufflePose = 'neutral1' | 'neutral2' | 'walk1' | 'walk2' | 'sad' | 'happy' | 'sleep' | 'jump';
 
+function darken(c: [number, number, number, number], f = 0.72): [number, number, number, number] {
+  return [Math.round(c[0] * f), Math.round(c[1] * f), Math.round(c[2] * f), 255];
+}
+
+/**
+ * Club Penguin puffle, per the official art: a wide squat ball whose top
+ * and sides are chunky fur spikes (smoother underneath), no limbs, huge
+ * joined white eyes and a big smile.
+ */
 function drawPuffle(color: [number, number, number, number], pose: PufflePose, angry = false) {
   const png = blank(32, 32);
   const yOff = pose === 'jump' ? -3 : pose === 'walk2' ? 1 : 0;
   const cx = 16;
-  const cy = 17 + yOff;
-  circle(png, cx, cy, 9, color, OUT);
-  // Hair tuft
-  set(png, cx - 1, cy - 10, color);
-  set(png, cx, cy - 11, color);
-  set(png, cx + 1, cy - 10, color);
-  set(png, cx, cy - 12, OUT);
-  set(png, cx - 2, cy - 10, OUT);
-  set(png, cx + 2, cy - 10, OUT);
+  const cy = 18 + yOff;
+  void darken;
+  // Face lines must stay visible on dark fur
+  const luma = 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2];
+  const INK: [number, number, number, number] = luma < 110 ? [235, 235, 245, 255] : OUT;
 
-  const eyeY = cy - 2;
+  // Fur silhouette: chunky spikes on the crown and sides, gentle bumps on
+  // the belly. The spike phase shifts per frame so the fluff wiggles.
+  const RX = 10;
+  const RY = 9;
+  const phase = pose === 'walk1' ? 0.7 : pose === 'walk2' ? -0.7 : pose === 'neutral2' ? 0.35 : 0;
+  for (let y = -13; y <= 11; y++) {
+    for (let x = -13; x <= 13; x++) {
+      const a = Math.atan2(y / RY, x / RX);
+      // -sin(a) is 1 at the crown, 0 at the equator, negative underneath:
+      // big spikes up top, calm curve below. The +0.6 keeps a spike at the
+      // very top instead of a dip.
+      // Fur only on the upper part (not the sides); the belly and flanks
+      // stay a clean round curve. Dips are clamped so no frame gets a
+      // notch carved out of the crown.
+      const amp = 0.24 * Math.max(0, -Math.sin(a) - 0.25) / 0.75;
+      const wob = Math.max(amp * Math.sin(a * 9 + phase + 0.6), -0.05);
+      const n = Math.hypot(x / RX, y / RY);
+      if (n <= 0.86 + wob) set(png, cx + x, cy + y, color);
+      else if (n <= 1.0 + wob) set(png, cx + x, cy + y, OUT);
+    }
+  }
+
+  const eyeY = cy - 1;
+  const px = pose === 'walk1' ? -1 : pose === 'walk2' ? 1 : 0;
   if (pose === 'sleep') {
-    set(png, cx - 4, eyeY, OUT);
-    set(png, cx - 3, eyeY, OUT);
-    set(png, cx + 2, eyeY, OUT);
-    set(png, cx + 3, eyeY, OUT);
-  } else if (pose === 'sad' || angry) {
-    set(png, cx - 4, eyeY - 1, OUT);
-    set(png, cx - 3, eyeY, OUT);
-    set(png, cx + 2, eyeY, OUT);
-    set(png, cx + 3, eyeY - 1, OUT);
-  } else if (pose === 'happy') {
-    set(png, cx - 4, eyeY, OUT);
-    set(png, cx - 3, eyeY - 1, OUT);
-    set(png, cx - 2, eyeY, OUT);
-    set(png, cx + 1, eyeY, OUT);
-    set(png, cx + 2, eyeY - 1, OUT);
-    set(png, cx + 3, eyeY, OUT);
+    // Closed curved lids, no mask
+    for (const s of [-1, 1]) {
+      set(png, cx + s * 5, eyeY, INK);
+      set(png, cx + s * 4, eyeY + 1, INK);
+      set(png, cx + s * 3, eyeY + 1, INK);
+      set(png, cx + s * 2, eyeY, INK);
+    }
   } else {
-    // Big round eyes with pupils shifted by pose
-    const px = pose === 'walk1' ? -1 : pose === 'walk2' ? 1 : 0;
-    fill(png, cx - 5, eyeY - 2, cx - 2, eyeY + 1, W);
-    fill(png, cx + 1, eyeY - 2, cx + 4, eyeY + 1, W);
-    set(png, cx - 4 + px, eyeY, OUT);
-    set(png, cx - 3 + px, eyeY, OUT);
-    set(png, cx + 2 + px, eyeY, OUT);
-    set(png, cx + 3 + px, eyeY, OUT);
+    // Huge joined white eyes — two ovals touching in the middle (CP mask)
+    for (const s of [-1, 1]) {
+      for (let y = -4; y <= 4; y++) {
+        for (let x = -3; x <= 3; x++) {
+          const n = Math.hypot(x / 2.6, y / 2.9);
+          const exx = cx + s * 3 + x;
+          const eyy = eyeY + y;
+          if (n <= 0.99) set(png, exx, eyy, W);
+          else if (n <= 1.28) {
+            // outline only where not overlapping the other eye's white
+            const other = Math.hypot((exx - (cx - s * 3)) / 2.6, (eyy - eyeY) / 2.9);
+            if (other > 0.99) set(png, exx, eyy, OUT);
+          }
+        }
+      }
+    }
+    // Re-fill both whites so no outline crosses the shared middle
+    for (const s of [-1, 1]) {
+      for (let y = -4; y <= 4; y++) {
+        for (let x = -3; x <= 3; x++) {
+          if (Math.hypot(x / 2.6, y / 2.9) <= 0.99) set(png, cx + s * 3 + x, eyeY + y, W);
+        }
+      }
+    }
+    // Pupils sit low and toward the middle
+    const pdy = pose === 'sad' ? 1 : 0;
+    for (const s of [-1, 1]) {
+      fill(png, cx + s * 2 - 1 + px, eyeY + pdy, cx + s * 2 + px, eyeY + pdy + 1, OUT);
+    }
+    // Brows: sad slants outward, the black puffle scowls
+    if (pose === 'sad') {
+      for (const s of [-1, 1]) {
+        set(png, cx + s * 7, eyeY - 5, INK);
+        set(png, cx + s * 6, eyeY - 4, INK);
+      }
+    } else if (angry) {
+      for (const s of [-1, 1]) {
+        set(png, cx + s * 6, eyeY - 6, INK);
+        set(png, cx + s * 5, eyeY - 5, INK);
+        set(png, cx + s * 4, eyeY - 5, INK);
+      }
+    }
   }
-  // Mouth
+
+  // Big wide smile (flips on sad)
+  const my = cy + 4;
   if (pose === 'sad') {
-    set(png, cx - 1, cy + 4, OUT);
-    set(png, cx, cy + 3, OUT);
-    set(png, cx + 1, cy + 4, OUT);
+    set(png, cx - 3, my + 2, INK);
+    set(png, cx - 2, my + 1, INK);
+    fill(png, cx - 1, my, cx + 1, my, INK);
+    set(png, cx + 2, my + 1, INK);
+    set(png, cx + 3, my + 2, INK);
   } else if (pose !== 'sleep') {
-    set(png, cx - 1, cy + 3, OUT);
-    set(png, cx, cy + 4, OUT);
-    set(png, cx + 1, cy + 3, OUT);
-  }
-  // Bounce frame: slightly different tuft
-  if (pose === 'neutral2') {
-    set(png, cx, cy - 13, color);
+    const wide = pose === 'happy' ? 4 : 3;
+    set(png, cx - wide, my, INK);
+    set(png, cx - wide + 1, my + 1, INK);
+    fill(png, cx - wide + 2, my + 2, cx + wide - 2, my + 2, INK);
+    set(png, cx + wide - 1, my + 1, INK);
+    set(png, cx + wide, my, INK);
   }
   return png;
 }

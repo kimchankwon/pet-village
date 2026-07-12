@@ -376,6 +376,18 @@ class GameStateStore {
     return 'sad';
   }
 
+  /**
+   * The face the pet should wear: the most pressing need wins, so hunger
+   * and exhaustion show even when the overall average is still okay.
+   */
+  petExpression(): 'hungry' | 'tired' | 'sad' | 'happy' | 'ok' {
+    const p = this.data.pet;
+    if (p.hunger < 30) return 'hungry';
+    if (p.energy < 25) return 'tired';
+    if (p.happiness < 35) return 'sad';
+    return this.petMood() === 'happy' ? 'happy' : 'ok';
+  }
+
   adopt(species: PetSpecies, name: string) {
     const trimmed = name.trim().slice(0, 12);
     if (!trimmed) throw new Error('Name your pet');

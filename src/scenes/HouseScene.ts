@@ -82,6 +82,12 @@ export class HouseScene extends Phaser.Scene {
     this.facing = 'up';
 
     this.pet = new Pet(this, px - 30, py + 10);
+    // Tap/click your pet to hear what's on its mind.
+    this.pet.sprite.setInteractive({ useHandCursor: true });
+    this.pet.sprite.on('pointerdown', () => {
+      this.ignoreClicksUntil = this.time.now + 200;
+      if (!this.menuOpen && !this.placing && !isUiBlocked()) this.pet.speak();
+    });
 
     const kb = this.input.keyboard!;
     this.cursors = kb.createCursorKeys();
@@ -301,6 +307,14 @@ export class HouseScene extends Phaser.Scene {
     const hasBed = State.data.placed.some((p) => p.id === 'bed');
     const foods = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'food');
     const options = [
+      {
+        label: `Chat with ${State.data.petName}`,
+        icon: this.pet.sprite.texture.key,
+        onSelect: () => {
+          this.pet.speak();
+          this.menuOpen = false;
+        },
+      },
       {
         label: `Feed ${State.data.petName}`,
         icon: 'fish',

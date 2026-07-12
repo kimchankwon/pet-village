@@ -110,21 +110,28 @@ function drawBong(pose: Pose) {
   }
   // Soft crown bump
   fill(png, 12, headCy - 10, 20, headCy - 9, PINK);
+  // Sky-blue pom sitting on the cap's top-right (per the pixel chart)
+  const POM: RGBA = [128, 190, 235, 255];
+  const POM_DEEP: RGBA = [92, 156, 210, 255];
+  circle(png, 22, headCy - 8, 3, POM, OUT);
+  set(png, 21, headCy - 9, WHITE);
+  set(png, 23, headCy - 7, POM_DEEP);
+  set(png, 22, headCy - 6, POM_DEEP);
 
-  // Eyes — tall ovals with dual glints
-  const eyeY = headCy + (pose === 'sad' ? 1 : 0);
+  // Eyes — big rounded blacks with a 2x2 glint + spare sparkle (chart style)
+  const eyeY = headCy + 1 + (pose === 'sad' ? 1 : 0);
   const eyeOpen = pose !== 'sleep';
   if (eyeOpen) {
     for (const ex of [11, 21]) {
-      fill(png, ex - 1, eyeY - 2, ex + 1, eyeY + 2, BLACK);
-      set(png, ex, eyeY - 2, BLACK);
-      set(png, ex, eyeY + 2, BLACK);
-      set(png, ex, eyeY - 1, WHITE); // big glint
-      set(png, ex + 1, eyeY + 1, WHITE); // small glint
-      // Flat top “lash”
-      set(png, ex - 1, eyeY - 3, OUT);
-      set(png, ex, eyeY - 3, OUT);
-      set(png, ex + 1, eyeY - 3, OUT);
+      fill(png, ex - 2, eyeY - 2, ex + 2, eyeY + 2, BLACK);
+      // round the corners
+      set(png, ex - 2, eyeY - 2, WHITE);
+      set(png, ex + 2, eyeY - 2, WHITE);
+      set(png, ex - 2, eyeY + 2, WHITE);
+      set(png, ex + 2, eyeY + 2, WHITE);
+      // 2x2 glint top-left + small glint bottom-right
+      fill(png, ex - 1, eyeY - 1, ex, eyeY, WHITE);
+      set(png, ex + 1, eyeY + 1, WHITE);
     }
   } else {
     // Sleep: closed curves
@@ -135,20 +142,18 @@ function drawBong(pose: Pose) {
     }
   }
 
-  // Tiny v mouth
-  const mouthY = eyeY + 3;
-  if (pose === 'happy') {
-    set(png, 15, mouthY, BLACK);
-    set(png, 16, mouthY + 1, BLACK);
-    set(png, 17, mouthY, BLACK);
-  } else if (pose === 'sad') {
+  // Small ω mouth (chart) — inverts on sad
+  const mouthY = eyeY + 4;
+  if (pose === 'sad') {
     set(png, 15, mouthY + 1, BLACK);
     set(png, 16, mouthY, BLACK);
     set(png, 17, mouthY + 1, BLACK);
   } else {
-    set(png, 15, mouthY, BLACK);
-    set(png, 16, mouthY + 1, BLACK);
-    set(png, 17, mouthY, BLACK);
+    set(png, 14, mouthY, BLACK);
+    set(png, 15, mouthY + 1, BLACK);
+    set(png, 16, mouthY, BLACK);
+    set(png, 17, mouthY + 1, BLACK);
+    set(png, 18, mouthY, BLACK);
   }
 
   // “17” cheek marks (slanted pink)

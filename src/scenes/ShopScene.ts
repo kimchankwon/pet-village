@@ -109,6 +109,12 @@ export class ShopScene extends Phaser.Scene {
     this.facing = 'up';
 
     this.pet = new Pet(this, px - 30, py + 10);
+    // Tap/click your pet to hear what's on its mind.
+    this.pet.sprite.setInteractive({ useHandCursor: true });
+    this.pet.sprite.on('pointerdown', () => {
+      this.ignoreClicksUntil = this.time.now + 200;
+      if (!this.menuOpen && !isUiBlocked()) this.pet.speak();
+    });
 
     // Solid fixtures: the counter (and displays) block walking, so you
     // browse from the customer side instead of phasing through Daniel.
@@ -254,6 +260,14 @@ export class ShopScene extends Phaser.Scene {
     this.menuOpen = true;
     const foods = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'food');
     const options = [
+      {
+        label: `Chat with ${State.data.petName}`,
+        icon: this.pet.sprite.texture.key,
+        onSelect: () => {
+          this.pet.speak();
+          this.closeMenu();
+        },
+      },
       {
         label: `Feed ${State.data.petName}${foods.length === 0 ? ' (no food — ask Daniel!)' : ''}`,
         icon: 'fish',

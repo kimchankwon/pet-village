@@ -84,6 +84,12 @@ export class TownScene extends Phaser.Scene {
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
 
     this.pet = new Pet(this, sx - 30, sy + 10);
+    // Tap/click your pet to hear what's on its mind.
+    this.pet.sprite.setInteractive({ useHandCursor: true });
+    this.pet.sprite.on('pointerdown', () => {
+      this.ignoreClicksUntil = this.time.now + 200;
+      if (!this.menuOpen && !isUiBlocked()) this.pet.speak();
+    });
 
     this.npcs = [
       new CinnamorollNpc(this, [
@@ -327,6 +333,14 @@ export class TownScene extends Phaser.Scene {
     this.menuOpen = true;
     const foods = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'food');
     const options = [
+      {
+        label: `Chat with ${State.data.petName}`,
+        icon: this.pet.sprite.texture.key,
+        onSelect: () => {
+          this.pet.speak();
+          this.closeMenu();
+        },
+      },
       {
         label: `Feed ${State.data.petName}${foods.length === 0 ? ' (no food — visit shop!)' : ''}`,
         icon: 'fish',

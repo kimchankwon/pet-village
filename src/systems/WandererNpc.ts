@@ -58,6 +58,17 @@ export class WandererNpc {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   talk(_cbs: NpcTalkCallbacks) {}
 
+  private lastLineIdx = -1;
+
+  /** Random line that never repeats the previous one for this NPC. */
+  protected pickLine(lines: string[]): string {
+    if (lines.length <= 1) return lines[0] ?? '';
+    let idx = Phaser.Math.Between(0, lines.length - 1);
+    if (idx === this.lastLineIdx) idx = (idx + 1) % lines.length;
+    this.lastLineIdx = idx;
+    return lines[idx]!;
+  }
+
   private pickNext() {
     if (this.waypoints.length < 2) return;
     let next = this.destIndex;

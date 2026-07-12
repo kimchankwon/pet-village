@@ -3,6 +3,7 @@ import { State } from './GameState';
 import { toast } from './UI';
 import { feetDepth } from './depth';
 import { petAnimKey, petTextureKey, type PetPose } from './pets';
+import { petLine } from './petDialog';
 import { ACCESSORIES } from './accessories';
 
 /**
@@ -137,26 +138,49 @@ export class Pet {
     else if (movedX > 1.0) this.facingLeft = false;
     this.sprite.setFlipX(this.facingLeft);
 
-    if (State.petMood() === 'sad') {
-      if (this.sprite.anims.isPlaying) this.sprite.stop();
-      if (this.sprite.texture.key !== this.tex('sad')) this.sprite.setTexture(this.tex('sad'));
-    } else if (petMoving) {
+    if (petMoving) {
       this.sprite.play(this.anim('walk'), true);
     } else {
-      this.sprite.play(this.anim('bounce'), true);
+      this.applyExpression();
     }
     this.syncAccessories();
   }
 
+  /**
+   * Idle face for the current needs: sad when hungry/unhappy, dozing when
+   * out of energy, bouncing otherwise.
+   */
+  private applyExpression() {
+    const expr = State.petExpression();
+    if (expr === 'hungry' || expr === 'sad') {
+      if (this.sprite.anims.isPlaying) this.sprite.stop();
+      if (this.sprite.texture.key !== this.tex('sad')) this.sprite.setTexture(this.tex('sad'));
+    } else if (expr === 'tired') {
+      if (this.sprite.anims.isPlaying) this.sprite.stop();
+      if (this.sprite.texture.key !== this.tex('sleep')) this.sprite.setTexture(this.tex('sleep'));
+    } else {
+      this.sprite.play(this.anim('bounce'), true);
+    }
+  }
+
   updateMood() {
     if (this.scene.time.now < this.emotionUntil) return;
-    if (State.petMood() === 'sad') {
-      this.sprite.stop();
-      this.sprite.setTexture(this.tex('sad'));
-    } else if (!this.sprite.anims.isPlaying) {
-      this.sprite.play(this.anim('bounce'));
-    }
+    this.applyExpression();
     this.syncAccessories();
+  }
+
+  /** The pet says something fitting its needs/personality. */
+  speak() {
+    const line = petLine();
+    toast(this.scene, this.sprite.x, this.sprite.y - 30, line, '#ffe6f2');
+    const expr = State.petExpression();
+    if (expr === 'happy') {
+      this.showEmotion('happy', 1000);
+      this.emitHearts();
+    } else if (expr === 'ok') {
+      this.showEmotion('happy', 900);
+    }
+    // Needy pets keep their hungry/tired/sad face while they talk.
   }
 
   showEmotion(pose: Extract<PetPose, 'happy' | 'sleep' | 'jump'>, ms: number) {
