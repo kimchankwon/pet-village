@@ -507,7 +507,7 @@ const MAILBOX: Grid = [
   '............',
 ];
 
-const FOUNTAIN: Grid = [
+const FOUNTAIN_0: Grid = [
   '................',
   '......kssk......',
   '.....kssssk.....',
@@ -524,6 +524,37 @@ const FOUNTAIN: Grid = [
   '................',
   '................',
   '................',
+];
+
+/** Alternate spout height so the fountain can “breathe”. */
+const FOUNTAIN_1: Grid = [
+  '................',
+  '.......ss.......',
+  '......kssk......',
+  '.....kssssk.....',
+  '....kssssssk....',
+  '.....kbbbbk.....',
+  '....kbbssbbk....',
+  '...kbbssssbbk...',
+  '..kbbssssssbbk..',
+  '..kbbbbbbbbbbk..',
+  '...kggggggggk...',
+  '....kkkkkkkk....',
+  '................',
+  '................',
+  '................',
+  '................',
+];
+
+const SMOKE: Grid = [
+  '........',
+  '..kggk..',
+  '.kggggk.',
+  '.kggWgk.',
+  '..kggk..',
+  '........',
+  '........',
+  '........',
 ];
 
 const WILDFLOWER: Grid = [
@@ -768,6 +799,8 @@ const HOUSE: Grid = [
 
 const SHOP: Grid = [
   '........................',
+  '......knnNk.............',
+  '......knnNk.............',
   '..kkkkkkkkkkkkkkkkkkkk..',
   '.kPPwwPPwwPPwwPPwwPPwwk.',
   '.kwwPPwwPPwwPPwwPPwwPPk.',
@@ -777,8 +810,6 @@ const SHOP: Grid = [
   '.kcyyycccccccccccyyycck.',
   '.kccccccccccccccccccccK.',
   '.kccccccNNNNNNNNccccccK.',
-  '.kccccccNccccccNccccccK.',
-  '.kccccccNccccccNccccccK.',
   '.kccccccNccccccNccccccK.',
   '.kccccccNccccccNccccccK.',
   '.kccccccNccccccNccccccK.',
@@ -1033,7 +1064,6 @@ export function generateTextures(scene: Phaser.Scene) {
     makeTexture(scene, 'bunny', [BUNNY]);
     makeTexture(scene, 'tree', [TREE]);
     makeTexture(scene, 'house', [HOUSE]);
-    makeTexture(scene, 'shop', [SHOP]);
     makeTexture(scene, 'cafe', [CAFE]);
     makeTexture(scene, 'arcade', [ARCADE]);
     if (!scene.textures.exists('skiprope-booth')) makeTexture(scene, 'skiprope-booth', [SKIPROPE_BOOTH]);
@@ -1072,6 +1102,19 @@ export function generateTextures(scene: Phaser.Scene) {
   if (!scene.textures.exists('tile-ocean')) makeTile(scene, 'tile-ocean', '#3a8fd4', '#2e7ab8', 10);
   if (!scene.textures.exists('tile-ocean2')) makeTile(scene, 'tile-ocean2', '#4599dc', '#3484c4', 10);
 
+  // Shop + fountain regenerate so chimney / water frames pick up on hot reload.
+  if (scene.textures.exists('shop')) scene.textures.remove('shop');
+  makeTexture(scene, 'shop', [SHOP]);
+  if (scene.textures.exists('fountain')) scene.textures.remove('fountain');
+  if (scene.anims.exists('fountain-splash')) scene.anims.remove('fountain-splash');
+  makeTexture(scene, 'fountain', [FOUNTAIN_0, FOUNTAIN_1]);
+  scene.anims.create({
+    key: 'fountain-splash',
+    frames: scene.anims.generateFrameNumbers('fountain', { start: 0, end: 1 }),
+    frameRate: 2.5,
+    repeat: -1,
+  });
+
   // Outdoor décor — ensure on every call so hot reloads pick up new props.
   const outdoor: [string, Grid][] = [
     ['bush', BUSH],
@@ -1080,7 +1123,6 @@ export function generateTextures(scene: Phaser.Scene) {
     ['streetlamp', STREETLAMP],
     ['fence', FENCE],
     ['mailbox', MAILBOX],
-    ['fountain', FOUNTAIN],
     ['wildflower', WILDFLOWER],
     ['mushroom', MUSHROOM],
     ['stump', STUMP],
@@ -1091,6 +1133,7 @@ export function generateTextures(scene: Phaser.Scene) {
     ['bobber', BOBBER],
     ['rod', ROD],
     ['ripple', RIPPLE],
+    ['smoke', SMOKE],
     ['oceanfish-common', OCEAN_FISH_COMMON],
     ['oceanfish-uncommon', OCEAN_FISH_UNCOMMON],
     ['oceanfish-rare', OCEAN_FISH_RARE],

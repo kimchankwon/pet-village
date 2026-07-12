@@ -325,10 +325,11 @@ export class TownScene extends Phaser.Scene {
       targets: [house],
     });
 
-    // Daniel's shop — NE of the square
+    // Daniel's shop — NE of the square (chimney puffs soft smoke).
     const shop = this.add.image(SHOP_POS.tx * TILE, SHOP_POS.ty * TILE, 'shop').setScale(1.85);
     shop.setDepth(propDepth(shop, (SHOP_POS.ty + 0.2) * TILE));
     this.shopImg = shop;
+    this.startShopChimneySmoke(shop);
     this.add
       .text(SHOP_POS.tx * TILE, SHOP_POS.ty * TILE - shop.displayHeight / 2 - 10, "Daniel's Shop", {
         fontFamily: 'monospace',
@@ -470,18 +471,84 @@ export class TownScene extends Phaser.Scene {
 
     this.decoSolids = [];
     for (const spot of [...trees, ...bushes, ...flowers, ...hardscape]) {
-      const img = this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex).setScale(spot.scale ?? 1.4);
+      const isFountain = spot.tex === 'fountain';
+      const img = isFountain
+        ? this.add.sprite(spot.tx * TILE, spot.ty * TILE, spot.tex).setScale(spot.scale ?? 1.4)
+        : this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex).setScale(spot.scale ?? 1.4);
       // Always pass a ground Y. Flowers have no collider — without this,
       // padded sprite feet sort south of characters standing in front of them.
       const footY = spot.solid
         ? spot.ty * TILE + (spot.solid[2] ?? 0)
         : spot.ty * TILE;
       img.setDepth(propDepth(img, footY));
+      if (isFountain && img instanceof Phaser.GameObjects.Sprite) {
+        if (this.anims.exists('fountain-splash')) img.play('fountain-splash');
+        this.startFountainRipples(spot.tx * TILE, spot.ty * TILE, footY);
+      }
       if (spot.solid) {
         const [sw, sh, oy = 0] = spot.solid;
         this.decoSolids.push({ x: spot.tx * TILE, y: spot.ty * TILE + oy, w: sw, h: sh });
       }
     }
+  }
+
+  /** Soft smoke rising from Daniel’s shop chimney. */
+  private startShopChimneySmoke(shop: Phaser.GameObjects.Image) {
+    if (!this.textures.exists('smoke')) return;
+    const chimneyX = shop.x - shop.displayWidth * 0.22;
+    const chimneyY = shop.y - shop.displayHeight * 0.48;
+    const depth = propDepth(shop, (SHOP_POS.ty + 0.2) * TILE) + 2;
+
+    const puff = () => {
+      if (!this.sys.isActive()) return;
+      const s = this.add
+        .image(chimneyX + Phaser.Math.Between(-3, 3), chimneyY, 'smoke')
+        .setScale(0.55)
+        .setAlpha(0.55)
+        .setDepth(depth);
+      this.tweens.add({
+        targets: s,
+        y: chimneyY - Phaser.Math.Between(28, 44),
+        x: chimneyX + Phaser.Math.Between(-10, 14),
+        alpha: 0,
+        scale: 1.15,
+        duration: Phaser.Math.Between(1600, 2400),
+        ease: 'Sine.easeOut',
+        onComplete: () => s.destroy(),
+      });
+    };
+
+    puff();
+    this.time.addEvent({ delay: 700, loop: true, callback: puff });
+  }
+
+  /** Occasional water ripples above the plaza fountain. */
+  private startFountainRipples(fx: number, fy: number, footY: number) {
+    if (!this.textures.exists('ripple')) return;
+    const depth = footY + 1;
+    const splash = () => {
+      if (!this.sys.isActive()) return;
+      const r = this.add
+        .image(fx + Phaser.Math.Between(-6, 6), fy - 10, 'ripple')
+        .setScale(0.45)
+        .setAlpha(0.65)
+        .setDepth(depth);
+      this.tweens.add({
+        targets: r,
+        scale: 1.05,
+        alpha: 0,
+        y: fy - 18,
+        duration: 900,
+        ease: 'Quad.easeOut',
+        onComplete: () => r.destroy(),
+      });
+    };
+    splash();
+    this.time.addEvent({
+      delay: Phaser.Math.Between(1400, 2200),
+      loop: true,
+      callback: splash,
+    });
   }
 
   private buildColliders() {

@@ -10,6 +10,7 @@ import {
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { petAnimKey, petTextureKey } from '../systems/pets';
+import { MINITEEN, miniteenTexPrefix } from '../systems/miniteen';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 
@@ -37,6 +38,19 @@ type Mode = 'ready' | 'playing' | 'won' | 'failed' | 'done';
 
 /** Hold on "Get ready…" before the rope starts turning. */
 const READY_MS = 1500;
+
+/** NPC texture prefixes that can sit in the bleachers. */
+const AUDIENCE_PREFIXES = [
+  'bong',
+  'cinna',
+  ...MINITEEN.map((d) => miniteenTexPrefix(d.id)),
+];
+
+type AudienceMember = {
+  sprite: Phaser.GameObjects.Sprite;
+  prefix: string;
+  baseY: number;
+};
 
 /**
  * Skip Rope — Tamagotchi V3-style rhythm timing.
@@ -76,6 +90,8 @@ export class SkipRopeScene extends Phaser.Scene {
   private ropeStartsAt = 0;
   /** Early jump: pet leaps now, then gets snagged when the rope arrives. */
   private pendingRopeCatch = false;
+  /** Randomised villagers watching from the bleachers. */
+  private audience: AudienceMember[] = [];
 
   constructor() {
     super('SkipRope');
@@ -115,6 +131,7 @@ export class SkipRopeScene extends Phaser.Scene {
       .setScale(2.3)
       .setDepth(10);
     this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
+    this.spawnAudience();
 
     // The rope's lowest point sits exactly at the bottom of the pet, marked
     // by the ground line so the jump moment is easy to read.
@@ -210,6 +227,86 @@ export class SkipRopeScene extends Phaser.Scene {
   }
 
   /**
+   * Pick 2–4 randomised villagers (Bongbongee / Cinna / MINITEEN) to watch
+   * from either side of the rope. Only prefixes with loaded textures are used.
+   */
+  private spawnAudience() {
+    this.audience = [];
+    const available = AUDIENCE_PREFIXES.filter(
+      (prefix) => this.textures.exists(`${prefix}-idle`) && this.textures.exists(`${prefix}-happy`),
+    );
+    if (available.length === 0) return;
+
+    Phaser.Utils.Array.Shuffle(available);
+    const count = Phaser.Math.Clamp(Phaser.Math.Between(2, 4), 2, Math.min(4, available.length));
+    const slots: { x: number; y: number; flip: boolean }[] = [
+      { x: this.petX - HANDLE_DX - 70, y: this.petBaseY - 20, flip: false },
+      { x: this.petX + HANDLE_DX + 70, y: this.petBaseY - 18, flip: true },
+      { x: this.petX - HANDLE_DX - 40, y: this.petBaseY - 55, flip: false },
+      { x: this.petX + HANDLE_DX + 40, y: this.petBaseY - 52, flip: true },
+    ];
+
+    for (let i = 0; i < count; i++) {
+      const prefix = available[i]!;
+      const slot = slots[i]!;
+      const idleKey = `${prefix}-idle`;
+      const sprite = this.add
+        .sprite(slot.x, slot.y, idleKey)
+        .setScale(prefix === 'cinna' ? 1.35 : 1.55)
+        .setFlipX(slot.flip)
+        .setDepth(5);
+      const bounce = `${prefix}-bounce`;
+      if (this.anims.exists(bounce)) sprite.play(bounce);
+      this.audience.push({ sprite, prefix, baseY: slot.y });
+    }
+  }
+
+  private audienceCheer(big = false) {
+    for (const member of this.audience) {
+      const { sprite, prefix, baseY } = member;
+      if (!sprite.active) continue;
+      this.tweens.killTweensOf(sprite);
+      sprite.y = baseY;
+      if (this.textures.exists(`${prefix}-happy`)) sprite.setTexture(`${prefix}-happy`);
+      this.tweens.add({
+        targets: sprite,
+        y: baseY - (big ? 14 : 8),
+        duration: big ? 160 : 120,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+          if (!sprite.active) return;
+          sprite.y = baseY;
+          const bounce = `${prefix}-bounce`;
+          if (this.mode === 'playing' && this.anims.exists(bounce)) sprite.play(bounce);
+          else if (this.textures.exists(`${prefix}-idle`)) sprite.setTexture(`${prefix}-idle`);
+        },
+      });
+    }
+  }
+
+  private audienceBoo() {
+    for (const member of this.audience) {
+      const { sprite, prefix, baseY } = member;
+      if (!sprite.active) continue;
+      this.tweens.killTweensOf(sprite);
+      sprite.y = baseY;
+      sprite.stop();
+      if (this.textures.exists(`${prefix}-sad`)) sprite.setTexture(`${prefix}-sad`);
+      this.tweens.add({
+        targets: sprite,
+        angle: { from: -4, to: 4 },
+        duration: 180,
+        yoyo: true,
+        repeat: 1,
+        onComplete: () => {
+          if (sprite.active) sprite.angle = 0;
+        },
+      });
+    }
+  }
+
+  /**
    * Draw the rope for the current phase. The turn is a circle in the
    * depth/height plane: phase 0 = overhead, 0→0.5 coming down the NEAR side
    * (in front of the pet — this is the pass the pet jumps over), 0.5 = at
@@ -301,6 +398,7 @@ export class SkipRopeScene extends Phaser.Scene {
     State.recordSkipRope(this.jumps);
     this.refreshHud();
     this.flashFeedback('Nice!', '#a8e6cf');
+    this.audienceCheer();
 
     if (this.jumps >= SKIP_ROPE_TARGET) {
       // Keep the rope turning so the winning jump visibly clears it, then celebrate.
@@ -371,6 +469,7 @@ export class SkipRopeScene extends Phaser.Scene {
     this.backBtn.setVisible(false);
     const reward = State.rewardSkipRopeRun(this.jumps);
     this.flashFeedback(reason, '#ff6b6b');
+    this.audienceBoo();
 
     this.tweens.killTweensOf(this.petSprite);
     this.petSprite.stop();
@@ -436,6 +535,7 @@ export class SkipRopeScene extends Phaser.Scene {
 
     this.petSprite.stop();
     this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'happy'));
+    this.audienceCheer(true);
     toast(this, this.cameras.main.width / 2, 150, `+${SKIP_ROPE_WIN_COINS} coins!`, '#a8e6cf');
     this.time.delayedCall(450, () =>
       this.showResultPanel(true, { coins: SKIP_ROPE_WIN_COINS, happiness: SKIP_ROPE_WIN_HAPPINESS }),
