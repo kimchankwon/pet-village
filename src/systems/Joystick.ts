@@ -1,12 +1,12 @@
 import Phaser from 'phaser';
+import { joystickAnchor } from '../game/viewport';
 
 /**
- * Fixed on-screen joystick (bottom-left) for touch play. Captures its own
- * pointer, so a second finger can still tap/interact elsewhere. Scenes read
- * `vec` each frame; it's zeroed when released.
+ * Fixed on-screen joystick for touch play. Captures its own pointer, so a
+ * second finger can still tap/interact elsewhere. Scenes read `vec` each
+ * frame; it's zeroed when released.
  *
- * Anchored to the camera size so it stays in the corner when the game
- * aspect ratio changes (taller/wider hosts).
+ * Landscape: bottom-left. Portrait (9:16): higher and further right.
  */
 export class Joystick {
   vec = { x: 0, y: 0 };
@@ -23,9 +23,10 @@ export class Joystick {
   constructor(scene: Phaser.Scene, radius = 54) {
     this.radius = radius;
     this.enabled = scene.sys.game.device.input.touch;
-    const pad = 22;
-    this.cx = pad + radius;
-    this.cy = scene.cameras.main.height - pad - radius;
+    const cam = scene.cameras.main;
+    const anchor = joystickAnchor(cam.width, cam.height, radius);
+    this.cx = anchor.cx;
+    this.cy = anchor.cy;
     if (!this.enabled) return;
 
     this.base = scene.add
@@ -39,8 +40,10 @@ export class Joystick {
       .setDepth(1401);
 
     const relayout = () => {
-      this.cx = pad + this.radius;
-      this.cy = scene.cameras.main.height - pad - this.radius;
+      const c = scene.cameras.main;
+      const next = joystickAnchor(c.width, c.height, this.radius);
+      this.cx = next.cx;
+      this.cy = next.cy;
       this.base?.setPosition(this.cx, this.cy);
       if (this.pointerId === null) this.thumb?.setPosition(this.cx, this.cy);
     };
