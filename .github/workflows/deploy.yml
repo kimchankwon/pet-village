@@ -16,8 +16,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Push functions/schema to the production Convex deployment first, so
+  # the backend validators are live before any frontend that needs them.
+  # Requires the CONVEX_DEPLOY_KEY repo secret (Convex dashboard →
+  # Settings → Deploy keys → Production).
+  convex:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx convex deploy
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+
   deploy:
     runs-on: ubuntu-latest
+    needs: convex
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
