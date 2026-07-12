@@ -1,9 +1,8 @@
 /**
- * Kirby pet frames — KSSU-style 32×32, colour-calibrated from reference.
+ * Kirby pet frames — traced from the SNES/KSSU-style reference sheet.
  *
- * Hands are stubby nubs that share the body fill — NO internal outline
- * between arm and torso (classic Kirby silhouette). Outline is painted
- * once around the combined pink shape.
+ * Hands are body bulges with selective outline: magenta rim on the outer
+ * tip, deep-pink crease underneath — never a black seam between arm and torso.
  *
  * Poses: neutral1, neutral2, walk1, walk2, sad, happy, sleep, jump.
  */
@@ -19,25 +18,53 @@ type RGBA = [number, number, number, number];
 type Pose = 'neutral1' | 'neutral2' | 'walk1' | 'walk2' | 'sad' | 'happy' | 'sleep' | 'jump';
 const POSES: Pose[] = ['neutral1', 'neutral2', 'walk1', 'walk2', 'sad', 'happy', 'sleep', 'jump'];
 
-const OUT: RGBA = [34, 20, 34, 255];
-const PINK: RGBA = [244, 160, 238, 255];
-const SHADE: RGBA = [234, 112, 224, 255];
-const DEEP: RGBA = [210, 66, 196, 255];
-const BLUSH: RGBA = [196, 20, 178, 255];
-const RED: RGBA = [206, 8, 34, 255];
-const RED_D: RGBA = [148, 0, 22, 255];
-const WHITE: RGBA = [255, 255, 255, 255];
-const MOUTH: RGBA = [92, 18, 52, 255];
+// Exact palette from https://preview.redd.it/favorite-kirby-sprite-…
+const K: RGBA = [0, 0, 0, 255];
+const O: RGBA = [112, 0, 88, 255];
+const P: RGBA = [248, 160, 232, 255];
+const S: RGBA = [240, 112, 224, 255];
+const D: RGBA = [224, 64, 208, 255];
+const B: RGBA = [192, 16, 176, 255];
+const W: RGBA = [248, 248, 248, 255];
+const G: RGBA = [48, 48, 48, 255];
+const R: RGBA = [248, 16, 32, 255];
+const r: RGBA = [192, 0, 0, 255];
+
+const PAL: Record<string, RGBA> = { K, O, P, S, D, B, W, G, R, r };
+
+/**
+ * Front-facing reference sprite (27×21), including the soft black halo.
+ * Codes: K black, O outline, P pink, S shade, D deep, B blush,
+ * W white, G gray, R/r foot reds. `.` = empty.
+ */
+const FRONT: string[] = [
+  '......KOBSPPPSDOK..........',
+  '.....KBSPPPPPPPSDK.........',
+  '....KBPPPPPPPPPPSDK........',
+  '...KBPPWWPPPPPPPPSBK.......',
+  '...KSPPWWPPPPPPPPPSK.......',
+  '..KOPPPPPPPDPPPDPPPBK......',
+  '..KDPPPPPPDKSPDKPPPSK......',
+  '.KBSPPPPPPBWSPBPSPPSOK.....',
+  'KOSPPPPPPPBKSPBKSPPSDK.....',
+  'KSPPPPPPPPBKSPBKSPPPSOK....',
+  'OPPPPPPSSPDKPPDKPSSPPBK....',
+  'DPPPPPSDDSPOPPSOPDSPPDK....',
+  'DPPPPPPSSPPPPPPPPPPPPDK....',
+  'DPPPSSPPPPPPPPDPPPPSPBK....',
+  'KDSSDDPPPPPPPPKPPPPSBGK....',
+  '.KGOODSPPPPPPPPPPPSDGK.....',
+  '...KKODSPPPPPPPPPSSOKK.....',
+  '..KrOOGDSPPPPPPPSDOGrOK....',
+  '.KrrRRrOGBDSSSDDBOOPRRK....',
+  '.KrRSPSRrKOOOOGGKOrRrOK....',
+  '.KOrRRRROOK..KKKKKKKKK.....',
+];
 
 function blank() {
   const png = new PNG({ width: 32, height: 32 });
   png.data.fill(0);
   return png;
-}
-
-function getA(png: InstanceType<typeof PNG>, x: number, y: number) {
-  if (x < 0 || y < 0 || x >= 32 || y >= 32) return 0;
-  return png.data[((32 * y + x) << 2) + 3];
 }
 
 function set(png: InstanceType<typeof PNG>, x: number, y: number, c: RGBA) {
@@ -51,81 +78,163 @@ function set(png: InstanceType<typeof PNG>, x: number, y: number, c: RGBA) {
   png.data[i + 3] = c[3];
 }
 
-function fill(png: InstanceType<typeof PNG>, x0: number, y0: number, x1: number, y1: number, c: RGBA) {
-  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) set(png, x, y, c);
+function getA(png: InstanceType<typeof PNG>, x: number, y: number) {
+  if (x < 0 || y < 0 || x >= 32 || y >= 32) return 0;
+  return png.data[((32 * y + x) << 2) + 3];
 }
 
-/** Filled ellipse only — no outline (used for body + seamless hands). */
-function ellipseFill(png: InstanceType<typeof PNG>, cx: number, cy: number, rx: number, ry: number, c: RGBA) {
-  for (let y = -ry; y <= ry; y++) {
-    for (let x = -rx; x <= rx; x++) {
-      if (Math.hypot(x / rx, y / ry) <= 1) set(png, cx + x, cy + y, c);
-    }
-  }
+function getRGB(png: InstanceType<typeof PNG>, x: number, y: number): RGBA | null {
+  if (x < 0 || y < 0 || x >= 32 || y >= 32) return null;
+  const i = (32 * y + x) << 2;
+  if (png.data[i + 3] < 200) return null;
+  return [png.data[i], png.data[i + 1], png.data[i + 2], png.data[i + 3]];
 }
 
-function ellipseOutlined(
-  png: InstanceType<typeof PNG>,
-  cx: number,
-  cy: number,
-  rx: number,
-  ry: number,
-  c: RGBA,
-  outline: RGBA,
-) {
-  for (let y = -ry - 1; y <= ry + 1; y++) {
-    for (let x = -rx - 1; x <= rx + 1; x++) {
-      const d = Math.hypot(x / rx, y / ry);
-      if (d <= 1 - 0.08) set(png, cx + x, cy + y, c);
-      else if (d <= 1 + 0.07) set(png, cx + x, cy + y, outline);
-    }
-  }
+function eq(a: RGBA | null, b: RGBA) {
+  return !!a && a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
 }
 
-/** Paint outline on empty neighbours of any filled pixel (outer silhouette only). */
-function outlineSilhouette(png: InstanceType<typeof PNG>) {
-  const add: [number, number][] = [];
-  for (let y = 0; y < 32; y++) {
-    for (let x = 0; x < 32; x++) {
-      if (!getA(png, x, y)) continue;
-      for (const [dx, dy] of [
-        [1, 0],
-        [-1, 0],
-        [0, 1],
-        [0, -1],
-      ]) {
-        if (!getA(png, x + dx, y + dy)) add.push([x + dx, y + dy]);
-      }
+/** Stamp FRONT grid centered in 32×32 with optional offset. */
+function stampFront(png: InstanceType<typeof PNG>, ox: number, oy: number) {
+  const gw = FRONT[0]!.length;
+  const gh = FRONT.length;
+  const x0 = Math.floor((32 - gw) / 2) + ox;
+  const y0 = Math.floor((32 - gh) / 2) + oy;
+  for (let y = 0; y < gh; y++) {
+    const row = FRONT[y]!;
+    for (let x = 0; x < gw; x++) {
+      const ch = row[x]!;
+      if (ch === '.') continue;
+      const col = PAL[ch];
+      if (col) set(png, x0 + x, y0 + y, col);
     }
   }
-  for (const [x, y] of add) set(png, x, y, OUT);
+  return { x0, y0, gw, gh };
+}
+
+/** Clear a rectangle (used before redrawing feet / face). */
+function clear(png: InstanceType<typeof PNG>, x0: number, y0: number, x1: number, y1: number) {
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      if (x < 0 || y < 0 || x >= 32 || y >= 32) continue;
+      const i = (32 * y + x) << 2;
+      png.data[i] = png.data[i + 1] = png.data[i + 2] = png.data[i + 3] = 0;
+    }
+  }
 }
 
 /**
- * Classic Kirby hand nub — pink fill continuous with the body.
- * Bridge pixels toward the torso so silhouette outline never paints a seam.
- * `raised` lifts arms for happy/jump (10 & 2 o'clock).
+ * Raised arm nubs (happy / jump) — pink continuous with body,
+ * outer O tip, deep crease on the inner underside (reference style).
  */
-function handNub(png: InstanceType<typeof PNG>, side: -1 | 1, cx: number, cy: number, raised: boolean) {
-  if (raised) {
-    // Raised stub — sit on the shoulder curve, not floating away
-    const ax = cx + side * 8;
+function raiseArms(png: InstanceType<typeof PNG>) {
+  const cy = 14;
+  for (const side of [-1, 1] as const) {
+    const ax = 16 + side * 9;
     const ay = cy - 5;
-    ellipseFill(png, ax, ay, 2.4, 2.8, PINK);
-    // Flat 2–3px crown (KSSU reference)
-    fill(png, ax - 1, ay - 3, ax + 1, ay - 2, PINK);
-    // Solid bridge into the body (kills the inner outline seam)
-    fill(png, cx + side * 5, ay, cx + side * 8, ay + 3, PINK);
-    fill(png, cx + side * 6, ay - 2, cx + side * 7, ay + 1, PINK);
-  } else {
-    // Mid-body stub — rounded protrusion, one silhouette with torso
-    const ax = cx + side * 10;
-    const ay = cy + 1;
-    ellipseFill(png, ax, ay, 2.5, 2.8, PINK);
-    // Bridge toward body so the join is solid pink (no gap for outline)
-    fill(png, cx + side * 6, ay - 1, cx + side * 9, ay + 2, PINK);
-    set(png, cx + side * 9, ay - 2, PINK);
-    set(png, cx + side * 9, ay + 3, PINK);
+    // Pink stub + shoulder bridge
+    for (let dy = -3; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        if (Math.hypot(dx / 2.1, dy / 2.8) <= 1) set(png, ax + dx, ay + dy, P);
+      }
+    }
+    set(png, ax - 1, ay - 3, P);
+    set(png, ax, ay - 3, P);
+    set(png, ax + 1, ay - 3, P);
+    for (let t = 0; t <= 4; t++) {
+      set(png, 16 + side * (5 + t), ay + 1, P);
+      set(png, 16 + side * (5 + t), ay + 2, P);
+      set(png, 16 + side * (6 + t), ay, P);
+    }
+    // Outer tip: magenta outline + deep lower edge (selective)
+    set(png, ax + side * 2, ay - 2, O);
+    set(png, ax + side * 2, ay - 1, O);
+    set(png, ax + side * 2, ay, O);
+    set(png, ax + side * 2, ay + 1, D);
+    // Inner underside crease — deep/shade, never black
+    set(png, ax - side, ay + 2, D);
+    set(png, ax, ay + 2, D);
+    set(png, ax - side, ay + 1, S);
+    // Soft black halo only on the outer rim
+    for (let dy = -4; dy <= 2; dy++) {
+      const hx = ax + side * 3;
+      const hy = ay + dy;
+      if (!getA(png, hx, hy) && getA(png, hx - side, hy)) set(png, hx, hy, K);
+    }
+    set(png, ax + side * 2, ay - 3, K);
+    set(png, ax + side, ay - 4, K);
+    set(png, ax, ay - 4, K);
+  }
+}
+
+/** Replace eye pixels in the face band. */
+function paintEyes(
+  png: InstanceType<typeof PNG>,
+  mode: 'normal' | 'happy' | 'sad' | 'sleep',
+) {
+  // Reference eye centers in the stamped 32×32 (FRONT origin ≈ 2.5,5.5)
+  const sockets: [number, number][] = [
+    [13, 13],
+    [18, 13],
+  ];
+
+  // Restore pink over existing eye blacks / whites in a small window
+  for (const [ex, ey] of sockets) {
+    for (let dy = -1; dy <= 2; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const c = getRGB(png, ex + dx, ey + dy);
+        if (eq(c, K) || eq(c, W)) set(png, ex + dx, ey + dy, P);
+      }
+    }
+  }
+
+  if (mode === 'sleep') {
+    for (const [ex, ey] of sockets) {
+      set(png, ex - 1, ey + 1, K);
+      set(png, ex, ey + 2, K);
+      set(png, ex + 1, ey + 2, K);
+    }
+  } else if (mode === 'happy') {
+    for (const [ex, ey] of sockets) {
+      set(png, ex - 1, ey + 1, K);
+      set(png, ex, ey, K);
+      set(png, ex + 1, ey + 1, K);
+    }
+  } else if (mode === 'sad') {
+    for (const [ex, ey] of sockets) {
+      set(png, ex, ey, K);
+      set(png, ex, ey + 1, K);
+      set(png, ex + (ex < 16 ? -1 : 1), ey, K);
+    }
+  }
+}
+
+/** Shift feet horizontally for walk stride (repaint bottom band). */
+function strideFeet(png: InstanceType<typeof PNG>, stride: number) {
+  // Copy foot band, clear, redraw shifted
+  const y0 = 22;
+  const y1 = 30;
+  const band: { x: number; y: number; c: RGBA }[] = [];
+  for (let y = y0; y <= y1; y++) {
+    for (let x = 0; x < 32; x++) {
+      const c = getRGB(png, x, y);
+      if (!c) continue;
+      if (eq(c, R) || eq(c, r) || eq(c, G) || eq(c, O) || eq(c, K) || eq(c, B) || eq(c, D) || eq(c, S)) {
+        // Only move foot-ish reds; keep body pinks in band
+        if (eq(c, R) || eq(c, r) || (eq(c, O) && y >= 24) || (eq(c, K) && y >= 24) || (eq(c, G) && y >= 24)) {
+          band.push({ x, y, c });
+        }
+      }
+    }
+  }
+  for (const p of band) {
+    const i = (32 * p.y + p.x) << 2;
+    png.data[i] = png.data[i + 1] = png.data[i + 2] = png.data[i + 3] = 0;
+  }
+  for (const p of band) {
+    // Left foot (x < 16) moves with +stride, right with -stride
+    const dx = p.x < 16 ? stride : -stride;
+    set(png, p.x + dx, p.y, p.c);
   }
 }
 
@@ -136,85 +245,37 @@ function save(png: InstanceType<typeof PNG>, file: string) {
 
 function drawKirby(pose: Pose) {
   const png = blank();
-  const dy = pose === 'jump' ? -3 : pose === 'neutral2' || pose === 'walk2' ? 1 : 0;
-  const stride = pose === 'walk1' ? 2 : pose === 'walk2' ? -2 : 0;
-  const cx = 16;
-  const cy = 16 + dy;
-  const raised = pose === 'happy' || pose === 'jump';
+  const bob = pose === 'neutral2' || pose === 'walk2' ? 1 : pose === 'jump' ? -2 : 0;
+  stampFront(png, 0, bob);
 
-  // Feet first (own outline — they sit under the body)
-  const spread = pose === 'jump' ? 4 : 6;
-  ellipseOutlined(png, cx - spread + stride, 26 + dy, 4, 2.6, RED, OUT);
-  ellipseOutlined(png, cx + spread - stride, 26 + dy, 4, 2.6, RED, OUT);
-  fill(png, cx - spread + stride - 2, 27 + dy, cx - spread + stride + 2, 27 + dy, RED_D);
-  fill(png, cx + spread - stride - 2, 27 + dy, cx + spread - stride + 2, 27 + dy, RED_D);
-
-  // Body + hands as ONE pink fill (no outlines yet)
-  ellipseFill(png, cx, cy, 9.5, 9, PINK);
-  handNub(png, -1, cx, cy, raised);
-  handNub(png, 1, cx, cy, raised);
-
-  // Soft shading crescent (low on the body) — keep hands readable
-  for (let y = -9; y <= 9; y++) {
-    for (let x = -10; x <= 10; x++) {
-      const d = Math.hypot(x / 9.5, y / 9);
-      if (d > 1) continue;
-      // Don't recolour the outer hand nubs
-      if (Math.abs(x) >= 9 && Math.abs(y) < 5) continue;
-      if (d > 0.68 && d <= 0.92 && y > 2) set(png, cx + x, cy + y, x < -2 ? DEEP : SHADE);
-      else if (d > 0.92 && y > 0) set(png, cx + x, cy + y, DEEP);
-    }
+  if (pose === 'happy' || pose === 'jump') {
+    raiseArms(png);
+    paintEyes(png, 'happy');
+    // Small open smile
+    set(png, 15, 17, K);
+    set(png, 16, 17, B);
+    set(png, 17, 17, K);
+    set(png, 16, 18, B);
+  } else if (pose === 'sad') {
+    paintEyes(png, 'sad');
+    set(png, 15, 18, K);
+    set(png, 16, 17, K);
+    set(png, 17, 18, K);
+  } else if (pose === 'sleep') {
+    paintEyes(png, 'sleep');
+    // Soft Z hint — keep mouth as stamped / cleared
+    clear(png, 15, 16, 17, 18);
+    set(png, 15, 17, P);
+    set(png, 16, 17, P);
+    set(png, 17, 17, P);
   }
 
-  // Outer silhouette outline only — hands stay seamless with the torso
-  outlineSilhouette(png);
-
-  // White shine, upper left
-  fill(png, cx - 5, cy - 7, cx - 4, cy - 6, WHITE);
-  set(png, cx - 6, cy - 6, WHITE);
-
-  // Eyes
-  const eyeTop = cy - 5;
-  if (pose === 'sleep') {
-    for (const s of [-1, 1] as const) {
-      set(png, cx + s * 4, eyeTop + 4, OUT);
-      set(png, cx + s * 3, eyeTop + 5, OUT);
-      set(png, cx + s * 2, eyeTop + 5, OUT);
-    }
-  } else if (pose === 'happy') {
-    for (const s of [-1, 1] as const) {
-      set(png, cx + s * 2, eyeTop + 3, OUT);
-      set(png, cx + s * 3, eyeTop + 2, OUT);
-      set(png, cx + s * 4, eyeTop + 3, OUT);
-    }
-  } else if (pose === 'sad') {
-    for (const s of [-1, 1] as const) {
-      fill(png, cx + s * 3 - 1 + (s > 0 ? 1 : 0), eyeTop + 3, cx + s * 3 + (s > 0 ? 1 : 0), eyeTop + 5, OUT);
-      set(png, cx + s * 4, eyeTop + 2, OUT);
-    }
-  } else {
-    for (const s of [-1, 1] as const) {
-      const ex = cx + s * 3 + (s > 0 ? 1 : 0);
-      fill(png, ex - 1, eyeTop, ex, eyeTop + 5, OUT);
-      fill(png, ex - 1, eyeTop + 1, ex, eyeTop + 2, WHITE);
-    }
-  }
-
-  // Magenta blush dashes
-  fill(png, cx - 8, cy + 2, cx - 6, cy + 2, BLUSH);
-  fill(png, cx + 6, cy + 2, cx + 8, cy + 2, BLUSH);
-
-  // Mouth
-  if (pose === 'happy') {
-    fill(png, cx - 1, cy + 3, cx + 1, cy + 4, MOUTH);
-    set(png, cx - 2, cy + 3, OUT);
-    set(png, cx + 2, cy + 3, OUT);
-  } else if (pose === 'sad') {
-    set(png, cx - 1, cy + 5, OUT);
-    set(png, cx, cy + 4, OUT);
-    set(png, cx + 1, cy + 5, OUT);
-  } else if (pose !== 'sleep') {
-    set(png, cx, cy + 4, MOUTH);
+  if (pose === 'walk1') strideFeet(png, 2);
+  if (pose === 'walk2') strideFeet(png, -2);
+  if (pose === 'jump') strideFeet(png, 0); // feet already closer via stamp; tuck slightly
+  if (pose === 'jump') {
+    // Pull feet closer under body
+    strideFeet(png, 1);
   }
 
   return png;
@@ -223,4 +284,4 @@ function drawKirby(pose: Pose) {
 for (const pose of POSES) {
   save(drawKirby(pose), path.join(ROOT, `${pose}.png`));
 }
-console.log('Wrote Kirby pet frames (seamless hand outline)');
+console.log('Wrote Kirby pet frames from reference sheet');
