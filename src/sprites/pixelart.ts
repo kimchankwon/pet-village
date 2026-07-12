@@ -413,6 +413,198 @@ const TREE: Grid = [
   '................',
 ];
 
+const BUSH: Grid = [
+  '............',
+  '............',
+  '...kkkkk....',
+  '..kEEEEEk...',
+  '.kEDEEEDEk..',
+  '.kEEEEEEEk..',
+  '.kEEpPEEEk..',
+  '..kEEEEEk...',
+  '...kkkkk....',
+  '............',
+  '............',
+  '............',
+];
+
+const ROCK: Grid = [
+  '............',
+  '............',
+  '....kkkk....',
+  '...kggggk...',
+  '..kggWgggk..',
+  '..kggggggk..',
+  '.kgggggggk..',
+  '..kkkkkkkk..',
+  '............',
+  '............',
+  '............',
+  '............',
+];
+
+const BENCH: Grid = [
+  '................',
+  '................',
+  '.knnnnnnnnnnnnk.',
+  '.knCCCCCCCCCCnk.',
+  '.knCCCCCCCCCCnk.',
+  '.knnnnnnnnnnnnk.',
+  '.kN..........Nk.',
+  '.kN..........Nk.',
+  '.kN..........Nk.',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+];
+
+const STREETLAMP: Grid = [
+  '............',
+  '....kyyk....',
+  '...kyyyyk...',
+  '...kyyyyk...',
+  '....kyyk....',
+  '.....kk.....',
+  '.....kt.....',
+  '.....kt.....',
+  '.....kt.....',
+  '.....kt.....',
+  '....kttk....',
+  '...kttttk...',
+];
+
+const FENCE: Grid = [
+  '................',
+  '................',
+  '.kC.kC.kC.kC.kC.',
+  '.kC.kC.kC.kC.kC.',
+  '.kCCCCCCCCCCCCk.',
+  '.kC.kC.kC.kC.kC.',
+  '.kC.kC.kC.kC.kC.',
+  '.kC.kC.kC.kC.kC.',
+  '................',
+  '................',
+  '................',
+  '................',
+];
+
+const MAILBOX: Grid = [
+  '............',
+  '...kBBBBBk..',
+  '..kBwwwwBk..',
+  '..kBwrrwBk..',
+  '..kBwwwwBk..',
+  '..kBBBBBk...',
+  '....knnk....',
+  '....knnk....',
+  '...knnNNk...',
+  '............',
+  '............',
+  '............',
+];
+
+const FOUNTAIN: Grid = [
+  '................',
+  '......kssk......',
+  '.....kssssk.....',
+  '....kssssssk....',
+  '.....kbbbbk.....',
+  '....kbbssbbk....',
+  '...kbbssssbbk...',
+  '..kbbssssssbbk..',
+  '..kbbbbbbbbbbk..',
+  '...kggggggggk...',
+  '....kkkkkkkk....',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+];
+
+const WILDFLOWER: Grid = [
+  '............',
+  '..kp..ky..kl',
+  '.kPp.kyy.klL',
+  '..kp..ky..kl',
+  '...E...E...E',
+  '....E.E.E...',
+  '............',
+  '............',
+  '............',
+  '............',
+  '............',
+  '............',
+];
+
+const MUSHROOM: Grid = [
+  '............',
+  '....krrrk...',
+  '...krrWrrk..',
+  '..krrrrrrrk.',
+  '...kwwwwwk..',
+  '....kwwwk...',
+  '.....kwk....',
+  '.....kwk....',
+  '............',
+  '............',
+  '............',
+  '............',
+];
+
+const STUMP: Grid = [
+  '............',
+  '...knnnnnk..',
+  '..knCCnCCnk.',
+  '..knnnnnnnk.',
+  '..kNNNNNNk..',
+  '...kNNNNk...',
+  '............',
+  '............',
+  '............',
+  '............',
+  '............',
+  '............',
+];
+
+const SIGNPOST: Grid = [
+  '............',
+  '..kCCCCCCk..',
+  '..kCyyyCCk..',
+  '..kCCCCCCk..',
+  '....knnk....',
+  '....knnk....',
+  '....knnk....',
+  '....knnk....',
+  '...knnNNk...',
+  '............',
+  '............',
+  '............',
+];
+
+const CLOTHES_RACK: Grid = [
+  '................',
+  '..kt..........tk',
+  '..ktttttttttttk.',
+  '...k.p..s..P.k..',
+  '...k.pp.ss.PP.k.',
+  '...k.p..s..P.k..',
+  '...k..........k.',
+  '...k..........k.',
+  '..ktk........ktk',
+  '..kttk......kttk',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+];
+
 const HOUSE: Grid = [
   '.......kkkkkkkkkk.......',
   '.....kkRRRRRRRRRRkk.....',
@@ -621,37 +813,55 @@ export function applyPenguinColor(scene: Phaser.Scene, color: string) {
 }
 
 export function generateTextures(scene: Phaser.Scene) {
-  if (scene.textures.exists('penguin-down')) return;
+  if (!scene.textures.exists('penguin-down')) {
+    setPenguinPalette(State.data.penguinColor ?? 'blue');
+    makePenguin(scene);
+    makeTexture(scene, 'bunny', [BUNNY]);
+    makeTexture(scene, 'tree', [TREE]);
+    makeTexture(scene, 'house', [HOUSE]);
+    makeTexture(scene, 'shop', [SHOP]);
+    makeTexture(scene, 'arcade', [ARCADE]);
+    makeTexture(scene, 'paperball', [PAPERBALL]);
+    makeTexture(scene, 'bin', [BIN]);
+    makeTexture(scene, 'coin', [COIN]);
+    makeTexture(scene, 'fish', [FISH]);
+    makeTexture(scene, 'cookie', [COOKIE]);
+    makeTexture(scene, 'heart', [HEART]);
 
-  setPenguinPalette(State.data.penguinColor ?? 'blue');
-  makePenguin(scene);
-  makeTexture(scene, 'bunny', [BUNNY]);
-  makeTexture(scene, 'tree', [TREE]);
-  makeTexture(scene, 'house', [HOUSE]);
-  makeTexture(scene, 'shop', [SHOP]);
-  makeTexture(scene, 'arcade', [ARCADE]);
-  makeTexture(scene, 'paperball', [PAPERBALL]);
-  makeTexture(scene, 'bin', [BIN]);
-  makeTexture(scene, 'coin', [COIN]);
-  makeTexture(scene, 'fish', [FISH]);
-  makeTexture(scene, 'cookie', [COOKIE]);
-  makeTexture(scene, 'heart', [HEART]);
+    makeTexture(scene, 'item-plant', [PLANT]);
+    makeTexture(scene, 'item-chair', [CHAIR]);
+    makeTexture(scene, 'item-table', [TABLE]);
+    makeTexture(scene, 'item-rug', [RUG]);
+    makeTexture(scene, 'item-lamp', [LAMP]);
+    makeTexture(scene, 'item-bed', [BED]);
+    makeTexture(scene, 'item-bookshelf', [BOOKSHELF]);
+    makeTexture(scene, 'item-tv', [TV]);
+    makeTexture(scene, 'item-flower', [FLOWER]);
+    makeTexture(scene, 'item-lightstick', [LIGHTSTICK]);
 
-  makeTexture(scene, 'item-plant', [PLANT]);
-  makeTexture(scene, 'item-chair', [CHAIR]);
-  makeTexture(scene, 'item-table', [TABLE]);
-  makeTexture(scene, 'item-rug', [RUG]);
-  makeTexture(scene, 'item-lamp', [LAMP]);
-  makeTexture(scene, 'item-bed', [BED]);
-  makeTexture(scene, 'item-bookshelf', [BOOKSHELF]);
-  makeTexture(scene, 'item-tv', [TV]);
-  makeTexture(scene, 'item-flower', [FLOWER]);
-  makeTexture(scene, 'item-lightstick', [LIGHTSTICK]);
+    makeTile(scene, 'tile-grass', '#7ec850', '#6ab53f', 14);
+    makeTile(scene, 'tile-path', '#e0c9a6', '#cdb28a', 10);
+    makeTile(scene, 'tile-floor', '#d9b380', '#c9a06a', 8);
+    makeTile(scene, 'tile-wall', '#b085c9', '#9e6fbc', 6);
+    makeTile(scene, 'tile-snow', '#eef3f8', '#dde7f0', 8);
+  }
 
-  makeTile(scene, 'tile-grass', '#7ec850', '#6ab53f', 14);
-  makeTile(scene, 'tile-path', '#e0c9a6', '#cdb28a', 10);
-  makeTile(scene, 'tile-floor', '#d9b380', '#c9a06a', 8);
-  makeTile(scene, 'tile-wall', '#b085c9', '#9e6fbc', 6);
-  makeTile(scene, 'tile-snow', '#eef3f8', '#dde7f0', 8);
-
+  // Outdoor décor — ensure on every call so hot reloads pick up new props.
+  const outdoor: [string, Grid][] = [
+    ['bush', BUSH],
+    ['rock', ROCK],
+    ['bench', BENCH],
+    ['streetlamp', STREETLAMP],
+    ['fence', FENCE],
+    ['mailbox', MAILBOX],
+    ['fountain', FOUNTAIN],
+    ['wildflower', WILDFLOWER],
+    ['mushroom', MUSHROOM],
+    ['stump', STUMP],
+    ['signpost', SIGNPOST],
+    ['clothes-rack', CLOTHES_RACK],
+  ];
+  for (const [key, grid] of outdoor) {
+    if (!scene.textures.exists(key)) makeTexture(scene, key, [grid]);
+  }
 }

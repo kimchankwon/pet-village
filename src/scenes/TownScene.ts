@@ -50,6 +50,8 @@ export class TownScene extends Phaser.Scene {
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   // Menu option clicks must not also trigger walk/interact underneath.
   private ignoreClicksUntil = 0;
+  /** Solid hitboxes for outdoor décor (filled in scatterTownDecor). */
+  private decoSolids: { x: number; y: number; w: number; h: number }[] = [];
 
   constructor() {
     super('Town');
@@ -290,16 +292,160 @@ export class TownScene extends Phaser.Scene {
       targets: [arcade],
     });
 
-    // Trees around the edges and sprinkled through town
-    const treeSpots = [
-      [2, 2], [10, 3], [19, 2], [29, 3], [2, 10], [29, 10],
-      [3, 17], [10, 19], [20, 19], [28, 17], [13, 5], [21, 9],
-      [5, 15], [29, 21], [2, 21], [16, 20],
-    ];
-    for (const [tx, ty] of treeSpots) {
-      const tree = this.add.image(tx * TILE, ty * TILE, 'tree').setScale(1.5);
-      tree.setDepth(tree.y + tree.displayHeight / 2);
+    // Path spur to the arcade
+    for (let ty = 14; ty <= 15; ty++) {
+      for (let tx = 22; tx <= 25; tx++) {
+        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      }
     }
+    // Short walks up to house / shop doors
+    for (let ty = 8; ty <= 11; ty++) {
+      this.add.image(6 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      this.add.image(7 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+    }
+    for (let ty = 8; ty <= 11; ty++) {
+      this.add.image(24 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      this.add.image(25 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+    }
+
+    this.scatterTownDecor();
+  }
+
+  /**
+   * Prop placement for a lived-in village: trees + bushes, flowers, benches,
+   * lamps, a fountain plaza, fence around the house, Cinna's clothes rack, etc.
+   * `solid` = [width, height, yOffset] for physics; omit for walk-through décor.
+   */
+  private scatterTownDecor() {
+    type Spot = {
+      tex: string;
+      tx: number;
+      ty: number;
+      scale?: number;
+      solid?: [number, number, number?];
+    };
+
+    const trees: Spot[] = [
+      { tex: 'tree', tx: 2, ty: 2, scale: 1.5, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 10, ty: 2.5, scale: 1.45, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 19, ty: 2, scale: 1.5, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 29, ty: 3, scale: 1.55, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 2, ty: 10, scale: 1.4, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 29.5, ty: 10, scale: 1.5, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 3, ty: 17, scale: 1.5, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 10, ty: 19.5, scale: 1.45, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 20, ty: 19, scale: 1.5, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 28, ty: 17.5, scale: 1.5, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 29, ty: 21, scale: 1.4, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 2, ty: 21, scale: 1.5, solid: [40, 30, 20] },
+    ];
+
+    const bushes: Spot[] = [
+      { tex: 'bush', tx: 4.2, ty: 3.2, scale: 1.3, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 8.5, ty: 4, scale: 1.2, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 11.5, ty: 3, scale: 1.25, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 18, ty: 3.5, scale: 1.3, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 27, ty: 4, scale: 1.2, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 3.5, ty: 11.2, scale: 1.25, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 28, ty: 11, scale: 1.3, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 4, ty: 18.5, scale: 1.2, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 12, ty: 18, scale: 1.25, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 22, ty: 20, scale: 1.3, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 26.5, ty: 18, scale: 1.2, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 9, ty: 15.5, scale: 1.15, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 13.5, ty: 9.5, scale: 1.2, solid: [28, 18, 8] },
+    ];
+
+    const flowers: Spot[] = [
+      { tex: 'wildflower', tx: 5, ty: 8.5, scale: 1.4 },
+      { tex: 'wildflower', tx: 8, ty: 9, scale: 1.3 },
+      { tex: 'wildflower', tx: 11, ty: 7, scale: 1.35 },
+      { tex: 'wildflower', tx: 18.5, ty: 8, scale: 1.4 },
+      { tex: 'wildflower', tx: 22, ty: 7.5, scale: 1.3 },
+      { tex: 'wildflower', tx: 27.5, ty: 8.5, scale: 1.35 },
+      { tex: 'wildflower', tx: 4.5, ty: 14.5, scale: 1.3 },
+      { tex: 'wildflower', tx: 9, ty: 16.5, scale: 1.4 },
+      { tex: 'wildflower', tx: 18, ty: 17, scale: 1.3 },
+      { tex: 'wildflower', tx: 21.5, ty: 18.5, scale: 1.35 },
+      { tex: 'wildflower', tx: 27, ty: 15, scale: 1.3 },
+      { tex: 'wildflower', tx: 14, ty: 20.5, scale: 1.4 },
+      { tex: 'item-flower', tx: 5.5, ty: 5.2, scale: 1.2 },
+      { tex: 'item-flower', tx: 8.2, ty: 6.8, scale: 1.15 },
+      { tex: 'item-flower', tx: 23, ty: 5.5, scale: 1.2 },
+      { tex: 'item-plant', tx: 26.5, ty: 5.2, scale: 1.15 },
+      { tex: 'item-plant', tx: 4, ty: 7.2, scale: 1.2 },
+    ];
+
+    const hardscape: Spot[] = [
+      // Plaza fountain just off the crossroads
+      { tex: 'fountain', tx: 12.5, ty: 10.2, scale: 1.6, solid: [50, 36, 10] },
+      // Path benches
+      { tex: 'bench', tx: 14, ty: 11.2, scale: 1.35, solid: [56, 22, 6] },
+      { tex: 'bench', tx: 18.5, ty: 14.2, scale: 1.35, solid: [56, 22, 6] },
+      { tex: 'bench', tx: 9.5, ty: 13.8, scale: 1.3, solid: [56, 22, 6] },
+      { tex: 'bench', tx: 26, ty: 13.2, scale: 1.3, solid: [56, 22, 6] },
+      // Lamps along main roads
+      { tex: 'streetlamp', tx: 14.2, ty: 8, scale: 1.5, solid: [18, 16, 22] },
+      { tex: 'streetlamp', tx: 17.8, ty: 8, scale: 1.5, solid: [18, 16, 22] },
+      { tex: 'streetlamp', tx: 14.2, ty: 16.5, scale: 1.5, solid: [18, 16, 22] },
+      { tex: 'streetlamp', tx: 17.8, ty: 16.5, scale: 1.5, solid: [18, 16, 22] },
+      { tex: 'streetlamp', tx: 8, ty: 12.8, scale: 1.45, solid: [18, 16, 22] },
+      { tex: 'streetlamp', tx: 22, ty: 12.8, scale: 1.45, solid: [18, 16, 22] },
+      { tex: 'streetlamp', tx: 28.5, ty: 12.8, scale: 1.45, solid: [18, 16, 22] },
+      { tex: 'streetlamp', tx: 4, ty: 12.8, scale: 1.45, solid: [18, 16, 22] },
+      // House yard
+      { tex: 'mailbox', tx: 8.6, ty: 8.2, scale: 1.35, solid: [24, 20, 8] },
+      { tex: 'fence', tx: 4.2, ty: 8.6, scale: 1.4, solid: [60, 18, 4] },
+      { tex: 'fence', tx: 9, ty: 8.6, scale: 1.4, solid: [60, 18, 4] },
+      { tex: 'signpost', tx: 9.2, ty: 9.5, scale: 1.3, solid: [20, 16, 10] },
+      { tex: 'signpost', tx: 22.5, ty: 9.6, scale: 1.3, solid: [20, 16, 10] },
+      { tex: 'signpost', tx: 22.8, ty: 14.2, scale: 1.25, solid: [20, 16, 10] },
+      // Cinna's stall
+      { tex: 'clothes-rack', tx: 22.2, ty: 8.4, scale: 1.45, solid: [48, 24, 8] },
+      // Rocks & whimsy
+      { tex: 'rock', tx: 1.5, ty: 14, scale: 1.4, solid: [32, 20, 6] },
+      { tex: 'rock', tx: 30, ty: 15.5, scale: 1.35, solid: [32, 20, 6] },
+      { tex: 'rock', tx: 15.5, ty: 21.5, scale: 1.3, solid: [32, 20, 6] },
+      { tex: 'rock', tx: 7, ty: 20, scale: 1.25, solid: [28, 18, 6] },
+      { tex: 'stump', tx: 11.2, ty: 15.5, scale: 1.35, solid: [28, 18, 4] },
+      { tex: 'stump', tx: 25.5, ty: 18.5, scale: 1.3, solid: [28, 18, 4] },
+      { tex: 'mushroom', tx: 3.2, ty: 15.5, scale: 1.4 },
+      { tex: 'mushroom', tx: 12.8, ty: 20, scale: 1.3 },
+      { tex: 'mushroom', tx: 27.5, ty: 20.5, scale: 1.35 },
+      { tex: 'mushroom', tx: 19.5, ty: 10.5, scale: 1.25 },
+    ];
+
+    this.decoSolids = [];
+    for (const spot of [...trees, ...bushes, ...flowers, ...hardscape]) {
+      const img = this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex).setScale(spot.scale ?? 1.4);
+      img.setDepth(img.y + img.displayHeight / 2);
+      if (spot.solid) {
+        const [sw, sh, oy = 0] = spot.solid;
+        this.decoSolids.push({ x: spot.tx * TILE, y: spot.ty * TILE + oy, w: sw, h: sh });
+      }
+    }
+
+    // Little labels on the plaza / stall
+    this.add
+      .text(12.5 * TILE, 10.2 * TILE - 42, 'Plaza', {
+        fontFamily: 'monospace',
+        fontSize: '11px',
+        color: '#ffffff',
+        stroke: '#1a1a2e',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(900);
+    this.add
+      .text(22.2 * TILE, 8.4 * TILE - 40, 'Clothes', {
+        fontFamily: 'monospace',
+        fontSize: '11px',
+        color: '#ffe6f2',
+        stroke: '#1a1a2e',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(900);
   }
 
   private buildColliders() {
@@ -312,12 +458,7 @@ export class TownScene extends Phaser.Scene {
     addSolid(6.5 * TILE, 6.3 * TILE, 140, 80); // house
     addSolid(25 * TILE, 6.3 * TILE, 140, 80); // shop
     addSolid(24 * TILE, 15 * TILE, 60, 40); // arcade
-    const treeSpots = [
-      [2, 2], [10, 3], [19, 2], [29, 3], [2, 10], [29, 10],
-      [3, 17], [10, 19], [20, 19], [28, 17], [13, 5], [21, 9],
-      [5, 15], [29, 21], [2, 21], [16, 20],
-    ];
-    for (const [tx, ty] of treeSpots) addSolid(tx * TILE, ty * TILE + 20, 40, 30);
+    for (const s of this.decoSolids) addSolid(s.x, s.y, s.w, s.h);
     this.physics.add.collider(this.player, solids);
   }
 
