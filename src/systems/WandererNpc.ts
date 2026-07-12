@@ -43,7 +43,13 @@ export class WandererNpc {
   private readonly pauseMs: [number, number];
   /** Off-map / mid enter-exit — hidden from interact prompts. */
   private present = true;
-  private transit: { x: number; y: number; onDone: () => void } | null = null;
+  private transit: {
+    x: number;
+    y: number;
+    /** Arrive = walking on; leave = walking off. Only leave blocks interact. */
+    mode: 'arrive' | 'leave';
+    onDone: () => void;
+  } | null = null;
   /** True while a dialogue menu with this NPC is open — don't wander away. */
   private conversing = false;
   /** Nested Menu depth so follow-up dialogues keep the freeze. */
@@ -67,7 +73,13 @@ export class WandererNpc {
     return this.present && this.sprite.active;
   }
 
+  /** Talk while idle or walking onto the map; block only while leaving. */
   canInteract() {
+    return this.isPresent() && this.transit?.mode !== 'leave';
+  }
+
+  /** Fully settled (not mid enter/exit) — safe to send off-map. */
+  canLeave() {
     return this.isPresent() && !this.transit;
   }
 
@@ -79,7 +91,7 @@ export class WandererNpc {
 
   /** Walk to an off-map point, then invoke onDone (caller destroys). */
   walkOff(dest: { x: number; y: number }, onDone: () => void) {
-    this.transit = { x: dest.x, y: dest.y, onDone };
+    this.transit = { x: dest.x, y: dest.y, mode: 'leave', onDone };
     this.pauseUntil = 0;
     this.emoteUntil = 0;
   }
@@ -94,6 +106,7 @@ export class WandererNpc {
     this.transit = {
       x: home.x,
       y: home.y,
+      mode: 'arrive',
       onDone: () => {
         this.transit = null;
         this.playBounce();

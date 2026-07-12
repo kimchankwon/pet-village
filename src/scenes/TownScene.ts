@@ -426,7 +426,11 @@ export class TownScene extends Phaser.Scene {
     this.decoSolids = [];
     for (const spot of [...trees, ...bushes, ...flowers, ...hardscape]) {
       const img = this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex).setScale(spot.scale ?? 1.4);
-      const footY = spot.solid ? spot.ty * TILE + (spot.solid[2] ?? 0) : undefined;
+      // Always pass a ground Y. Flowers have no collider — without this,
+      // padded sprite feet sort south of characters standing in front of them.
+      const footY = spot.solid
+        ? spot.ty * TILE + (spot.solid[2] ?? 0)
+        : spot.ty * TILE;
       img.setDepth(propDepth(img, footY));
       if (spot.solid) {
         const [sw, sh, oy = 0] = spot.solid;
@@ -508,11 +512,11 @@ export class TownScene extends Phaser.Scene {
     for (const npc of allNpcs) {
       if (!npc.canInteract()) continue;
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, npc.sprite.x, npc.sprite.y);
-      if (d < 55 && d < bestDist) {
+      if (d < 70 && d < bestDist) {
         best = {
           x: npc.sprite.x,
           y: npc.sprite.y,
-          radius: 55,
+          radius: 70,
           label: `E / click — Talk to ${npc.name}`,
           action: () => {
             this.menuOpen = true;

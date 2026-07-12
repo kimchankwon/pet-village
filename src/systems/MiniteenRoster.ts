@@ -69,7 +69,7 @@ export class MiniteenRoster {
   }
 
   private beginSwap() {
-    const present = [...this.active.entries()].filter(([, n]) => n.canInteract());
+    const present = [...this.active.entries()].filter(([, n]) => n.canLeave());
     if (present.length === 0) return;
 
     const [leaveId, leaving] = present[Phaser.Math.Between(0, present.length - 1)]!;
