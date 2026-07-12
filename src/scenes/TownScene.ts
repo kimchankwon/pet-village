@@ -34,6 +34,7 @@ export class TownScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private keyE!: Phaser.Input.Keyboard.Key;
+  private keyI!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
   private prompt!: Prompt;
@@ -118,6 +119,7 @@ export class TownScene extends Phaser.Scene {
     this.cursors = kb.createCursorKeys();
     this.wasd = kb.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.hud = new HUD(this);
@@ -631,6 +633,9 @@ export class TownScene extends Phaser.Scene {
         if (Phaser.Input.Keyboard.JustDown(this.keyE)) best.action();
       } else {
         this.prompt.hide();
+      }
+      if (Phaser.Input.Keyboard.JustDown(this.keyI) && !isUiBlocked()) {
+        this.openPetMenu();
       }
     } else {
       this.prompt.hide();

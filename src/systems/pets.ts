@@ -117,7 +117,21 @@ export const PET_ASSET_FILES = [
   'jump',
 ] as const;
 
-export type PetPose = 'idle1' | 'idle2' | 'walk1' | 'walk2' | 'sad' | 'happy' | 'sleep' | 'jump';
+export type PetPose =
+  | 'idle1'
+  | 'idle2'
+  | 'walk1'
+  | 'walk2'
+  | 'walk3'
+  | 'walk4'
+  | 'walk5'
+  | 'walk6'
+  | 'walk7'
+  | 'walk8'
+  | 'sad'
+  | 'happy'
+  | 'sleep'
+  | 'jump';
 
 const FILE_TO_POSE: Record<(typeof PET_ASSET_FILES)[number], PetPose> = {
   neutral1: 'idle1',
@@ -129,6 +143,18 @@ const FILE_TO_POSE: Record<(typeof PET_ASSET_FILES)[number], PetPose> = {
   sleep: 'sleep',
   jump: 'jump',
 };
+
+/** Kirby’s GBA-style walk uses an 8-frame cycle (extra frames beyond the shared walk1/walk2). */
+export const KIRBY_WALK_FILES = [
+  'walk1',
+  'walk2',
+  'walk3',
+  'walk4',
+  'walk5',
+  'walk6',
+  'walk7',
+  'walk8',
+] as const;
 
 export function petTextureKey(species: PetSpecies, pose: PetPose): string {
   return `${species}-${pose}`;

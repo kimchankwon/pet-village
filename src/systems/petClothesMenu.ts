@@ -25,6 +25,8 @@ export function clothesPetMenuOption(
   };
 }
 
+let clothesMenu: Menu | null = null;
+
 export function openClothesMenu(
   scene: Phaser.Scene,
   pet: Pet,
@@ -32,10 +34,18 @@ export function openClothesMenu(
   keepMenuOpen?: () => void,
 ) {
   keepMenuOpen?.();
+  // Replace any previous clothes menu so “Wearing: …” isn’t buried under stacks.
+  if (clothesMenu) {
+    const prev = clothesMenu;
+    clothesMenu = null;
+    prev.onClose = undefined;
+    prev.close();
+  }
+
   const options: MenuOption[] = ACCESSORY_LIST.filter((a) => State.ownsAccessory(a.id)).map((a) => {
     const equipped = State.isAccessoryEquipped(a.id);
     return {
-      label: `${equipped ? '● ' : '○ '}${a.name}${equipped ? ' (equipped)' : ''}`,
+      label: `${equipped ? '● ' : '○ '}${a.name}`,
       icon: a.texture,
       onSelect: () => {
         State.toggleAccessory(a.id);
@@ -67,13 +77,15 @@ export function openClothesMenu(
   const equippedNames = ACCESSORY_LIST.filter((a) => State.isAccessoryEquipped(a.id))
     .map((a) => a.name)
     .join(', ');
-  const menu = new Menu(
-    scene,
-    'Pet clothes',
-    options,
-    equippedNames ? `Wearing: ${equippedNames}` : 'Tap an item to equip / unequip',
-  );
-  menu.onClose = onClose;
+  const wearingLine = equippedNames ? `Wearing: ${equippedNames}` : 'Wearing: nothing yet';
+
+  clothesMenu = new Menu(scene, 'Pet clothes', options, {
+    subtitle: wearingLine,
+  });
+  clothesMenu.onClose = () => {
+    clothesMenu = null;
+    onClose();
+  };
 }
 
 /** Debug / label helper */

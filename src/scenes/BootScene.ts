@@ -5,6 +5,7 @@ import {
   ACCESSORY_LIST,
 } from '../systems/accessories';
 import {
+  KIRBY_WALK_FILES,
   PET_ASSET_FILES,
   PET_SPECIES_LIST,
   petAnimKey,
@@ -31,6 +32,11 @@ export class BootScene extends Phaser.Scene {
         this.load.image(petTextureKey(species.id, pose), petAssetPath(species.id, file));
       }
     }
+    // Kirby’s GBA-style walk uses extra mid-stride frames beyond walk1/walk2.
+    for (const file of KIRBY_WALK_FILES) {
+      if (file === 'walk1' || file === 'walk2') continue;
+      this.load.image(`kirby-${file}`, `assets/pet/kirby/${file}.png`);
+    }
     for (const pose of NPC_POSES) {
       this.load.image(`cinna-${pose}`, `assets/npc/cinnamoroll/${pose}.png`);
       this.load.image(`bong-${pose}`, `assets/npc/bongbongee/${pose}.png`);
@@ -56,15 +62,26 @@ export class BootScene extends Phaser.Scene {
         frameRate: 3,
         repeat: -1,
       });
-      this.anims.create({
-        key: petAnimKey(species.id, 'walk'),
-        frames: [
-          { key: petTextureKey(species.id, 'walk1') },
-          { key: petTextureKey(species.id, 'walk2') },
-        ],
-        frameRate: 6,
-        repeat: -1,
-      });
+      if (species.id === 'kirby') {
+        this.anims.create({
+          key: petAnimKey(species.id, 'walk'),
+          frames: KIRBY_WALK_FILES.map((file) => ({
+            key: file === 'walk1' || file === 'walk2' ? petTextureKey('kirby', file) : `kirby-${file}`,
+          })),
+          frameRate: 12,
+          repeat: -1,
+        });
+      } else {
+        this.anims.create({
+          key: petAnimKey(species.id, 'walk'),
+          frames: [
+            { key: petTextureKey(species.id, 'walk1') },
+            { key: petTextureKey(species.id, 'walk2') },
+          ],
+          frameRate: 6,
+          repeat: -1,
+        });
+      }
     }
 
     // Every wandering NPC gets the same two-frame bounce/walk pair.

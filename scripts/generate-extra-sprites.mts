@@ -1,6 +1,6 @@
 /**
- * Generates Cinnamoroll NPC frames and Club Penguin–style Puffle pet frames
- * inspired by the sprite sheets provided for Pet Village.
+ * Club Penguin–style Puffle pet frames for Pet Village.
+ * Cinnamoroll lives in `scripts/generate-cinnamoroll.mts` (reference-sheet tracer).
  */
 import fs from 'fs';
 import path from 'path';
@@ -46,7 +46,7 @@ function save(png: InstanceType<typeof PNG>, file: string) {
 }
 
 const W: [number, number, number, number] = [255, 255, 255, 255];
-const OUT: [number, number, number, number] = [30, 30, 40, 255];
+const OUT: [number, number, number, number] = [0, 0, 0, 255];
 const BLUE: [number, number, number, number] = [90, 160, 230, 255];
 const PINK: [number, number, number, number] = [255, 170, 190, 255];
 const CREAM: [number, number, number, number] = [255, 230, 200, 255];
@@ -266,11 +266,6 @@ function drawPuffle(color: [number, number, number, number], pose: PufflePose, a
 }
 
 // --- write files ---
-const cinnaDir = path.join(ROOT, 'npc/cinnamoroll');
-for (const pose of ['idle', 'walk1', 'walk2', 'happy', 'sad', 'jump'] as CinPose[]) {
-  save(drawCinnamoroll(pose), path.join(cinnaDir, `${pose}.png`));
-}
-
 const poses: PufflePose[] = ['neutral1', 'neutral2', 'walk1', 'walk2', 'sad', 'happy', 'sleep', 'jump'];
 for (const [name, color] of Object.entries(PUFFLE_COLORS)) {
   const dir = path.join(ROOT, `pet/puffle-${name}`);
@@ -279,4 +274,4 @@ for (const [name, color] of Object.entries(PUFFLE_COLORS)) {
   }
 }
 
-console.log('Wrote Cinnamoroll + Puffle sprites');
+console.log('Wrote Puffle sprites');
