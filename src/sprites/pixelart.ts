@@ -1043,7 +1043,9 @@ export function generateTextures(scene: Phaser.Scene) {
 
   if (!scene.textures.exists('cafe')) makeTexture(scene, 'cafe', [CAFE]);
 
-  if (!scene.textures.exists('tile-plaza')) makeCobbleTile(scene, 'tile-plaza');
+  if (scene.textures.exists('tile-plaza')) scene.textures.remove('tile-plaza');
+  // Smooth stone plaza (not brick cobble).
+  makeTile(scene, 'tile-plaza', '#c8c2b6', '#b8b2a6', 5);
   if (!scene.textures.exists('tile-sand')) makeTile(scene, 'tile-sand', '#e8d4a8', '#d4bc88', 12);
   if (!scene.textures.exists('tile-ocean')) makeTile(scene, 'tile-ocean', '#3a8fd4', '#2e7ab8', 10);
   if (!scene.textures.exists('tile-ocean2')) makeTile(scene, 'tile-ocean2', '#4599dc', '#3484c4', 10);

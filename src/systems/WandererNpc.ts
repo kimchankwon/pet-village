@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { feetDepth } from './depth';
+import { characterDepth } from './depth';
 
 export interface NpcTalkCallbacks {
   /** Menu fully closed — the scene should re-enable input. */
@@ -58,7 +58,7 @@ export class WandererNpc {
     this.pauseMs = opts.pauseMs ?? [1400, 3200];
     const start = opts.waypoints[0] ?? { x: 400, y: 400 };
     this.sprite = scene.add.sprite(start.x, start.y, `${this.prefix}-idle`).setScale(opts.scale ?? 1.55);
-    this.sprite.setDepth(feetDepth(this.sprite));
+    this.sprite.setDepth(characterDepth(this.sprite));
     this.playBounce();
     this.pickNext();
   }
@@ -218,13 +218,13 @@ export class WandererNpc {
       else if (dx > 0.5) this.facingLeft = false;
       this.sprite.setFlipX(this.facingLeft);
       this.sprite.play(`${this.prefix}-walk`, true);
-      this.sprite.setDepth(feetDepth(this.sprite));
+      this.sprite.setDepth(characterDepth(this.sprite));
       return;
     }
 
     // An emote/hop is playing — leave texture, animation and position be.
     if (this.scene.time.now < this.emoteUntil) {
-      this.sprite.setDepth(feetDepth(this.sprite));
+      this.sprite.setDepth(characterDepth(this.sprite));
       return;
     }
 
@@ -233,7 +233,7 @@ export class WandererNpc {
       if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) {
         this.playBounce();
       }
-      this.sprite.setDepth(feetDepth(this.sprite));
+      this.sprite.setDepth(characterDepth(this.sprite));
       return;
     }
 
@@ -241,7 +241,7 @@ export class WandererNpc {
       if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) {
         this.playBounce();
       }
-      this.sprite.setDepth(feetDepth(this.sprite));
+      this.sprite.setDepth(characterDepth(this.sprite));
       return;
     }
 
@@ -265,6 +265,6 @@ export class WandererNpc {
     else if (dx > 0.5) this.facingLeft = false;
     this.sprite.setFlipX(this.facingLeft);
     this.sprite.play(`${this.prefix}-walk`, true);
-    this.sprite.setDepth(feetDepth(this.sprite));
+    this.sprite.setDepth(characterDepth(this.sprite));
   }
 }

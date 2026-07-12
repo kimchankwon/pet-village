@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { State } from './GameState';
 import { toast } from './UI';
-import { feetDepth } from './depth';
+import { characterDepth } from './depth';
 import { petAnimKey, petTextureKey, type PetPose } from './pets';
 import { petLine } from './petDialog';
 import { ACCESSORIES } from './accessories';
@@ -30,7 +30,7 @@ export class Pet {
     this.followX = x;
     this.followY = y;
     this.sprite = scene.add.sprite(x, y, this.tex('idle1')).setScale(1.5);
-    this.sprite.setDepth(feetDepth(this.sprite));
+    this.sprite.setDepth(characterDepth(this.sprite));
     this.sprite.play(this.anim('bounce'));
     this.refreshAccessories();
     this.updateMood();
@@ -66,7 +66,7 @@ export class Pet {
   }
 
   private syncAccessories() {
-    const depth = feetDepth(this.sprite) + 1;
+    const depth = characterDepth(this.sprite) + 1;
     for (const img of this.accessorySprites) {
       img.setPosition(this.sprite.x, this.sprite.y);
       img.setScale(this.sprite.scaleX);
@@ -126,7 +126,7 @@ export class Pet {
       this.sprite.y = this.followY;
     }
 
-    this.sprite.setDepth(feetDepth(this.sprite));
+    this.sprite.setDepth(characterDepth(this.sprite));
 
     if (this.scene.time.now < this.emotionUntil) {
       this.syncAccessories();
