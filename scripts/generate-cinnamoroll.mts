@@ -146,8 +146,19 @@ function extract(source: InstanceType<typeof PNG>, crop: Crop) {
   }
   for (let y = 0; y < crop.height; y++) for (let x = 0; x < crop.width; x++) {
     const index = y * crop.width + x;
-    const color = read(source, crop.x + x, crop.y + y);
-    if (!outside[index] && !isPaper(color)) set(output, x, y, color);
+    if (!outside[index]) {
+      const color = read(source, crop.x + x, crop.y + y);
+      if (!isPaper(color)) {
+        const pixel = quantize(color);
+        const white = PALETTE[1]!;
+        const i = index * 4;
+        if (pixel[0] === 32 && pixel[1] === 39 && pixel[2] === 40) {
+          output.data[i] = pixel[0]; output.data[i + 1] = pixel[1]; output.data[i + 2] = pixel[2]; output.data[i + 3] = pixel[3];
+        } else {
+          output.data[i] = white[0]; output.data[i + 1] = white[1]; output.data[i + 2] = white[2]; output.data[i + 3] = white[3];
+        }
+      }
+    }
   }
   cleanup(output, crop.bottom);
   trimWhiteOutsideOutline(output);
