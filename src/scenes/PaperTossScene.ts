@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
-import { State, PAPER_TOSS_ENERGY_PER_THROW, PAPER_TOSS_PARTICIPATION_COINS } from '../systems/GameState';
+import { State, PAPER_TOSS_ENERGY_PER_THROW, PAPER_TOSS_HAPPINESS_PER_STAGE, PAPER_TOSS_PARTICIPATION_COINS } from '../systems/GameState';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { petAnimKey, petTextureKey } from '../systems/pets';
@@ -502,8 +502,11 @@ export class PaperTossScene extends Phaser.Scene {
   private endThrow() {
     this.mode = 'settling';
     this.stageThrows++;
-    // Playing together recharges the pet's energy.
-    State.boostEnergyFromPlay(PAPER_TOSS_ENERGY_PER_THROW);
+    // Each throw costs a little energy; harder stages cheer the pet more.
+    State.drainEnergyFromPlay(
+      PAPER_TOSS_ENERGY_PER_THROW,
+      PAPER_TOSS_HAPPINESS_PER_STAGE * this.stage,
+    );
     this.updateStatus();
     this.time.delayedCall(700, () => {
       if (this.stageBaskets >= BASKETS_TO_CLEAR) this.stageCleared();
