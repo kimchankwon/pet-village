@@ -386,8 +386,11 @@ class GameStateStore {
     const p = this.data.pet;
     p.hunger = clamp(p.hunger + (def.hunger ?? 0));
     p.happiness = clamp(p.happiness + (def.happiness ?? 0));
-    // Caring for your pet pays a small coin tip.
-    this.data.coins += FEED_COIN_REWARD;
+    // Shop food softens the buy cost with a tip; catch-only fish must not
+    // mint coins (free catch → feed → +3c would be an unbounded faucet).
+    if (!def.catchOnly) {
+      this.data.coins += FEED_COIN_REWARD;
+    }
     this.save();
     return true;
   }

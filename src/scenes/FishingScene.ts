@@ -7,7 +7,7 @@ import { petAnimKey, petTextureKey } from '../systems/pets';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 
-type Mode = 'ready' | 'casting' | 'waiting' | 'bite' | 'reeling' | 'catch' | 'done';
+type Mode = 'ready' | 'casting' | 'waiting' | 'bite' | 'reeling' | 'catch' | 'done' | 'settling';
 
 type FishTier = 'oceanfish-common' | 'oceanfish-uncommon' | 'oceanfish-rare';
 
@@ -286,31 +286,28 @@ export class FishingScene extends Phaser.Scene {
   }
 
   private missBite() {
-    this.mode = 'ready';
-    this.biteBang.setVisible(false);
-    this.tweens.killTweensOf(this.bobber);
-    this.bobber.setVisible(false);
-    toast(this, this.cameras.main.width / 2, 200, 'got away…', '#8a8a9e');
-    this.time.delayedCall(500, () => this.setReady());
+    this.failCast('got away…', '#8a8a9e', 500);
   }
 
   private snapLine() {
-    this.mode = 'ready';
+    this.failCast('Line snapped!', '#ff6b6b', 600);
+  }
+
+  private fishEscaped() {
+    this.failCast('Fish got tired of waiting…', '#8a8a9e', 600);
+  }
+
+  /** Brief non-interactive beat after a miss so toasts finish before re-cast. */
+  private failCast(msg: string, color: string, delayMs: number) {
+    this.mode = 'settling';
     this.holding = false;
     this.meterRoot.setVisible(false);
     this.bobber.setVisible(false);
     this.biteBang.setVisible(false);
-    toast(this, this.cameras.main.width / 2, 200, 'Line snapped!', '#ff6b6b');
-    this.time.delayedCall(600, () => this.setReady());
-  }
-
-  private fishEscaped() {
-    this.mode = 'ready';
-    this.holding = false;
-    this.meterRoot.setVisible(false);
-    this.bobber.setVisible(false);
-    toast(this, this.cameras.main.width / 2, 200, 'Fish got tired of waiting…', '#8a8a9e');
-    this.time.delayedCall(600, () => this.setReady());
+    this.tweens.killTweensOf(this.bobber);
+    toast(this, this.cameras.main.width / 2, 200, msg, color);
+    this.statusText.setText(msg);
+    this.time.delayedCall(delayMs, () => this.setReady());
   }
 
   private landFish() {

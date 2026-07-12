@@ -245,18 +245,18 @@ export class ShopScene extends Phaser.Scene {
     const options = Object.values(ITEMS)
       .filter((item) => !item.catchOnly)
       .map((item) => ({
-      label: `${item.name} — ${item.price}c`,
-      icon: item.texture,
-      disabled: State.coins < item.price,
-      onSelect: () => {
-        if (State.spendCoins(item.price)) {
-          State.addItem(item.id);
-          toast(this, this.player.x, this.player.y - 50, `Bought ${item.name}!`, '#a8e6cf');
-          this.hud.refresh();
-        }
-        this.closeMenu();
-      },
-    }));
+        label: `${item.name} — ${item.price}c`,
+        icon: item.texture,
+        disabled: State.coins < item.price,
+        onSelect: () => {
+          if (State.spendCoins(item.price)) {
+            State.addItem(item.id);
+            toast(this, this.player.x, this.player.y - 50, `Bought ${item.name}!`, '#a8e6cf');
+            this.hud.refresh();
+          }
+          this.closeMenu();
+        },
+      }));
     const menu = new Menu(this, "Daniel's Shop", options, {
       subtitle: `You have ${State.coins} coins`,
       anchor: 'bottom',
