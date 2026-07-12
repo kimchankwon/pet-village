@@ -240,6 +240,7 @@ function homeWaypoints(def: MiniteenDef, i: number): { x: number; y: number }[] 
 }
 
 export class MiniteenNpc extends WandererNpc {
+  readonly defId: string;
   private def: MiniteenDef;
 
   constructor(scene: Phaser.Scene, def: MiniteenDef, index: number) {
@@ -251,6 +252,7 @@ export class MiniteenNpc extends WandererNpc {
       speed: 40 + (index % 4) * 6,
     });
     this.def = def;
+    this.defId = def.id;
   }
 
   protected override openTalk(cbs: NpcTalkCallbacks) {

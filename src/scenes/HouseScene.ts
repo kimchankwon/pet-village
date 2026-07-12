@@ -7,7 +7,7 @@ import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
 import { placeDoorMat, isDoorMatCell } from '../systems/doorMat';
-import { blockUi, isUiBlocked, unblockUi } from '../systems/nav';
+import { blockUi, isInteractSuppressed, isUiBlocked, unblockUi } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 
 const TILE = 48;
@@ -491,8 +491,9 @@ export class HouseScene extends Phaser.Scene {
       if (near) {
         this.prompt.show(near.label);
         if (
-          Phaser.Input.Keyboard.JustDown(this.keyE) ||
-          Phaser.Input.Keyboard.JustDown(this.keySpace)
+          !isInteractSuppressed() &&
+          (Phaser.Input.Keyboard.JustDown(this.keyE) ||
+            Phaser.Input.Keyboard.JustDown(this.keySpace))
         )
           near.action();
       } else {

@@ -61,20 +61,24 @@ export class AdoptScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(cx, 118, 'Tamagotchi & friends', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .text(cx, 108, 'Tamagotchi', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
+    this.layoutRow(CLASSIC_PETS, 168, 140, COMPANION_SCALE, 100);
 
-    // One row of the four "big" companions, one row of the eight puffles.
-    this.layoutRow([...CLASSIC_PETS, ...MASCOT_PETS], 182, 126, COMPANION_SCALE, 108);
     this.add
-      .text(cx, 254, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .text(cx, 232, 'Friends', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
-    this.layoutRow(PUFFLE_PETS, 314, 88, PUFFLE_SCALE, 96);
+    this.layoutRow(MASCOT_PETS, 288, 140, COMPANION_SCALE, 100);
+
+    this.add
+      .text(cx, 352, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .setOrigin(0.5);
+    this.layoutRow(PUFFLE_PETS, 408, 88, PUFFLE_SCALE, 88);
 
     this.selectSpecies('mametchi');
 
     this.add
-      .text(cx, 396, 'Pet name', { ...FONT, fontSize: '13px', color: '#c8c8dc' })
+      .text(cx, 468, 'Pet name', { ...FONT, fontSize: '13px', color: '#c8c8dc' })
       .setOrigin(0.5);
 
     this.nameInput = document.createElement('input');
@@ -104,11 +108,11 @@ export class AdoptScene extends Phaser.Scene {
     this.scale.on('resize', () => this.positionNameInput());
 
     this.errorText = this.add
-      .text(cx, 462, '', { ...FONT, fontSize: '13px', color: '#ff6b6b' })
+      .text(cx, 534, '', { ...FONT, fontSize: '13px', color: '#ff6b6b' })
       .setOrigin(0.5);
 
     const start = this.add
-      .text(cx, 512, '[ Start adventure ]', {
+      .text(cx, 568, '[ Start adventure ]', {
         ...FONT,
         fontSize: '18px',
         color: '#7ed6a8',
@@ -177,7 +181,7 @@ export class AdoptScene extends Phaser.Scene {
     const scaleX = canvasRect.width / this.scale.width;
     const scaleY = canvasRect.height / this.scale.height;
     const left = canvasRect.left - parentRect.left + (this.scale.width / 2) * scaleX - 110;
-    const top = canvasRect.top - parentRect.top + 428 * scaleY - 17;
+    const top = canvasRect.top - parentRect.top + 500 * scaleY - 17;
     this.nameInput.style.left = `${left}px`;
     this.nameInput.style.top = `${top}px`;
   }

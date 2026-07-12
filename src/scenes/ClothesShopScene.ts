@@ -7,7 +7,7 @@ import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
 import { placeDoorMat } from '../systems/doorMat';
-import { isUiBlocked } from '../systems/nav';
+import { isInteractSuppressed, isUiBlocked } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { CinnamorollNpc } from '../systems/CinnamorollNpc';
 
@@ -393,8 +393,9 @@ export class ClothesShopScene extends Phaser.Scene {
       if (near) {
         this.prompt.show(near.label);
         if (
-          Phaser.Input.Keyboard.JustDown(this.keyE) ||
-          Phaser.Input.Keyboard.JustDown(this.keySpace)
+          !isInteractSuppressed() &&
+          (Phaser.Input.Keyboard.JustDown(this.keyE) ||
+            Phaser.Input.Keyboard.JustDown(this.keySpace))
         )
           near.action();
       } else {

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { MINITEEN, MiniteenNpc, type MiniteenDef } from './miniteen';
+import { takeMiniteenSnaps, type TownNpcSnap } from './townPresence';
 
 const TILE = 48;
 const WORLD_W = 32 * TILE;
@@ -41,9 +42,34 @@ export class MiniteenRoster {
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    const start = Phaser.Utils.Array.Shuffle([...MINITEEN]).slice(0, ACTIVE_COUNT);
-    start.forEach((def, i) => this.spawnAtHome(def, i));
+    const saved = takeMiniteenSnaps();
+    if (saved && saved.length > 0) {
+      this.restore(saved);
+    } else {
+      const start = Phaser.Utils.Array.Shuffle([...MINITEEN]).slice(0, ACTIVE_COUNT);
+      start.forEach((def, i) => this.spawnAtHome(def, i));
+    }
     this.scheduleNext();
+  }
+
+  private restore(snaps: TownNpcSnap[]) {
+    for (let i = 0; i < snaps.length; i++) {
+      const snap = snaps[i]!;
+      const def = MINITEEN.find((d) => d.id === snap.id);
+      if (!def) continue;
+      const npc = new MiniteenNpc(this.scene, def, i);
+      npc.sprite.setPosition(snap.x, snap.y);
+      this.active.set(def.id, npc);
+    }
+    // If a save was incomplete, top up to ACTIVE_COUNT near home.
+    if (this.active.size < ACTIVE_COUNT) {
+      const extras = MINITEEN.filter((d) => !this.active.has(d.id));
+      let i = this.active.size;
+      for (const def of extras) {
+        if (this.active.size >= ACTIVE_COUNT) break;
+        this.spawnAtHome(def, i++);
+      }
+    }
   }
 
   private scheduleNext() {

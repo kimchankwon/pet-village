@@ -83,6 +83,8 @@ export interface MenuLayout {
   /** 0-based page when options are paginated. */
   page?: number;
   pageSize?: number;
+  /** Keep highlight on this enabled-row index after open/rebuild. */
+  initialSelected?: number;
 }
 
 function resolveLayout(subtitleOrLayout?: string | MenuLayout): MenuLayout {
@@ -277,7 +279,13 @@ export class Menu {
     this.objects.push(hint);
 
     blockUi();
-    this.selected = 0;
+    // Stay on the option the caller asked for (e.g. clothes toggle rebuild),
+    // instead of always jumping the highlight back to the top row.
+    const want = layout.initialSelected ?? 0;
+    this.selected =
+      this.enabledIndexes.length === 0
+        ? 0
+        : Math.max(0, Math.min(want, this.enabledIndexes.length - 1));
     this.paintSelection();
     this.bindKeys();
   }

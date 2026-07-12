@@ -88,6 +88,7 @@ export class PaperTossScene extends Phaser.Scene {
   private bestText!: Phaser.GameObjects.Text;
   private thrower!: Phaser.GameObjects.Sprite;
   private keyE!: Phaser.Input.Keyboard.Key;
+  private keySpace!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
 
   constructor() {
@@ -165,6 +166,7 @@ export class PaperTossScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.keyE = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.keySpace = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyEsc = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     // The pet keeps living while you're at the arcade — same tamagotchi
@@ -686,7 +688,10 @@ export class PaperTossScene extends Phaser.Scene {
       }
     }
 
-    if (this.mode === 'done' && Phaser.Input.Keyboard.JustDown(this.keyE)) {
+    if (
+      this.mode === 'done' &&
+      (Phaser.Input.Keyboard.JustDown(this.keyE) || Phaser.Input.Keyboard.JustDown(this.keySpace))
+    ) {
       this.scene.start('Town', { spawn: 'arcade' });
     }
 

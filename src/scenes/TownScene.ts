@@ -5,16 +5,21 @@ import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
-import { isUiBlocked, requestLeave } from '../systems/nav';
+import { isInteractSuppressed, isUiBlocked, requestLeave } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { BongbongeeNpc } from '../systems/BongbongeeNpc';
 import { MiniteenRoster } from '../systems/MiniteenRoster';
 import type { WandererNpc } from '../systems/WandererNpc';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
+import { rememberBongbongee, rememberMiniteens, takeBongbongeeSnap } from '../systems/townPresence';
 
 const TILE = 48;
 const WORLD_W = 32 * TILE;
 const WORLD_H = 24 * TILE;
+/** Must stand this close to a building door to enter. */
+const BUILDING_RADIUS = 72;
+const ARCADE_RADIUS = 55;
+const BUILDING_CLICK_NEAR = 90;
 
 interface Interactable {
   x: number;
@@ -34,6 +39,7 @@ export class TownScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private keyE!: Phaser.Input.Keyboard.Key;
+  private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
@@ -69,26 +75,27 @@ export class TownScene extends Phaser.Scene {
 
     this.buildMap();
 
-    // Spawn position depends on where we came from.
+    // Spawn just outside the door, facing away from the building.
     let sx = 16 * TILE;
     let sy = 14 * TILE;
     if (data?.spawn === 'house') {
       sx = 6.5 * TILE;
-      sy = 8.5 * TILE;
+      sy = 7.55 * TILE;
     } else if (data?.spawn === 'arcade') {
       sx = 25 * TILE;
-      sy = 17.2 * TILE;
+      sy = 16.85 * TILE;
     } else if (data?.spawn === 'shop') {
       sx = 25 * TILE;
-      sy = 9.4 * TILE;
+      sy = 7.55 * TILE;
     } else if (data?.spawn === 'cafe') {
       sx = 7 * TILE;
-      sy = 18.5 * TILE;
+      sy = 17.55 * TILE;
     }
 
     this.player = this.physics.add.sprite(sx, sy, 'penguin-down', 0);
     this.player.setCollideWorldBounds(true);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
+    this.facing = 'down';
 
     this.pet = new Pet(this, sx - 30, sy + 10);
     // Tap/click your pet to hear what's on its mind.
@@ -98,17 +105,18 @@ export class TownScene extends Phaser.Scene {
       if (!this.menuOpen && !isUiBlocked()) this.pet.speak();
     });
 
-    this.npcs = [
-      // Bongbongee wanders town; Cinnamoroll is inside Cafe Cinnamon.
-      new BongbongeeNpc(this, [
-        { x: 12 * TILE, y: 15 * TILE },
-        { x: 18 * TILE, y: 11 * TILE },
-        { x: 27 * TILE, y: 12 * TILE },
-        { x: 14 * TILE, y: 19 * TILE },
-        { x: 21 * TILE, y: 17 * TILE },
-      ]),
-    ];
+    const bong = new BongbongeeNpc(this, [
+      { x: 12 * TILE, y: 15 * TILE },
+      { x: 18 * TILE, y: 11 * TILE },
+      { x: 27 * TILE, y: 12 * TILE },
+      { x: 14 * TILE, y: 19 * TILE },
+      { x: 21 * TILE, y: 17 * TILE },
+    ]);
+    const bongSaved = takeBongbongeeSnap();
+    if (bongSaved) bong.sprite.setPosition(bongSaved.x, bongSaved.y);
+    this.npcs = [bong];
     // Only a few MINITEEN on the map at a time; they rotate in/out.
+    // Roster restores prior positions when returning from a building.
     this.miniteens = new MiniteenRoster(this);
 
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
@@ -119,8 +127,14 @@ export class TownScene extends Phaser.Scene {
     this.cursors = kb.createCursorKeys();
     this.wasd = kb.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      rememberBongbongee(bong);
+      rememberMiniteens(this.miniteens.list());
+    });
 
     this.hud = new HUD(this);
     this.prompt = new Prompt(this);
@@ -146,31 +160,31 @@ export class TownScene extends Phaser.Scene {
       // to the door instead of into the walls.
       if (this.houseImg.getBounds().contains(pointer.worldX, pointer.worldY)) {
         const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, 6.5 * TILE, 6.3 * TILE);
-        if (d < 150) {
+        if (d < BUILDING_CLICK_NEAR) {
           this.clickMove.clear();
           this.scene.start('House');
         } else {
-          this.clickMove.setTarget(6.5 * TILE, 8.4 * TILE);
+          this.clickMove.setTarget(6.5 * TILE, 7.5 * TILE);
         }
         return;
       }
       if (this.shopImg.getBounds().contains(pointer.worldX, pointer.worldY)) {
         const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, 25 * TILE, 6.3 * TILE);
-        if (d < 150) {
+        if (d < BUILDING_CLICK_NEAR) {
           this.clickMove.clear();
           this.scene.start('Shop');
         } else {
-          this.clickMove.setTarget(25 * TILE, 8.6 * TILE);
+          this.clickMove.setTarget(25 * TILE, 7.5 * TILE);
         }
         return;
       }
       if (this.cafeImg.getBounds().contains(pointer.worldX, pointer.worldY)) {
         const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, 7 * TILE, 16.3 * TILE);
-        if (d < 150) {
+        if (d < BUILDING_CLICK_NEAR) {
           this.clickMove.clear();
           this.scene.start('ClothesShop');
         } else {
-          this.clickMove.setTarget(7 * TILE, 18.2 * TILE);
+          this.clickMove.setTarget(7 * TILE, 17.5 * TILE);
         }
         return;
       }
@@ -248,8 +262,8 @@ export class TownScene extends Phaser.Scene {
       // so standing anywhere near the house lets you enter.
       x: 6.5 * TILE,
       y: 6.3 * TILE,
-      radius: 130,
-      label: 'E / click — Enter house',
+      radius: BUILDING_RADIUS,
+      label: 'E / Space / click — Enter house',
       action: () => this.scene.start('House'),
       targets: [house],
     });
@@ -271,8 +285,8 @@ export class TownScene extends Phaser.Scene {
     this.interactables.push({
       x: 25 * TILE,
       y: 6.3 * TILE,
-      radius: 130,
-      label: "E / click — Enter Daniel's Shop",
+      radius: BUILDING_RADIUS,
+      label: "E / Space / click — Enter Daniel's Shop",
       action: () => this.scene.start('Shop'),
       targets: [shop],
     });
@@ -294,8 +308,8 @@ export class TownScene extends Phaser.Scene {
     this.interactables.push({
       x: 7 * TILE,
       y: 16.3 * TILE,
-      radius: 130,
-      label: 'E / click — Enter Cafe Cinnamon',
+      radius: BUILDING_RADIUS,
+      label: 'E / Space / click — Enter Cafe Cinnamon',
       action: () => this.scene.start('ClothesShop'),
       targets: [cafe],
     });
@@ -316,8 +330,8 @@ export class TownScene extends Phaser.Scene {
     this.interactables.push({
       x: 25 * TILE,
       y: 16 * TILE,
-      radius: 90,
-      label: 'E / click — Play Paper Toss',
+      radius: ARCADE_RADIUS,
+      label: 'E / Space / click — Play Paper Toss',
       action: () => this.scene.start('PaperToss'),
       targets: [arcade],
     });
@@ -404,7 +418,7 @@ export class TownScene extends Phaser.Scene {
     this.decoSolids = [];
     for (const spot of [...trees, ...bushes, ...flowers, ...hardscape]) {
       const img = this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex).setScale(spot.scale ?? 1.4);
-      img.setDepth(img.y + img.displayHeight / 2);
+      img.setDepth(feetDepth(img));
       if (spot.solid) {
         const [sw, sh, oy = 0] = spot.solid;
         this.decoSolids.push({ x: spot.tx * TILE, y: spot.ty * TILE + oy, w: sw, h: sh });
@@ -524,7 +538,7 @@ export class TownScene extends Phaser.Scene {
           x: npc.sprite.x,
           y: npc.sprite.y,
           radius: 55,
-          label: `E / click — Talk to ${npc.name}`,
+          label: `E / Space / click — Talk to ${npc.name}`,
           action: () => {
             this.menuOpen = true;
             npc.talk({
@@ -630,7 +644,13 @@ export class TownScene extends Phaser.Scene {
       this.setHighlight(best?.targets);
       if (best) {
         this.prompt.show(best.label);
-        if (Phaser.Input.Keyboard.JustDown(this.keyE)) best.action();
+        if (
+          !isInteractSuppressed() &&
+          (Phaser.Input.Keyboard.JustDown(this.keyE) ||
+            Phaser.Input.Keyboard.JustDown(this.keySpace))
+        ) {
+          best.action();
+        }
       } else {
         this.prompt.hide();
       }
