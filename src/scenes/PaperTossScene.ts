@@ -496,6 +496,14 @@ export class PaperTossScene extends Phaser.Scene {
   private miss() {
     this.streak = 0;
     toast(this, this.ball.x, this.ball.y - 20, 'miss', '#8a8a9e');
+    // Whimper like Skip Rope — pet looks sad for a beat, then resumes bounce.
+    this.thrower.stop();
+    this.thrower.setTexture(petTextureKey(State.data.petSpecies, 'sad'));
+    this.time.delayedCall(700, () => {
+      if (this.thrower.active && this.mode !== 'done') {
+        this.thrower.play(petAnimKey(State.data.petSpecies, 'bounce'));
+      }
+    });
     this.endThrow();
   }
 

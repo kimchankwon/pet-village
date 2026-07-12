@@ -34,7 +34,7 @@ export class ShopScene extends Phaser.Scene {
   private menuOpen = false;
   private facing: 'up' | 'down' | 'side' = 'up';
   private bunny!: Phaser.GameObjects.Image;
-  private doorMat!: Phaser.GameObjects.Image;
+  private doorMats: Phaser.GameObjects.Image[] = [];
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   private ignoreClicksUntil = 0;
 
@@ -58,13 +58,17 @@ export class ShopScene extends Phaser.Scene {
         this.add.image(this.roomX + gx * TILE + TILE / 2, ROOM_Y + gy * TILE + TILE / 2, tex).setDepth(-100);
       }
     }
-    // Door mat at bottom center
-    const doorGx = Math.floor(COLS / 2);
-    this.doorMat = this.add
-      .image(this.roomX + doorGx * TILE + TILE / 2, ROOM_Y + (ROWS - 1) * TILE + TILE / 2, 'item-rug')
-      .setDepth(-99)
-      .setTint(0x8d6e63)
-      .setScale(1.3);
+    // Door mat — two tiles wide at bottom center
+    const doorLeft = COLS / 2 - 1;
+    const doorRight = doorLeft + 1;
+    const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
+    this.doorMats = [doorLeft, doorRight].map((gx) =>
+      this.add
+        .image(this.roomX + gx * TILE + TILE / 2, doorY, 'item-rug')
+        .setDepth(-99)
+        .setTint(0x8d6e63)
+        .setScale(1.3),
+    );
 
     // Counter across the middle-top with Daniel behind it
     for (let gx = 4; gx <= 7; gx++) {
@@ -100,7 +104,7 @@ export class ShopScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(1000);
 
-    const px = this.roomX + doorGx * TILE + TILE / 2;
+    const px = this.roomX + (COLS * TILE) / 2;
     const py = ROOM_Y + (ROWS - 2) * TILE;
     this.player = this.physics.add.sprite(px, py, 'penguin-up', 0);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
@@ -211,16 +215,16 @@ export class ShopScene extends Phaser.Scene {
         targets: [this.bunny],
       };
     }
-    const doorX = this.roomX + Math.floor(COLS / 2) * TILE + TILE / 2;
+    const doorX = this.roomX + (COLS * TILE) / 2;
     const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
-    if (Phaser.Math.Distance.Between(this.player.x, this.player.y, doorX, doorY) < 55) {
+    if (Phaser.Math.Distance.Between(this.player.x, this.player.y, doorX, doorY) < 70) {
       return {
         x: doorX,
         y: doorY,
-        radius: 55,
+        radius: 70,
         label: 'E / click — Leave shop',
         action: () => this.scene.start('Town', { spawn: 'shop' }),
-        targets: [this.doorMat],
+        targets: this.doorMats,
       };
     }
     // (Pet care lives on the bottom [ Pet ] button — no proximity interaction.)

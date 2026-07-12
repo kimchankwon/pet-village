@@ -30,6 +30,7 @@ const saveFields = {
   placed: v.array(placedItem),
   bestPaperToss: v.number(),
   biggestCatch: v.optional(v.number()),
+  bestSkipRope: v.optional(v.number()),
   ownedAccessories: v.optional(v.array(v.string())),
   equippedAccessories: equippedAccessoriesValidator,
 };

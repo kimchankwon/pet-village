@@ -36,7 +36,7 @@ export class HouseScene extends Phaser.Scene {
   // Placement mode: a ghost of the selected item follows the mouse.
   private placing: string | null = null;
   private ghost: Phaser.GameObjects.Image | null = null;
-  private doorMat!: Phaser.GameObjects.Image;
+  private doorMats: Phaser.GameObjects.Image[] = [];
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   // The pointerdown that closes a menu must not also place/pick up furniture.
   private ignoreClicksUntil = 0;
@@ -61,17 +61,21 @@ export class HouseScene extends Phaser.Scene {
         this.add.image(this.roomX + gx * TILE + TILE / 2, ROOM_Y + gy * TILE + TILE / 2, tex).setDepth(-100);
       }
     }
-    // Door mat at bottom center
-    const doorGx = Math.floor(COLS / 2);
-    this.doorMat = this.add
-      .image(this.roomX + doorGx * TILE + TILE / 2, ROOM_Y + (ROWS - 1) * TILE + TILE / 2, 'item-rug')
-      .setDepth(-99)
-      .setTint(0x8d6e63)
-      .setScale(1.3);
+    // Door mat — two tiles wide at bottom center
+    const doorLeft = COLS / 2 - 1;
+    const doorRight = doorLeft + 1;
+    const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
+    this.doorMats = [doorLeft, doorRight].map((gx) =>
+      this.add
+        .image(this.roomX + gx * TILE + TILE / 2, doorY, 'item-rug')
+        .setDepth(-99)
+        .setTint(0x8d6e63)
+        .setScale(1.3),
+    );
 
     this.renderFurniture();
 
-    const px = this.roomX + doorGx * TILE + TILE / 2;
+    const px = this.roomX + COLS * TILE / 2;
     const py = ROOM_Y + (ROWS - 2) * TILE;
     this.player = this.physics.add.sprite(px, py, 'penguin-up', 0);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
@@ -217,17 +221,17 @@ export class HouseScene extends Phaser.Scene {
     action: () => void;
     targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[];
   } | null {
-    const doorX = this.roomX + Math.floor(COLS / 2) * TILE + TILE / 2;
+    const doorX = this.roomX + (COLS * TILE) / 2;
     const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
-    const nearDoor = Phaser.Math.Distance.Between(this.player.x, this.player.y, doorX, doorY) < 55;
+    const nearDoor = Phaser.Math.Distance.Between(this.player.x, this.player.y, doorX, doorY) < 70;
     if (nearDoor) {
       return {
         x: doorX,
         y: doorY,
-        radius: 55,
+        radius: 70,
         label: 'E / click — Leave house',
         action: () => this.scene.start('Town', { spawn: 'house' }),
-        targets: [this.doorMat],
+        targets: this.doorMats,
       };
     }
     // (Pet care lives on the bottom [ Pet ] button — no proximity interaction.)
@@ -251,8 +255,8 @@ export class HouseScene extends Phaser.Scene {
   }
 
   private canPlaceAt(gx: number, gy: number): boolean {
-    const doorGx = Math.floor(COLS / 2);
-    if (gx === doorGx && gy === ROWS - 1) return false; // keep the doorway clear
+    const doorLeft = COLS / 2 - 1;
+    if (gy === ROWS - 1 && (gx === doorLeft || gx === doorLeft + 1)) return false;
     return !State.data.placed.some((p) => p.gx === gx && p.gy === gy);
   }
 

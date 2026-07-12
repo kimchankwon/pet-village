@@ -39,9 +39,9 @@ const FISH_TIERS: {
   fight: number;
   label: string;
 }[] = [
-  { id: 'oceanfish-common', sizeMin: 12, sizeMax: 28, fight: 0.5, label: 'common' },
-  { id: 'oceanfish-uncommon', sizeMin: 26, sizeMax: 48, fight: 0.85, label: 'uncommon' },
-  { id: 'oceanfish-rare', sizeMin: 44, sizeMax: 78, fight: 1.2, label: 'rare' },
+  { id: 'oceanfish-common', sizeMin: 12, sizeMax: 28, fight: 0.4, label: 'common' },
+  { id: 'oceanfish-uncommon', sizeMin: 26, sizeMax: 48, fight: 0.7, label: 'uncommon' },
+  { id: 'oceanfish-rare', sizeMin: 44, sizeMax: 78, fight: 1.0, label: 'rare' },
 ];
 
 /**
@@ -419,10 +419,17 @@ export class FishingScene extends Phaser.Scene {
       Phaser.Math.Between(this.pendingFish.sizeMin, this.pendingFish.sizeMax) *
         (0.9 + this.castPower * 0.25),
     );
-    // Bigger fish fight harder and give a tighter hook window.
-    const sizeNorm = Phaser.Math.Clamp(this.pendingSize / 78, 0.15, 1);
-    this.fishFight = this.pendingFish.fight * (0.75 + sizeNorm * 0.55);
-    this.biteWindowMs = Math.round(Phaser.Math.Clamp(1050 - this.pendingSize * 7 - this.fishFight * 120, 420, 1000));
+    // Near/small = easy; far/big = harder — but always beatable with pumping.
+    const sizeNorm = Phaser.Math.Clamp(this.pendingSize / 78, 0.12, 1);
+    const distEase = 0.55 + this.castPower * 0.5; // short cast ~0.6, max ~1.05
+    this.fishFight = Phaser.Math.Clamp(
+      this.pendingFish.fight * (0.5 + sizeNorm * 0.55) * distEase,
+      0.22,
+      1.05,
+    );
+    this.biteWindowMs = Math.round(
+      Phaser.Math.Clamp(1200 - this.pendingSize * 5 - this.fishFight * 80, 520, 1200),
+    );
     const delay = Phaser.Math.Between(1400, 4200);
     this.biteAt = this.time.now + delay;
     this.rod.setAngle(-28);
@@ -485,7 +492,7 @@ export class FishingScene extends Phaser.Scene {
     this.tweens.killTweensOf(this.bobber);
     this.tweens.killTweensOf(this.rod);
     this.mode = 'reeling';
-    this.tension = 18;
+    this.tension = 8 + this.fishFight * 12;
     this.progress = 0;
     this.patience = 100;
     this.holding = false;
@@ -495,10 +502,10 @@ export class FishingScene extends Phaser.Scene {
     this.reelPulse = 0;
     this.statusText.setText(
       this.reelArmed
-        ? 'Reeling — hold to pull, release to ease tension'
+        ? 'Reeling — hold to pull, release before the red'
         : 'Release, then hold to reel',
     );
-    this.hintText.setText('Hold = reel in · Release = cool the line');
+    this.hintText.setText('Hold = reel in · Red tension snaps · Near fish are easier');
     this.updateMeters();
     // Snap the rod into a fighting stance.
     this.tweens.add({
@@ -763,21 +770,22 @@ export class FishingScene extends Phaser.Scene {
       this.missBite();
     } else if (this.mode === 'reeling') {
       const fight = this.fishFight;
-      // Bigger fish: slower progress, harder tension spikes, faster patience drain.
-      const fightPulse = (0.55 + Math.sin(this.time.now / 260) * 0.45) * fight;
+      // Near/small fish: hold-through is enough. Far/big: pump the line.
+      const fightPulse = (0.5 + Math.sin(this.time.now / 280) * 0.5) * fight;
       if (this.holding) {
-        const reelRate = 32 * (1.15 - fight * 0.45);
-        this.progress += Math.max(8, reelRate) * dt * (1.05 - this.tension / 240);
-        this.tension += (42 + fightPulse * 28) * dt;
+        const reelRate = 48 - fight * 16; // ~44 easy → ~31 hard
+        this.progress += Math.max(22, reelRate) * dt * (1.12 - this.tension / 320);
+        // Easy fish climb slowly enough to land on a continuous hold.
+        this.tension += (10 + fight * 36 + fightPulse * 14) * dt;
         this.reelPulse += dt * 14;
-        // Rod tip pumps while reeling.
         this.rod.setAngle(-48 - Math.sin(this.reelPulse) * 7);
       } else {
-        this.tension = Math.max(0, this.tension - (38 - fight * 6) * dt);
-        this.progress += 3.5 * dt;
+        this.tension = Math.max(0, this.tension - (55 - fight * 12) * dt);
+        this.progress += Math.max(2, 8 - fight * 4) * dt;
         this.rod.setAngle(-42 - Math.sin(this.time.now / 400) * 2);
       }
-      this.patience -= (8 + fight * 7) * dt;
+      // Patience always outlasts a competent reel; hard fish are tighter.
+      this.patience -= (3 + fight * 4.5) * dt;
       this.tension = Phaser.Math.Clamp(this.tension, 0, 100);
       this.progress = Phaser.Math.Clamp(this.progress, 0, 100);
       this.updateMeters();
