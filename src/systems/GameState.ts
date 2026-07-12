@@ -111,7 +111,9 @@ export function defaultSave(): SaveData {
     lastSeen: Date.now(),
     inventory: { fish: 2 },
     placed: [
-      { id: 'bed', gx: 1, gy: 1 },
+      // gy must be >= WALL_ROWS (2) or the item spawns inside the top wall
+      // band — unreachable, since floor tiles are the only clickable ones.
+      { id: 'bed', gx: 1, gy: 2 },
       { id: 'rug', gx: 5, gy: 4 },
     ],
     bestPaperToss: 0,

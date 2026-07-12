@@ -551,7 +551,9 @@ export class PaperTossScene extends Phaser.Scene {
     // the buttons; interactive so clicks don't leak to the scene.
     this.add
       .rectangle(cx, cy, 460, 236, 0x2a2440, 0.97)
-      .setStrokeStyle(3, 0xffe066)
+      // Pink panel border to match every other modal (Menu, confirm-card);
+      // yellow stays reserved for selection/highlight accents.
+      .setStrokeStyle(3, 0xffb3d1)
       .setDepth(1600)
       .setInteractive();
     this.add

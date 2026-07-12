@@ -127,6 +127,10 @@ export class HouseScene extends Phaser.Scene {
         fontFamily: 'monospace',
         fontSize: '18px',
         color: '#a8e6cf',
+        // Same dark chip as the bottom-right [ Pet ] button so the two
+        // in-scene action buttons read as one family (and stay legible on
+        // the bright wall band behind them).
+        backgroundColor: '#1a1a2ecc',
         padding: { x: 8, y: 8 },
       })
       .setOrigin(1, 0)
