@@ -33,7 +33,7 @@ export const MINITEEN: MiniteenDef[] = [
       'I did 100 hops this morning. Casually.',
     ],
     gift: 4,
-    home: { tx: 4, ty: 10 },
+    home: { tx: 3.2, ty: 8.5 },
   },
   {
     id: 'jjongtoram',
@@ -48,7 +48,7 @@ export const MINITEEN: MiniteenDef[] = [
       'I flew here on a blanket. Don’t question it.',
     ],
     gift: 5,
-    home: { tx: 8, ty: 12.5 },
+    home: { tx: 7.2, ty: 10.8 },
   },
   {
     id: 'shuasumi',
@@ -63,7 +63,7 @@ export const MINITEEN: MiniteenDef[] = [
       'A clean path is a happy path, don’t you think?',
     ],
     gift: 3,
-    home: { tx: 12, ty: 8 },
+    home: { tx: 8.8, ty: 6.4 },
   },
   {
     id: 'ocl',
@@ -78,7 +78,7 @@ export const MINITEEN: MiniteenDef[] = [
       'Three cats, one tower. Perfect balance.',
     ],
     gift: 4,
-    home: { tx: 19, ty: 5 },
+    home: { tx: 14.2, ty: 5.8 },
   },
   {
     id: 'tamtam',
@@ -93,7 +93,7 @@ export const MINITEEN: MiniteenDef[] = [
       'If you see me rolling, join in. That’s the rule.',
     ],
     gift: 5,
-    home: { tx: 20, ty: 12.5 },
+    home: { tx: 18.5, ty: 8.2 },
   },
   {
     id: 'foxdungee',
@@ -108,7 +108,7 @@ export const MINITEEN: MiniteenDef[] = [
       'I catalogued every tree in town. There are sixteen.',
     ],
     gift: 4,
-    home: { tx: 28, ty: 12.5 },
+    home: { tx: 19.2, ty: 11.2 },
   },
   {
     id: 'ppyopuli',
@@ -123,7 +123,7 @@ export const MINITEEN: MiniteenDef[] = [
       'Small, dense, reliable. Like good rice.',
     ],
     gift: 4,
-    home: { tx: 12, ty: 16 },
+    home: { tx: 7.5, ty: 12.2 },
   },
   {
     id: 'doa',
@@ -138,7 +138,7 @@ export const MINITEEN: MiniteenDef[] = [
       'Your pet smells like a FRIEND!',
     ],
     gift: 3,
-    home: { tx: 18, ty: 16.5 },
+    home: { tx: 13.5, ty: 12.4 },
   },
   {
     id: 'kimja',
@@ -153,7 +153,7 @@ export const MINITEEN: MiniteenDef[] = [
       'I grew two millimetres this month. Leadership.',
     ],
     gift: 5,
-    home: { tx: 6, ty: 20 },
+    home: { tx: 3.5, ty: 12.5 },
   },
   {
     id: 'thepalee',
@@ -168,7 +168,7 @@ export const MINITEEN: MiniteenDef[] = [
       'Tea first. Everything else after.',
     ],
     gift: 3,
-    home: { tx: 12, ty: 21 },
+    home: { tx: 11, ty: 13.6 },
   },
   {
     id: 'bboogyuli',
@@ -183,7 +183,7 @@ export const MINITEEN: MiniteenDef[] = [
       'My leaf? Natural. My shine? Also natural.',
     ],
     gift: 5,
-    home: { tx: 20, ty: 21 },
+    home: { tx: 15.2, ty: 14 },
   },
   {
     id: 'nonver',
@@ -198,7 +198,7 @@ export const MINITEEN: MiniteenDef[] = [
       'I had a dream about this exact conversation. Weird.',
     ],
     gift: 4,
-    home: { tx: 28, ty: 19 },
+    home: { tx: 19.5, ty: 5.6 },
   },
   {
     id: 'chandalee',
@@ -213,7 +213,7 @@ export const MINITEEN: MiniteenDef[] = [
       'The future of otter music starts HERE.',
     ],
     gift: 3,
-    home: { tx: 15.5, ty: 10 },
+    home: { tx: 11, ty: 10.2 },
   },
 ];
 
@@ -231,10 +231,10 @@ function homeWaypoints(def: MiniteenDef, i: number): { x: number; y: number }[] 
   const s = i % 2 === 0 ? 1 : -1;
   const offsets = [
     [0, 0],
-    [2.4 * s, 0.3],
-    [-2.2 * s, -0.4],
-    [0.5, 1.8],
-    [-0.7 * s, -1.7],
+    [1.6 * s, 0.25],
+    [-1.5 * s, -0.35],
+    [0.4, 1.2],
+    [-0.5 * s, -1.1],
   ];
   return offsets.map(([ox, oy]) => ({ x: cx + ox * TILE, y: cy + oy * TILE }));
 }

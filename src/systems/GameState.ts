@@ -65,6 +65,15 @@ export interface ItemDef {
   happiness?: number;
 }
 
+/** Coins earned each time you feed your pet. */
+export const FEED_COIN_REWARD = 3;
+/** Flat tip for clearing a Paper Toss stage. */
+export const PAPER_TOSS_PARTICIPATION_COINS = 5;
+/** Energy the pet loses per completed Paper Toss throw. */
+export const PAPER_TOSS_ENERGY_PER_THROW = 3;
+/** Happiness gained per throw on stage 1; multiplies by stage number. */
+export const PAPER_TOSS_HAPPINESS_PER_STAGE = 2;
+
 export const ITEMS: Record<string, ItemDef> = {
   fish: { id: 'fish', name: 'Fishy Snack', texture: 'fish', kind: 'food', price: 5, hunger: 25, happiness: 5 },
   cookie: { id: 'cookie', name: 'Choco Cookie', texture: 'cookie', kind: 'food', price: 8, hunger: 15, happiness: 15 },
@@ -332,17 +341,20 @@ class GameStateStore {
     const p = this.data.pet;
     p.hunger = clamp(p.hunger + (def.hunger ?? 0));
     p.happiness = clamp(p.happiness + (def.happiness ?? 0));
+    // Caring for your pet pays a small coin tip.
+    this.data.coins += FEED_COIN_REWARD;
     this.save();
     return true;
   }
 
-  playWithPet(): boolean {
-    const p = this.data.pet;
-    if (p.energy < 10) return false;
-    p.happiness = clamp(p.happiness + 20);
-    p.energy = clamp(p.energy - 10);
-    this.save();
-    return true;
+  /**
+   * Apply mini-game throw costs. Pass `{ persist: false }` to batch many throws
+   * and call `save()` once at stage end.
+   */
+  drainEnergyFromPlay(energy = 3, happiness = 2, opts?: { persist?: boolean }) {
+    this.data.pet.energy = clamp(this.data.pet.energy - energy);
+    this.data.pet.happiness = clamp(this.data.pet.happiness + happiness);
+    if (opts?.persist !== false) this.save();
   }
 
   petSleep() {

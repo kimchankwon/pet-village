@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import { MINITEEN, MiniteenNpc, type MiniteenDef } from './miniteen';
+import { TILE, TOWN_WORLD_H, TOWN_WORLD_W } from './townMap';
 
-const TILE = 48;
-const WORLD_W = 32 * TILE;
-const WORLD_H = 24 * TILE;
+const WORLD_W = TOWN_WORLD_W;
+const WORLD_H = TOWN_WORLD_H;
 
 /** How many MINITEEN are visible in town at once. */
 const ACTIVE_COUNT = 4;
@@ -15,13 +15,13 @@ type Edge = 'left' | 'right' | 'top' | 'bottom';
 function edgePoint(edge: Edge): { x: number; y: number } {
   switch (edge) {
     case 'left':
-      return { x: -24, y: Phaser.Math.Between(6, 18) * TILE };
+      return { x: -24, y: Phaser.Math.Between(5, 12) * TILE };
     case 'right':
-      return { x: WORLD_W + 24, y: Phaser.Math.Between(6, 18) * TILE };
+      return { x: WORLD_W + 24, y: Phaser.Math.Between(5, 12) * TILE };
     case 'top':
-      return { x: Phaser.Math.Between(4, 28) * TILE, y: -24 };
+      return { x: Phaser.Math.Between(3, 19) * TILE, y: -24 };
     case 'bottom':
-      return { x: Phaser.Math.Between(4, 28) * TILE, y: WORLD_H + 24 };
+      return { x: Phaser.Math.Between(3, 19) * TILE, y: WORLD_H + 24 };
   }
 }
 

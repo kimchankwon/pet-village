@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
-import { State } from '../systems/GameState';
+import { State, PAPER_TOSS_ENERGY_PER_THROW, PAPER_TOSS_HAPPINESS_PER_STAGE, PAPER_TOSS_PARTICIPATION_COINS } from '../systems/GameState';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { petAnimKey, petTextureKey } from '../systems/pets';
@@ -502,6 +502,13 @@ export class PaperTossScene extends Phaser.Scene {
   private endThrow() {
     this.mode = 'settling';
     this.stageThrows++;
+    // Each throw costs a little energy; harder stages cheer the pet more.
+    // Persist once at stage clear/fail (not every throw).
+    State.drainEnergyFromPlay(
+      PAPER_TOSS_ENERGY_PER_THROW,
+      PAPER_TOSS_HAPPINESS_PER_STAGE * this.stage,
+      { persist: false },
+    );
     this.updateStatus();
     this.time.delayedCall(700, () => {
       if (this.stageBaskets >= BASKETS_TO_CLEAR) this.stageCleared();
@@ -512,6 +519,17 @@ export class PaperTossScene extends Phaser.Scene {
 
   // Sink BASKETS_TO_CLEAR and the next stage opens; the last one wins the game.
   private stageCleared() {
+    // Flush batched throw energy/happiness, then pay the clear bonus.
+    State.save();
+    State.addCoins(PAPER_TOSS_PARTICIPATION_COINS);
+    this.roundCoins += PAPER_TOSS_PARTICIPATION_COINS;
+    toast(
+      this,
+      this.cameras.main.width / 2,
+      150,
+      `+${PAPER_TOSS_PARTICIPATION_COINS} stage clear`,
+      '#a8e6cf',
+    );
     if (this.stage >= STAGES.length) {
       this.gameWon();
       return;
@@ -585,8 +603,9 @@ export class PaperTossScene extends Phaser.Scene {
     leave.on('pointerdown', () => this.scene.start('Town', { spawn: 'arcade' }));
   }
 
-  // Out of throws — offer the same stage again (run totals carry over).
+  // Out of throws — no participation coins on fail (stops identical-seed farming).
   private stageFailed() {
+    State.save(); // persist energy spent during the attempt
     // The seed rides along so Try again replays the identical combination.
     this.endPanel(`Stage ${this.stage} failed!`, '#ff6b6b', 'Try again', {
       stage: this.stage,
@@ -597,6 +616,7 @@ export class PaperTossScene extends Phaser.Scene {
   }
 
   private gameWon() {
+    State.save();
     this.endPanel('You beat Paper Toss!', '#ffe066', 'Play again', {});
   }
 

@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
-import { State, ITEMS } from '../systems/GameState';
-import { bottomButtons, HUD, Menu, Prompt } from '../systems/UI';
+import { State } from '../systems/GameState';
+import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
+import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
 import { isUiBlocked } from '../systems/nav';
@@ -256,7 +257,6 @@ export class ClothesShopScene extends Phaser.Scene {
   private openPetMenu() {
     if (this.menuOpen) return;
     this.menuOpen = true;
-    const foods = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'food');
     const options = [
       {
         label: `Chat with ${State.data.petName}`,
@@ -266,25 +266,14 @@ export class ClothesShopScene extends Phaser.Scene {
           this.closeMenu();
         },
       },
-      {
-        label: `Feed ${State.data.petName}${foods.length === 0 ? ' (no food — visit Daniel!)' : ''}`,
-        icon: 'fish',
-        disabled: foods.length === 0,
-        onSelect: () => this.openFeedMenu(),
-      },
-      {
-        label: 'Play together (+happy, -energy)',
-        icon: 'heart',
-        disabled: State.data.pet.energy < 10,
-        onSelect: () => {
-          if (State.playWithPet()) {
-            this.pet.celebrate('Wheee!');
-            this.pet.updateMood();
-            this.hud.refresh();
-          }
-          this.closeMenu();
+      feedPetMenuOption(this, this.pet, {
+        closeMenu: () => this.closeMenu(),
+        keepMenuOpen: () => {
+          this.menuOpen = true;
         },
-      },
+        emptyHint: 'no food — visit Daniel!',
+        onFed: () => this.hud.refresh(),
+      }),
       clothesPetMenuOption(this, this.pet, {
         closeMenu: () => this.closeMenu(),
         keepMenuOpen: () => {
@@ -299,28 +288,6 @@ export class ClothesShopScene extends Phaser.Scene {
       options,
       `Food ${Math.round(p.hunger)} · Happy ${Math.round(p.happiness)} · Energy ${Math.round(p.energy)}`,
     );
-    menu.onClose = () => this.closeMenu();
-  }
-
-  private openFeedMenu() {
-    this.menuOpen = true;
-    const foods = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'food');
-    const options = foods.map(([id, count]) => {
-      const item = ITEMS[id];
-      return {
-        label: `${item.name} x${count} (+${item.hunger} food)`,
-        icon: item.texture,
-        onSelect: () => {
-          if (State.feedPet(id)) {
-            this.pet.celebrate('Yum!');
-            this.pet.updateMood();
-            this.hud.refresh();
-          }
-          this.closeMenu();
-        },
-      };
-    });
-    const menu = new Menu(this, `Feed ${State.data.petName}`, options);
     menu.onClose = () => this.closeMenu();
   }
 

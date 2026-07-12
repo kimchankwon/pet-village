@@ -4,6 +4,7 @@ import { State, ITEMS } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
+import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
 import { blockUi, isUiBlocked, unblockUi } from '../systems/nav';
@@ -310,7 +311,6 @@ export class HouseScene extends Phaser.Scene {
   private openPetMenuInHouse() {
     this.menuOpen = true;
     const hasBed = State.data.placed.some((p) => p.id === 'bed');
-    const foods = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'food');
     const options = [
       {
         label: `Chat with ${State.data.petName}`,
@@ -320,15 +320,16 @@ export class HouseScene extends Phaser.Scene {
           this.menuOpen = false;
         },
       },
-      {
-        label: `Feed ${State.data.petName}`,
-        icon: 'fish',
-        disabled: foods.length === 0,
-        onSelect: () => {
+      feedPetMenuOption(this, this.pet, {
+        closeMenu: () => {
           this.menuOpen = false;
-          this.openFeedMenu();
+          this.ignoreClicksUntil = this.time.now + 200;
         },
-      },
+        keepMenuOpen: () => {
+          this.menuOpen = true;
+        },
+        onFed: () => this.hud.refresh(),
+      }),
       {
         label: hasBed ? 'Tuck into bed (full energy!)' : 'Tuck into bed (needs a Dream Bed)',
         icon: 'item-bed',
@@ -338,19 +339,6 @@ export class HouseScene extends Phaser.Scene {
           toast(this, this.pet.sprite.x, this.pet.sprite.y - 24, 'Zzz... so cozy!', '#ffb3d1');
           this.pet.showEmotion('sleep', 2500);
           this.hud.refresh();
-          this.menuOpen = false;
-        },
-      },
-      {
-        label: 'Play together (+happy, -energy)',
-        icon: 'heart',
-        disabled: State.data.pet.energy < 10,
-        onSelect: () => {
-          if (State.playWithPet()) {
-            this.pet.celebrate('Wheee!');
-            this.pet.updateMood();
-            this.hud.refresh();
-          }
           this.menuOpen = false;
         },
       },
@@ -371,31 +359,6 @@ export class HouseScene extends Phaser.Scene {
       options,
       `Food ${Math.round(p.hunger)} · Happy ${Math.round(p.happiness)} · Energy ${Math.round(p.energy)}`,
     );
-    menu.onClose = () => {
-      this.menuOpen = false;
-      this.ignoreClicksUntil = this.time.now + 200;
-    };
-  }
-
-  private openFeedMenu() {
-    this.menuOpen = true;
-    const foods = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'food');
-    const options = foods.map(([id, count]) => {
-      const item = ITEMS[id];
-      return {
-        label: `${item.name} x${count} (+${item.hunger} food)`,
-        icon: item.texture,
-        onSelect: () => {
-          if (State.feedPet(id)) {
-            this.pet.celebrate('Yum!');
-            this.pet.updateMood();
-            this.hud.refresh();
-          }
-          this.menuOpen = false;
-        },
-      };
-    });
-    const menu = new Menu(this, `Feed ${State.data.petName}`, options);
     menu.onClose = () => {
       this.menuOpen = false;
       this.ignoreClicksUntil = this.time.now + 200;
