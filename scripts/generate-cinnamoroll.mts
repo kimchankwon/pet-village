@@ -283,15 +283,18 @@ type Face = {
   mouth?: [number, number][];
 };
 
+// Eye rectangles are placed at the cells where the reference's saturated
+// eye-blue actually lands (measured per pose on the 7px grid).
 const FACES: Record<Pose, Face> = {
-  idle: { eyes: [{ x: 9, y: 6, w: 2, h: 3 }, { x: 17, y: 6, w: 2, h: 3 }], blush: { y: 10, lx: 7, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
-  walk1: { eyes: [{ x: 9, y: 6, w: 2, h: 3 }, { x: 17, y: 6, w: 2, h: 3 }], blush: { y: 11, lx: 9, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
-  walk2: { eyes: [{ x: 9, y: 6, w: 2, h: 3 }, { x: 17, y: 6, w: 2, h: 3 }], blush: { y: 10, lx: 8, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
+  idle: { eyes: [{ x: 10, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }], blush: { y: 10, lx: 8, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
+  walk1: { eyes: [{ x: 10, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }], blush: { y: 11, lx: 9, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
+  walk2: { eyes: [{ x: 9, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }], blush: { y: 10, lx: 8, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
   jump: { eyes: [{ x: 10, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }], blush: { y: 10, lx: 9, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
   // sad keeps its natural closed-eye marks from the sheet
   sad: { blush: { y: 10, lx: 11, rx: 19, w: 2 } },
-  // win pose: one open blue eye on the left, natural dark wink on the right
-  happy: { eyes: [{ x: 8, y: 6, w: 2, h: 3 }], blush: { y: 9, lx: 6, rx: 19, w: 2 } },
+  // win pose: the tilted head puts the one open blue eye far left; the
+  // dark wink on the right comes through naturally
+  happy: { eyes: [{ x: 4, y: 6, w: 2, h: 3 }], blush: { y: 9, lx: 6, rx: 19, w: 2 } },
 };
 
 function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
