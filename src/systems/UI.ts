@@ -377,8 +377,11 @@ export function bottomButtons(
   before: () => void,
 ) {
   const cam = scene.cameras.main;
-  let x = cam.width - 14;
-  const y = cam.height - 44;
+  // Bottom-right, clear of the touch joystick on the left.
+  const pad = 16;
+  let x = cam.width - pad;
+  const y = cam.height - pad - 18;
+  const nodes: Phaser.GameObjects.Text[] = [];
   for (const def of buttons) {
     const b = scene.add
       .text(x, y, def.label, {
@@ -396,8 +399,23 @@ export function bottomButtons(
       before();
       def.onTap();
     });
+    nodes.push(b);
     x -= b.width + 12;
   }
+
+  const relayout = () => {
+    const c = scene.cameras.main;
+    let rx = c.width - pad;
+    const ry = c.height - pad - 18;
+    for (const b of nodes) {
+      b.setPosition(rx, ry);
+      rx -= b.width + 12;
+    }
+  };
+  scene.scale.on('resize', relayout);
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+    scene.scale.off('resize', relayout);
+  });
 }
 
 export class Prompt {
