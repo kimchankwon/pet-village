@@ -128,6 +128,7 @@ function extract(source: InstanceType<typeof PNG>, crop: Crop) {
   borderize(output);
   closeOutlineGaps(output);
   fillInterior(output); // gaps sealed — nothing inside stays see-through
+  thinOutline(output);
   stampFace(crop.pose, output);
   return output;
 }
@@ -198,6 +199,39 @@ function closeOutlineGaps(output: InstanceType<typeof PNG>) {
 }
 
 /** Transparent cells NOT reachable from the border are interior: make them fur. */
+/**
+ * Where borderize doubled the outline (dark cell touching outside whose
+ * every opaque neighbour is also dark), peel the outer layer back to a
+ * single-cell line. Single pass against a fixed mask.
+ */
+function thinOutline(output: InstanceType<typeof PNG>) {
+  const { width: w, height: h } = output;
+  const dark = PALETTE[0]!;
+  const outside = outsideMask(output);
+  const remove: number[] = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    if (output.data[i + 3] === 0 || output.data[i] !== dark[0]) continue;
+    let touchesOutside = false;
+    let exposesSoft = false;
+    let hasInnerDark = false;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      const orth = dx === 0 || dy === 0;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h || outside[ny * w + nx]) {
+        if (orth) touchesOutside = true;
+        continue;
+      }
+      const n = (ny * w + nx) * 4;
+      if (output.data[n + 3] === 0) continue;
+      if (output.data[n] !== dark[0]) exposesSoft = true;
+      else if (orth) hasInnerDark = true;
+    }
+    if (touchesOutside && !exposesSoft && hasInnerDark) remove.push(i);
+  }
+  for (const i of remove) output.data[i + 3] = 0;
+}
+
 function fillInterior(output: InstanceType<typeof PNG>) {
   const { width: w, height: h } = output;
   const outside = outsideMask(output);
@@ -241,8 +275,8 @@ function keepLargestComponent(output: InstanceType<typeof PNG>) {
 }
 
 type Face = {
-  /** Two sky-blue eyes: top row, height, left/right x, width. */
-  eyes?: { y: number; h: number; lx: number; rx: number; w: number };
+  /** Sky-blue eye rectangles (win-pose has just one open eye). */
+  eyes?: { x: number; y: number; w: number; h: number }[];
   /** Blush cells under the eyes. */
   blush?: { y: number; lx: number; rx: number; w: number };
   /** Dark mouth cells. */
@@ -250,13 +284,14 @@ type Face = {
 };
 
 const FACES: Record<Pose, Face> = {
-  idle: { eyes: { y: 6, h: 3, lx: 9, rx: 17, w: 2 }, blush: { y: 10, lx: 7, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
-  walk1: { eyes: { y: 6, h: 3, lx: 9, rx: 17, w: 2 }, blush: { y: 11, lx: 9, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
-  walk2: { eyes: { y: 6, h: 3, lx: 9, rx: 17, w: 2 }, blush: { y: 10, lx: 8, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
-  jump: { eyes: { y: 6, h: 3, lx: 10, rx: 18, w: 2 }, blush: { y: 10, lx: 9, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
-  // sad/happy keep their natural dark closed-eye marks from the sheet
+  idle: { eyes: [{ x: 9, y: 6, w: 2, h: 3 }, { x: 17, y: 6, w: 2, h: 3 }], blush: { y: 10, lx: 7, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
+  walk1: { eyes: [{ x: 9, y: 6, w: 2, h: 3 }, { x: 17, y: 6, w: 2, h: 3 }], blush: { y: 11, lx: 9, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
+  walk2: { eyes: [{ x: 9, y: 6, w: 2, h: 3 }, { x: 17, y: 6, w: 2, h: 3 }], blush: { y: 10, lx: 8, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
+  jump: { eyes: [{ x: 10, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }], blush: { y: 10, lx: 9, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
+  // sad keeps its natural closed-eye marks from the sheet
   sad: { blush: { y: 10, lx: 11, rx: 19, w: 2 } },
-  happy: { blush: { y: 9, lx: 11, rx: 19, w: 2 } },
+  // win pose: one open blue eye on the left, natural dark wink on the right
+  happy: { eyes: [{ x: 8, y: 6, w: 2, h: 3 }], blush: { y: 9, lx: 6, rx: 19, w: 2 } },
 };
 
 function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
@@ -266,11 +301,9 @@ function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
     if (output.data[i + 3] === 0) return; // never paint outside the body
     output.data[i] = c[0]; output.data[i + 1] = c[1]; output.data[i + 2] = c[2]; output.data[i + 3] = 255;
   };
-  if (face.eyes) {
-    const { y, h, lx, rx, w } = face.eyes;
-    for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) {
-      put(lx + dx, y + dy, PALETTE[3]!);
-      put(rx + dx, y + dy, PALETTE[3]!);
+  for (const eye of face.eyes ?? []) {
+    for (let dy = 0; dy < eye.h; dy++) for (let dx = 0; dx < eye.w; dx++) {
+      put(eye.x + dx, eye.y + dy, PALETTE[3]!);
     }
   }
   if (face.blush) {
