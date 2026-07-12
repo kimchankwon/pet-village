@@ -616,6 +616,118 @@ const CRATE: Grid = [
   '............',
 ];
 
+const DOCK: Grid = [
+  '........................',
+  '........................',
+  '..knnNNnnNNnnNNnnNNnk...',
+  '..knCCCCCCCCCCCCCCCNk...',
+  '..knCCCCCCCCCCCCCCCNk...',
+  '..knnNNnnNNnnNNnnNNnk...',
+  '..kn................Nk..',
+  '..kn................Nk..',
+  '..kn................Nk..',
+  '..knnNNnnNNnnNNnnNNnk...',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+];
+
+const BOBBER: Grid = [
+  '........',
+  '..krrk..',
+  '.krrrrk.',
+  '.krWrrk.',
+  '.krrrrk.',
+  '..kwwk..',
+  '...kk...',
+  '........',
+];
+
+const ROD: Grid = [
+  '................',
+  '.............kk.',
+  '............ktk.',
+  '...........ktk..',
+  '..........ktk...',
+  '.........ktk....',
+  '........ktk.....',
+  '.......ktk......',
+  '......ktk.......',
+  '.....knn........',
+  '....knnN........',
+  '...knn..........',
+  '..knn...........',
+  '.knn............',
+  '................',
+  '................',
+];
+
+const RIPPLE: Grid = [
+  '............',
+  '............',
+  '...kssssk...',
+  '..ks....sk..',
+  '.ks......sk.',
+  '..ks....sk..',
+  '...kssssk...',
+  '............',
+  '............',
+  '............',
+  '............',
+  '............',
+];
+
+/** Common ocean catch — silver-blue. */
+const OCEAN_FISH_COMMON: Grid = [
+  '............',
+  '......k.....',
+  '....ktttk...',
+  '...ktwwttk..',
+  '..kttktttk..',
+  '...ktwwttk..',
+  '....ktttk...',
+  '......k.....',
+  '............',
+  '............',
+  '............',
+  '............',
+];
+
+/** Uncommon ocean catch — mint green. */
+const OCEAN_FISH_UNCOMMON: Grid = [
+  '............',
+  '......k.....',
+  '....keeek...',
+  '...keEEeek..',
+  '..keeEeeek..',
+  '...keEEeek..',
+  '....keeek...',
+  '......k.....',
+  '............',
+  '............',
+  '............',
+  '............',
+];
+
+/** Rare ocean catch — warm gold/pink. */
+const OCEAN_FISH_RARE: Grid = [
+  '............',
+  '......k.....',
+  '....kyyyk...',
+  '...kyPPyyk..',
+  '..kyykyyyk..',
+  '...kyPPyyk..',
+  '....kyyyk...',
+  '......k.....',
+  '............',
+  '............',
+  '............',
+  '............',
+];
+
 const CLOTHES_RACK: Grid = [
   '................',
   '..kt..........tk',
@@ -932,6 +1044,9 @@ export function generateTextures(scene: Phaser.Scene) {
   if (!scene.textures.exists('cafe')) makeTexture(scene, 'cafe', [CAFE]);
 
   if (!scene.textures.exists('tile-plaza')) makeCobbleTile(scene, 'tile-plaza');
+  if (!scene.textures.exists('tile-sand')) makeTile(scene, 'tile-sand', '#e8d4a8', '#d4bc88', 12);
+  if (!scene.textures.exists('tile-ocean')) makeTile(scene, 'tile-ocean', '#3a8fd4', '#2e7ab8', 10);
+  if (!scene.textures.exists('tile-ocean2')) makeTile(scene, 'tile-ocean2', '#4599dc', '#3484c4', 10);
 
   // Outdoor décor — ensure on every call so hot reloads pick up new props.
   const outdoor: [string, Grid][] = [
@@ -948,6 +1063,13 @@ export function generateTextures(scene: Phaser.Scene) {
     ['signpost', SIGNPOST],
     ['barrel', BARREL],
     ['crate', CRATE],
+    ['dock', DOCK],
+    ['bobber', BOBBER],
+    ['rod', ROD],
+    ['ripple', RIPPLE],
+    ['oceanfish-common', OCEAN_FISH_COMMON],
+    ['oceanfish-uncommon', OCEAN_FISH_UNCOMMON],
+    ['oceanfish-rare', OCEAN_FISH_RARE],
     ['clothes-rack', CLOTHES_RACK],
   ];
   for (const [key, grid] of outdoor) {

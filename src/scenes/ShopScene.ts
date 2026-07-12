@@ -242,7 +242,9 @@ export class ShopScene extends Phaser.Scene {
 
   private openShop() {
     this.menuOpen = true;
-    const options = Object.values(ITEMS).map((item) => ({
+    const options = Object.values(ITEMS)
+      .filter((item) => !item.catchOnly)
+      .map((item) => ({
       label: `${item.name} — ${item.price}c`,
       icon: item.texture,
       disabled: State.coins < item.price,

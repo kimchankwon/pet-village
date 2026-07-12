@@ -37,6 +37,8 @@ export interface SaveData {
   inventory: Record<string, number>; // itemId -> count (food + unplaced furniture)
   placed: PlacedItem[];
   bestPaperToss: number;
+  /** Biggest fish landed while shore-fishing, in centimetres. */
+  biggestCatch: number;
   /** Accessory ids gifted by Bongbongee (or granted on adopting them). */
   ownedAccessories: AccessoryId[];
   /** One equipped accessory per slot. */
@@ -63,6 +65,8 @@ export interface ItemDef {
   // food effects
   hunger?: number;
   happiness?: number;
+  /** Caught in the wild — never sold in Daniel's shop. */
+  catchOnly?: boolean;
 }
 
 /** Coins earned each time you feed your pet. */
@@ -77,6 +81,36 @@ export const PAPER_TOSS_HAPPINESS_PER_STAGE = 2;
 export const ITEMS: Record<string, ItemDef> = {
   fish: { id: 'fish', name: 'Fishy Snack', texture: 'fish', kind: 'food', price: 5, hunger: 25, happiness: 5 },
   cookie: { id: 'cookie', name: 'Choco Cookie', texture: 'cookie', kind: 'food', price: 8, hunger: 15, happiness: 15 },
+  'oceanfish-common': {
+    id: 'oceanfish-common',
+    name: 'Silver Minnow',
+    texture: 'oceanfish-common',
+    kind: 'food',
+    price: 0,
+    hunger: 20,
+    happiness: 8,
+    catchOnly: true,
+  },
+  'oceanfish-uncommon': {
+    id: 'oceanfish-uncommon',
+    name: 'Mint Bass',
+    texture: 'oceanfish-uncommon',
+    kind: 'food',
+    price: 0,
+    hunger: 32,
+    happiness: 14,
+    catchOnly: true,
+  },
+  'oceanfish-rare': {
+    id: 'oceanfish-rare',
+    name: 'Sunset Snapper',
+    texture: 'oceanfish-rare',
+    kind: 'food',
+    price: 0,
+    hunger: 45,
+    happiness: 22,
+    catchOnly: true,
+  },
   plant: { id: 'plant', name: 'Potted Plant', texture: 'item-plant', kind: 'furniture', price: 20 },
   flower: { id: 'flower', name: 'Flower Vase', texture: 'item-flower', kind: 'furniture', price: 15 },
   chair: { id: 'chair', name: 'Cozy Chair', texture: 'item-chair', kind: 'furniture', price: 30 },
@@ -126,6 +160,7 @@ export function defaultSave(): SaveData {
       { id: 'rug', gx: 5, gy: 4 },
     ],
     bestPaperToss: 0,
+    biggestCatch: 0,
     ownedAccessories: [],
     equippedAccessories: {},
     penguinColor: 'blue',
@@ -222,6 +257,7 @@ class GameStateStore {
       inventory: { ...this.data.inventory },
       placed: this.data.placed.map((p) => ({ ...p })),
       bestPaperToss: this.data.bestPaperToss,
+      biggestCatch: this.data.biggestCatch,
       ownedAccessories: [...this.data.ownedAccessories],
       equippedAccessories: { ...this.data.equippedAccessories },
     };
@@ -323,6 +359,15 @@ class GameStateStore {
   addItem(id: string, count = 1) {
     this.data.inventory[id] = (this.data.inventory[id] ?? 0) + count;
     this.save();
+  }
+
+  /** Record a shore catch size (cm). Returns true if it set a new personal best. */
+  recordCatch(sizeCm: number): boolean {
+    const size = Math.max(0, Math.round(sizeCm));
+    if (size <= this.data.biggestCatch) return false;
+    this.data.biggestCatch = size;
+    this.save();
+    return true;
   }
 
   removeItem(id: string): boolean {
