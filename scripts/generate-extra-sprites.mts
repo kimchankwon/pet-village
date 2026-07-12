@@ -202,7 +202,7 @@ function drawPuffle(color: [number, number, number, number], pose: PufflePose, a
   for (let y = -7; y <= 7; y++) {
     for (let x = -8; x <= 8; x++) {
       // Heart/M dip along the top edge
-      const topDip = y < -3 ? (Math.abs(x) < 2.2 ? 0.22 : Math.abs(x) < 4.5 ? -0.08 : 0) : 0;
+      const topDip = y < -3 ? (Math.abs(x) < 2.2 ? -0.22 : Math.abs(x) < 4.5 ? 0.08 : 0) : 0;
       const n = Math.hypot(x / 7.4, (y + topDip) / 6.6);
       if (n > 0.98) continue;
       const wx = fx + x + facePx;
@@ -226,8 +226,8 @@ function drawPuffle(color: [number, number, number, number], pose: PufflePose, a
     fill(png, fx + 1 + facePx, eyeY + pdy, fx + 2 + facePx, eyeY + pdy + 3, FACE_INK);
     if (pose === 'sad') {
       for (const s of [-1, 1] as const) {
-        set(png, fx + s * 6 + facePx, eyeY - 3, FACE_INK);
-        set(png, fx + s * 5 + facePx, eyeY - 2, FACE_INK);
+        set(png, fx + s * 6 + facePx, eyeY - 2, FACE_INK);
+        set(png, fx + s * 5 + facePx, eyeY - 3, FACE_INK);
       }
     } else if (angry) {
       for (const s of [-1, 1] as const) {
