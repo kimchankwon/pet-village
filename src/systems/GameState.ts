@@ -232,6 +232,7 @@ class GameStateStore {
 
   constructor() {
     this.data = this.loadLocal();
+    this.stripUnwearableAccessories();
     this.applyOfflineDecay();
   }
 
@@ -255,6 +256,7 @@ class GameStateStore {
     this.data = mergeSave(raw);
     this.data.penguinColor = raw.penguinColor ?? localColor;
     this.data.npcGiftDays = raw.npcGiftDays ?? localGiftDays;
+    this.stripUnwearableAccessories();
     this.applyOfflineDecay();
     this.persistLocal();
   }
