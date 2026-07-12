@@ -85,6 +85,10 @@ export const SKIP_ROPE_WIN_COINS = 12;
 export const SKIP_ROPE_WIN_HAPPINESS = 8;
 /** Consecutive jumps needed to clear Skip Rope. */
 export const SKIP_ROPE_TARGET = 25;
+/** A failed Skip Rope run still banks a reward per this many cleared jumps. */
+export const SKIP_ROPE_MILESTONE_JUMPS = 5;
+export const SKIP_ROPE_MILESTONE_COINS = 2;
+export const SKIP_ROPE_MILESTONE_HAPPINESS = 1;
 
 export const ITEMS: Record<string, ItemDef> = {
   fish: { id: 'fish', name: 'Fishy Snack', texture: 'fish', kind: 'food', price: 5, hunger: 25, happiness: 5 },
@@ -395,6 +399,20 @@ class GameStateStore {
     this.data.coins += SKIP_ROPE_WIN_COINS;
     this.data.pet.happiness = clamp(this.data.pet.happiness + SKIP_ROPE_WIN_HAPPINESS);
     this.save();
+  }
+
+  /** Consolation for a failed Skip Rope run: banked per full 5-jump milestone. */
+  rewardSkipRopeRun(jumps: number): { coins: number; happiness: number } {
+    const n = Number.isFinite(jumps) ? Math.max(0, Math.floor(jumps)) : 0;
+    const milestones = Math.floor(n / SKIP_ROPE_MILESTONE_JUMPS);
+    const coins = milestones * SKIP_ROPE_MILESTONE_COINS;
+    const happiness = milestones * SKIP_ROPE_MILESTONE_HAPPINESS;
+    if (coins > 0 || happiness > 0) {
+      this.data.coins += coins;
+      this.data.pet.happiness = clamp(this.data.pet.happiness + happiness);
+      this.save();
+    }
+    return { coins, happiness };
   }
 
   removeItem(id: string): boolean {

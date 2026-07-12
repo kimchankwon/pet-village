@@ -47,9 +47,9 @@ export class BootScene extends Phaser.Scene {
     for (const acc of ACCESSORY_LIST) {
       this.load.image(acc.texture, ACCESSORY_ASSET_PATH[acc.id]);
     }
-    // Skip Rope PNG placeholders live under public/assets/{misc,ui}/ —
-    // pixelart generates matching keys until those files are replaced with
-    // final art (then load them here so they override the generated textures).
+    // The Skip Rope booth PNG placeholder lives under public/assets/misc/ —
+    // pixelart generates the matching key until it's replaced with final art
+    // (then load it here so it overrides the generated texture).
   }
 
   create() {
