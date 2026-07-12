@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
-import { State, ITEMS } from '../systems/GameState';
-import { bottomButtons, HUD, Menu, Prompt } from '../systems/UI';
+import { State, ITEMS, FEED_COIN_REWARD } from '../systems/GameState';
+import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { ClickMove } from '../systems/ClickMove';
@@ -272,19 +272,6 @@ export class ClothesShopScene extends Phaser.Scene {
         disabled: foods.length === 0,
         onSelect: () => this.openFeedMenu(),
       },
-      {
-        label: 'Play together (+happy, -energy)',
-        icon: 'heart',
-        disabled: State.data.pet.energy < 10,
-        onSelect: () => {
-          if (State.playWithPet()) {
-            this.pet.celebrate('Wheee!');
-            this.pet.updateMood();
-            this.hud.refresh();
-          }
-          this.closeMenu();
-        },
-      },
       clothesPetMenuOption(this, this.pet, {
         closeMenu: () => this.closeMenu(),
         keepMenuOpen: () => {
@@ -308,11 +295,12 @@ export class ClothesShopScene extends Phaser.Scene {
     const options = foods.map(([id, count]) => {
       const item = ITEMS[id];
       return {
-        label: `${item.name} x${count} (+${item.hunger} food)`,
+        label: `${item.name} x${count} (+${item.hunger} food, +${FEED_COIN_REWARD}c)`,
         icon: item.texture,
         onSelect: () => {
           if (State.feedPet(id)) {
             this.pet.celebrate('Yum!');
+            toast(this, this.pet.sprite.x, this.pet.sprite.y - 28, `+${FEED_COIN_REWARD} coins`, '#ffe066');
             this.pet.updateMood();
             this.hud.refresh();
           }

@@ -65,6 +65,13 @@ export interface ItemDef {
   happiness?: number;
 }
 
+/** Coins earned each time you feed your pet. */
+export const FEED_COIN_REWARD = 3;
+/** Flat tip for finishing every throw in a Paper Toss stage (even on a fail). */
+export const PAPER_TOSS_PARTICIPATION_COINS = 5;
+/** Energy restored per completed Paper Toss throw. */
+export const PAPER_TOSS_ENERGY_PER_THROW = 8;
+
 export const ITEMS: Record<string, ItemDef> = {
   fish: { id: 'fish', name: 'Fishy Snack', texture: 'fish', kind: 'food', price: 5, hunger: 25, happiness: 5 },
   cookie: { id: 'cookie', name: 'Choco Cookie', texture: 'cookie', kind: 'food', price: 8, hunger: 15, happiness: 15 },
@@ -332,6 +339,8 @@ class GameStateStore {
     const p = this.data.pet;
     p.hunger = clamp(p.hunger + (def.hunger ?? 0));
     p.happiness = clamp(p.happiness + (def.happiness ?? 0));
+    // Caring for your pet pays a small coin tip.
+    this.data.coins += FEED_COIN_REWARD;
     this.save();
     return true;
   }
@@ -343,6 +352,13 @@ class GameStateStore {
     p.energy = clamp(p.energy - 10);
     this.save();
     return true;
+  }
+
+  /** Mini-games tire the player out — the pet gets energized from the fun. */
+  boostEnergyFromPlay(amount = 8) {
+    this.data.pet.energy = clamp(this.data.pet.energy + amount);
+    this.data.pet.happiness = clamp(this.data.pet.happiness + 2);
+    this.save();
   }
 
   petSleep() {
