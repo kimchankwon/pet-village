@@ -8,27 +8,15 @@ import { ClothesShopScene } from '../scenes/ClothesShopScene';
 import { PaperTossScene } from '../scenes/PaperTossScene';
 import { State } from '../systems/GameState';
 
-/** Stretch the canvas to the host’s full box (any aspect — full height on mobile). */
-function fillHostCanvas(game: Phaser.Game) {
-  const canvas = game.canvas;
-  if (!canvas) return;
-  canvas.style.width = '100%';
-  canvas.style.height = '100%';
-  canvas.style.margin = '0';
-  const parent = canvas.parentElement;
-  if (parent) {
-    game.scale.setParentSize(parent.clientWidth, parent.clientHeight);
-  }
-}
-
 export function startGame(parent: HTMLElement): Phaser.Game {
-  // Logical design stays 800×600; the canvas is CSS-stretched to the host’s
-  // full width×height (no locked 4:3 letterbox on mobile).
+  // Logical design is 800×600 (4:3). FIT scales uniformly into the host so
+  // pixels stay square — letterbox/pillarbox as needed, never stretch.
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
     scale: {
-      mode: Phaser.Scale.NONE,
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
       width: 800,
       height: 600,
     },
@@ -45,13 +33,9 @@ export function startGame(parent: HTMLElement): Phaser.Game {
   });
 
   const onResize = () => {
-    fillHostCanvas(game);
     game.scale.refresh();
   };
   window.addEventListener('resize', onResize);
-  game.events.once(Phaser.Core.Events.READY, () => fillHostCanvas(game));
-  // Ready may fire before the canvas is parented — also fill on first tick.
-  queueMicrotask(() => fillHostCanvas(game));
 
   // save() persists locally and arms the cloud debounce; flush fires it now.
   const persistNow = () => {
