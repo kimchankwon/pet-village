@@ -14,14 +14,13 @@ import { petAnimKey, petTextureKey } from '../systems/pets';
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 
 const PET_GROUND_Y = 430;
-/** Rope arc: lowest point skims under the pet's feet, top clears its head. */
-const ROPE_BOTTOM_Y = 476;
-const ROPE_TOP_Y = 318;
+/** Height of the rope arc above its lowest point (the pet's feet). */
+const ROPE_SPAN = 155;
 /** Rope handle posts either side of the pet. */
 const HANDLE_DX = 170;
 
-/** Starting swing period (ms) — speeds up as the streak grows. */
-const PERIOD_START = 1450;
+/** Starting swing period (ms) — a gentle warm-up that speeds up with the streak. */
+const PERIOD_START = 2600;
 const PERIOD_MIN = 620;
 /** Fraction of the cycle where a jump counts (centered on the ground pass). */
 const WINDOW_HALF = 0.07;
@@ -33,10 +32,11 @@ type Mode = 'playing' | 'won' | 'failed' | 'done';
 
 /**
  * Skip Rope — Tamagotchi V3-style rhythm timing.
- * The rope turns a full 360°: down the far side (drawn behind the pet),
- * under the feet, then up the near side (drawn in front) — jump (click /
- * Space / tap) as it passes the ground. One miss ends the run, banking
- * coins + happiness per 5 cleared; 25 in a row wins outright.
+ * The rope turns a full 360°: down the near side (drawn in front of the
+ * pet, growing as it approaches), under the feet, then up the far side
+ * (drawn behind, shrinking) — jump (click / Space / tap) as it passes the
+ * ground. One miss ends the run, banking coins + happiness per 5 cleared;
+ * 25 in a row wins outright.
  */
 export class SkipRopeScene extends Phaser.Scene {
   private mode: Mode = 'playing';
@@ -53,6 +53,9 @@ export class SkipRopeScene extends Phaser.Scene {
   private ignoreClicksUntil = 0;
 
   private petX = 0;
+  /** The rope's lowest point — flush with the bottom of the pet sprite. */
+  private ropeBottomY = PET_GROUND_Y;
+  private ropeTopY = PET_GROUND_Y - ROPE_SPAN;
   private jumps = 0;
   private periodMs = PERIOD_START;
   /** 0..1 through the current turn; 0.5 = rope passing the pet's feet. */
@@ -87,23 +90,9 @@ export class SkipRopeScene extends Phaser.Scene {
     this.add.rectangle(cx, 90, viewW, 180, 0x3d3560);
     this.add.rectangle(cx, 280, viewW, 220, 0x352e55);
     this.add.rectangle(cx, viewH - 70, viewW, 160, 0x4a4370);
-    this.add.rectangle(cx, PET_GROUND_Y + 18, viewW, 6, 0x1a1a2e);
     for (let i = 0; i < 8; i++) {
       this.add.rectangle(50 + i * 100, 70, 40, 8, 0x5d5490);
     }
-
-    // Handle posts the rope turns between (knob on top).
-    const handleY = (ROPE_TOP_Y + ROPE_BOTTOM_Y) / 2;
-    const posts = this.add.graphics().setDepth(6);
-    for (const px of [this.petX - HANDLE_DX, this.petX + HANDLE_DX]) {
-      posts.fillStyle(0x5d4037, 1);
-      posts.fillRect(px - 3, handleY, 6, PET_GROUND_Y + 24 - handleY);
-      posts.fillStyle(0xffe066, 1);
-      posts.fillCircle(px, handleY, 6);
-    }
-
-    // The rope itself is redrawn each frame (see drawRope).
-    this.ropeGfx = this.add.graphics();
 
     this.petBaseY = PET_GROUND_Y;
     this.petSprite = this.add
@@ -111,6 +100,25 @@ export class SkipRopeScene extends Phaser.Scene {
       .setScale(2.3)
       .setDepth(10);
     this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
+
+    // The rope's lowest point sits exactly at the bottom of the pet, marked
+    // by the ground line so the jump moment is easy to read.
+    this.ropeBottomY = Math.round(this.petBaseY + this.petSprite.displayHeight / 2);
+    this.ropeTopY = this.ropeBottomY - ROPE_SPAN;
+    this.add.rectangle(cx, this.ropeBottomY + 2, viewW, 4, 0x1a1a2e).setDepth(1);
+
+    // Handle posts the rope turns between (knob on top).
+    const handleY = (this.ropeTopY + this.ropeBottomY) / 2;
+    const posts = this.add.graphics().setDepth(6);
+    for (const px of [this.petX - HANDLE_DX, this.petX + HANDLE_DX]) {
+      posts.fillStyle(0x5d4037, 1);
+      posts.fillRect(px - 3, handleY, 6, this.ropeBottomY + 8 - handleY);
+      posts.fillStyle(0xffe066, 1);
+      posts.fillCircle(px, handleY, 6);
+    }
+
+    // The rope itself is redrawn each frame (see drawRope).
+    this.ropeGfx = this.add.graphics();
     this.drawRope();
 
     this.add.text(140, 16, 'SKIP ROPE', { ...FONT, fontSize: '18px', color: '#ffe066' });
@@ -177,32 +185,39 @@ export class SkipRopeScene extends Phaser.Scene {
 
   /**
    * Draw the rope for the current phase. The turn is a circle in the
-   * depth/height plane: phase 0 = overhead, 0→0.5 coming down the far side
-   * (behind the pet), 0.5 = under the feet, 0.5→1 rising the near side
-   * (in front of the pet).
+   * depth/height plane: phase 0 = overhead, 0→0.5 coming down the NEAR side
+   * (in front of the pet — this is the pass the pet jumps over), 0.5 = at
+   * the pet's feet, 0.5→1 rising up the far side (behind the pet).
+   * Nearness scales the rope — thicker, brighter, and a wider bow in front;
+   * thinner, darker, and narrower behind.
    */
   private drawRope() {
     const theta = (this.phase - 0.5) * Math.PI * 2;
-    const inFront = Math.sin(theta) > 0;
-    const centerY = (ROPE_TOP_Y + ROPE_BOTTOM_Y) / 2;
-    const radius = (ROPE_BOTTOM_Y - ROPE_TOP_Y) / 2;
+    // +1 at the closest point of the turn (mid-descent in front),
+    // -1 at the farthest (mid-rise behind), 0 at the top and bottom.
+    const frontness = -Math.sin(theta);
+    const inFront = frontness >= 0;
+    const radius = (this.ropeBottomY - this.ropeTopY) / 2;
+    const centerY = this.ropeTopY + radius;
     const bellyY = centerY + radius * Math.cos(theta);
     const handleY = centerY;
 
     const g = this.ropeGfx;
     g.clear();
     g.setDepth(inFront ? 12 : 8);
-    // Slightly thinner + darker on the far side for depth.
-    g.lineStyle(inFront ? 4 : 3, inFront ? 0x8d6e63 : 0x5d4037, 1);
+    g.lineStyle(4 + 2.5 * frontness, inFront ? 0x9d7e6e : 0x4e342e, 1);
     const x0 = this.petX - HANDLE_DX;
     const x1 = this.petX + HANDLE_DX;
-    // Quadratic curve whose midpoint tracks the turning belly of the rope.
-    const curve = new Phaser.Curves.QuadraticBezier(
+    // Cubic curve: the bow bulges wider when the rope is near, pinches when far.
+    const bowX = HANDLE_DX * 0.5 * (1 + 0.4 * frontness);
+    const ctrlY = (4 * bellyY - handleY) / 3;
+    const curve = new Phaser.Curves.CubicBezier(
       new Phaser.Math.Vector2(x0, handleY),
-      new Phaser.Math.Vector2(this.petX, 2 * bellyY - handleY),
+      new Phaser.Math.Vector2(this.petX - bowX, ctrlY),
+      new Phaser.Math.Vector2(this.petX + bowX, ctrlY),
       new Phaser.Math.Vector2(x1, handleY),
     );
-    curve.draw(g, 24);
+    curve.draw(g, 28);
   }
 
   private inJumpWindow(): boolean {

@@ -80,15 +80,15 @@ export const PAPER_TOSS_ENERGY_PER_THROW = 3;
 /** Happiness gained per throw on stage 1; multiplies by stage number. */
 export const PAPER_TOSS_HAPPINESS_PER_STAGE = 2;
 /** Coins for clearing Skip Rope (25 consecutive jumps). */
-export const SKIP_ROPE_WIN_COINS = 12;
+export const SKIP_ROPE_WIN_COINS = 25;
 /** Happiness bump on a Skip Rope clear — no energy cost. */
-export const SKIP_ROPE_WIN_HAPPINESS = 8;
+export const SKIP_ROPE_WIN_HAPPINESS = 18;
 /** Consecutive jumps needed to clear Skip Rope. */
 export const SKIP_ROPE_TARGET = 25;
 /** A failed Skip Rope run still banks a reward per this many cleared jumps. */
 export const SKIP_ROPE_MILESTONE_JUMPS = 5;
-export const SKIP_ROPE_MILESTONE_COINS = 2;
-export const SKIP_ROPE_MILESTONE_HAPPINESS = 1;
+export const SKIP_ROPE_MILESTONE_COINS = 3;
+export const SKIP_ROPE_MILESTONE_HAPPINESS = 2;
 
 export const ITEMS: Record<string, ItemDef> = {
   fish: { id: 'fish', name: 'Fishy Snack', texture: 'fish', kind: 'food', price: 5, hunger: 25, happiness: 5 },
