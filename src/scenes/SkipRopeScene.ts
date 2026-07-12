@@ -22,8 +22,13 @@ const HANDLE_DX = 170;
 /** Starting swing period (ms) — a gentle warm-up that speeds up with the streak. */
 const PERIOD_START = 2600;
 const PERIOD_MIN = 620;
-/** Fraction of the cycle where a jump counts (centered on the ground pass). */
-const WINDOW_HALF = 0.07;
+/** Phase where the rope hits the ground / pet's feet. Jumping at or after this is too late. */
+const GROUND_PHASE = 0.5;
+/**
+ * Valid jump window sits entirely before ground contact: [GROUND_PHASE - JUMP_LEAD, GROUND_PHASE).
+ * Jump while the rope is still coming down; once it hits the ground it hits the pet's feet.
+ */
+const JUMP_LEAD = 0.14;
 /** How long the pet stays airborne after a jump (ms). */
 const JUMP_AIR_MS = 340;
 const JUMP_HEIGHT = 52;
@@ -37,8 +42,9 @@ const READY_MS = 1500;
  * Skip Rope — Tamagotchi V3-style rhythm timing.
  * The rope turns a full 360°: down the near side (drawn in front of the
  * pet, growing as it approaches), under the feet, then up the far side
- * (drawn behind, shrinking) — jump (click / Space / tap) as it passes the
- * ground. One miss ends the run, banking coins + happiness per 5 cleared;
+ * (drawn behind, shrinking) — jump (click / Space / tap) just before it
+ * hits the ground. Once the rope reaches the ground it hits the pet's
+ * feet. One miss ends the run, banking coins + happiness per 5 cleared;
  * 25 in a row wins outright.
  */
 export class SkipRopeScene extends Phaser.Scene {
@@ -61,13 +67,15 @@ export class SkipRopeScene extends Phaser.Scene {
   private ropeTopY = PET_GROUND_Y - ROPE_SPAN;
   private jumps = 0;
   private periodMs = PERIOD_START;
-  /** 0..1 through the current turn; 0.5 = rope passing the pet's feet. */
+  /** 0..1 through the current turn; GROUND_PHASE (0.5) = rope hitting the pet's feet. */
   private phase = 0.62;
   private jumpedThisSwing = false;
   private airborneUntil = 0;
   private petBaseY = PET_GROUND_Y;
   /** Rope stays frozen until this time (after the get-ready beat). */
   private ropeStartsAt = 0;
+  /** Early jump: pet leaps now, then gets snagged when the rope arrives. */
+  private pendingRopeCatch = false;
 
   constructor() {
     super('SkipRope');
@@ -84,6 +92,7 @@ export class SkipRopeScene extends Phaser.Scene {
     this.phase = 0.62;
     this.jumpedThisSwing = true;
     this.airborneUntil = 0;
+    this.pendingRopeCatch = false;
     this.ropeStartsAt = 0;
 
     const cx = this.cameras.main.width / 2;
@@ -144,7 +153,7 @@ export class SkipRopeScene extends Phaser.Scene {
       .text(
         cx,
         viewH - 28,
-        `Click / Space / tap as the rope passes the ground · one miss ends the run · ${SKIP_ROPE_TARGET} wins!`,
+        `Click / Space / tap just before the rope hits the ground · one miss ends the run · ${SKIP_ROPE_TARGET} wins!`,
         {
           ...FONT,
           fontSize: '12px',
@@ -189,7 +198,7 @@ export class SkipRopeScene extends Phaser.Scene {
       this.mode = 'playing';
       this.feedbackText.setAlpha(0);
       this.hintText.setText(
-        `Click / Space / tap as the rope passes the ground · one miss ends the run · ${SKIP_ROPE_TARGET} wins!`,
+        `Click / Space / tap just before the rope hits the ground · one miss ends the run · ${SKIP_ROPE_TARGET} wins!`,
       );
       this.flashFeedback('Go!', '#a8e6cf');
     });
@@ -205,8 +214,9 @@ export class SkipRopeScene extends Phaser.Scene {
    * depth/height plane: phase 0 = overhead, 0→0.5 coming down the NEAR side
    * (in front of the pet — this is the pass the pet jumps over), 0.5 = at
    * the pet's feet, 0.5→1 rising up the far side (behind the pet).
-   * Nearness scales the rope — thicker, brighter, and a wider bow in front;
-   * thinner, darker, and narrower behind.
+   * Depth is read mainly through size: the middle (closest to camera when
+   * in front) grows thick, then shrinks when the rope is behind. Colour
+   * shifts only a little with nearness.
    */
   private drawRope() {
     const theta = (this.phase - 0.5) * Math.PI * 2;
@@ -222,11 +232,10 @@ export class SkipRopeScene extends Phaser.Scene {
     const g = this.ropeGfx;
     g.clear();
     g.setDepth(inFront ? 12 : 8);
-    g.lineStyle(4 + 2.5 * frontness, inFront ? 0x9d7e6e : 0x4e342e, 1);
     const x0 = this.petX - HANDLE_DX;
     const x1 = this.petX + HANDLE_DX;
     // Cubic curve: the bow bulges wider when the rope is near, pinches when far.
-    const bowX = HANDLE_DX * 0.5 * (1 + 0.4 * frontness);
+    const bowX = HANDLE_DX * 0.5 * (1 + 0.55 * frontness);
     const ctrlY = (4 * bellyY - handleY) / 3;
     const curve = new Phaser.Curves.CubicBezier(
       new Phaser.Math.Vector2(x0, handleY),
@@ -234,11 +243,36 @@ export class SkipRopeScene extends Phaser.Scene {
       new Phaser.Math.Vector2(this.petX + bowX, ctrlY),
       new Phaser.Math.Vector2(x1, handleY),
     );
-    curve.draw(g, 28);
+
+    // Segment-draw so the middle can read as closer (thick) / farther (thin).
+    const segs = 36;
+    const points = curve.getPoints(segs);
+    const near = (frontness + 1) / 2; // 0 behind → 1 in front
+    const endW = 2.8;
+    const midW = Phaser.Math.Linear(1.4, 11, near);
+    const dark = Phaser.Display.Color.IntegerToColor(0x5a4034);
+    const light = Phaser.Display.Color.IntegerToColor(0xb08a72);
+    const tint = Phaser.Display.Color.Interpolate.ColorWithColor(dark, light, 100, Math.round(near * 100));
+    const color = Phaser.Display.Color.GetColor(tint.r, tint.g, tint.b);
+
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i]!;
+      const b = points[i + 1]!;
+      const t = (i + 0.5) / (points.length - 1);
+      // Peak thickness at the belly (closest to camera when in front).
+      const mid = 1 - Math.abs(t - 0.5) * 2;
+      const midEmphasis = mid * mid;
+      const width = Phaser.Math.Linear(endW, midW, midEmphasis);
+      g.lineStyle(Math.max(1.2, width), color, 1);
+      g.beginPath();
+      g.moveTo(a.x, a.y);
+      g.lineTo(b.x, b.y);
+      g.strokePath();
+    }
   }
 
   private inJumpWindow(): boolean {
-    return Math.abs(this.phase - 0.5) <= WINDOW_HALF;
+    return this.phase >= GROUND_PHASE - JUMP_LEAD && this.phase < GROUND_PHASE;
   }
 
   private tryJump() {
@@ -247,29 +281,17 @@ export class SkipRopeScene extends Phaser.Scene {
     if (this.jumpedThisSwing) return; // already resolved this turn
 
     if (!this.inJumpWindow()) {
-      this.fail(this.phase < 0.5 ? 'Too early!' : 'Too late!');
+      if (this.phase < GROUND_PHASE) {
+        // Jump early → land → rope catches the pet on the ground pass.
+        this.startEarlyJump();
+        return;
+      }
+      // Rope already hit the ground — that means it hit the pet's feet.
+      this.fail('Too late!');
       return;
     }
 
-    this.jumpedThisSwing = true;
-    this.airborneUntil = this.time.now + JUMP_AIR_MS;
-    this.petSprite.stop();
-    this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'jump'));
-    this.tweens.killTweensOf(this.petSprite);
-    this.tweens.add({
-      targets: this.petSprite,
-      y: this.petBaseY - JUMP_HEIGHT,
-      duration: JUMP_AIR_MS * 0.45,
-      yoyo: true,
-      ease: 'Quad.easeOut',
-      onComplete: () => {
-        if (this.mode === 'playing' && this.petSprite.active) {
-          this.petSprite.y = this.petBaseY;
-          this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
-        }
-      },
-    });
-
+    this.playJumpTween(false);
     this.jumps += 1;
     this.periodMs = Phaser.Math.Linear(
       PERIOD_START,
@@ -288,10 +310,64 @@ export class SkipRopeScene extends Phaser.Scene {
     }
   }
 
-  /** One miss ends the run: sad stumble, bank milestone rewards, failed panel. */
-  private fail(reason: string) {
+  /** Leap before the window — same jump motion, then get snagged when the rope arrives. */
+  private startEarlyJump() {
+    this.pendingRopeCatch = true;
+    this.playJumpTween(true);
+  }
+
+  private playJumpTween(earlyCatch: boolean) {
+    this.jumpedThisSwing = true;
+    this.airborneUntil = this.time.now + JUMP_AIR_MS;
+    this.petSprite.stop();
+    this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'jump'));
+    this.tweens.killTweensOf(this.petSprite);
+    this.tweens.add({
+      targets: this.petSprite,
+      y: this.petBaseY - JUMP_HEIGHT,
+      duration: JUMP_AIR_MS * 0.45,
+      yoyo: true,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        if (!this.petSprite.active) return;
+        this.petSprite.y = this.petBaseY;
+        if (earlyCatch) {
+          this.tryResolveRopeCatch();
+          return;
+        }
+        if (this.mode === 'playing') {
+          this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
+        }
+      },
+    });
+  }
+
+  /**
+   * After an early jump: once the pet is on the ground and the rope has
+   * reached (or passed) the feet, snag them like a real mistimed skip.
+   */
+  private tryResolveRopeCatch() {
+    if (!this.pendingRopeCatch || this.mode !== 'playing') return;
+    if (this.time.now < this.airborneUntil) return;
+    if (this.phase < GROUND_PHASE) {
+      // Landed early — idle until the rope arrives.
+      if (this.petSprite.active && !this.petSprite.anims.isPlaying) {
+        this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
+      }
+      return;
+    }
+    this.pendingRopeCatch = false;
+    this.fail('Caught!', true);
+  }
+
+  /**
+   * One miss ends the run: sad stumble (or rope snag), bank milestone rewards,
+   * failed panel.
+   */
+  private fail(reason: string, snaggedByRope = false) {
     if (this.mode !== 'playing') return;
     this.mode = 'failed';
+    this.pendingRopeCatch = false;
     this.backBtn.setVisible(false);
     const reward = State.rewardSkipRopeRun(this.jumps);
     this.flashFeedback(reason, '#ff6b6b');
@@ -300,20 +376,47 @@ export class SkipRopeScene extends Phaser.Scene {
     this.petSprite.stop();
     this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'sad'));
     this.petSprite.y = this.petBaseY;
-    // Little stumble
-    this.tweens.add({
-      targets: this.petSprite,
-      x: this.petX + 10,
-      angle: { from: -8, to: 0 },
-      duration: 280,
-      yoyo: true,
-      onComplete: () => {
-        this.petSprite.x = this.petX;
-        this.petSprite.angle = 0;
-      },
-    });
+    this.petSprite.x = this.petX;
+    this.petSprite.angle = 0;
 
-    this.time.delayedCall(700, () => this.showResultPanel(false, reward));
+    if (snaggedByRope) {
+      // Rope sweeps the ankles — yank forward, tip over, settle.
+      this.tweens.add({
+        targets: this.petSprite,
+        x: this.petX + 22,
+        angle: 18,
+        duration: 220,
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+          this.tweens.add({
+            targets: this.petSprite,
+            x: this.petX + 8,
+            angle: -6,
+            duration: 200,
+            ease: 'Quad.easeIn',
+            yoyo: true,
+            onComplete: () => {
+              this.petSprite.x = this.petX;
+              this.petSprite.angle = 0;
+            },
+          });
+        },
+      });
+      this.time.delayedCall(900, () => this.showResultPanel(false, reward));
+    } else {
+      this.tweens.add({
+        targets: this.petSprite,
+        x: this.petX + 10,
+        angle: { from: -8, to: 0 },
+        duration: 280,
+        yoyo: true,
+        onComplete: () => {
+          this.petSprite.x = this.petX;
+          this.petSprite.angle = 0;
+        },
+      });
+      this.time.delayedCall(700, () => this.showResultPanel(false, reward));
+    }
   }
 
   private flashFeedback(msg: string, color: string) {
@@ -461,13 +564,18 @@ export class SkipRopeScene extends Phaser.Scene {
       this.jumpedThisSwing = false;
     }
 
-    // Letting the window close without jumping ends the run too.
-    const windowEnd = 0.5 + WINDOW_HALF;
+    // Early jump: after landing, snag when the rope reaches the feet.
+    if (this.mode === 'playing' && this.pendingRopeCatch) {
+      this.tryResolveRopeCatch();
+    }
+
+    // Rope hitting the ground with no clear jump = it hit the pet's feet.
     if (
       this.mode === 'playing' &&
       !this.jumpedThisSwing &&
-      prevPhase < windowEnd &&
-      this.phase >= windowEnd
+      !this.pendingRopeCatch &&
+      prevPhase < GROUND_PHASE &&
+      this.phase >= GROUND_PHASE
     ) {
       this.fail('Missed!');
     }
