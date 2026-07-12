@@ -9,7 +9,7 @@ import { forceLeave, isUiBlocked } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { CinnamorollNpc } from '../systems/CinnamorollNpc';
 import { BongbongeeNpc } from '../systems/BongbongeeNpc';
-import { MINITEEN, MiniteenNpc } from '../systems/miniteen';
+import { MiniteenRoster } from '../systems/MiniteenRoster';
 import type { WandererNpc } from '../systems/WandererNpc';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
 
@@ -31,6 +31,7 @@ export class TownScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private pet!: Pet;
   private npcs: WandererNpc[] = [];
+  private miniteens!: MiniteenRoster;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private keyE!: Phaser.Input.Keyboard.Key;
@@ -92,14 +93,12 @@ export class TownScene extends Phaser.Scene {
     });
 
     this.npcs = [
+      // Clothes stall near the shop — shy Cafe Cinnamon boutique.
       new CinnamorollNpc(this, [
-        { x: 10 * TILE, y: 12.5 * TILE },
-        { x: 16 * TILE, y: 12.5 * TILE },
-        { x: 22 * TILE, y: 12.5 * TILE },
-        { x: 16 * TILE, y: 8 * TILE },
-        { x: 16 * TILE, y: 18 * TILE },
-        { x: 8 * TILE, y: 16 * TILE },
-        { x: 26 * TILE, y: 14 * TILE },
+        { x: 22.5 * TILE, y: 9.2 * TILE },
+        { x: 24 * TILE, y: 10.5 * TILE },
+        { x: 21.5 * TILE, y: 10.8 * TILE },
+        { x: 23.5 * TILE, y: 8.8 * TILE },
       ]),
       new BongbongeeNpc(this, [
         { x: 12 * TILE, y: 15 * TILE },
@@ -109,9 +108,9 @@ export class TownScene extends Phaser.Scene {
         { x: 7 * TILE, y: 13 * TILE },
         { x: 21 * TILE, y: 17 * TILE },
       ]),
-      // The 13 MINITEEN villagers, each patrolling their home patch.
-      ...MINITEEN.map((def, i) => new MiniteenNpc(this, def, i)),
     ];
+    // Only a few MINITEEN on the map at a time; they rotate in/out.
+    this.miniteens = new MiniteenRoster(this);
 
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
@@ -410,7 +409,9 @@ export class TownScene extends Phaser.Scene {
       }
     }
     // Moving NPCs — use live positions.
-    for (const npc of this.npcs) {
+    const allNpcs: WandererNpc[] = [...this.npcs, ...this.miniteens.list()];
+    for (const npc of allNpcs) {
+      if (!npc.canInteract()) continue;
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, npc.sprite.x, npc.sprite.y);
       if (d < 55 && d < bestDist) {
         best = {
@@ -425,7 +426,10 @@ export class TownScene extends Phaser.Scene {
               keepMenuOpen: () => {
                 this.menuOpen = true;
               },
-              onAccessoriesChanged: () => this.pet.refreshAccessories(),
+              onAccessoriesChanged: () => {
+                this.pet.refreshAccessories();
+                this.hud.refresh();
+              },
             });
           },
           targets: [npc.sprite],
@@ -513,6 +517,7 @@ export class TownScene extends Phaser.Scene {
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
     for (const npc of this.npcs) npc.update();
+    this.miniteens.update();
 
     if (!this.menuOpen) {
       const best = this.nearestInteractable();

@@ -15,8 +15,8 @@ export function clothesPetMenuOption(
 ): MenuOption {
   const owned = State.ownedAccessoryIds().length;
   return {
-    label: owned === 0 ? 'Clothes (meet Bongbongee in town!)' : 'Clothes & accessories',
-    icon: 'acc-mint-pom',
+    label: owned === 0 ? 'Clothes (Cinnamoroll or Bongbongee!)' : 'Clothes & accessories',
+    icon: 'acc-cloud-bow',
     disabled: owned === 0,
     onSelect: () => {
       opts.keepMenuOpen();
@@ -48,7 +48,7 @@ export function openClothesMenu(
 
   if (options.length === 0) {
     options.push({
-      label: 'No clothes yet — talk to Bongbongee!',
+      label: 'No clothes yet — visit Cinnamoroll’s stall or Bongbongee!',
       disabled: true,
       onSelect: () => undefined,
     });
