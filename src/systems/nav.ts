@@ -36,7 +36,8 @@ export function unblockUi() {
 }
 
 export function isUiBlocked() {
-  return uiBlockDepth > 0 || performance.now() < suppressLeaveUntil;
+  // Depth only — the post-close suppress window is for leave, not movement.
+  return uiBlockDepth > 0;
 }
 
 export function resetUiBlock() {

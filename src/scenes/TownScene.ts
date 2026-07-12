@@ -5,7 +5,7 @@ import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
-import { forceLeave, isUiBlocked } from '../systems/nav';
+import { isUiBlocked, requestLeave } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { BongbongeeNpc } from '../systems/BongbongeeNpc';
 import { MiniteenRoster } from '../systems/MiniteenRoster';
@@ -643,8 +643,9 @@ export class TownScene extends Phaser.Scene {
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !this.menuOpen && !isUiBlocked()) {
-      // The React shell owns the game menu (resume / colour / pet / exit).
-      forceLeave();
+      // Respect the brief suppress window so ESC closing a dialogue does not
+      // immediately open the shell menu. The React shell owns the game menu.
+      requestLeave();
     }
   }
 }
