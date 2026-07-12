@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
-import { State, ITEMS, WELCOME_KEY, FEED_COIN_REWARD } from '../systems/GameState';
+import { State, WELCOME_KEY } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
@@ -11,13 +11,14 @@ import { BongbongeeNpc } from '../systems/BongbongeeNpc';
 import { MiniteenRoster } from '../systems/MiniteenRoster';
 import type { WandererNpc } from '../systems/WandererNpc';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
+import { feedPetMenuOption } from '../systems/petFeedMenu';
+import { TILE, TOWN_MAP_H, TOWN_MAP_W, TOWN_WORLD_H, TOWN_WORLD_W } from '../systems/townMap';
 
-const TILE = 48;
 /** Compact town — smaller than the old 32×24 crossroads map. */
-const MAP_W = 22;
-const MAP_H = 16;
-const WORLD_W = MAP_W * TILE;
-const WORLD_H = MAP_H * TILE;
+const MAP_W = TOWN_MAP_W;
+const MAP_H = TOWN_MAP_H;
+const WORLD_W = TOWN_WORLD_W;
+const WORLD_H = TOWN_WORLD_H;
 
 /** Building anchors (tile coords) — clustered around the central square. */
 const HOUSE_POS = { tx: 11, ty: 3.15 };
@@ -484,7 +485,6 @@ export class TownScene extends Phaser.Scene {
 
   private openPetMenu() {
     this.menuOpen = true;
-    const foods = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'food');
     const options = [
       {
         label: `Chat with ${State.data.petName}`,
@@ -494,12 +494,14 @@ export class TownScene extends Phaser.Scene {
           this.closeMenu();
         },
       },
-      {
-        label: `Feed ${State.data.petName}${foods.length === 0 ? ' (no food — visit shop!)' : ''}`,
-        icon: 'fish',
-        disabled: foods.length === 0,
-        onSelect: () => this.openFeedMenu(),
-      },
+      feedPetMenuOption(this, this.pet, {
+        closeMenu: () => this.closeMenu(),
+        keepMenuOpen: () => {
+          this.menuOpen = true;
+        },
+        emptyHint: 'no food — visit shop!',
+        onFed: () => this.hud.refresh(),
+      }),
       clothesPetMenuOption(this, this.pet, {
         closeMenu: () => this.closeMenu(),
         keepMenuOpen: () => {
@@ -514,29 +516,6 @@ export class TownScene extends Phaser.Scene {
       options,
       `Food ${Math.round(p.hunger)} · Happy ${Math.round(p.happiness)} · Energy ${Math.round(p.energy)}`,
     );
-    menu.onClose = () => this.closeMenu();
-  }
-
-  private openFeedMenu() {
-    this.menuOpen = true;
-    const foods = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'food');
-    const options = foods.map(([id, count]) => {
-      const item = ITEMS[id];
-      return {
-        label: `${item.name} x${count} (+${item.hunger} food, +${FEED_COIN_REWARD}c)`,
-        icon: item.texture,
-        onSelect: () => {
-          if (State.feedPet(id)) {
-            this.pet.celebrate('Yum!');
-            toast(this, this.pet.sprite.x, this.pet.sprite.y - 28, `+${FEED_COIN_REWARD} coins`, '#ffe066');
-            this.pet.updateMood();
-            this.hud.refresh();
-          }
-          this.closeMenu();
-        },
-      };
-    });
-    const menu = new Menu(this, `Feed ${State.data.petName}`, options);
     menu.onClose = () => this.closeMenu();
   }
 

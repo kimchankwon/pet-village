@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import { MINITEEN, MiniteenNpc, type MiniteenDef } from './miniteen';
+import { TILE, TOWN_WORLD_H, TOWN_WORLD_W } from './townMap';
 
-const TILE = 48;
-const WORLD_W = 22 * TILE;
-const WORLD_H = 16 * TILE;
+const WORLD_W = TOWN_WORLD_W;
+const WORLD_H = TOWN_WORLD_H;
 
 /** How many MINITEEN are visible in town at once. */
 const ACTIVE_COUNT = 4;

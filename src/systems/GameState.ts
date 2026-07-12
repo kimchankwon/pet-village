@@ -67,7 +67,7 @@ export interface ItemDef {
 
 /** Coins earned each time you feed your pet. */
 export const FEED_COIN_REWARD = 3;
-/** Flat tip for finishing every throw in a Paper Toss stage (even on a fail). */
+/** Flat tip for clearing a Paper Toss stage. */
 export const PAPER_TOSS_PARTICIPATION_COINS = 5;
 /** Energy the pet loses per completed Paper Toss throw. */
 export const PAPER_TOSS_ENERGY_PER_THROW = 3;
@@ -347,20 +347,14 @@ class GameStateStore {
     return true;
   }
 
-  playWithPet(): boolean {
-    const p = this.data.pet;
-    if (p.energy < 10) return false;
-    p.happiness = clamp(p.happiness + 20);
-    p.energy = clamp(p.energy - 10);
-    this.save();
-    return true;
-  }
-
-  /** Mini-games tire the pet out — each throw costs energy; happiness scales with stage. */
-  drainEnergyFromPlay(energy = 3, happiness = 2) {
+  /**
+   * Apply mini-game throw costs. Pass `{ persist: false }` to batch many throws
+   * and call `save()` once at stage end.
+   */
+  drainEnergyFromPlay(energy = 3, happiness = 2, opts?: { persist?: boolean }) {
     this.data.pet.energy = clamp(this.data.pet.energy - energy);
     this.data.pet.happiness = clamp(this.data.pet.happiness + happiness);
-    this.save();
+    if (opts?.persist !== false) this.save();
   }
 
   petSleep() {
