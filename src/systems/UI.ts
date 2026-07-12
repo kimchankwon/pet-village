@@ -5,6 +5,11 @@ import { blockUi, unblockUi } from './nav';
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 const FONT_SM = { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff' };
 
+const ROW_IDLE = 0x4a4370;
+const ROW_HOVER = 0x5d5490;
+const ROW_SELECTED = 0x6b63a8;
+const ROW_DISABLED = 0x3d3d5c;
+
 // Heads-up display: pet name, coins + pet need bars. Fixed to camera.
 export class HUD {
   private scene: Phaser.Scene;
@@ -83,12 +88,20 @@ function resolveLayout(subtitleOrLayout?: string | MenuLayout): MenuLayout {
   return subtitleOrLayout;
 }
 
-// Modal list menu (shop, pet actions, decorate inventory). Click an option or
-// press ESC to close. Character dialogues pass `{ anchor: 'bottom', face }`.
+type MenuRow = {
+  opt: MenuOption;
+  row: Phaser.GameObjects.Rectangle;
+};
+
+// Modal list menu (shop, pet actions, decorate inventory). Click / arrows+WASD
+// / Space+E to select; ESC or click outside to close.
 export class Menu {
   private objects: Phaser.GameObjects.GameObject[] = [];
   private scene: Phaser.Scene;
-  private escKey: Phaser.Input.Keyboard.Key | undefined;
+  private rows: MenuRow[] = [];
+  private enabledIndexes: number[] = [];
+  private selected = 0;
+  private keys: Phaser.Input.Keyboard.Key[] = [];
   onClose?: () => void;
 
   constructor(
@@ -184,17 +197,19 @@ export class Menu {
     options.forEach((opt, i) => {
       const y = top + i * rowH + rowH / 2;
       const row = scene.add
-        .rectangle(cx, y, w - 24, rowH - 6, opt.disabled ? 0x3d3d5c : 0x4a4370)
+        .rectangle(cx, y, w - 24, rowH - 6, opt.disabled ? ROW_DISABLED : ROW_IDLE)
         .setScrollFactor(0)
         .setDepth(2002);
       if (!opt.disabled) {
         row.setInteractive({ useHandCursor: true });
-        row.on('pointerover', () => row.setFillStyle(0x5d5490));
-        row.on('pointerout', () => row.setFillStyle(0x4a4370));
-        row.on('pointerdown', () => {
-          this.close();
-          opt.onSelect();
+        row.on('pointerover', () => {
+          this.selected = this.enabledIndexes.indexOf(i);
+          this.paintSelection();
         });
+        row.on('pointerdown', () => {
+          this.activate(i);
+        });
+        this.enabledIndexes.push(i);
       }
       let tx = cx - w / 2 + 24;
       if (opt.icon) {
@@ -209,10 +224,11 @@ export class Menu {
         .setScrollFactor(0)
         .setDepth(2003);
       this.objects.push(row, label);
+      this.rows.push({ opt, row });
     });
 
     const hint = scene.add
-      .text(cx, cy + h / 2 - 14, 'ESC / click outside to close', {
+      .text(cx, cy + h / 2 - 14, '↑↓ / WASD  ·  Space / E  ·  ESC', {
         ...FONT_SM,
         fontSize: '10px',
         color: '#8a8a9e',
@@ -223,14 +239,77 @@ export class Menu {
     this.objects.push(hint);
 
     blockUi();
-    this.escKey = scene.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
-    this.escKey?.on('down', () => this.close());
+    this.selected = 0;
+    this.paintSelection();
+    this.bindKeys();
+  }
+
+  private paintSelection() {
+    for (let i = 0; i < this.rows.length; i++) {
+      const { opt, row } = this.rows[i]!;
+      if (opt.disabled) {
+        row.setFillStyle(ROW_DISABLED);
+        continue;
+      }
+      const on = this.enabledIndexes[this.selected] === i;
+      row.setFillStyle(on ? ROW_SELECTED : ROW_IDLE);
+      row.setStrokeStyle(on ? 2 : 0, 0xffe066);
+    }
+  }
+
+  private move(delta: number) {
+    if (this.enabledIndexes.length === 0) return;
+    const n = this.enabledIndexes.length;
+    this.selected = (this.selected + delta + n * 10) % n;
+    this.paintSelection();
+  }
+
+  private activate(optionIndex: number) {
+    const entry = this.rows[optionIndex];
+    if (!entry || entry.opt.disabled) return;
+    const fn = entry.opt.onSelect;
+    this.close();
+    fn();
+  }
+
+  private confirm() {
+    const idx = this.enabledIndexes[this.selected];
+    if (idx == null) return;
+    this.activate(idx);
+  }
+
+  private bindKeys() {
+    const kb = this.scene.input.keyboard;
+    if (!kb) return;
+    const Codes = Phaser.Input.Keyboard.KeyCodes;
+    const bind = (code: number, fn: () => void) => {
+      const key = kb.addKey(code, false);
+      key.on('down', fn);
+      this.keys.push(key);
+    };
+    bind(Codes.UP, () => this.move(-1));
+    bind(Codes.DOWN, () => this.move(1));
+    bind(Codes.W, () => this.move(-1));
+    bind(Codes.S, () => this.move(1));
+    bind(Codes.A, () => this.move(-1));
+    bind(Codes.D, () => this.move(1));
+    bind(Codes.LEFT, () => this.move(-1));
+    bind(Codes.RIGHT, () => this.move(1));
+    bind(Codes.SPACE, () => this.confirm());
+    bind(Codes.ENTER, () => this.confirm());
+    bind(Codes.E, () => this.confirm());
+    bind(Codes.ESC, () => this.close());
   }
 
   close() {
-    this.escKey?.off('down');
+    for (const key of this.keys) {
+      key.removeAllListeners();
+      this.scene.input.keyboard?.removeKey(key);
+    }
+    this.keys = [];
     this.objects.forEach((o) => o.destroy());
     this.objects = [];
+    this.rows = [];
     unblockUi();
     this.onClose?.();
   }

@@ -72,6 +72,7 @@ function PlayChrome({
 }) {
   // The game menu: root panel, colour picker, or change-pet confirm.
   const [panel, setPanel] = useState<'menu' | 'color' | 'pet' | null>(null);
+  const [menuIndex, setMenuIndex] = useState(0);
 
   // ESC in-game and the topbar button both open the menu.
   useEffect(() => {
@@ -88,18 +89,60 @@ function PlayChrome({
     return () => unblockUi();
   }, [panel]);
 
-  // ESC closes the open panel. Capture phase + stopPropagation so Phaser's
-  // own window keydown listener doesn't also see it.
+  useEffect(() => {
+    if (panel === 'menu') setMenuIndex(0);
+  }, [panel]);
+
+  const menuActions: { label: string; danger?: boolean; run: () => void }[] = [
+    { label: 'Back to game', run: () => setPanel(null) },
+  ];
+  if (onPenguinColor) {
+    menuActions.push({ label: 'Penguin colour', run: () => setPanel('color') });
+  }
+  if (onChangePet) {
+    menuActions.push({ label: 'Change pet', run: () => setPanel('pet') });
+  }
+  menuActions.push({ label: leaveLabel, danger: true, run: onLeave });
+
+  // ESC closes; arrows/WASD move; Space/Enter/E confirm (root menu).
   useEffect(() => {
     if (!panel) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return;
-      e.stopPropagation();
-      setPanel(null);
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (panel === 'color' || panel === 'pet') setPanel('menu');
+        else setPanel(null);
+        return;
+      }
+      if (panel !== 'menu') return;
+      const n = menuActions.length;
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        e.stopPropagation();
+        setMenuIndex((i) => (i - 1 + n) % n);
+      } else if (
+        e.key === 'ArrowDown' ||
+        e.key === 's' ||
+        e.key === 'S' ||
+        e.key === 'ArrowRight' ||
+        e.key === 'd' ||
+        e.key === 'D'
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        setMenuIndex((i) => (i + 1) % n);
+      } else if (e.key === ' ' || e.key === 'Enter' || e.key === 'e' || e.key === 'E') {
+        e.preventDefault();
+        e.stopPropagation();
+        menuActions[menuIndex]?.run();
+      }
     }
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [panel]);
+    // menuActions is rebuilt each render; length + labels are stable enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panel, menuIndex, leaveLabel, onLeave, onPenguinColor, onChangePet]);
 
   const currentColor = State.data.penguinColor ?? 'blue';
 
@@ -121,23 +164,19 @@ function PlayChrome({
               {State.data.petName || 'Your pet'} keeps living while you&apos;re away. {exitNote}
             </p>
             <div className="menu-list">
-              <button type="button" className="btn ghost wide" onClick={() => setPanel(null)}>
-                Back to game
-              </button>
-              {onPenguinColor && (
-                <button type="button" className="btn ghost wide" onClick={() => setPanel('color')}>
-                  Penguin colour
+              {menuActions.map((action, i) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  className={`btn wide${action.danger ? ' danger' : ' ghost'}${i === menuIndex ? ' menu-selected' : ''}`}
+                  onMouseEnter={() => setMenuIndex(i)}
+                  onClick={action.run}
+                >
+                  {action.label}
                 </button>
-              )}
-              {onChangePet && (
-                <button type="button" className="btn ghost wide" onClick={() => setPanel('pet')}>
-                  Change pet
-                </button>
-              )}
-              <button type="button" className="btn danger wide" onClick={onLeave}>
-                {leaveLabel}
-              </button>
+              ))}
             </div>
+            <p className="menu-hint">↑↓ / WASD · Space / E · ESC</p>
           </div>
         </div>
       )}

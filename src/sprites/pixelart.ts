@@ -9,7 +9,7 @@ import { State } from '../systems/GameState';
 export const SCALE = 3;
 
 const PALETTE: Record<string, string> = {
-  k: '#1a1a2e', // outline / near-black
+  k: '#000000', // outline / true black
   w: '#ffffff',
   W: '#f2ecff', // soft white
   g: '#8a8a9e', // grey

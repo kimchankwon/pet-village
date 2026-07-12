@@ -34,7 +34,7 @@ const CROPS: Crop[] = [
 ];
 
 const PALETTE: RGBA[] = [
-  [32, 39, 40, 255], // outline
+  [0, 0, 0, 255], // outline (true black)
   [255, 255, 247, 255], // fur
   [193, 234, 240, 255], // light cyan shading
   [86, 164, 214, 255], // sky-blue eyes (calibrated from the sheet)
@@ -154,6 +154,10 @@ function outsideMask(output: InstanceType<typeof PNG>) {
   return outside;
 }
 
+function isOutlinePixel(data: Buffer, i: number, dark: RGBA) {
+  return data[i + 3] !== 0 && data[i] === dark[0] && data[i + 1] === dark[1] && data[i + 2] === dark[2];
+}
+
 /**
  * The silhouette boundary must be black outline: any non-dark cell that
  * touches the outside becomes outline (never deleted — deleting would
@@ -165,7 +169,7 @@ function borderize(output: InstanceType<typeof PNG>) {
   const outside = outsideMask(output);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = (y * w + x) * 4;
-    if (output.data[i + 3] === 0 || output.data[i] === dark[0]) continue;
+    if (output.data[i + 3] === 0 || isOutlinePixel(output.data, i, dark)) continue;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const nx = x + dx, ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= w || ny >= h || outside[ny * w + nx]) {
@@ -190,7 +194,7 @@ function closeOutlineGaps(output: InstanceType<typeof PNG>) {
         const nx = x + dx, ny = y + dy;
         if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
         const n = (ny * w + nx) * 4;
-        if (output.data[n + 3] !== 0 && output.data[n] === dark[0]) darkNeighbours++;
+        if (isOutlinePixel(output.data, n, dark)) darkNeighbours++;
       }
       if (darkNeighbours >= 4) add.push(i);
     }
@@ -211,7 +215,7 @@ function thinOutline(output: InstanceType<typeof PNG>) {
   const remove: number[] = [];
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = (y * w + x) * 4;
-    if (output.data[i + 3] === 0 || output.data[i] !== dark[0]) continue;
+    if (!isOutlinePixel(output.data, i, dark)) continue;
     let touchesOutside = false;
     let exposesSoft = false;
     let hasInnerDark = false;
@@ -224,7 +228,7 @@ function thinOutline(output: InstanceType<typeof PNG>) {
       }
       const n = (ny * w + nx) * 4;
       if (output.data[n + 3] === 0) continue;
-      if (output.data[n] !== dark[0]) exposesSoft = true;
+      if (!isOutlinePixel(output.data, n, dark)) exposesSoft = true;
       else if (orth) hasInnerDark = true;
     }
     if (touchesOutside && !exposesSoft && hasInnerDark) remove.push(i);
@@ -286,24 +290,56 @@ type Face = {
 // Eye rectangles are placed at the cells where the reference's saturated
 // eye-blue actually lands (measured per pose on the 7px grid).
 const FACES: Record<Pose, Face> = {
-  idle: { eyes: [{ x: 10, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }], blush: { y: 10, lx: 8, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
-  walk1: { eyes: [{ x: 10, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }], blush: { y: 11, lx: 9, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
-  walk2: { eyes: [{ x: 9, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }], blush: { y: 10, lx: 8, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
-  jump: { eyes: [{ x: 10, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }], blush: { y: 10, lx: 9, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
+  // Mouth is a connected 4-cell bar (sheet originally had two orphan nostril dots).
+  idle: {
+    eyes: [{ x: 10, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }],
+    blush: { y: 10, lx: 8, rx: 19, w: 2 },
+    mouth: [[12, 11], [13, 11], [14, 11], [15, 11]],
+  },
+  walk1: {
+    eyes: [{ x: 10, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }],
+    blush: { y: 11, lx: 9, rx: 19, w: 2 },
+    mouth: [[12, 12], [13, 12], [14, 12], [15, 12]],
+  },
+  walk2: {
+    eyes: [{ x: 9, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }],
+    blush: { y: 10, lx: 8, rx: 19, w: 2 },
+    mouth: [[12, 11], [13, 11], [14, 11], [15, 11]],
+  },
+  jump: {
+    eyes: [{ x: 10, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }],
+    blush: { y: 10, lx: 9, rx: 19, w: 2 },
+    mouth: [[12, 11], [13, 11], [14, 11], [15, 11]],
+  },
   // sad keeps its natural closed-eye marks from the sheet
-  sad: { blush: { y: 10, lx: 11, rx: 19, w: 2 } },
+  sad: {
+    blush: { y: 10, lx: 11, rx: 19, w: 2 },
+    mouth: [[12, 12], [13, 12], [14, 12], [15, 12]],
+  },
   // win pose: the tilted head puts the one open blue eye far left; the
   // dark wink on the right comes through naturally
-  happy: { eyes: [{ x: 4, y: 6, w: 2, h: 3 }], blush: { y: 9, lx: 6, rx: 19, w: 2 } },
+  happy: {
+    eyes: [{ x: 4, y: 6, w: 2, h: 3 }],
+    blush: { y: 9, lx: 6, rx: 19, w: 2 },
+    mouth: [[11, 11], [12, 11], [13, 11], [14, 11]],
+  },
 };
 
 function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
   const face = FACES[pose];
+  const fur = PALETTE[1]!;
+  const dark = PALETTE[0]!;
   const put = (x: number, y: number, c: RGBA) => {
     const i = (y * output.width + x) * 4;
     if (output.data[i + 3] === 0) return; // never paint outside the body
     output.data[i] = c[0]; output.data[i + 1] = c[1]; output.data[i + 2] = c[2]; output.data[i + 3] = 255;
   };
+  const isDark = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= output.width || y >= output.height) return false;
+    const i = (y * output.width + x) * 4;
+    return isOutlinePixel(output.data, i, dark);
+  };
+
   for (const eye of face.eyes ?? []) {
     for (let dy = 0; dy < eye.h; dy++) for (let dx = 0; dx < eye.w; dx++) {
       put(eye.x + dx, eye.y + dy, PALETTE[3]!);
@@ -316,7 +352,21 @@ function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
       put(rx + dx, y, PALETTE[4]!);
     }
   }
-  for (const [x, y] of face.mouth ?? []) put(x, y, PALETTE[0]!);
+
+  // Erase the sheet's orphan nostril-dots (two dark cells between the blushes)
+  // so we can stamp one connected mouth line.
+  if (face.blush) {
+    const y = face.blush.y;
+    const x0 = face.blush.lx + face.blush.w;
+    const x1 = face.blush.rx - 1;
+    for (let x = x0; x <= x1; x++) {
+      if (!isDark(x, y)) continue;
+      // Keep true outline edge cells; only clear interior face dots.
+      const edge = !isDark(x - 1, y) || !isDark(x + 1, y);
+      if (edge) put(x, y, fur);
+    }
+  }
+  for (const [x, y] of face.mouth ?? []) put(x, y, dark);
 }
 
 /** Paste a frame onto a 32x32 canvas, bottom-centred like the other pets. */

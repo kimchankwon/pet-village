@@ -82,7 +82,7 @@ function save(png: InstanceType<typeof PNG>, file: string) {
   fs.writeFileSync(file, PNG.sync.write(png));
 }
 
-const OUT: RGBA = [42, 36, 46, 255];
+const OUT: RGBA = [0, 0, 0, 255];
 const WHITE: RGBA = [255, 255, 255, 255];
 const BLUSH: RGBA = [255, 168, 186, 255];
 

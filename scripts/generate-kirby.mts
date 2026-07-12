@@ -1,8 +1,8 @@
 /**
  * Kirby pet frames — traced from the SNES/KSSU-style reference sheet.
  *
- * Hands are body bulges with selective outline: magenta rim on the outer
- * tip, deep-pink crease underneath — never a black seam between arm and torso.
+ * Hands are body bulges with a true-black outer silhouette and deep-pink
+ * underside creases — never a black seam between arm and torso.
  *
  * Poses: neutral1, neutral2, walk1, walk2, sad, happy, sleep, jump.
  */
@@ -18,9 +18,9 @@ type RGBA = [number, number, number, number];
 type Pose = 'neutral1' | 'neutral2' | 'walk1' | 'walk2' | 'sad' | 'happy' | 'sleep' | 'jump';
 const POSES: Pose[] = ['neutral1', 'neutral2', 'walk1', 'walk2', 'sad', 'happy', 'sleep', 'jump'];
 
-// Exact palette from https://preview.redd.it/favorite-kirby-sprite-…
+// Palette from the SNES/KSSU reference — outline forced to true black.
 const K: RGBA = [0, 0, 0, 255];
-const O: RGBA = [112, 0, 88, 255];
+const O: RGBA = [0, 0, 0, 255]; // was magenta selective rim; use black like other pets
 const P: RGBA = [248, 160, 232, 255];
 const S: RGBA = [240, 112, 224, 255];
 const D: RGBA = [224, 64, 208, 255];

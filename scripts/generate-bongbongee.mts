@@ -16,7 +16,7 @@ const H = 32;
 
 type RGBA = [number, number, number, number];
 
-const OUT: RGBA = [28, 28, 36, 255];
+const OUT: RGBA = [0, 0, 0, 255];
 const WHITE: RGBA = [255, 255, 255, 255];
 const PINK: RGBA = [255, 176, 196, 255];
 const PINK_DEEP: RGBA = [245, 150, 175, 255];
