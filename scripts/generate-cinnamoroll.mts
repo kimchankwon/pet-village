@@ -289,39 +289,72 @@ type Face = {
 
 // Eye rectangles are placed at the cells where the reference's saturated
 // eye-blue actually lands (measured per pose on the 7px grid).
+// Mouth cells match the sheet: small “v” (or two dots) centered between the
+// eyes, on/just below the blush row — not a lower connected bar.
 const FACES: Record<Pose, Face> = {
-  // Mouth is a connected 4-cell bar (sheet originally had two orphan nostril dots).
   idle: {
     eyes: [{ x: 10, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }],
     blush: { y: 10, lx: 8, rx: 19, w: 2 },
-    mouth: [[12, 11], [13, 11], [14, 11], [15, 11]],
+    // Reference: dots at (13,10)&(16,10); tip one row down → small “v”
+    mouth: [
+      [13, 10],
+      [16, 10],
+      [14, 11],
+      [15, 11],
+    ],
   },
   walk1: {
     eyes: [{ x: 10, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }],
     blush: { y: 11, lx: 9, rx: 19, w: 2 },
-    mouth: [[12, 12], [13, 12], [14, 12], [15, 12]],
+    // Measured on sheet: (14,10) (16,10) (15,11)
+    mouth: [
+      [14, 10],
+      [16, 10],
+      [15, 11],
+    ],
   },
   walk2: {
     eyes: [{ x: 9, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }],
     blush: { y: 10, lx: 8, rx: 19, w: 2 },
-    mouth: [[12, 11], [13, 11], [14, 11], [15, 11]],
+    // Measured: (14,10) (15,10) — extend to a tiny “v”
+    mouth: [
+      [13, 10],
+      [16, 10],
+      [14, 11],
+      [15, 11],
+    ],
   },
   jump: {
     eyes: [{ x: 10, y: 6, w: 2, h: 3 }, { x: 18, y: 6, w: 2, h: 3 }],
     blush: { y: 10, lx: 9, rx: 19, w: 2 },
-    mouth: [[12, 11], [13, 11], [14, 11], [15, 11]],
+    // Measured: (14,9) (16,9) (15,10)
+    mouth: [
+      [14, 9],
+      [16, 9],
+      [15, 10],
+    ],
   },
-  // sad keeps its natural closed-eye marks from the sheet
+  // sad keeps its natural closed-eye marks from the sheet; frown “^”
   sad: {
     blush: { y: 10, lx: 11, rx: 19, w: 2 },
-    mouth: [[12, 12], [13, 12], [14, 12], [15, 12]],
+    mouth: [
+      [14, 11],
+      [15, 10],
+      [16, 11],
+    ],
   },
   // win pose: the tilted head puts the one open blue eye far left; the
   // dark wink on the right comes through naturally
   happy: {
     eyes: [{ x: 4, y: 6, w: 2, h: 3 }],
     blush: { y: 9, lx: 6, rx: 19, w: 2 },
-    mouth: [[11, 11], [12, 11], [13, 11], [14, 11]],
+    // Wider smile, still between the eyes on the sheet’s face band
+    mouth: [
+      [11, 10],
+      [14, 10],
+      [12, 11],
+      [13, 11],
+    ],
   },
 };
 
@@ -353,13 +386,17 @@ function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
     }
   }
 
-  // Erase the sheet's orphan nostril-dots (two dark cells between the blushes)
-  // so we can stamp one connected mouth line.
+  // Clear stray dark face-dots on the blush row (sheet compression orphans),
+  // then stamp the measured mouth. Mouth cells on this row are re-painted after.
   if (face.blush) {
     const y = face.blush.y;
     const x0 = face.blush.lx + face.blush.w;
     const x1 = face.blush.rx - 1;
+    const mouthOnRow = new Set(
+      (face.mouth ?? []).filter(([, my]) => my === y).map(([mx]) => mx),
+    );
     for (let x = x0; x <= x1; x++) {
+      if (mouthOnRow.has(x)) continue;
       if (!isDark(x, y)) continue;
       // Keep true outline edge cells; only clear interior face dots.
       const edge = !isDark(x - 1, y) || !isDark(x + 1, y);
