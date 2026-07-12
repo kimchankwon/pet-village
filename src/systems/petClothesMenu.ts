@@ -32,6 +32,7 @@ export function openClothesMenu(
   pet: Pet,
   onClose: () => void,
   keepMenuOpen?: () => void,
+  focusIndex = 0,
 ) {
   keepMenuOpen?.();
   // Replace any previous clothes menu so “Wearing: …” isn’t buried under stacks.
@@ -42,7 +43,8 @@ export function openClothesMenu(
     prev.close();
   }
 
-  const options: MenuOption[] = ACCESSORY_LIST.filter((a) => State.ownsAccessory(a.id)).map((a) => {
+  const owned = ACCESSORY_LIST.filter((a) => State.ownsAccessory(a.id));
+  const options: MenuOption[] = owned.map((a, i) => {
     const equipped = State.isAccessoryEquipped(a.id);
     return {
       label: `${equipped ? '● ' : '○ '}${a.name}`,
@@ -51,7 +53,8 @@ export function openClothesMenu(
         State.toggleAccessory(a.id);
         pet.refreshAccessories();
         keepMenuOpen?.();
-        openClothesMenu(scene, pet, onClose, keepMenuOpen);
+        // Stay on the row you toggled instead of jumping to the top.
+        openClothesMenu(scene, pet, onClose, keepMenuOpen, i);
       },
     };
   });
@@ -69,7 +72,7 @@ export function openClothesMenu(
         State.unequipAllAccessories();
         pet.refreshAccessories();
         keepMenuOpen?.();
-        openClothesMenu(scene, pet, onClose, keepMenuOpen);
+        openClothesMenu(scene, pet, onClose, keepMenuOpen, options.length);
       },
     });
   }
@@ -81,6 +84,7 @@ export function openClothesMenu(
 
   clothesMenu = new Menu(scene, 'Pet clothes', options, {
     subtitle: wearingLine,
+    initialSelected: focusIndex,
   });
   clothesMenu.onClose = () => {
     clothesMenu = null;

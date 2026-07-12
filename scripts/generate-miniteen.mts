@@ -711,9 +711,41 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
   },
 };
 
+function sealOutline(png: InstanceType<typeof PNG>) {
+  const add: [number, number][] = [];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (W * y + x) << 2;
+      if (png.data[i + 3] < 200) continue;
+      if (png.data[i] === 0 && png.data[i + 1] === 0 && png.data[i + 2] === 0) continue;
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) {
+          add.push([x, y]);
+          break;
+        }
+        const ni = (W * ny + nx) << 2;
+        if (png.data[ni + 3] < 200) {
+          add.push([x, y]);
+          break;
+        }
+      }
+    }
+  }
+  for (const [x, y] of add) set(png, x, y, OUT);
+}
+
 for (const [id, fn] of Object.entries(draw)) {
   for (const pose of POSES) {
-    save(fn(pose), path.join(ROOT, id, `${pose}.png`));
+    const png = fn(pose);
+    sealOutline(png);
+    save(png, path.join(ROOT, id, `${pose}.png`));
   }
 }
 console.log(`Wrote ${Object.keys(draw).length} MINITEEN villagers × ${POSES.length} poses (${W}x${H})`);

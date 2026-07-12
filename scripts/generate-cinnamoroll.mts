@@ -128,9 +128,42 @@ function extract(source: InstanceType<typeof PNG>, crop: Crop) {
   borderize(output);
   closeOutlineGaps(output);
   fillInterior(output); // gaps sealed — nothing inside stays see-through
-  thinOutline(output);
+  // Skip thinOutline — it was peeling feet/ear edges and leaving incomplete outlines.
   stampFace(crop.pose, output);
+  // Re-seal silhouette after face stamps so mouth/eyes never punch holes in the rim.
+  borderize(output);
+  closeOutlineGaps(output);
+  hardenOutline(output);
   return output;
+}
+
+/** Force every silhouette-edge cell to pure black (no leftover AA gray). */
+function hardenOutline(output: InstanceType<typeof PNG>) {
+  const { width: w, height: h } = output;
+  const dark = PALETTE[0]!;
+  const outside = outsideMask(output);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (output.data[i + 3] === 0) continue;
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h || outside[ny * w + nx]) {
+          output.data[i] = dark[0];
+          output.data[i + 1] = dark[1];
+          output.data[i + 2] = dark[2];
+          output.data[i + 3] = 255;
+          break;
+        }
+      }
+    }
+  }
 }
 
 /** Transparent cells reachable from the border (the true outside). */
@@ -348,9 +381,11 @@ const FACES: Record<Pose, Face> = {
   happy: {
     eyes: [{ x: 4, y: 6, w: 2, h: 3 }],
     blush: { y: 9, lx: 6, rx: 19, w: 2 },
-    // Wider smile, still between the eyes on the sheet’s face band
+    // Wider smile — connected curve (was two floating dots)
     mouth: [
       [11, 10],
+      [12, 10],
+      [13, 10],
       [14, 10],
       [12, 11],
       [13, 11],
