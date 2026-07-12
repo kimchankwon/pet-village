@@ -7,7 +7,8 @@ import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
-import { isUiBlocked } from '../systems/nav';
+import { placeDoorMat } from '../systems/doorMat';
+import { isInteractSuppressed, isUiBlocked } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { CinnamorollNpc } from '../systems/CinnamorollNpc';
 
@@ -29,6 +30,7 @@ export class ClothesShopScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private keyE!: Phaser.Input.Keyboard.Key;
+  private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
@@ -38,7 +40,8 @@ export class ClothesShopScene extends Phaser.Scene {
   private pointerHeld = false;
   private menuOpen = false;
   private facing: 'up' | 'down' | 'side' = 'up';
-  private doorMats: Phaser.GameObjects.Image[] = [];
+  private doorCenterX = 0;
+  private doorCenterY = 0;
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   private ignoreClicksUntil = 0;
 
@@ -66,16 +69,9 @@ export class ClothesShopScene extends Phaser.Scene {
       }
     }
 
-    const doorLeft = COLS / 2 - 1;
-    const doorRight = doorLeft + 1;
-    const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
-    this.doorMats = [doorLeft, doorRight].map((gx) =>
-      this.add
-        .image(this.roomX + gx * TILE + TILE / 2, doorY, 'item-rug')
-        .setDepth(-99)
-        .setTint(0xffb3d1)
-        .setScale(1.3),
-    );
+    const door = placeDoorMat(this, this.roomX, ROOM_Y, COLS, ROWS, 0xffb3d1);
+    this.doorCenterX = door.centerX;
+    this.doorCenterY = door.centerY;
 
     for (let gx = 4; gx <= 7; gx++) {
       const t = this.add
@@ -102,11 +98,11 @@ export class ClothesShopScene extends Phaser.Scene {
     ];
     for (const [gx, gy, tex, scale] of dressing) {
       const img = this.add.image(this.roomX + gx * TILE, ROOM_Y + gy * TILE, tex).setScale(scale ?? 1.2);
-      img.setDepth(img.y);
+      img.setDepth(tex === 'item-flower' ? feetDepth(img) : img.y);
     }
 
     this.add
-      .text(this.cameras.main.width / 2, 40, 'Cafe Cinnamon — E / tap Cinna to browse · ESC / door to leave', {
+      .text(this.cameras.main.width / 2, 40, 'Cafe Cinnamon — E / Space / tap Cinna to browse · ESC / door to leave', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#ffe6f2',
@@ -114,8 +110,8 @@ export class ClothesShopScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(1000);
 
-    const px = this.roomX + (COLS * TILE) / 2;
-    const py = ROOM_Y + (ROWS - 2) * TILE;
+    const px = door.centerX;
+    const py = door.centerY; // ON the mat
     this.player = this.physics.add.sprite(px, py, 'penguin-up', 0);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
     const b = this.player.body as Phaser.Physics.Arcade.Body;
@@ -151,6 +147,7 @@ export class ClothesShopScene extends Phaser.Scene {
     this.cursors = kb.createCursorKeys();
     this.wasd = kb.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
@@ -216,7 +213,7 @@ export class ClothesShopScene extends Phaser.Scene {
         x: this.cinna.sprite.x,
         y: this.cinna.sprite.y,
         radius: 95,
-        label: 'E / click — Talk to Cinnamoroll',
+        label: 'E / Space / click — Talk to Cinnamoroll',
         action: () => {
           this.menuOpen = true;
           this.cinna.talk({
@@ -230,16 +227,15 @@ export class ClothesShopScene extends Phaser.Scene {
         targets: [this.cinna.sprite],
       };
     }
-    const doorX = this.roomX + (COLS * TILE) / 2;
-    const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
-    if (Phaser.Math.Distance.Between(this.player.x, this.player.y, doorX, doorY) < 70) {
+    if (
+      Phaser.Math.Distance.Between(this.player.x, this.player.y, this.doorCenterX, this.doorCenterY) < 55
+    ) {
       return {
-        x: doorX,
-        y: doorY,
-        radius: 70,
-        label: 'E / click — Leave Cafe Cinnamon',
+        x: this.doorCenterX,
+        y: this.doorCenterY,
+        radius: 55,
+        label: 'E / Space / click — Leave Cafe Cinnamon',
         action: () => this.scene.start('Town', { spawn: 'cafe' }),
-        targets: this.doorMats,
       };
     }
     return null;
@@ -363,7 +359,12 @@ export class ClothesShopScene extends Phaser.Scene {
       this.setHighlight(near?.targets);
       if (near) {
         this.prompt.show(near.label);
-        if (Phaser.Input.Keyboard.JustDown(this.keyE)) near.action();
+        if (
+          !isInteractSuppressed() &&
+          (Phaser.Input.Keyboard.JustDown(this.keyE) ||
+            Phaser.Input.Keyboard.JustDown(this.keySpace))
+        )
+          near.action();
       } else {
         this.prompt.hide();
       }

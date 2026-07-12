@@ -10,20 +10,26 @@ import {
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { petAnimKey, petTextureKey } from '../systems/pets';
+import { MINITEEN, miniteenTexPrefix } from '../systems/miniteen';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 
 const PET_GROUND_Y = 430;
 /** Height of the rope arc above its lowest point (the pet's feet). */
 const ROPE_SPAN = 155;
-/** Rope handle posts either side of the pet. */
+/** Horizontal distance from pet to each rope-holder NPC. */
 const HANDLE_DX = 170;
 
 /** Starting swing period (ms) — a gentle warm-up that speeds up with the streak. */
 const PERIOD_START = 2600;
 const PERIOD_MIN = 620;
-/** Fraction of the cycle where a jump counts (centered on the ground pass). */
-const WINDOW_HALF = 0.07;
+/** Phase where the rope hits the ground / pet's feet. Jumping at or after this is too late. */
+const GROUND_PHASE = 0.5;
+/**
+ * Valid jump window sits entirely before ground contact: [GROUND_PHASE - JUMP_LEAD, GROUND_PHASE).
+ * Jump while the rope is still coming down; once it hits the ground it hits the pet's feet.
+ */
+const JUMP_LEAD = 0.14;
 /** How long the pet stays airborne after a jump (ms). */
 const JUMP_AIR_MS = 340;
 const JUMP_HEIGHT = 52;
@@ -33,12 +39,44 @@ type Mode = 'ready' | 'playing' | 'won' | 'failed' | 'done';
 /** Hold on "Get ready…" before the rope starts turning. */
 const READY_MS = 1500;
 
+/** NPC texture prefixes for rope holders and bleacher audience. */
+const NPC_PREFIXES = [
+  'bong',
+  'cinna',
+  ...MINITEEN.map((d) => miniteenTexPrefix(d.id)),
+];
+
+/** Vertical radius of each holder's hand orbit (matches the rope ends). */
+const HAND_ORBIT_Y = 28;
+/** Slight in/out sway so hands read as turning with the rope. */
+const HAND_ORBIT_X = 10;
+/** Pull rope ends inward toward the pet so they meet each holder's inner hand. */
+const HAND_INSET = 22;
+/** How far past the holders the watching crowd stands. */
+const AUDIENCE_GAP = 115;
+
+type RopeHolder = {
+  sprite: Phaser.GameObjects.Sprite;
+  prefix: string;
+  side: 'left' | 'right';
+  baseX: number;
+  baseY: number;
+  hopTween: Phaser.Tweens.Tween | null;
+};
+
+type AudienceMember = {
+  sprite: Phaser.GameObjects.Sprite;
+  prefix: string;
+  baseY: number;
+};
+
 /**
  * Skip Rope — Tamagotchi V3-style rhythm timing.
  * The rope turns a full 360°: down the near side (drawn in front of the
  * pet, growing as it approaches), under the feet, then up the far side
- * (drawn behind, shrinking) — jump (click / Space / tap) as it passes the
- * ground. One miss ends the run, banking coins + happiness per 5 cleared;
+ * (drawn behind, shrinking) — jump (click / Space / tap) just before it
+ * hits the ground. Once the rope reaches the ground it hits the pet's
+ * feet. One miss ends the run, banking coins + happiness per 5 cleared;
  * 25 in a row wins outright.
  */
 export class SkipRopeScene extends Phaser.Scene {
@@ -61,13 +99,20 @@ export class SkipRopeScene extends Phaser.Scene {
   private ropeTopY = PET_GROUND_Y - ROPE_SPAN;
   private jumps = 0;
   private periodMs = PERIOD_START;
-  /** 0..1 through the current turn; 0.5 = rope passing the pet's feet. */
+  /** 0..1 through the current turn; GROUND_PHASE (0.5) = rope hitting the pet's feet. */
   private phase = 0.62;
   private jumpedThisSwing = false;
   private airborneUntil = 0;
   private petBaseY = PET_GROUND_Y;
   /** Rope stays frozen until this time (after the get-ready beat). */
   private ropeStartsAt = 0;
+  /** Early jump: pet leaps now, then gets snagged when the rope arrives. */
+  private pendingRopeCatch = false;
+  /** One randomised villager on each end, turning the rope (no posts). */
+  private holders: RopeHolder[] = [];
+  /** Extra villagers watching from farther out on the sides. */
+  private audience: AudienceMember[] = [];
+  private handleCenterY = 0;
 
   constructor() {
     super('SkipRope');
@@ -84,6 +129,7 @@ export class SkipRopeScene extends Phaser.Scene {
     this.phase = 0.62;
     this.jumpedThisSwing = true;
     this.airborneUntil = 0;
+    this.pendingRopeCatch = false;
     this.ropeStartsAt = 0;
 
     const cx = this.cameras.main.width / 2;
@@ -111,17 +157,13 @@ export class SkipRopeScene extends Phaser.Scene {
     // by the ground line so the jump moment is easy to read.
     this.ropeBottomY = Math.round(this.petBaseY + this.petSprite.displayHeight / 2);
     this.ropeTopY = this.ropeBottomY - ROPE_SPAN;
+    this.handleCenterY = (this.ropeTopY + this.ropeBottomY) / 2;
     this.add.rectangle(cx, this.ropeBottomY + 2, viewW, 4, 0x1a1a2e).setDepth(1);
 
-    // Handle posts the rope turns between (knob on top).
-    const handleY = (this.ropeTopY + this.ropeBottomY) / 2;
-    const posts = this.add.graphics().setDepth(6);
-    for (const px of [this.petX - HANDLE_DX, this.petX + HANDLE_DX]) {
-      posts.fillStyle(0x5d4037, 1);
-      posts.fillRect(px - 3, handleY, 6, this.ropeBottomY + 8 - handleY);
-      posts.fillStyle(0xffe066, 1);
-      posts.fillCircle(px, handleY, 6);
-    }
+    // One NPC left + one right hold/turn the rope (no wooden posts).
+    // Extra audience stands farther out on the sides.
+    this.spawnRopeHolders();
+    this.spawnAudience();
 
     // The rope itself is redrawn each frame (see drawRope).
     this.ropeGfx = this.add.graphics();
@@ -144,7 +186,7 @@ export class SkipRopeScene extends Phaser.Scene {
       .text(
         cx,
         viewH - 28,
-        `Click / Space / tap as the rope passes the ground · one miss ends the run · ${SKIP_ROPE_TARGET} wins!`,
+        `Click / Space / tap just before the rope hits the ground · one miss ends the run · ${SKIP_ROPE_TARGET} wins!`,
         {
           ...FONT,
           fontSize: '12px',
@@ -189,7 +231,7 @@ export class SkipRopeScene extends Phaser.Scene {
       this.mode = 'playing';
       this.feedbackText.setAlpha(0);
       this.hintText.setText(
-        `Click / Space / tap as the rope passes the ground · one miss ends the run · ${SKIP_ROPE_TARGET} wins!`,
+        `Click / Space / tap just before the rope hits the ground · one miss ends the run · ${SKIP_ROPE_TARGET} wins!`,
       );
       this.flashFeedback('Go!', '#a8e6cf');
     });
@@ -201,14 +243,258 @@ export class SkipRopeScene extends Phaser.Scene {
   }
 
   /**
+   * Exactly two villagers: one on the left end of the rope, one on the right.
+   * Rope ends attach to their hands — no support posts.
+   */
+  private spawnRopeHolders() {
+    this.clearHolders();
+    const available = NPC_PREFIXES.filter(
+      (prefix) => this.textures.exists(`${prefix}-idle`) && this.textures.exists(`${prefix}-happy`),
+    );
+    if (available.length === 0) return;
+
+    Phaser.Utils.Array.Shuffle(available);
+    const picks = available.slice(0, Math.min(2, available.length));
+    while (picks.length < 2 && available.length > 0) picks.push(available[0]!);
+
+    const sides: Array<'left' | 'right'> = ['left', 'right'];
+    for (let i = 0; i < 2; i++) {
+      const side = sides[i]!;
+      const prefix = picks[i]!;
+      const baseX = this.petX + (side === 'left' ? -HANDLE_DX : HANDLE_DX);
+      const baseY = this.ropeBottomY - 8;
+      const sprite = this.add
+        .sprite(baseX, baseY, `${prefix}-idle`)
+        .setScale(prefix === 'cinna' ? 1.45 : 1.7)
+        .setFlipX(side === 'right')
+        .setOrigin(0.5, 1)
+        .setDepth(7);
+      const bounce = `${prefix}-bounce`;
+      if (this.anims.exists(bounce)) sprite.play(bounce);
+
+      this.holders.push({
+        sprite,
+        prefix,
+        side,
+        baseX,
+        baseY,
+        hopTween: null,
+      });
+    }
+  }
+
+  private clearHolders() {
+    for (const h of this.holders) {
+      h.hopTween?.stop();
+      h.sprite.destroy();
+    }
+    this.holders = [];
+  }
+
+  /**
+   * 2–4 watchers farther out on the left/right sides (beyond the holders).
+   * Prefers NPCs not already turning the rope.
+   */
+  private spawnAudience() {
+    this.audience = [];
+    const used = new Set(this.holders.map((h) => h.prefix));
+    let available = NPC_PREFIXES.filter(
+      (prefix) =>
+        !used.has(prefix) &&
+        this.textures.exists(`${prefix}-idle`) &&
+        this.textures.exists(`${prefix}-happy`),
+    );
+    if (available.length === 0) {
+      available = NPC_PREFIXES.filter(
+        (prefix) => this.textures.exists(`${prefix}-idle`) && this.textures.exists(`${prefix}-happy`),
+      );
+    }
+    if (available.length === 0) return;
+
+    Phaser.Utils.Array.Shuffle(available);
+    const count = Phaser.Math.Clamp(Phaser.Math.Between(2, 4), 2, Math.min(4, available.length));
+    // Farther from the rope than the holders — outer side bleachers.
+    const slots: { x: number; y: number; flip: boolean; scale: number }[] = [
+      {
+        x: this.petX - HANDLE_DX - AUDIENCE_GAP,
+        y: this.ropeBottomY - 6,
+        flip: false,
+        scale: 1.35,
+      },
+      {
+        x: this.petX + HANDLE_DX + AUDIENCE_GAP,
+        y: this.ropeBottomY - 6,
+        flip: true,
+        scale: 1.35,
+      },
+      {
+        x: this.petX - HANDLE_DX - AUDIENCE_GAP - 42,
+        y: this.ropeBottomY - 28,
+        flip: false,
+        scale: 1.15,
+      },
+      {
+        x: this.petX + HANDLE_DX + AUDIENCE_GAP + 42,
+        y: this.ropeBottomY - 26,
+        flip: true,
+        scale: 1.15,
+      },
+    ];
+
+    for (let i = 0; i < count; i++) {
+      const prefix = available[i]!;
+      const slot = slots[i]!;
+      const sprite = this.add
+        .sprite(slot.x, slot.y, `${prefix}-idle`)
+        .setScale(prefix === 'cinna' ? slot.scale * 0.9 : slot.scale)
+        .setFlipX(slot.flip)
+        .setOrigin(0.5, 1)
+        .setDepth(4);
+      const bounce = `${prefix}-bounce`;
+      if (this.anims.exists(bounce)) sprite.play(bounce);
+      this.audience.push({ sprite, prefix, baseY: slot.y });
+    }
+  }
+
+  /** Hand positions for the current rope phase (ends of the turning rope). */
+  private holderHandPos(side: 'left' | 'right'): { x: number; y: number } {
+    const theta = (this.phase - 0.5) * Math.PI * 2;
+    const sign = side === 'left' ? -1 : 1;
+    const baseX = this.petX + sign * HANDLE_DX;
+    const handY = this.handleCenterY + Math.cos(theta) * HAND_ORBIT_Y;
+    // Inner hand (toward pet) + slight orbit so turning reads clearly.
+    const handX = baseX - sign * HAND_INSET + Math.sin(theta) * HAND_ORBIT_X * sign;
+    return { x: handX, y: handY };
+  }
+
+  /** Lean holders with the turn; rope ends follow their hands. */
+  private syncRopeHolders() {
+    for (const h of this.holders) {
+      if (!h.hopTween) {
+        const lean = Math.sin((this.phase - 0.5) * Math.PI * 2) * 5 * (h.side === 'left' ? 1 : -1);
+        h.sprite.setAngle(lean);
+      }
+    }
+  }
+
+  private crowdCheer(big = false) {
+    this.holdersCheer(big);
+    this.audienceCheer(big);
+  }
+
+  private crowdBoo() {
+    this.holdersBoo();
+    this.audienceBoo();
+  }
+
+  private holdersCheer(big = false) {
+    for (const h of this.holders) {
+      h.hopTween?.stop();
+      h.sprite.setAngle(0);
+      const happy = `${h.prefix}-happy`;
+      if (this.textures.exists(happy)) h.sprite.setTexture(happy);
+      h.hopTween = this.tweens.add({
+        targets: h.sprite,
+        y: h.baseY - Phaser.Math.Between(big ? 12 : 8, big ? 18 : 14),
+        duration: Phaser.Math.Between(160, 220),
+        yoyo: true,
+        repeat: big ? Phaser.Math.Between(2, 3) : Phaser.Math.Between(1, 2),
+        ease: 'Sine.easeOut',
+        onComplete: () => {
+          h.sprite.setY(h.baseY);
+          const bounce = `${h.prefix}-bounce`;
+          if (this.anims.exists(bounce)) h.sprite.play(bounce);
+          else if (this.textures.exists(`${h.prefix}-idle`)) {
+            h.sprite.setTexture(`${h.prefix}-idle`);
+          }
+          h.hopTween = null;
+        },
+      });
+    }
+  }
+
+  private holdersBoo() {
+    for (const h of this.holders) {
+      h.hopTween?.stop();
+      h.sprite.setY(h.baseY);
+      const sad = `${h.prefix}-sad`;
+      if (this.textures.exists(sad)) h.sprite.setTexture(sad);
+      h.hopTween = this.tweens.add({
+        targets: h.sprite,
+        angle: h.side === 'left' ? -10 : 10,
+        duration: 280,
+        yoyo: true,
+        ease: 'Sine.easeInOut',
+        onComplete: () => {
+          h.sprite.setAngle(0);
+          const bounce = `${h.prefix}-bounce`;
+          if (this.anims.exists(bounce)) h.sprite.play(bounce);
+          else if (this.textures.exists(`${h.prefix}-idle`)) {
+            h.sprite.setTexture(`${h.prefix}-idle`);
+          }
+          h.hopTween = null;
+        },
+      });
+    }
+  }
+
+  private audienceCheer(big = false) {
+    for (const member of this.audience) {
+      const { sprite, prefix, baseY } = member;
+      if (!sprite.active) continue;
+      this.tweens.killTweensOf(sprite);
+      sprite.y = baseY;
+      if (this.textures.exists(`${prefix}-happy`)) sprite.setTexture(`${prefix}-happy`);
+      this.tweens.add({
+        targets: sprite,
+        y: baseY - (big ? 14 : 8),
+        duration: big ? 160 : 120,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+          if (!sprite.active) return;
+          sprite.y = baseY;
+          const bounce = `${prefix}-bounce`;
+          if (this.mode === 'playing' && this.anims.exists(bounce)) sprite.play(bounce);
+          else if (this.textures.exists(`${prefix}-idle`)) sprite.setTexture(`${prefix}-idle`);
+        },
+      });
+    }
+  }
+
+  private audienceBoo() {
+    for (const member of this.audience) {
+      const { sprite, prefix, baseY } = member;
+      if (!sprite.active) continue;
+      this.tweens.killTweensOf(sprite);
+      sprite.y = baseY;
+      sprite.stop();
+      if (this.textures.exists(`${prefix}-sad`)) sprite.setTexture(`${prefix}-sad`);
+      this.tweens.add({
+        targets: sprite,
+        angle: { from: -4, to: 4 },
+        duration: 180,
+        yoyo: true,
+        repeat: 1,
+        onComplete: () => {
+          if (sprite.active) sprite.angle = 0;
+        },
+      });
+    }
+  }
+
+  /**
    * Draw the rope for the current phase. The turn is a circle in the
    * depth/height plane: phase 0 = overhead, 0→0.5 coming down the NEAR side
    * (in front of the pet — this is the pass the pet jumps over), 0.5 = at
    * the pet's feet, 0.5→1 rising up the far side (behind the pet).
-   * Nearness scales the rope — thicker, brighter, and a wider bow in front;
-   * thinner, darker, and narrower behind.
+   * Depth is read mainly through size: the middle (closest to camera when
+   * in front) grows thick, then shrinks when the rope is behind. Colour
+   * shifts only a little with nearness. Ends attach to the two NPC hands.
    */
   private drawRope() {
+    this.syncRopeHolders();
+
     const theta = (this.phase - 0.5) * Math.PI * 2;
     // +1 at the closest point of the turn (mid-descent in front),
     // -1 at the farthest (mid-rise behind), 0 at the top and bottom.
@@ -217,28 +503,57 @@ export class SkipRopeScene extends Phaser.Scene {
     const radius = (this.ropeBottomY - this.ropeTopY) / 2;
     const centerY = this.ropeTopY + radius;
     const bellyY = centerY + radius * Math.cos(theta);
-    const handleY = centerY;
+
+    const leftHand = this.holderHandPos('left');
+    const rightHand = this.holderHandPos('right');
 
     const g = this.ropeGfx;
     g.clear();
     g.setDepth(inFront ? 12 : 8);
-    g.lineStyle(4 + 2.5 * frontness, inFront ? 0x9d7e6e : 0x4e342e, 1);
-    const x0 = this.petX - HANDLE_DX;
-    const x1 = this.petX + HANDLE_DX;
+    const x0 = leftHand.x;
+    const x1 = rightHand.x;
+    const handleY0 = leftHand.y;
+    const handleY1 = rightHand.y;
     // Cubic curve: the bow bulges wider when the rope is near, pinches when far.
-    const bowX = HANDLE_DX * 0.5 * (1 + 0.4 * frontness);
-    const ctrlY = (4 * bellyY - handleY) / 3;
+    const bowX = HANDLE_DX * 0.5 * (1 + 0.55 * frontness);
+    const midHandleY = (handleY0 + handleY1) / 2;
+    const ctrlY = (4 * bellyY - midHandleY) / 3;
     const curve = new Phaser.Curves.CubicBezier(
-      new Phaser.Math.Vector2(x0, handleY),
+      new Phaser.Math.Vector2(x0, handleY0),
       new Phaser.Math.Vector2(this.petX - bowX, ctrlY),
       new Phaser.Math.Vector2(this.petX + bowX, ctrlY),
-      new Phaser.Math.Vector2(x1, handleY),
+      new Phaser.Math.Vector2(x1, handleY1),
     );
-    curve.draw(g, 28);
+
+    // Segment-draw so the middle can read as closer (thick) / farther (thin).
+    const segs = 36;
+    const points = curve.getPoints(segs);
+    const near = (frontness + 1) / 2; // 0 behind → 1 in front
+    const endW = 2.8;
+    const midW = Phaser.Math.Linear(1.4, 11, near);
+    const dark = Phaser.Display.Color.IntegerToColor(0x5a4034);
+    const light = Phaser.Display.Color.IntegerToColor(0xb08a72);
+    const tint = Phaser.Display.Color.Interpolate.ColorWithColor(dark, light, 100, Math.round(near * 100));
+    const color = Phaser.Display.Color.GetColor(tint.r, tint.g, tint.b);
+
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i]!;
+      const b = points[i + 1]!;
+      const t = (i + 0.5) / (points.length - 1);
+      // Peak thickness at the belly (closest to camera when in front).
+      const mid = 1 - Math.abs(t - 0.5) * 2;
+      const midEmphasis = mid * mid;
+      const width = Phaser.Math.Linear(endW, midW, midEmphasis);
+      g.lineStyle(Math.max(1.2, width), color, 1);
+      g.beginPath();
+      g.moveTo(a.x, a.y);
+      g.lineTo(b.x, b.y);
+      g.strokePath();
+    }
   }
 
   private inJumpWindow(): boolean {
-    return Math.abs(this.phase - 0.5) <= WINDOW_HALF;
+    return this.phase >= GROUND_PHASE - JUMP_LEAD && this.phase < GROUND_PHASE;
   }
 
   private tryJump() {
@@ -247,10 +562,43 @@ export class SkipRopeScene extends Phaser.Scene {
     if (this.jumpedThisSwing) return; // already resolved this turn
 
     if (!this.inJumpWindow()) {
-      this.fail(this.phase < 0.5 ? 'Too early!' : 'Too late!');
+      if (this.phase < GROUND_PHASE) {
+        // Jump early → land → rope catches the pet on the ground pass.
+        this.startEarlyJump();
+        return;
+      }
+      // Rope already hit the ground — that means it hit the pet's feet.
+      this.fail('Too late!');
       return;
     }
 
+    this.playJumpTween(false);
+    this.jumps += 1;
+    this.periodMs = Phaser.Math.Linear(
+      PERIOD_START,
+      PERIOD_MIN,
+      Phaser.Math.Clamp(this.jumps / SKIP_ROPE_TARGET, 0, 1),
+    );
+    State.recordSkipRope(this.jumps);
+    this.refreshHud();
+    this.flashFeedback('Nice!', '#a8e6cf');
+    this.crowdCheer();
+
+    if (this.jumps >= SKIP_ROPE_TARGET) {
+      // Keep the rope turning so the winning jump visibly clears it, then celebrate.
+      this.mode = 'won';
+      this.backBtn.setVisible(false);
+      this.time.delayedCall(JUMP_AIR_MS + 200, () => this.celebrateWin());
+    }
+  }
+
+  /** Leap before the window — same jump motion, then get snagged when the rope arrives. */
+  private startEarlyJump() {
+    this.pendingRopeCatch = true;
+    this.playJumpTween(true);
+  }
+
+  private playJumpTween(earlyCatch: boolean) {
     this.jumpedThisSwing = true;
     this.airborneUntil = this.time.now + JUMP_AIR_MS;
     this.petSprite.stop();
@@ -263,57 +611,96 @@ export class SkipRopeScene extends Phaser.Scene {
       yoyo: true,
       ease: 'Quad.easeOut',
       onComplete: () => {
-        if (this.mode === 'playing' && this.petSprite.active) {
-          this.petSprite.y = this.petBaseY;
+        if (!this.petSprite.active) return;
+        this.petSprite.y = this.petBaseY;
+        if (earlyCatch) {
+          this.tryResolveRopeCatch();
+          return;
+        }
+        if (this.mode === 'playing') {
           this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
         }
       },
     });
-
-    this.jumps += 1;
-    this.periodMs = Phaser.Math.Linear(
-      PERIOD_START,
-      PERIOD_MIN,
-      Phaser.Math.Clamp(this.jumps / SKIP_ROPE_TARGET, 0, 1),
-    );
-    State.recordSkipRope(this.jumps);
-    this.refreshHud();
-    this.flashFeedback('Nice!', '#a8e6cf');
-
-    if (this.jumps >= SKIP_ROPE_TARGET) {
-      // Keep the rope turning so the winning jump visibly clears it, then celebrate.
-      this.mode = 'won';
-      this.backBtn.setVisible(false);
-      this.time.delayedCall(JUMP_AIR_MS + 200, () => this.celebrateWin());
-    }
   }
 
-  /** One miss ends the run: sad stumble, bank milestone rewards, failed panel. */
-  private fail(reason: string) {
+  /**
+   * After an early jump: once the pet is on the ground and the rope has
+   * reached (or passed) the feet, snag them like a real mistimed skip.
+   * @param passedGround - true if this frame's unwrapped phase reached ground
+   *   (needed when a large delta wraps phase back below GROUND_PHASE).
+   */
+  private tryResolveRopeCatch(passedGround = this.phase >= GROUND_PHASE) {
+    if (!this.pendingRopeCatch || this.mode !== 'playing') return;
+    if (this.time.now < this.airborneUntil) return;
+    if (!passedGround) {
+      // Landed early — idle until the rope arrives.
+      if (this.petSprite.active && !this.petSprite.anims.isPlaying) {
+        this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
+      }
+      return;
+    }
+    this.pendingRopeCatch = false;
+    this.fail('Caught!', true);
+  }
+
+  /**
+   * One miss ends the run: sad stumble (or rope snag), bank milestone rewards,
+   * failed panel.
+   */
+  private fail(reason: string, snaggedByRope = false) {
     if (this.mode !== 'playing') return;
     this.mode = 'failed';
+    this.pendingRopeCatch = false;
     this.backBtn.setVisible(false);
     const reward = State.rewardSkipRopeRun(this.jumps);
     this.flashFeedback(reason, '#ff6b6b');
+    this.crowdBoo();
 
     this.tweens.killTweensOf(this.petSprite);
     this.petSprite.stop();
     this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'sad'));
     this.petSprite.y = this.petBaseY;
-    // Little stumble
-    this.tweens.add({
-      targets: this.petSprite,
-      x: this.petX + 10,
-      angle: { from: -8, to: 0 },
-      duration: 280,
-      yoyo: true,
-      onComplete: () => {
-        this.petSprite.x = this.petX;
-        this.petSprite.angle = 0;
-      },
-    });
+    this.petSprite.x = this.petX;
+    this.petSprite.angle = 0;
 
-    this.time.delayedCall(700, () => this.showResultPanel(false, reward));
+    if (snaggedByRope) {
+      // Rope sweeps the ankles — yank forward, tip over, settle home.
+      this.tweens.add({
+        targets: this.petSprite,
+        x: this.petX + 22,
+        angle: 18,
+        duration: 220,
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+          this.tweens.add({
+            targets: this.petSprite,
+            x: this.petX,
+            angle: 0,
+            duration: 260,
+            ease: 'Quad.easeInOut',
+            onComplete: () => {
+              this.petSprite.x = this.petX;
+              this.petSprite.angle = 0;
+            },
+          });
+        },
+      });
+      this.time.delayedCall(900, () => this.showResultPanel(false, reward));
+    } else {
+      this.tweens.add({
+        targets: this.petSprite,
+        x: this.petX + 10,
+        angle: { from: -8, to: 0 },
+        duration: 280,
+        yoyo: true,
+        onComplete: () => {
+          this.petSprite.x = this.petX;
+          this.petSprite.angle = 0;
+        },
+      });
+      this.time.delayedCall(700, () => this.showResultPanel(false, reward));
+    }
   }
 
   private flashFeedback(msg: string, color: string) {
@@ -333,6 +720,7 @@ export class SkipRopeScene extends Phaser.Scene {
 
     this.petSprite.stop();
     this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'happy'));
+    this.crowdCheer(true);
     toast(this, this.cameras.main.width / 2, 150, `+${SKIP_ROPE_WIN_COINS} coins!`, '#a8e6cf');
     this.time.delayedCall(450, () =>
       this.showResultPanel(true, { coins: SKIP_ROPE_WIN_COINS, happiness: SKIP_ROPE_WIN_HAPPINESS }),
@@ -454,20 +842,31 @@ export class SkipRopeScene extends Phaser.Scene {
     }
 
     // Advance the rope (also during 'won' so the last jump visibly clears it).
+    // Use the unwrapped next phase for ground-crossing so a stuttered frame
+    // that wraps past 1.0 still counts as hitting the feet.
     const prevPhase = this.phase;
-    this.phase += deltaMs / this.periodMs;
-    if (this.phase >= 1) {
+    const nextUnwrapped = prevPhase + deltaMs / this.periodMs;
+    const hadJumpedThisSwing = this.jumpedThisSwing;
+    const passedGround = nextUnwrapped >= GROUND_PHASE;
+
+    this.phase = nextUnwrapped;
+    while (this.phase >= 1) {
       this.phase -= 1;
       this.jumpedThisSwing = false;
     }
 
-    // Letting the window close without jumping ends the run too.
-    const windowEnd = 0.5 + WINDOW_HALF;
+    // Early jump: after landing, snag when the rope reaches the feet.
+    if (this.mode === 'playing' && this.pendingRopeCatch) {
+      this.tryResolveRopeCatch(passedGround);
+    }
+
+    // Rope hitting the ground with no clear jump = it hit the pet's feet.
     if (
       this.mode === 'playing' &&
-      !this.jumpedThisSwing &&
-      prevPhase < windowEnd &&
-      this.phase >= windowEnd
+      !hadJumpedThisSwing &&
+      !this.pendingRopeCatch &&
+      prevPhase < GROUND_PHASE &&
+      passedGround
     ) {
       this.fail('Missed!');
     }

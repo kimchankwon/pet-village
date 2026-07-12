@@ -263,6 +263,37 @@ function drawPuffle(color: [number, number, number, number], pose: PufflePose, a
     set(png, sx, sy - 1, W);
     set(png, sx, sy + 1, W);
   }
+
+  // Guarantee a continuous true-black silhouette (spike edges can leave gaps).
+  const add: [number, number][] = [];
+  for (let y = 0; y < 32; y++) {
+    for (let x = 0; x < 32; x++) {
+      const i = (32 * y + x) << 2;
+      if (png.data[i + 3] < 200) continue;
+      // Already black outline
+      if (png.data[i] === 0 && png.data[i + 1] === 0 && png.data[i + 2] === 0) continue;
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= 32 || ny >= 32) {
+          add.push([x, y]);
+          break;
+        }
+        const ni = (32 * ny + nx) << 2;
+        if (png.data[ni + 3] < 200) {
+          add.push([x, y]);
+          break;
+        }
+      }
+    }
+  }
+  for (const [x, y] of add) set(png, x, y, OUT);
+
   return png;
 }
 

@@ -5,7 +5,7 @@ import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
 import { characterDepth, propDepth } from '../systems/depth';
-import { isUiBlocked, requestLeave } from '../systems/nav';
+import { isInteractSuppressed, isUiBlocked, requestLeave } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { BongbongeeNpc } from '../systems/BongbongeeNpc';
 import { MiniteenRoster } from '../systems/MiniteenRoster';
@@ -13,12 +13,18 @@ import type { WandererNpc } from '../systems/WandererNpc';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { TILE, TOWN_MAP_H, TOWN_MAP_W, TOWN_WORLD_H, TOWN_WORLD_W } from '../systems/townMap';
+import { rememberBongbongee, rememberMiniteens, takeBongbongeeSnap } from '../systems/townPresence';
 
 /** Compact town — smaller than the old 32×24 crossroads map. */
 const MAP_W = TOWN_MAP_W;
 const MAP_H = TOWN_MAP_H;
 const WORLD_W = TOWN_WORLD_W;
 const WORLD_H = TOWN_WORLD_H;
+
+/** Must stand this close to a building door to enter. */
+const BUILDING_RADIUS = 72;
+const ARCADE_RADIUS = 55;
+const BUILDING_CLICK_NEAR = 90;
 
 /** Building anchors (tile coords) — clustered around the central square. */
 const HOUSE_POS = { tx: 11, ty: 3.15 };
@@ -47,6 +53,7 @@ export class TownScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private keyE!: Phaser.Input.Keyboard.Key;
+  private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
@@ -82,7 +89,7 @@ export class TownScene extends Phaser.Scene {
 
     this.buildMap();
 
-    // Spawn in the town square (or just outside the building you left).
+    // Spawn just outside the door, facing away from the building.
     let sx = FOUNTAIN_POS.tx * TILE;
     let sy = (FOUNTAIN_POS.ty + 2.2) * TILE;
     if (data?.spawn === 'house') {
@@ -108,6 +115,7 @@ export class TownScene extends Phaser.Scene {
     this.player = this.physics.add.sprite(sx, sy, 'penguin-down', 0);
     this.player.setCollideWorldBounds(true);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
+    this.facing = 'down';
 
     this.pet = new Pet(this, sx - 30, sy + 10);
     // Tap/click your pet to hear what's on its mind.
@@ -117,17 +125,19 @@ export class TownScene extends Phaser.Scene {
       if (!this.menuOpen && !isUiBlocked()) this.pet.speak();
     });
 
-    this.npcs = [
-      // Bongbongee wanders the square; Cinnamoroll is inside Cafe Cinnamon.
-      new BongbongeeNpc(this, [
-        { x: 7.5 * TILE, y: 9.5 * TILE },
-        { x: 14 * TILE, y: 7.2 * TILE },
-        { x: 18 * TILE, y: 10 * TILE },
-        { x: 8.5 * TILE, y: 12 * TILE },
-        { x: 14.5 * TILE, y: 11.5 * TILE },
-      ]),
-    ];
+    // Bongbongee wanders the square; Cinnamoroll is inside Cafe Cinnamon.
+    const bong = new BongbongeeNpc(this, [
+      { x: 7.5 * TILE, y: 9.5 * TILE },
+      { x: 14 * TILE, y: 7.2 * TILE },
+      { x: 18 * TILE, y: 10 * TILE },
+      { x: 8.5 * TILE, y: 12 * TILE },
+      { x: 14.5 * TILE, y: 11.5 * TILE },
+    ]);
+    const bongSaved = takeBongbongeeSnap();
+    if (bongSaved) bong.sprite.setPosition(bongSaved.x, bongSaved.y);
+    this.npcs = [bong];
     // Only a few MINITEEN on the map at a time; they rotate in/out.
+    // Roster restores prior positions when returning from a building.
     this.miniteens = new MiniteenRoster(this);
 
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
@@ -138,8 +148,14 @@ export class TownScene extends Phaser.Scene {
     this.cursors = kb.createCursorKeys();
     this.wasd = kb.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      rememberBongbongee(bong);
+      rememberMiniteens(this.miniteens.list());
+    });
 
     this.hud = new HUD(this);
     this.prompt = new Prompt(this);
@@ -170,7 +186,7 @@ export class TownScene extends Phaser.Scene {
           HOUSE_POS.tx * TILE,
           (HOUSE_POS.ty + 0.15) * TILE,
         );
-        if (d < 150) {
+        if (d < BUILDING_CLICK_NEAR) {
           this.clickMove.clear();
           this.scene.start('House');
         } else {
@@ -185,7 +201,7 @@ export class TownScene extends Phaser.Scene {
           SHOP_POS.tx * TILE,
           (SHOP_POS.ty + 0.15) * TILE,
         );
-        if (d < 150) {
+        if (d < BUILDING_CLICK_NEAR) {
           this.clickMove.clear();
           this.scene.start('Shop');
         } else {
@@ -200,7 +216,7 @@ export class TownScene extends Phaser.Scene {
           CAFE_POS.tx * TILE,
           (CAFE_POS.ty + 0.15) * TILE,
         );
-        if (d < 150) {
+        if (d < BUILDING_CLICK_NEAR) {
           this.clickMove.clear();
           this.scene.start('ClothesShop');
         } else {
@@ -303,16 +319,17 @@ export class TownScene extends Phaser.Scene {
     this.interactables.push({
       x: HOUSE_POS.tx * TILE,
       y: (HOUSE_POS.ty + 0.2) * TILE,
-      radius: 120,
-      label: 'E / click — Enter house',
+      radius: BUILDING_RADIUS,
+      label: 'E / Space / click — Enter house',
       action: () => this.scene.start('House'),
       targets: [house],
     });
 
-    // Daniel's shop — NE of the square
+    // Daniel's shop — NE of the square (chimney puffs soft smoke).
     const shop = this.add.image(SHOP_POS.tx * TILE, SHOP_POS.ty * TILE, 'shop').setScale(1.85);
     shop.setDepth(propDepth(shop, (SHOP_POS.ty + 0.2) * TILE));
     this.shopImg = shop;
+    this.startShopChimneySmoke(shop);
     this.add
       .text(SHOP_POS.tx * TILE, SHOP_POS.ty * TILE - shop.displayHeight / 2 - 10, "Daniel's Shop", {
         fontFamily: 'monospace',
@@ -326,8 +343,8 @@ export class TownScene extends Phaser.Scene {
     this.interactables.push({
       x: SHOP_POS.tx * TILE,
       y: (SHOP_POS.ty + 0.2) * TILE,
-      radius: 120,
-      label: "E / click — Enter Daniel's Shop",
+      radius: BUILDING_RADIUS,
+      label: "E / Space / click — Enter Daniel's Shop",
       action: () => this.scene.start('Shop'),
       targets: [shop],
     });
@@ -349,8 +366,8 @@ export class TownScene extends Phaser.Scene {
     this.interactables.push({
       x: CAFE_POS.tx * TILE,
       y: (CAFE_POS.ty + 0.2) * TILE,
-      radius: 120,
-      label: 'E / click — Enter Cafe Cinnamon',
+      radius: BUILDING_RADIUS,
+      label: 'E / Space / click — Enter Cafe Cinnamon',
       action: () => this.scene.start('ClothesShop'),
       targets: [cafe],
     });
@@ -371,8 +388,8 @@ export class TownScene extends Phaser.Scene {
     this.interactables.push({
       x: ARCADE_POS.tx * TILE,
       y: ARCADE_POS.ty * TILE,
-      radius: 80,
-      label: 'E / click — Play Paper Toss',
+      radius: ARCADE_RADIUS,
+      label: 'E / Space / click — Play Paper Toss',
       action: () => this.scene.start('PaperToss'),
       targets: [arcade],
     });
@@ -395,8 +412,8 @@ export class TownScene extends Phaser.Scene {
     this.interactables.push({
       x: SKIPROPE_POS.tx * TILE,
       y: SKIPROPE_POS.ty * TILE,
-      radius: 80,
-      label: 'E / click — Skip Rope',
+      radius: ARCADE_RADIUS,
+      label: 'E / Space / click — Skip Rope',
       action: () => this.scene.start('SkipRope'),
       targets: [skipBooth],
     });
@@ -454,18 +471,84 @@ export class TownScene extends Phaser.Scene {
 
     this.decoSolids = [];
     for (const spot of [...trees, ...bushes, ...flowers, ...hardscape]) {
-      const img = this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex).setScale(spot.scale ?? 1.4);
+      const isFountain = spot.tex === 'fountain';
+      const img = isFountain
+        ? this.add.sprite(spot.tx * TILE, spot.ty * TILE, spot.tex).setScale(spot.scale ?? 1.4)
+        : this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex).setScale(spot.scale ?? 1.4);
       // Always pass a ground Y. Flowers have no collider — without this,
       // padded sprite feet sort south of characters standing in front of them.
       const footY = spot.solid
         ? spot.ty * TILE + (spot.solid[2] ?? 0)
         : spot.ty * TILE;
       img.setDepth(propDepth(img, footY));
+      if (isFountain && img instanceof Phaser.GameObjects.Sprite) {
+        if (this.anims.exists('fountain-splash')) img.play('fountain-splash');
+        this.startFountainRipples(spot.tx * TILE, spot.ty * TILE, footY);
+      }
       if (spot.solid) {
         const [sw, sh, oy = 0] = spot.solid;
         this.decoSolids.push({ x: spot.tx * TILE, y: spot.ty * TILE + oy, w: sw, h: sh });
       }
     }
+  }
+
+  /** Soft smoke rising from Daniel’s shop chimney. */
+  private startShopChimneySmoke(shop: Phaser.GameObjects.Image) {
+    if (!this.textures.exists('smoke')) return;
+    const chimneyX = shop.x - shop.displayWidth * 0.22;
+    const chimneyY = shop.y - shop.displayHeight * 0.48;
+    const depth = propDepth(shop, (SHOP_POS.ty + 0.2) * TILE) + 2;
+
+    const puff = () => {
+      if (!this.sys.isActive()) return;
+      const s = this.add
+        .image(chimneyX + Phaser.Math.Between(-3, 3), chimneyY, 'smoke')
+        .setScale(0.55)
+        .setAlpha(0.55)
+        .setDepth(depth);
+      this.tweens.add({
+        targets: s,
+        y: chimneyY - Phaser.Math.Between(28, 44),
+        x: chimneyX + Phaser.Math.Between(-10, 14),
+        alpha: 0,
+        scale: 1.15,
+        duration: Phaser.Math.Between(1600, 2400),
+        ease: 'Sine.easeOut',
+        onComplete: () => s.destroy(),
+      });
+    };
+
+    puff();
+    this.time.addEvent({ delay: 700, loop: true, callback: puff });
+  }
+
+  /** Occasional water ripples above the plaza fountain. */
+  private startFountainRipples(fx: number, fy: number, footY: number) {
+    if (!this.textures.exists('ripple')) return;
+    const depth = footY + 1;
+    const splash = () => {
+      if (!this.sys.isActive()) return;
+      const r = this.add
+        .image(fx + Phaser.Math.Between(-6, 6), fy - 10, 'ripple')
+        .setScale(0.45)
+        .setAlpha(0.65)
+        .setDepth(depth);
+      this.tweens.add({
+        targets: r,
+        scale: 1.05,
+        alpha: 0,
+        y: fy - 18,
+        duration: 900,
+        ease: 'Quad.easeOut',
+        onComplete: () => r.destroy(),
+      });
+    };
+    splash();
+    this.time.addEvent({
+      delay: Phaser.Math.Between(1400, 2200),
+      loop: true,
+      callback: splash,
+    });
   }
 
   private buildColliders() {
@@ -542,12 +625,12 @@ export class TownScene extends Phaser.Scene {
     for (const npc of allNpcs) {
       if (!npc.canInteract()) continue;
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, npc.sprite.x, npc.sprite.y);
-      if (d < 70 && d < bestDist) {
+      if (d < 55 && d < bestDist) {
         best = {
           x: npc.sprite.x,
           y: npc.sprite.y,
-          radius: 70,
-          label: `E / click — Talk to ${npc.name}`,
+          radius: 55,
+          label: `E / Space / click — Talk to ${npc.name}`,
           action: () => {
             this.menuOpen = true;
             npc.talk({
@@ -664,7 +747,13 @@ export class TownScene extends Phaser.Scene {
       this.setHighlight(best?.targets);
       if (best) {
         this.prompt.show(best.label);
-        if (Phaser.Input.Keyboard.JustDown(this.keyE)) best.action();
+        if (
+          !isInteractSuppressed() &&
+          (Phaser.Input.Keyboard.JustDown(this.keyE) ||
+            Phaser.Input.Keyboard.JustDown(this.keySpace))
+        ) {
+          best.action();
+        }
       } else {
         this.prompt.hide();
       }

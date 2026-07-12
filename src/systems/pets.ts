@@ -7,7 +7,9 @@ export type PuffleColor =
   | 'purple'
   | 'red'
   | 'yellow'
-  | 'white';
+  | 'white'
+  | 'orange'
+  | 'brown';
 export type PetSpecies = ClassicSpecies | `puffle-${PuffleColor}` | 'bongbongee' | 'cinnamoroll' | 'kirby';
 
 export const PUFFLE_COLORS: PuffleColor[] = [
@@ -19,6 +21,8 @@ export const PUFFLE_COLORS: PuffleColor[] = [
   'red',
   'yellow',
   'white',
+  'orange',
+  'brown',
 ];
 
 type PetDef = {
@@ -62,6 +66,8 @@ const PUFFLE_META: Record<PuffleColor, { label: string; defaultName: string; blu
   red: { label: 'Red Puffle', defaultName: 'Rusty', blurb: 'Sporty · loves rolling' },
   yellow: { label: 'Yellow Puffle', defaultName: 'Sunny', blurb: 'Silly · loves jokes' },
   white: { label: 'White Puffle', defaultName: 'Snowy', blurb: 'Shy · loves quiet' },
+  orange: { label: 'Orange Puffle', defaultName: 'Ozzie', blurb: 'Goofy · curly tuft & buck teeth' },
+  brown: { label: 'Brown Puffle', defaultName: 'Bruno', blurb: 'Inventor · loves goggles' },
 };
 
 const PUFFLES: PetDef[] = PUFFLE_COLORS.map((color) => ({
@@ -174,6 +180,10 @@ export function poseFromAssetFile(file: (typeof PET_ASSET_FILES)[number]): PetPo
 
 export function isPetSpecies(value: unknown): value is PetSpecies {
   return typeof value === 'string' && value in PET_SPECIES;
+}
+
+export function isPuffleSpecies(value: unknown): value is `puffle-${PuffleColor}` {
+  return typeof value === 'string' && value.startsWith('puffle-') && value in PET_SPECIES;
 }
 
 export const petSpeciesValidatorLiterals = [

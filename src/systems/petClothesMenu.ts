@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { ACCESSORIES, ACCESSORY_LIST, type AccessoryId } from './accessories';
+import { ACCESSORIES, ACCESSORY_LIST, accessoryWearable, type AccessoryId } from './accessories';
 import { State } from './GameState';
 import { Menu, type MenuOption } from './UI';
 import type { Pet } from './Pet';
@@ -27,11 +27,19 @@ export function clothesPetMenuOption(
 
 let clothesMenu: Menu | null = null;
 
+function wearableLockLabel(a: (typeof ACCESSORY_LIST)[number]): string {
+  const wear = accessoryWearable(a);
+  if (wear === 'puffle') return 'puffles only';
+  if (wear === 'bongbongee') return 'Bongbongee only';
+  return 'Cinnamoroll only';
+}
+
 export function openClothesMenu(
   scene: Phaser.Scene,
   pet: Pet,
   onClose: () => void,
   keepMenuOpen?: () => void,
+  focusIndex = 0,
 ) {
   keepMenuOpen?.();
   // Replace any previous clothes menu so “Wearing: …” isn’t buried under stacks.
@@ -42,16 +50,23 @@ export function openClothesMenu(
     prev.close();
   }
 
-  const options: MenuOption[] = ACCESSORY_LIST.filter((a) => State.ownsAccessory(a.id)).map((a) => {
+  const owned = ACCESSORY_LIST.filter((a) => State.ownsAccessory(a.id));
+  const options: MenuOption[] = owned.map((a, i) => {
     const equipped = State.isAccessoryEquipped(a.id);
+    const locked = !State.canWearAccessory(a.id);
     return {
-      label: `${equipped ? '● ' : '○ '}${a.name}`,
+      label: locked
+        ? `○ ${a.name} (${wearableLockLabel(a)})`
+        : `${equipped ? '● ' : '○ '}${a.name}`,
       icon: a.texture,
+      disabled: locked,
       onSelect: () => {
+        if (locked) return;
         State.toggleAccessory(a.id);
         pet.refreshAccessories();
         keepMenuOpen?.();
-        openClothesMenu(scene, pet, onClose, keepMenuOpen);
+        // Stay on the row you toggled instead of jumping to the top.
+        openClothesMenu(scene, pet, onClose, keepMenuOpen, i);
       },
     };
   });
@@ -69,18 +84,22 @@ export function openClothesMenu(
         State.unequipAllAccessories();
         pet.refreshAccessories();
         keepMenuOpen?.();
-        openClothesMenu(scene, pet, onClose, keepMenuOpen);
+        openClothesMenu(scene, pet, onClose, keepMenuOpen, options.length);
       },
     });
   }
 
-  const equippedNames = ACCESSORY_LIST.filter((a) => State.isAccessoryEquipped(a.id))
+  const equippedNames = ACCESSORY_LIST.filter((a) => State.isAccessoryEquipped(a.id) && State.canWearAccessory(a.id))
     .map((a) => a.name)
     .join(', ');
   const wearingLine = equippedNames ? `Wearing: ${equippedNames}` : 'Wearing: nothing yet';
 
+  // Menu.initialSelected indexes into enabled rows only (skips disabled).
+  const enabledFocus = options.slice(0, focusIndex).filter((option) => !option.disabled).length;
+
   clothesMenu = new Menu(scene, 'Pet clothes', options, {
     subtitle: wearingLine,
+    initialSelected: enabledFocus,
   });
   clothesMenu.onClose = () => {
     clothesMenu = null;

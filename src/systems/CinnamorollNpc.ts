@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { Menu, toast, type MenuOption } from './UI';
 import { State } from './GameState';
-import { CINNA_SHOP_ITEMS } from './accessories';
+import { CINNA_SHOP_ITEMS, PUFFLE_SHOP_ITEMS, type AccessoryDef } from './accessories';
 import { WandererNpc, type NpcTalkCallbacks } from './WandererNpc';
 
 /**
@@ -16,11 +16,12 @@ const LINES = [
   'Cafe Cinnamon’s rolls are the best… warm and swirly like my tail.',
   'I floated here on a cloud… then I opened this little shop. Is that okay…?',
   'My ears go flap-flap when I’m happy. Oh — shopping counts as happy.',
+  'Puffle dig finds? I keep those on a soft shelf… puffles only, please.',
 ];
 
 /**
- * Cinnamoroll — Cafe Cinnamon shopkeeper. Sells soft pet outfits
- * you can equip from the pet menu.
+ * Cinnamoroll — Cafe Cinnamon shopkeeper. Sells soft Cinna outfits
+ * and Mine Shack–style puffle dig clothes (puffles only).
  */
 export class CinnamorollNpc extends WandererNpc {
   constructor(scene: Phaser.Scene, waypoints: { x: number; y: number }[]) {
@@ -44,11 +45,24 @@ export class CinnamorollNpc extends WandererNpc {
       'Cinnamoroll · Clothes',
       [
         {
-          label: 'Browse pet clothes',
+          label: 'Browse cafe clothes',
           icon: 'acc-cloud-bow',
           onSelect: () => {
             cbs.keepMenuOpen();
-            this.openShop(cbs);
+            this.openShop(cbs, CINNA_SHOP_ITEMS, 'Cafe Cinnamon Closet');
+          },
+        },
+        {
+          label: 'Browse puffle dig clothes',
+          icon: 'acc-puffle-tee',
+          onSelect: () => {
+            cbs.keepMenuOpen();
+            this.openShop(
+              cbs,
+              PUFFLE_SHOP_ITEMS,
+              'Puffle Dig Finds',
+              'Puffles only · equip from [ Pet ] → Clothes',
+            );
           },
         },
         {
@@ -79,8 +93,13 @@ export class CinnamorollNpc extends WandererNpc {
     menu.onClose = cbs.onClose;
   }
 
-  private openShop(cbs: NpcTalkCallbacks) {
-    const options: MenuOption[] = CINNA_SHOP_ITEMS.map((item) => {
+  private openShop(
+    cbs: NpcTalkCallbacks,
+    items: AccessoryDef[],
+    title: string,
+    note = `You have ${State.coins} coins · equip from [ Pet ] → Clothes`,
+  ) {
+    const options: MenuOption[] = items.map((item) => {
       const owned = State.ownsAccessory(item.id);
       const price = item.price ?? 0;
       const tooPoor = !owned && State.coins < price;
@@ -101,7 +120,7 @@ export class CinnamorollNpc extends WandererNpc {
           toast(this.scene, this.sprite.x, this.sprite.y - 28, `Soft… enjoy the ${item.name}!`, '#a8e6cf');
           cbs.onAccessoriesChanged?.();
           cbs.keepMenuOpen();
-          this.openShop(cbs);
+          this.openShop(cbs, items, title, `You have ${State.coins} coins · equip from [ Pet ] → Clothes`);
         },
       };
     });
@@ -111,8 +130,8 @@ export class CinnamorollNpc extends WandererNpc {
       onSelect: () => this.emote('happy', 700),
     });
 
-    const menu = new Menu(this.scene, 'Cafe Cinnamon Closet', options, {
-      subtitle: `You have ${State.coins} coins · equip from [ Pet ] → Clothes`,
+    const menu = new Menu(this.scene, title, options, {
+      subtitle: note.includes('coins') ? note : `${note} · ${State.coins}c`,
       anchor: 'bottom',
       face: this.faceKey(),
     });

@@ -31,13 +31,19 @@ export function blockUi() {
 
 export function unblockUi() {
   uiBlockDepth = Math.max(0, uiBlockDepth - 1);
-  // Closing a menu with Escape must not also leave the game in the same frame.
+  // Closing a menu with Escape/Space must not also leave or interact
+  // in the same frame (keys are shared with the scene).
   suppressLeaveUntil = performance.now() + 200;
 }
 
 export function isUiBlocked() {
-  // Depth only — the post-close suppress window is for leave, not movement.
+  // Depth only — movement resumes immediately when the menu closes.
   return uiBlockDepth > 0;
+}
+
+/** True while a menu just closed — skip E/Space interact for a beat. */
+export function isInteractSuppressed() {
+  return performance.now() < suppressLeaveUntil;
 }
 
 export function resetUiBlock() {

@@ -7,7 +7,8 @@ import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
-import { isUiBlocked } from '../systems/nav';
+import { placeDoorMat } from '../systems/doorMat';
+import { isInteractSuppressed, isUiBlocked } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 
 const TILE = 48;
@@ -24,6 +25,7 @@ export class ShopScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private keyE!: Phaser.Input.Keyboard.Key;
+  private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
@@ -34,7 +36,8 @@ export class ShopScene extends Phaser.Scene {
   private menuOpen = false;
   private facing: 'up' | 'down' | 'side' = 'up';
   private bunny!: Phaser.GameObjects.Image;
-  private doorMats: Phaser.GameObjects.Image[] = [];
+  private doorCenterX = 0;
+  private doorCenterY = 0;
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   private ignoreClicksUntil = 0;
 
@@ -58,17 +61,9 @@ export class ShopScene extends Phaser.Scene {
         this.add.image(this.roomX + gx * TILE + TILE / 2, ROOM_Y + gy * TILE + TILE / 2, tex).setDepth(-100);
       }
     }
-    // Door mat — two tiles wide at bottom center
-    const doorLeft = COLS / 2 - 1;
-    const doorRight = doorLeft + 1;
-    const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
-    this.doorMats = [doorLeft, doorRight].map((gx) =>
-      this.add
-        .image(this.roomX + gx * TILE + TILE / 2, doorY, 'item-rug')
-        .setDepth(-99)
-        .setTint(0x8d6e63)
-        .setScale(1.3),
-    );
+    const door = placeDoorMat(this, this.roomX, ROOM_Y, COLS, ROWS, 0x8d6e63);
+    this.doorCenterX = door.centerX;
+    this.doorCenterY = door.centerY;
 
     // Counter across the middle-top with Daniel behind it
     for (let gx = 4; gx <= 7; gx++) {
@@ -96,7 +91,7 @@ export class ShopScene extends Phaser.Scene {
     }
 
     this.add
-      .text(this.cameras.main.width / 2, 40, "Daniel's Shop — E / tap Daniel to browse · ESC / door to leave", {
+      .text(this.cameras.main.width / 2, 40, "Daniel's Shop — E / Space / tap Daniel to browse · ESC / door to leave", {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#c8c8dc',
@@ -104,8 +99,8 @@ export class ShopScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(1000);
 
-    const px = this.roomX + (COLS * TILE) / 2;
-    const py = ROOM_Y + (ROWS - 2) * TILE;
+    const px = door.centerX;
+    const py = door.centerY; // ON the mat
     this.player = this.physics.add.sprite(px, py, 'penguin-up', 0);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
     const b = this.player.body as Phaser.Physics.Arcade.Body;
@@ -143,6 +138,7 @@ export class ShopScene extends Phaser.Scene {
     this.cursors = kb.createCursorKeys();
     this.wasd = kb.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
@@ -210,21 +206,20 @@ export class ShopScene extends Phaser.Scene {
         x: this.bunny.x,
         y: this.bunny.y,
         radius: 90,
-        label: 'E / click — Talk to Daniel',
+        label: 'E / Space / click — Talk to Daniel',
         action: () => this.openShop(),
         targets: [this.bunny],
       };
     }
-    const doorX = this.roomX + (COLS * TILE) / 2;
-    const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
-    if (Phaser.Math.Distance.Between(this.player.x, this.player.y, doorX, doorY) < 70) {
+    if (
+      Phaser.Math.Distance.Between(this.player.x, this.player.y, this.doorCenterX, this.doorCenterY) < 55
+    ) {
       return {
-        x: doorX,
-        y: doorY,
-        radius: 70,
-        label: 'E / click — Leave shop',
+        x: this.doorCenterX,
+        y: this.doorCenterY,
+        radius: 55,
+        label: 'E / Space / click — Leave shop',
         action: () => this.scene.start('Town', { spawn: 'shop' }),
-        targets: this.doorMats,
       };
     }
     // (Pet care lives on the bottom [ Pet ] button — no proximity interaction.)
@@ -374,7 +369,12 @@ export class ShopScene extends Phaser.Scene {
       this.setHighlight(near?.targets);
       if (near) {
         this.prompt.show(near.label);
-        if (Phaser.Input.Keyboard.JustDown(this.keyE)) near.action();
+        if (
+          !isInteractSuppressed() &&
+          (Phaser.Input.Keyboard.JustDown(this.keyE) ||
+            Phaser.Input.Keyboard.JustDown(this.keySpace))
+        )
+          near.action();
       } else {
         this.prompt.hide();
       }

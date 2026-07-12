@@ -54,8 +54,8 @@ const POSES: Pose[] = [
   'jump',
 ];
 
-// Soft GBA palette (outline is rose, not pure black — matches the GIF)
-const OUT: RGBA = [120, 40, 72, 255];
+// Soft GBA palette — true black outline like the other characters
+const OUT: RGBA = [0, 0, 0, 255];
 const PINK: RGBA = [252, 176, 196, 255];
 const SHADE: RGBA = [236, 132, 156, 255];
 const DEEP: RGBA = [212, 96, 124, 255];
