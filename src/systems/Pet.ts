@@ -138,7 +138,9 @@ export class Pet {
     else if (movedX > 1.0) this.facingLeft = false;
     this.sprite.setFlipX(this.facingLeft);
 
-    if (petMoving) {
+    // Walk while the player is moving (pet rides the follow slot) or while
+    // catching up — otherwise it stays on bounce even when trotting along.
+    if (petMoving || moving) {
       this.sprite.play(this.anim('walk'), true);
     } else {
       this.applyExpression();
