@@ -180,11 +180,11 @@ function drawPuffle(color: [number, number, number, number], pose: PufflePose, a
       // -sin(a) is 1 at the crown, 0 at the equator, negative underneath:
       // big spikes up top, calm curve below. The +0.6 keeps a spike at the
       // very top instead of a dip.
-      // Fur only on the upper part (not the sides); the belly and flanks
-      // stay a clean round curve. Dips are clamped so no frame gets a
-      // notch carved out of the crown.
-      const amp = 0.24 * Math.max(0, -Math.sin(a) - 0.25) / 0.75;
-      const wob = Math.max(amp * Math.sin(a * 9 + phase + 0.6), -0.05);
+      // Shaggy over the whole top and down the sides; only the bottom
+      // third is a clean round curve. Dips are clamped so no frame gets a
+      // notch carved out of the fur.
+      const amp = 0.3 * Math.max(0, (-Math.sin(a) + 0.35) / 1.35);
+      const wob = Math.max(amp * Math.sin(a * 8 + phase + 0.6), -0.06);
       const n = Math.hypot(x / RX, y / RY);
       if (n <= 0.86 + wob) set(png, cx + x, cy + y, color);
       else if (n <= 1.0 + wob) set(png, cx + x, cy + y, OUT);
