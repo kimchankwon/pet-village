@@ -376,10 +376,12 @@ export function bottomButtons(
   buttons: { label: string; onTap: () => void }[],
   before: () => void,
 ) {
-  let x = 786;
+  const cam = scene.cameras.main;
+  let x = cam.width - 14;
+  const y = cam.height - 44;
   for (const def of buttons) {
     const b = scene.add
-      .text(x, 556, def.label, {
+      .text(x, y, def.label, {
         ...FONT,
         fontSize: '17px',
         color: '#ffe066',

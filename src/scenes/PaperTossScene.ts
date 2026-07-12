@@ -113,8 +113,10 @@ export class PaperTossScene extends Phaser.Scene {
 
     // Backdrop: cozy arcade room
     this.cameras.main.setBackgroundColor('#2a2440');
-    this.add.rectangle(400, 540, 800, 120, 0x4a4370); // floor
-    this.add.rectangle(400, GROUND_Y, 800, 4, 0x1a1a2e);
+    const cx = this.cameras.main.width / 2;
+    const viewW = this.cameras.main.width;
+    this.add.rectangle(cx, 540, viewW, 120, 0x4a4370); // floor
+    this.add.rectangle(cx, GROUND_Y, viewW, 4, 0x1a1a2e);
     for (let i = 0; i < 8; i++) {
       this.add.rectangle(50 + i * 100, 100, 40, 8, 0x5d5490); // ceiling slats
     }
@@ -139,23 +141,23 @@ export class PaperTossScene extends Phaser.Scene {
     this.add.text(140, 16, 'PAPER TOSS', { ...FONT, fontSize: '18px', color: '#ffe066' });
     this.statusText = this.add.text(20, 44, '', FONT);
     // Wind readout lives at the bottom, over the floor.
-    this.windText = this.add.text(400, 496, '', { ...FONT, fontSize: '16px' }).setOrigin(0.5, 0).setDepth(21);
+    this.windText = this.add.text(cx, 496, '', { ...FONT, fontSize: '16px' }).setOrigin(0.5, 0).setDepth(21);
 
     // Drifting streaks across the play area animate which way (and how
     // hard) the wind is blowing.
     for (let i = 0; i < 12; i++) {
       const baseY = Phaser.Math.Between(130, 460);
       const rect = this.add
-        .rectangle(Phaser.Math.Between(0, 800), baseY, 30, 2, 0xcfe8ff, 1)
+        .rectangle(Phaser.Math.Between(0, viewW), baseY, 30, 2, 0xcfe8ff, 1)
         .setAlpha(0.18)
         .setDepth(3);
       this.windStreaks.push({ rect, baseY, seed: i * 0.9 });
     }
     this.bestText = this.add
-      .text(780, 16, `Best: ${State.data.bestPaperToss}`, { ...FONT, color: '#c8c8dc' })
+      .text(viewW - 20, 16, `Best: ${State.data.bestPaperToss}`, { ...FONT, color: '#c8c8dc' })
       .setOrigin(1, 0);
     this.add
-      .text(400, 574, `Sink ${BASKETS_TO_CLEAR}/${THROWS_PER_STAGE} throws to clear the stage · Swish +1 · Bank +2 · Streak +2`, {
+      .text(cx, 574, `Sink ${BASKETS_TO_CLEAR}/${THROWS_PER_STAGE} throws to clear the stage · Swish +1 · Bank +2 · Streak +2`, {
         ...FONT,
         fontSize: '12px',
         color: '#c8c8dc',
@@ -449,9 +451,10 @@ export class PaperTossScene extends Phaser.Scene {
     const len = (strength / windMax) * 70 + 10;
     const y = 526;
     this.windArrow.lineStyle(4, 0x87ceeb, 1);
-    this.windArrow.lineBetween(400 - (dir * len) / 2, y, 400 + (dir * len) / 2, y);
+    const cx = this.cameras.main.width / 2;
+    this.windArrow.lineBetween(cx - (dir * len) / 2, y, cx + (dir * len) / 2, y);
     this.windArrow.fillStyle(0x87ceeb, 1);
-    const tipX = 400 + (dir * len) / 2;
+    const tipX = cx + (dir * len) / 2;
     this.windArrow.fillTriangle(tipX + dir * 10, y, tipX, y - 6, tipX, y + 6);
   }
 
@@ -519,7 +522,7 @@ export class PaperTossScene extends Phaser.Scene {
     this.startStage(); // new stage, new combination
     toast(
       this,
-      400,
+      this.cameras.main.width / 2,
       180,
       this.stage === STAGES.length ? `Stage cleared! Final stage — good luck!` : `Stage cleared! Stage ${this.stage}`,
       '#ffe066',
@@ -542,36 +545,38 @@ export class PaperTossScene extends Phaser.Scene {
     // Single back control: the panel has its own [ Back to town ].
     this.backBtn.setVisible(false);
     this.updateBest();
+    const cx = this.cameras.main.width / 2;
+    const cy = this.cameras.main.height / 2;
     // Depth above toasts (1500) so lingering "+SWISH!" text can't overlap
     // the buttons; interactive so clicks don't leak to the scene.
     this.add
-      .rectangle(400, 300, 460, 236, 0x2a2440, 0.97)
+      .rectangle(cx, cy, 460, 236, 0x2a2440, 0.97)
       .setStrokeStyle(3, 0xffe066)
       .setDepth(1600)
       .setInteractive();
     this.add
-      .text(400, 232, title, { ...FONT, fontSize: '22px', color: titleColor })
+      .text(cx, cy - 68, title, { ...FONT, fontSize: '22px', color: titleColor })
       .setOrigin(0.5)
       .setDepth(1601);
     this.add
-      .text(400, 278, `${this.baskets} basket${this.baskets === 1 ? '' : 's'} this run · +${this.roundCoins} coins`, {
+      .text(cx, cy - 22, `${this.baskets} basket${this.baskets === 1 ? '' : 's'} this run · +${this.roundCoins} coins`, {
         ...FONT,
         fontSize: '16px',
       })
       .setOrigin(0.5)
       .setDepth(1601);
     this.add
-      .text(400, 306, `Best: ${State.data.bestPaperToss}`, { ...FONT, color: '#c8c8dc' })
+      .text(cx, cy + 6, `Best: ${State.data.bestPaperToss}`, { ...FONT, color: '#c8c8dc' })
       .setOrigin(0.5)
       .setDepth(1601);
     const again = this.add
-      .text(280, 368, `[ ${primaryLabel} ]`, { ...FONT, fontSize: '18px', color: '#a8e6cf', padding: { x: 10, y: 8 } })
+      .text(cx - 120, cy + 68, `[ ${primaryLabel} ]`, { ...FONT, fontSize: '18px', color: '#a8e6cf', padding: { x: 10, y: 8 } })
       .setOrigin(0.5)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     again.on('pointerdown', () => this.scene.restart(restartData));
     const leave = this.add
-      .text(535, 368, '[ Back to town ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', padding: { x: 10, y: 8 } })
+      .text(cx + 135, cy + 68, '[ Back to town ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', padding: { x: 10, y: 8 } })
       .setOrigin(0.5)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
