@@ -30,6 +30,15 @@ const CROPS: Crop[] = [
 ];
 
 const PAPER: RGBA = [251, 244, 224, 255];
+// Preserve the reference silhouette pixel-for-pixel while consolidating its
+// screenshot noise into Cinnamoroll's five authored sprite colors.
+const PALETTE: RGBA[] = [
+  [32, 39, 40, 255],
+  [255, 255, 247, 255],
+  [193, 234, 240, 255],
+  [77, 177, 209, 255],
+  [249, 185, 182, 255],
+];
 
 function read(source: InstanceType<typeof PNG>, x: number, y: number): RGBA {
   const i = (y * source.width + x) << 2;
@@ -45,12 +54,17 @@ function isPaper([r, g, b]: RGBA) {
   return r - b > 15 && g - b > 10 && distance([r, g, b, 255], PAPER) < 105;
 }
 
+function quantize(color: RGBA) {
+  return PALETTE.reduce((best, candidate) => distance(color, candidate) < distance(color, best) ? candidate : best);
+}
+
 function set(output: InstanceType<typeof PNG>, x: number, y: number, color: RGBA) {
+  const pixel = quantize(color);
   const i = (y * output.width + x) << 2;
-  output.data[i] = color[0];
-  output.data[i + 1] = color[1];
-  output.data[i + 2] = color[2];
-  output.data[i + 3] = color[3];
+  output.data[i] = pixel[0];
+  output.data[i + 1] = pixel[1];
+  output.data[i + 2] = pixel[2];
+  output.data[i + 3] = pixel[3];
 }
 
 function cleanup(output: InstanceType<typeof PNG>, bottom: number) {

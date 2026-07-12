@@ -29,8 +29,8 @@ export class CinnamorollNpc extends WandererNpc {
       texPrefix: 'cinna',
       waypoints,
       // Source-extracted frames retain their native 1:1 pixels (~180px tall),
-      // so this preserves the previous ~55px in-world character height.
-      scale: 0.34,
+      // so this lands beside the ~60px displayed player sprite.
+      scale: 0.42,
       speed: 42,
       pauseMs: [1800, 3600],
     });

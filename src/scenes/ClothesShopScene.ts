@@ -82,7 +82,10 @@ export class ClothesShopScene extends Phaser.Scene {
     const cinnaX = ROOM_X + 6 * TILE;
     const cinnaY = ROOM_Y + 2.55 * TILE;
     this.cinna = new CinnamorollNpc(this, [{ x: cinnaX, y: cinnaY }]);
-    this.cinna.sprite.setScale(1.85);
+    // Source-extracted Cinnamoroll frames are ~180px tall. Keep the shopkeeper
+    // visually comparable to the ~32px player sprite instead of overriding the
+    // NPC's calibrated scale with the old low-resolution sprite scale.
+    this.cinna.sprite.setScale(0.42);
 
     const dressing: [number, number, string, number?][] = [
       [1.5, 2.6, 'item-bookshelf', 1.2],
