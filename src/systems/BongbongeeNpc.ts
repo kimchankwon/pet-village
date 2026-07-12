@@ -26,7 +26,7 @@ export class BongbongeeNpc extends WandererNpc {
     });
   }
 
-  override talk(cbs: NpcTalkCallbacks) {
+  protected override openTalk(cbs: NpcTalkCallbacks) {
     const line = this.pickLine(LINES);
     this.playBounce();
     const missing = ACCESSORY_LIST.filter(

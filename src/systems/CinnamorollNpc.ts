@@ -10,17 +10,17 @@ import { WandererNpc, type NpcTalkCallbacks } from './WandererNpc';
  * naps on laps, flies by flapping huge ears ("ehehe~").
  */
 const LINES = [
-  '…um. Welcome to my little clothes nook… I picked soft things. For pets.',
+  '…um. Welcome to Cafe Cinnamon… I picked soft clothes. For pets.',
   'Ehehe… don’t mind me. I get shy. The scarves smell like fresh rolls…',
   'If you want to try something on… I’ll look away. Softly. Promise.',
   'Cafe Cinnamon’s rolls are the best… warm and swirly like my tail.',
-  'I floated here on a cloud… then I opened a tiny shop. Is that okay…?',
+  'I floated here on a cloud… then I opened this little shop. Is that okay…?',
   'My ears go flap-flap when I’m happy. Oh — shopping counts as happy.',
 ];
 
 /**
- * Cinnamoroll — clothes shop owner. Stays near his stall, sells Cafe
- * Cinnamon pet outfits you can equip from the pet menu.
+ * Cinnamoroll — Cafe Cinnamon shopkeeper. Sells soft pet outfits
+ * you can equip from the pet menu.
  */
 export class CinnamorollNpc extends WandererNpc {
   constructor(scene: Phaser.Scene, waypoints: { x: number; y: number }[]) {
@@ -34,7 +34,7 @@ export class CinnamorollNpc extends WandererNpc {
     });
   }
 
-  override talk(cbs: NpcTalkCallbacks) {
+  protected override openTalk(cbs: NpcTalkCallbacks) {
     const line = this.pickLine(LINES);
     this.playBounce();
     const menu = new Menu(
