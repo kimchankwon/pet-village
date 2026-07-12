@@ -25,6 +25,8 @@ const HOUSE_POS = { tx: 11, ty: 3.15 };
 const SHOP_POS = { tx: 17.2, ty: 3.5 };
 const CAFE_POS = { tx: 4.8, ty: 3.5 };
 const ARCADE_POS = { tx: 16.8, ty: 12.1 };
+/** Skip Rope booth — bottom-left arcade corner. */
+const SKIPROPE_POS = { tx: 4.6, ty: 12.2 };
 const FOUNTAIN_POS = { tx: 11, ty: 8.4 };
 
 interface Interactable {
@@ -69,7 +71,7 @@ export class TownScene extends Phaser.Scene {
     super('Town');
   }
 
-  create(data: { spawn?: 'house' | 'arcade' | 'shop' | 'cafe' | 'shore' }) {
+  create(data: { spawn?: 'house' | 'arcade' | 'shop' | 'cafe' | 'shore' | 'skiprope' }) {
     generateTextures(this);
     this.interactables = [];
     this.menuOpen = false;
@@ -89,6 +91,9 @@ export class TownScene extends Phaser.Scene {
     } else if (data?.spawn === 'arcade') {
       sx = ARCADE_POS.tx * TILE;
       sy = (ARCADE_POS.ty + 1.2) * TILE;
+    } else if (data?.spawn === 'skiprope') {
+      sx = SKIPROPE_POS.tx * TILE;
+      sy = (SKIPROPE_POS.ty + 1.2) * TILE;
     } else if (data?.spawn === 'shop') {
       sx = SHOP_POS.tx * TILE;
       sy = (SHOP_POS.ty + 2.4) * TILE;
@@ -372,6 +377,30 @@ export class TownScene extends Phaser.Scene {
       targets: [arcade],
     });
 
+    // Skip Rope booth — SW arcade corner
+    const skipBooth = this.add
+      .image(SKIPROPE_POS.tx * TILE, SKIPROPE_POS.ty * TILE, 'skiprope-booth')
+      .setScale(1.55);
+    skipBooth.setDepth(propDepth(skipBooth, SKIPROPE_POS.ty * TILE));
+    this.add
+      .text(SKIPROPE_POS.tx * TILE, SKIPROPE_POS.ty * TILE - 48, 'Skip Rope', {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#ffffff',
+        stroke: '#1a1a2e',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(900);
+    this.interactables.push({
+      x: SKIPROPE_POS.tx * TILE,
+      y: SKIPROPE_POS.ty * TILE,
+      radius: 80,
+      label: 'E / click — Skip Rope',
+      action: () => this.scene.start('SkipRope'),
+      targets: [skipBooth],
+    });
+
     this.scatterTownDecor();
   }
 
@@ -450,6 +479,7 @@ export class TownScene extends Phaser.Scene {
     addSolid(SHOP_POS.tx * TILE, (SHOP_POS.ty + 0.2) * TILE, 128, 72);
     addSolid(CAFE_POS.tx * TILE, (CAFE_POS.ty + 0.2) * TILE, 128, 72);
     addSolid(ARCADE_POS.tx * TILE, ARCADE_POS.ty * TILE, 56, 36);
+    addSolid(SKIPROPE_POS.tx * TILE, SKIPROPE_POS.ty * TILE, 52, 40);
     for (const s of this.decoSolids) addSolid(s.x, s.y, s.w, s.h);
     this.physics.add.collider(this.player, solids);
   }

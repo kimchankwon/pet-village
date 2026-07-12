@@ -39,6 +39,8 @@ export interface SaveData {
   bestPaperToss: number;
   /** Biggest fish landed while shore-fishing, in centimetres. */
   biggestCatch: number;
+  /** Best consecutive jumps in Skip Rope. */
+  bestSkipRope: number;
   /** Accessory ids gifted by Bongbongee (or granted on adopting them). */
   ownedAccessories: AccessoryId[];
   /** One equipped accessory per slot. */
@@ -77,6 +79,12 @@ export const PAPER_TOSS_PARTICIPATION_COINS = 5;
 export const PAPER_TOSS_ENERGY_PER_THROW = 3;
 /** Happiness gained per throw on stage 1; multiplies by stage number. */
 export const PAPER_TOSS_HAPPINESS_PER_STAGE = 2;
+/** Coins for clearing Skip Rope (25 consecutive jumps). */
+export const SKIP_ROPE_WIN_COINS = 12;
+/** Happiness bump on a Skip Rope clear — no energy cost. */
+export const SKIP_ROPE_WIN_HAPPINESS = 8;
+/** Consecutive jumps needed to clear Skip Rope. */
+export const SKIP_ROPE_TARGET = 25;
 
 export const ITEMS: Record<string, ItemDef> = {
   fish: { id: 'fish', name: 'Fishy Snack', texture: 'fish', kind: 'food', price: 5, hunger: 25, happiness: 5 },
@@ -161,6 +169,7 @@ export function defaultSave(): SaveData {
     ],
     bestPaperToss: 0,
     biggestCatch: 0,
+    bestSkipRope: 0,
     ownedAccessories: [],
     equippedAccessories: {},
     penguinColor: 'blue',
@@ -258,6 +267,7 @@ class GameStateStore {
       placed: this.data.placed.map((p) => ({ ...p })),
       bestPaperToss: this.data.bestPaperToss,
       biggestCatch: this.data.biggestCatch,
+      bestSkipRope: this.data.bestSkipRope,
       ownedAccessories: [...this.data.ownedAccessories],
       equippedAccessories: { ...this.data.equippedAccessories },
     };
@@ -368,6 +378,22 @@ class GameStateStore {
     this.data.biggestCatch = size;
     this.save();
     return true;
+  }
+
+  /** Record a Skip Rope streak. Returns true if it set a new personal best. */
+  recordSkipRope(jumps: number): boolean {
+    const n = Math.max(0, Math.floor(jumps));
+    if (n <= this.data.bestSkipRope) return false;
+    this.data.bestSkipRope = n;
+    this.save();
+    return true;
+  }
+
+  /** Win rewards for clearing Skip Rope (coins + happiness, no energy loss). */
+  rewardSkipRopeWin() {
+    this.data.coins += SKIP_ROPE_WIN_COINS;
+    this.data.pet.happiness = clamp(this.data.pet.happiness + SKIP_ROPE_WIN_HAPPINESS);
+    this.save();
   }
 
   removeItem(id: string): boolean {

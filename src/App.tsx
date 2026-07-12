@@ -255,6 +255,7 @@ function CloudGame() {
         placed: cloudSave.placed,
         bestPaperToss: cloudSave.bestPaperToss,
         biggestCatch: cloudSave.biggestCatch ?? 0,
+        bestSkipRope: cloudSave.bestSkipRope ?? 0,
         ownedAccessories: cloudSave.ownedAccessories as SaveData['ownedAccessories'] | undefined,
         equippedAccessories: cloudSave.equippedAccessories as
           | SaveData['equippedAccessories']

@@ -824,6 +824,74 @@ const ARCADE: Grid = [
   '................',
 ];
 
+/** Outdoor Skip Rope booth — pink canopy + rope post. */
+const SKIPROPE_BOOTH: Grid = [
+  '................',
+  '...kPPPPPPPPk...',
+  '..kPppppppppPk..',
+  '.kPppyyyyyyppPk.',
+  '.kPppyyyyyyppPk.',
+  '..kPppppppppPk..',
+  '...kkkkkkkkkk...',
+  '....n......n....',
+  '....n..yy..n....',
+  '....n.y..y.n....',
+  '....n.y..y.n....',
+  '....n..yy..n....',
+  '....n......n....',
+  '...nnnnnnnnnn...',
+  '..nNNNNNNNNNNn..',
+  '................',
+];
+
+/** Thin rope strip — rotated in-scene around one end. */
+const ROPE: Grid = [
+  'N.',
+  'n.',
+  'N.',
+  'n.',
+  'N.',
+  'n.',
+  'N.',
+  'n.',
+  'N.',
+  'n.',
+  'N.',
+  'n.',
+  'N.',
+  'n.',
+  'N.',
+  'n.',
+  'N.',
+  'n.',
+  'N.',
+  'n.',
+  'N.',
+  'n.',
+  'N.',
+  'y.',
+];
+
+/** Soft ground marker for the timing window (optional UI cue). */
+const JUMP_WINDOW: Grid = [
+  '................',
+  '................',
+  '....eeeeeeee....',
+  '...e........e...',
+  '..e..........e..',
+  '..e..........e..',
+  '...e........e...',
+  '....eeeeeeee....',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+];
+
 // ---- Minigame + misc ----
 const PAPERBALL: Grid = [
   '........',
@@ -1016,6 +1084,11 @@ export function generateTextures(scene: Phaser.Scene) {
     makeTexture(scene, 'shop', [SHOP]);
     makeTexture(scene, 'cafe', [CAFE]);
     makeTexture(scene, 'arcade', [ARCADE]);
+    if (!scene.textures.exists('skiprope-booth')) makeTexture(scene, 'skiprope-booth', [SKIPROPE_BOOTH]);
+    if (!scene.textures.exists('rope')) makeTexture(scene, 'rope', [ROPE]);
+    if (!scene.textures.exists('jump-window-indicator')) {
+      makeTexture(scene, 'jump-window-indicator', [JUMP_WINDOW]);
+    }
     makeTexture(scene, 'paperball', [PAPERBALL]);
     makeTexture(scene, 'bin', [BIN]);
     makeTexture(scene, 'coin', [COIN]);
@@ -1042,6 +1115,11 @@ export function generateTextures(scene: Phaser.Scene) {
   }
 
   if (!scene.textures.exists('cafe')) makeTexture(scene, 'cafe', [CAFE]);
+  if (!scene.textures.exists('skiprope-booth')) makeTexture(scene, 'skiprope-booth', [SKIPROPE_BOOTH]);
+  if (!scene.textures.exists('rope')) makeTexture(scene, 'rope', [ROPE]);
+  if (!scene.textures.exists('jump-window-indicator')) {
+    makeTexture(scene, 'jump-window-indicator', [JUMP_WINDOW]);
+  }
 
   if (scene.textures.exists('tile-plaza')) scene.textures.remove('tile-plaza');
   // Smooth stone plaza (not brick cobble).
