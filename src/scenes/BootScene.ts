@@ -68,7 +68,7 @@ export class BootScene extends Phaser.Scene {
           frames: KIRBY_WALK_FILES.map((file) => ({
             key: file === 'walk1' || file === 'walk2' ? petTextureKey('kirby', file) : `kirby-${file}`,
           })),
-          frameRate: 12,
+          frameRate: 14,
           repeat: -1,
         });
       } else {

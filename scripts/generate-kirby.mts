@@ -128,25 +128,46 @@ function outlineSilhouette(png: InstanceType<typeof PNG>) {
 }
 
 /**
- * 8-phase walk (GIF style).
- * Even phases = plant / low body; odd = pass / high body.
- * Feet move on an ellipse; arms opposite the feet; face shifts toward stride.
+ * 8-phase walk (GIF style) — body motion is the hero, not just the feet.
+ * Mid-stride (0,4): body lowest + squashed, feet widest.
+ * Pass (2,6): body highest + stretched, feet cross under.
+ * Arms pump opposite the feet; face leans into the stride.
  */
 function walkParams(phase: number) {
   const t = (phase / 8) * Math.PI * 2;
-  // Body: lowest at mid-stride (phase 0,4), highest when feet pass (2,6)
-  const bob = Math.round(Math.cos(t) * 1.2);
-  // Left foot: forward at phase 0, back at phase 4
-  const leftFootX = Math.round(Math.cos(t) * 4);
+  // Strong vertical bob (GIF reads clearly at pet scale)
+  const bob = Math.round(Math.cos(t) * 2.4); // -2..+2
+  // Squash when low, stretch when high
+  const squash = bob >= 1 ? -0.9 : bob <= -1 ? 1.2 : 0;
+  const widen = bob <= -1 ? 1.1 : bob >= 1 ? -0.6 : 0;
+  // Lean toward the forward foot
+  const lean = Math.round(Math.cos(t) * 1.2);
+  // Feet on an ellipse
+  const leftFootX = Math.round(Math.cos(t) * 5);
   const rightFootX = -leftFootX;
-  const leftLift = Math.min(0, Math.round(Math.sin(t) * 3));
-  const rightLift = Math.min(0, Math.round(Math.sin(t + Math.PI) * 3));
-  // Arms opposite feet — nub “forward” when that side’s foot is back
-  const armL = Math.round((1 - Math.cos(t)) * 0.5); // 0..1
-  const armR = 1 - armL;
-  const face = Math.cos(t) >= 0 ? 1 : -1;
-  const squash = bob > 0 ? 0 : 0.4; // slightly flatter when low
-  return { bob, leftFootX, rightFootX, leftLift, rightLift, armL, armR, face, squash };
+  const leftLift = Math.min(0, Math.round(Math.sin(t) * 3.5));
+  const rightLift = Math.min(0, Math.round(Math.sin(t + Math.PI) * 3.5));
+  // Arms opposite feet — 0 tucked, 2–3 extended (silhouette wobble)
+  const armL = Math.round((1 - Math.cos(t)) * 1.5); // 0..3
+  const armR = Math.round((1 + Math.cos(t)) * 1.5); // 0..3
+  const armLy = Math.round(Math.sin(t) * 1.5); // circular wiggle
+  const armRy = Math.round(Math.sin(t + Math.PI) * 1.5);
+  const face = Math.round(Math.cos(t) * 1.5); // -1..1 toward stride
+  return {
+    bob,
+    lean,
+    leftFootX,
+    rightFootX,
+    leftLift,
+    rightLift,
+    armL,
+    armR,
+    armLy,
+    armRy,
+    face,
+    squash,
+    widen,
+  };
 }
 
 function walkPhaseOf(pose: Pose): number {
@@ -163,20 +184,22 @@ function walkPhaseOf(pose: Pose): number {
   return m[pose] ?? -1;
 }
 
-/** Seamless hand nub — pink only, silhouette defines the hand. */
+/** Seamless hand nub — pink only; silhouette defines the hand. */
 function handNub(
   png: InstanceType<typeof PNG>,
   side: -1 | 1,
   cx: number,
   cy: number,
   forward: number,
+  lift: number,
 ) {
-  const ax = cx + side * (8 + forward);
-  const ay = cy + 1 - forward;
-  ellipseFill(png, ax, ay, 2.2, 2.4, PINK);
-  // Bridge into body (no outline)
-  fill(png, cx + side * 5, ay - 1, cx + side * (7 + forward), ay + 2, PINK);
+  const ax = cx + side * (7.5 + forward);
+  const ay = cy + 1 - lift;
+  ellipseFill(png, ax, ay, 2.6, 2.8, PINK);
+  // Bridge into body (no outline between nub and face)
+  fill(png, cx + side * 4, ay - 1, cx + side * (7 + Math.max(0, forward)), ay + 2, PINK);
   set(png, ax, ay + 2, SHADE);
+  set(png, ax + side, ay + 1, DEEP);
 }
 
 function drawKirby(pose: Pose) {
@@ -186,28 +209,30 @@ function drawKirby(pose: Pose) {
 
   const raised = pose === 'happy' || pose === 'jump';
   const dy = pose === 'jump' ? -3 : pose === 'neutral2' ? 1 : wp ? wp.bob : 0;
+  const lean = wp?.lean ?? 0;
   const faceShift = wp ? wp.face : 0;
-  const cx = 16;
+  const cx = 16 + lean;
   const cy = 14 + dy;
-  const rx = 8.6;
+  const rx = 8.6 + (wp?.widen ?? 0);
   const ry = 8.0 - (wp?.squash ?? 0);
 
   // --- Feet first (no outline yet; body will cover tops) ---
   const spread = pose === 'jump' ? 3 : 5;
-  const lfx = cx - spread + (wp?.leftFootX ?? 0);
-  const rfx = cx + spread + (wp?.rightFootX ?? 0);
-  const ground = 25;
-  const lfy = ground + (wp?.leftLift ?? 0) + Math.min(0, dy);
-  const rfy = ground + (wp?.rightLift ?? 0) + Math.min(0, dy);
-  ellipseFill(png, lfx, lfy, 3.6, 2.4, RED);
-  ellipseFill(png, rfx, rfy, 3.6, 2.4, RED);
+  const lfx = 16 - spread + (wp?.leftFootX ?? 0); // feet stay under world center
+  const rfx = 16 + spread + (wp?.rightFootX ?? 0);
+  const ground = 26;
+  // Planted foot stays on ground; body bob doesn't drag the planted foot up
+  const lfy = ground + (wp?.leftLift ?? 0);
+  const rfy = ground + (wp?.rightLift ?? 0);
+  ellipseFill(png, lfx, lfy, 3.8, 2.5, RED);
+  ellipseFill(png, rfx, rfy, 3.8, 2.5, RED);
   fill(png, lfx - 2, lfy - 1, lfx, lfy, RED_H);
   fill(png, rfx - 2, rfy - 1, rfx, rfy, RED_H);
 
-  // --- Body (covers upper foot overlap cleanly) ---
+  // --- Body (covers upper foot overlap; leans + squashes with the stride) ---
   ellipseFill(png, cx, cy, rx, ry, PINK);
 
-  // Hands — continuous pink with body
+  // Hands — continuous pink with body; pump opposite the feet
   if (raised) {
     for (const side of [-1, 1] as const) {
       const ax = cx + side * 7;
@@ -217,11 +242,11 @@ function drawKirby(pose: Pose) {
       set(png, ax - side, ay + 2, DEEP);
     }
   } else if (wp) {
-    handNub(png, -1, cx, cy, wp.armL);
-    handNub(png, 1, cx, cy, wp.armR);
+    handNub(png, -1, cx, cy, wp.armL, wp.armLy);
+    handNub(png, 1, cx, cy, wp.armR, wp.armRy);
   } else {
-    handNub(png, -1, cx, cy, 0);
-    handNub(png, 1, cx, cy, 0);
+    handNub(png, -1, cx, cy, 0, 0);
+    handNub(png, 1, cx, cy, 0, 0);
   }
 
   // Soft lower-right shading (skip hand nub region)
@@ -236,11 +261,11 @@ function drawKirby(pose: Pose) {
 
   outlineSilhouette(png);
 
-  // Shine
+  // Shine follows the lean
   fill(png, cx - 5 + faceShift, cy - 5, cx - 4 + faceShift, cy - 4, WHITE);
   set(png, cx - 6 + faceShift, cy - 4, WHITE);
 
-  // Face — tall eyes: white top, deep bottom (GIF style)
+  // Face — tall eyes: white top, deep bottom (GIF style); shifts with stride
   const eyeTop = cy - 3;
   const lx = cx - 3 + faceShift;
   const rxEye = cx + 3 + faceShift;
