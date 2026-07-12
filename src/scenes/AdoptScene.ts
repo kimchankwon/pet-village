@@ -45,7 +45,7 @@ export class AdoptScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(400, 92, 'Tamagotchi, puffles, or CARAT’s Bongbongee — then pick a name.', {
+      .text(400, 92, 'Pick a companion — then give them a name.', {
         ...FONT,
         fontSize: '12px',
         color: '#a89bc4',
@@ -53,11 +53,11 @@ export class AdoptScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(400, 118, 'Tamagotchi & Bongbongee', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .text(400, 118, 'Tamagotchi & friends', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
 
     // One row of the four "big" companions, one row of the eight puffles.
-    this.layoutRow([...CLASSIC_PETS, ...MASCOT_PETS], 182, 186, 2.1, 108);
+    this.layoutRow([...CLASSIC_PETS, ...MASCOT_PETS], 182, 126, 1.9, 108);
     this.add
       .text(400, 254, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);

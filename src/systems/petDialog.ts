@@ -34,6 +34,8 @@ const PERSONALITY: Record<PetSpecies, string[]> = {
   kuchipatchi: ['Everything smells delicious!', 'Walking makes me hungry~', 'You look like a snack. A friend snack!'],
   mimitchi: ['Do I look cute today? (Yes.)', 'Ribbon check… perfect!', 'Strut with me, darling!'],
   bongbongee: ['Bong! Bong! Sparkle time!', 'CARATs would love this town~', 'Do my cheeks still say 17?'],
+  cinnamoroll: ['…I found a sunny nap spot.', '*soft ear flaps*', 'Cinnamon rolls later…? Okay.'],
+  kirby: ['Poyo!', 'Poyo poyo!! (Snack time??)', '*inhales happily* Poyo~'],
   'puffle-blue': ['Right behind you, always!', 'Best friends stick together!', 'Where you go, I go!'],
   'puffle-pink': ['Cartwheel! Did you see?!', 'Dance break!! Woo!!', 'This town has GREAT music!'],
   'puffle-green': ['Hehehe… nothing. Nothing!', 'Watch this trick! Almost got it!', 'Prank successfully planned.'],

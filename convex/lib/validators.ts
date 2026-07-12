@@ -6,6 +6,8 @@ export const petSpeciesValidator = v.optional(
     v.literal("kuchipatchi"),
     v.literal("mimitchi"),
     v.literal("bongbongee"),
+    v.literal("cinnamoroll"),
+    v.literal("kirby"),
     v.literal("puffle-blue"),
     v.literal("puffle-pink"),
     v.literal("puffle-green"),
