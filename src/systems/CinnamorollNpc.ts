@@ -58,7 +58,11 @@ export class CinnamorollNpc extends WandererNpc {
               this.scene,
               'Cinnamoroll',
               [{ label: 'Mmm… thank you for asking.', onSelect: () => undefined }],
-              'Warm… swirly… the best smell in the sky. Ehehe~',
+              {
+                subtitle: 'Warm… swirly… the best smell in the sky. Ehehe~',
+                anchor: 'bottom',
+                face: this.faceKey(),
+              },
             );
             follow.onClose = cbs.onClose;
           },
@@ -68,7 +72,7 @@ export class CinnamorollNpc extends WandererNpc {
           onSelect: () => this.hop(28),
         },
       ],
-      line,
+      { subtitle: line, anchor: 'bottom', face: this.faceKey() },
     );
     menu.onClose = cbs.onClose;
   }
@@ -105,12 +109,11 @@ export class CinnamorollNpc extends WandererNpc {
       onSelect: () => this.emote('happy', 700),
     });
 
-    const menu = new Menu(
-      this.scene,
-      'Cafe Cinnamon Closet',
-      options,
-      `You have ${State.coins} coins · equip from [ Pet ] → Clothes`,
-    );
+    const menu = new Menu(this.scene, 'Cafe Cinnamon Closet', options, {
+      subtitle: `You have ${State.coins} coins · equip from [ Pet ] → Clothes`,
+      anchor: 'bottom',
+      face: this.faceKey(),
+    });
     menu.onClose = cbs.onClose;
   }
 }

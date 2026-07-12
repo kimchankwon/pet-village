@@ -98,6 +98,11 @@ export class WandererNpc {
     };
   }
 
+  /** Idle portrait texture for dialogue windows. */
+  faceKey() {
+    return `${this.prefix}-idle`;
+  }
+
   /** Open this NPC's dialogue. Subclasses build their own menu. */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   talk(_cbs: NpcTalkCallbacks) {}

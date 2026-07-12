@@ -277,7 +277,11 @@ export class MiniteenNpc extends WandererNpc {
             this.scene,
             this.def.name,
             [{ label: 'Nice to meet you!', onSelect: () => undefined }],
-            `${this.def.member}’s MINITEEN · ${this.def.bio}`,
+            {
+              subtitle: `${this.def.member}’s MINITEEN · ${this.def.bio}`,
+              anchor: 'bottom',
+              face: this.faceKey(),
+            },
           );
           follow.onClose = cbs.onClose;
         },
@@ -287,7 +291,11 @@ export class MiniteenNpc extends WandererNpc {
         onSelect: () => this.hop(),
       },
     ];
-    const menu = new Menu(this.scene, this.def.name, options, line);
+    const menu = new Menu(this.scene, this.def.name, options, {
+      subtitle: line,
+      anchor: 'bottom',
+      face: this.faceKey(),
+    });
     menu.onClose = cbs.onClose;
   }
 }

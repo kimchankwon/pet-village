@@ -69,28 +69,62 @@ export interface MenuOption {
   onSelect: () => void;
 }
 
+export interface MenuLayout {
+  subtitle?: string;
+  /** Screen placement. Character talk uses `bottom`. Default: center. */
+  anchor?: 'center' | 'bottom';
+  /** Speaker portrait texture key (shown left of the title). */
+  face?: string;
+}
+
+function resolveLayout(subtitleOrLayout?: string | MenuLayout): MenuLayout {
+  if (subtitleOrLayout == null) return {};
+  if (typeof subtitleOrLayout === 'string') return { subtitle: subtitleOrLayout };
+  return subtitleOrLayout;
+}
+
 // Modal list menu (shop, pet actions, decorate inventory). Click an option or
-// press ESC to close. Returns a close function.
+// press ESC to close. Character dialogues pass `{ anchor: 'bottom', face }`.
 export class Menu {
   private objects: Phaser.GameObjects.GameObject[] = [];
   private scene: Phaser.Scene;
   private escKey: Phaser.Input.Keyboard.Key | undefined;
   onClose?: () => void;
 
-  constructor(scene: Phaser.Scene, title: string, options: MenuOption[], subtitle?: string) {
+  constructor(
+    scene: Phaser.Scene,
+    title: string,
+    options: MenuOption[],
+    subtitleOrLayout?: string | MenuLayout,
+  ) {
     this.scene = scene;
+    const layout = resolveLayout(subtitleOrLayout);
     const cam = scene.cameras.main;
+    const hasFace = Boolean(layout.face && scene.textures.exists(layout.face));
+    const faceSlot = hasFace ? 78 : 0;
+
     // Widen to fit the longest label (12px monospace ≈ 7.2px/char + icon + padding).
-    const maxChars = options.reduce((m, o) => Math.max(m, o.label.length), subtitle?.length ?? 0);
-    const w = Phaser.Math.Clamp(110 + maxChars * 8.5, 360, 600);
-    // Generous touch targets.
+    const maxChars = options.reduce(
+      (m, o) => Math.max(m, o.label.length),
+      Math.max(layout.subtitle?.length ?? 0, title.length),
+    );
+    const w = Phaser.Math.Clamp(110 + Math.min(maxChars, 52) * 8.5 + faceSlot, 380, 640);
     const rowH = 44;
-    const h = 70 + options.length * rowH + (subtitle ? 18 : 0);
+    const wrapW = w - faceSlot - 36;
+    const subtitleLines = layout.subtitle
+      ? Math.max(1, Math.ceil((layout.subtitle.length * 7.2) / wrapW))
+      : 0;
+    const subtitleH = subtitleLines > 0 ? subtitleLines * 15 + 10 : 0;
+    const headerExtra = hasFace ? 36 : 0;
+    const h = 56 + headerExtra + subtitleH + options.length * rowH + 28;
     const cx = cam.width / 2;
-    const cy = cam.height / 2;
+    const cy =
+      layout.anchor === 'bottom'
+        ? cam.height - 16 - h / 2
+        : cam.height / 2;
 
     const dim = scene.add
-      .rectangle(0, 0, cam.width, cam.height, 0x000000, 0.5)
+      .rectangle(0, 0, cam.width, cam.height, 0x000000, 0.45)
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(2000)
@@ -103,22 +137,48 @@ export class Menu {
       .setDepth(2001)
       .setStrokeStyle(3, 0xffb3d1)
       .setInteractive(); // block dim's close handler
+
+    const headerLeft = cx - w / 2 + faceSlot;
+    const titleX = hasFace ? headerLeft + 12 : cx;
+    const titleOrigin = hasFace ? 0 : 0.5;
+    const titleY = cy - h / 2 + (hasFace ? 28 : 20);
+
+    if (hasFace && layout.face) {
+      const faceBg = scene.add
+        .rectangle(cx - w / 2 + faceSlot / 2, cy - h / 2 + 44, 64, 64, 0x1a1626)
+        .setStrokeStyle(2, 0xffe066)
+        .setScrollFactor(0)
+        .setDepth(2002);
+      const face = scene.add
+        .image(cx - w / 2 + faceSlot / 2, cy - h / 2 + 44, layout.face)
+        .setScrollFactor(0)
+        .setDepth(2003);
+      face.setScale(Math.min(2.2, 52 / Math.max(face.width, face.height)));
+      this.objects.push(faceBg, face);
+    }
+
     const titleText = scene.add
-      .text(cx, cy - h / 2 + 20, title, { ...FONT, fontSize: '16px', color: '#ffb3d1' })
-      .setOrigin(0.5)
+      .text(titleX, titleY, title, { ...FONT, fontSize: '16px', color: '#ffb3d1' })
+      .setOrigin(titleOrigin, 0.5)
       .setScrollFactor(0)
       .setDepth(2002);
     this.objects.push(dim, panel, titleText);
 
-    let top = cy - h / 2 + 42;
-    if (subtitle) {
+    let top = cy - h / 2 + (hasFace ? 58 : 42);
+    if (layout.subtitle) {
       const st = scene.add
-        .text(cx, top - 4, subtitle, { ...FONT_SM, color: '#c8c8dc' })
-        .setOrigin(0.5)
+        .text(titleX, top, layout.subtitle, {
+          ...FONT_SM,
+          color: '#c8c8dc',
+          wordWrap: { width: w - faceSlot - 36 },
+        })
+        .setOrigin(titleOrigin, 0)
         .setScrollFactor(0)
         .setDepth(2002);
       this.objects.push(st);
-      top += 18;
+      top += Math.max(22, st.height + 8);
+    } else if (hasFace) {
+      top = cy - h / 2 + 78;
     }
 
     options.forEach((opt, i) => {
@@ -152,7 +212,11 @@ export class Menu {
     });
 
     const hint = scene.add
-      .text(cx, cy + h / 2 - 14, 'ESC / click outside to close', { ...FONT_SM, fontSize: '10px', color: '#8a8a9e' })
+      .text(cx, cy + h / 2 - 14, 'ESC / click outside to close', {
+        ...FONT_SM,
+        fontSize: '10px',
+        color: '#8a8a9e',
+      })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(2002);
