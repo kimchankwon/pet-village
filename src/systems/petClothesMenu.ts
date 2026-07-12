@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { ACCESSORIES, ACCESSORY_LIST, type AccessoryId } from './accessories';
+import { ACCESSORIES, ACCESSORY_LIST, accessoryWearable, type AccessoryId } from './accessories';
 import { State } from './GameState';
 import { Menu, type MenuOption } from './UI';
 import type { Pet } from './Pet';
@@ -27,6 +27,13 @@ export function clothesPetMenuOption(
 
 let clothesMenu: Menu | null = null;
 
+function wearableLockLabel(a: (typeof ACCESSORY_LIST)[number]): string {
+  const wear = accessoryWearable(a);
+  if (wear === 'puffle') return 'puffles only';
+  if (wear === 'bongbongee') return 'Bongbongee only';
+  return 'Cinnamoroll only';
+}
+
 export function openClothesMenu(
   scene: Phaser.Scene,
   pet: Pet,
@@ -46,10 +53,15 @@ export function openClothesMenu(
   const owned = ACCESSORY_LIST.filter((a) => State.ownsAccessory(a.id));
   const options: MenuOption[] = owned.map((a, i) => {
     const equipped = State.isAccessoryEquipped(a.id);
+    const locked = !State.canWearAccessory(a.id);
     return {
-      label: `${equipped ? '● ' : '○ '}${a.name}`,
+      label: locked
+        ? `○ ${a.name} (${wearableLockLabel(a)})`
+        : `${equipped ? '● ' : '○ '}${a.name}`,
       icon: a.texture,
+      disabled: locked,
       onSelect: () => {
+        if (locked) return;
         State.toggleAccessory(a.id);
         pet.refreshAccessories();
         keepMenuOpen?.();
@@ -77,7 +89,7 @@ export function openClothesMenu(
     });
   }
 
-  const equippedNames = ACCESSORY_LIST.filter((a) => State.isAccessoryEquipped(a.id))
+  const equippedNames = ACCESSORY_LIST.filter((a) => State.isAccessoryEquipped(a.id) && State.canWearAccessory(a.id))
     .map((a) => a.name)
     .join(', ');
   const wearingLine = equippedNames ? `Wearing: ${equippedNames}` : 'Wearing: nothing yet';

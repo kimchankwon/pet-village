@@ -16,6 +16,8 @@ export const petSpeciesValidator = v.optional(
     v.literal("puffle-red"),
     v.literal("puffle-yellow"),
     v.literal("puffle-white"),
+    v.literal("puffle-orange"),
+    v.literal("puffle-brown"),
   ),
 );
 
