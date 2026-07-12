@@ -252,11 +252,18 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
     const SKIN: RGBA = [255, 228, 205, 255];
     const HAIR: RGBA = [72, 56, 52, 255];
     const earLift = pose === 'jump' || pose === 'happy' ? -1 : 0;
-    // Splayed bunny-hood ears
+    // Butterfly-wing hood ears: big rounded lobes angled up-outward with
+    // pale-yellow inners (per the official art)
+    const EAR_IN: RGBA = [255, 238, 190, 255];
     for (const s of [-1, 1]) {
-      const ex = CX + s * 7;
-      ellipse(png, ex, HEAD_Y - 10 + earLift + dy, 3, 5, PINK, OUT);
-      ellipse(png, ex, HEAD_Y - 10 + earLift + dy, 1, 3, PINK_IN);
+      const ex = CX + s * 8;
+      const ey = HEAD_Y - 9 + earLift + dy;
+      // Tilted lobe: stack of shrinking rows stepping outward
+      ellipse(png, ex, ey, 4, 5, PINK, OUT);
+      ellipse(png, ex + s, ey - 4, 3, 2.5, PINK, OUT);
+      ellipse(png, ex, ey, 3.4, 4.4, PINK);
+      ellipse(png, ex + s, ey - 4, 2.4, 1.9, PINK);
+      ellipse(png, ex + s, ey - 1, 1.6, 2.4, EAR_IN);
     }
     chibiBody(f, PINK, { belly: PINK_IN });
     circle(png, CX, HEAD_Y + dy, HEAD_R, PINK, OUT); // hood
@@ -310,10 +317,11 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
     const GRAY: RGBA = [168, 170, 182, 255];
     const BLACK: RGBA = [72, 70, 84, 255];
     const wob = leg; // the tower sways as it walks
-    const stack: { color: RGBA; cy: number; ox: number }[] = [
-      { color: BLACK, cy: 34, ox: 0 },
-      { color: GRAY, cy: 24, ox: wob },
-      { color: WHITE, cy: 13, ox: -wob },
+    // Pyramid stack: big black cat at the bottom, small white on top
+    const stack: { color: RGBA; cy: number; ox: number; rx: number; ry: number }[] = [
+      { color: BLACK, cy: 33, ox: 0, rx: 8.5, ry: 6.5 },
+      { color: GRAY, cy: 23, ox: wob, rx: 7, ry: 5.5 },
+      { color: WHITE, cy: 13, ox: -wob, rx: 6, ry: 5 },
     ];
     // Feet on the bottom cat
     fill(png, CX - 5 + leg, FEET_Y + 1 + dy, CX - 2 + leg, FEET_Y + 2 + dy, BLACK);
@@ -323,11 +331,17 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
       const cy = cat.cy + dy;
       // Pointy ears
       for (const s of [-1, 1]) {
-        set(png, cx + s * 4, cy - 7, OUT);
-        fill(png, cx + s * 4 - 1, cy - 6, cx + s * 4 + 1, cy - 5, cat.color);
+        const exx = cx + s * (cat.rx - 3);
+        set(png, exx, cy - cat.ry - 2, OUT);
+        fill(png, exx - 1, cy - cat.ry - 1, exx + 1, cy - cat.ry, cat.color);
       }
-      ellipse(png, cx, cy, 7, 5.5, cat.color, OUT);
+      ellipse(png, cx, cy, cat.rx, cat.ry, cat.color, OUT);
     }
+    // Tiny green sprout on the black cat's forehead (per the official art)
+    const SPROUT: RGBA = [118, 190, 96, 255];
+    set(png, CX, 29 + dy, SPROUT);
+    set(png, CX + 1, 28 + dy, SPROUT);
+    set(png, CX - 1, 28 + dy, SPROUT);
     // Faces: top >< happy, middle sleepy, bottom calm dots
     const face = (cx: number, cy: number, ink: RGBA, style: 'squint' | 'sleepy' | 'dot') => {
       if (p === 'sad') {
@@ -384,7 +398,18 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
     ellipse(png, CX, HEAD_Y + 4 + dy, 4, 3, CREAM); // muzzle
     eyes(f, 'dot', 4, HEAD_Y);
     set(png, CX, HEAD_Y + 3 + dy, OUT); // nose
-    smile(f, HEAD_Y + 5, [235, 110, 120, 255]); // open smile + tongue
+    // Big open smile with a pink tongue
+    if (pose === 'sad') {
+      smile(f, HEAD_Y + 5);
+    } else {
+      fill(png, CX - 1, HEAD_Y + 5 + dy, CX + 1, HEAD_Y + 5 + dy, OUT);
+      fill(png, CX - 1, HEAD_Y + 6 + dy, CX + 1, HEAD_Y + 6 + dy, [240, 120, 130, 255]);
+      set(png, CX - 2, HEAD_Y + 4 + dy, OUT);
+      set(png, CX + 2, HEAD_Y + 4 + dy, OUT);
+    }
+    // Stripes on the cute tummy
+    fill(png, CX - 2, BODY_Y + 3 + dy, CX - 1, BODY_Y + 3 + dy, STRIPE);
+    fill(png, CX + 1, BODY_Y + 5 + dy, CX + 2, BODY_Y + 5 + dy, STRIPE);
     return png;
   },
 
@@ -402,7 +427,8 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
       set(png, ex, HEAD_Y - 13 + lift + dy, OUT);
       fill(png, ex - 1, HEAD_Y - 12 + lift + dy, ex + 1, HEAD_Y - 10 + lift + dy, DEEP);
       fill(png, ex - 2, HEAD_Y - 9 + lift + dy, ex + 2, HEAD_Y - 7 + lift + dy, LILAC);
-      set(png, ex, HEAD_Y - 10 + lift + dy, CREAM);
+      fill(png, ex - 1, HEAD_Y - 8 + lift + dy, ex + 1, HEAD_Y - 7 + lift + dy, WHITE); // fluffy tuft
+      set(png, ex, HEAD_Y - 9 + lift + dy, WHITE);
     }
     // Fluffy tail with pale tip
     ellipse(png, CX + 11, BODY_Y + 2 + dy, 3, 4, LILAC, OUT);
@@ -458,7 +484,8 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
     set(png, CX, cy + 1, OUT);
     set(png, CX + 1, cy + 2, OUT);
     set(png, CX, cy + 3, OUT);
-    cheeks(f, 6, cy, [255, 150, 170, 255]);
+    // Single pink cheek on the right — that's how the art has it
+    fill(png, CX + 5, cy + 1, CX + 6, cy + 1, [255, 150, 170, 255]);
     return png;
   },
 
@@ -493,27 +520,33 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
     const { png, pose: p, dy, leg } = f;
     const SPUD: RGBA = [226, 190, 110, 255];
     const DARK: RGBA = [176, 138, 70, 255];
-    const SPROUT: RGBA = [124, 190, 92, 255];
+    const HAIR: RGBA = [196, 152, 62, 255];
     const cy = 22 + dy;
     // Feet nubs
     fill(png, CX - 5 + leg, 37 + dy, CX - 2 + leg, 39 + dy, SPUD);
     fill(png, CX + 2 - leg, 37 + dy, CX + 5 - leg, 39 + dy, SPUD);
     // Tall potato body (head and body in one)
     ellipse(png, CX, cy, 9, 13, SPUD, OUT);
-    // Sprout tuft
-    set(png, CX, cy - 14, SPROUT);
-    set(png, CX - 1, cy - 15, SPROUT);
-    set(png, CX + 1, cy - 15, SPROUT);
-    set(png, CX + 2, cy - 16, SPROUT);
+    // Golden hair swoosh (per the official art — not a green sprout)
+    set(png, CX - 1, cy - 14, HAIR);
+    set(png, CX, cy - 15, HAIR);
+    set(png, CX + 1, cy - 15, HAIR);
+    set(png, CX + 2, cy - 16, HAIR);
+    set(png, CX + 3, cy - 15, HAIR);
     // Stubby arms
     const armY = p === 'happy' || p === 'jump' ? cy - 2 : cy + 3;
     fill(png, CX - 11, armY, CX - 9, armY + 3, SPUD);
     fill(png, CX + 9, armY, CX + 11, armY + 3, SPUD);
-    // Freckles
-    set(png, CX - 6, cy - 1, DARK);
-    set(png, CX + 6, cy - 1, DARK);
-    set(png, CX - 7, cy + 4, DARK);
-    set(png, CX + 7, cy + 4, DARK);
+    // Freckles + the little "17" on each cheek
+    set(png, CX - 6, cy - 3, DARK);
+    set(png, CX + 6, cy - 3, DARK);
+    for (const sgn of [-1, 1]) {
+      const bx = CX + sgn * 6;
+      fill(png, bx - 1, cy + 1, bx - 1, cy + 3, DARK); // 1
+      fill(png, bx + 1, cy + 1, bx + 2, cy + 1, DARK); // 7 top bar
+      set(png, bx + 2, cy + 2, DARK);
+      set(png, bx + 1, cy + 3, DARK);
+    }
     eyes(f, 'sparkle', 4, cy - 4);
     set(png, CX, cy - 1, [140, 100, 55, 255]); // nose
     // Wide grin
@@ -596,7 +629,18 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
     set(png, CX, HEAD_Y - 9 + dy, [124, 90, 48, 255]);
     fill(png, CX + 1, HEAD_Y - 11 + dy, CX + 4, HEAD_Y - 10 + dy, LEAF);
     set(png, CX + 2, HEAD_Y - 12 + dy, LEAF);
-    eyes(f, 'sparkle', 4, HEAD_Y);
+    // Big eyes with heart-shaped glints
+    if (pose === 'happy' || pose === 'sad') {
+      eyes(f, 'dot', 4, HEAD_Y);
+    } else {
+      for (const sgn of [-1, 1]) {
+        const ex = CX + sgn * 4;
+        fill(png, ex - 1, HEAD_Y - 2 + dy, ex + 1, HEAD_Y + 1 + dy, OUT);
+        set(png, ex - 1, HEAD_Y - 1 + dy, WHITE); // heart glint: two lobes...
+        set(png, ex + 1, HEAD_Y - 1 + dy, WHITE);
+        set(png, ex, HEAD_Y + dy, WHITE); // ...meeting in a point
+      }
+    }
     set(png, CX, HEAD_Y + 3 + dy, [210, 60, 60, 255]); // little red nose
     smile(f, HEAD_Y + 5);
     cheeks(f, 6, HEAD_Y + 3);
@@ -622,6 +666,11 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
     fill(png, CX - 4, HEAD_Y - 3 + dy, CX + 4, HEAD_Y - 3 + dy, HAIR);
     set(png, CX - 3, HEAD_Y - 2 + dy, HAIR);
     set(png, CX + 2, HEAD_Y - 2 + dy, HAIR);
+    // Bold straight brows over calm eyes — the signature look
+    if (pose !== 'happy' && pose !== 'sad') {
+      fill(png, CX - 4, HEAD_Y + dy, CX - 2, HEAD_Y + dy, HAIR);
+      fill(png, CX + 2, HEAD_Y + dy, CX + 4, HEAD_Y + dy, HAIR);
+    }
     eyes(f, 'calm', 3, HEAD_Y + 2);
     // Neutral flat mouth (small smile when happy)
     if (pose === 'happy') smile(f, HEAD_Y + 5);
@@ -645,6 +694,10 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
     ellipse(png, CX + 11, BODY_Y + 5 + dy, 3, 2, BROWN, OUT);
     chibiBody(f, BROWN, { belly: CREAM });
     circle(png, CX, HEAD_Y + dy, HEAD_R, BROWN, OUT);
+    // Little hair strands on the crown
+    set(png, CX - 1, HEAD_Y - 10 + dy, OUT);
+    set(png, CX + 1, HEAD_Y - 11 + dy, OUT);
+    set(png, CX + 2, HEAD_Y - 10 + dy, OUT);
     // White muzzle band across the lower face
     ellipse(png, CX, HEAD_Y + 4 + dy, 6.5, 4, CREAM);
     eyes(f, 'dot', 4, HEAD_Y - 1);
