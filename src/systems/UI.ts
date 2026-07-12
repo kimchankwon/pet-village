@@ -358,9 +358,12 @@ export class Menu {
   close() {
     if (this.closed) return;
     this.closed = true;
+    // Only drop our listeners — do NOT removeKey(). Menu shares the same
+    // Key objects as the scene (WASD / arrows / E / ESC); removing them
+    // permanently kills keyboard movement after closing with Escape.
     for (const key of this.keys) {
       key.removeAllListeners();
-      this.scene.input.keyboard?.removeKey(key);
+      key.reset();
     }
     this.keys = [];
     this.objects.forEach((o) => o.destroy());

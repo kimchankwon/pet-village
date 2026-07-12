@@ -131,7 +131,7 @@ export class PaperTossScene extends Phaser.Scene {
 
     this.ball = this.add.image(BALL_START.x, BALL_START.y, 'paperball').setDepth(10);
     this.ball.setTint((this.registry.get(BALL_TINT_KEY) as number | undefined) ?? BALL_TINTS[0]);
-    this.bin = this.add.image(this.binX, GROUND_Y - 32, 'bin').setScale(1.5).setDepth(5);
+    this.bin = this.add.image(this.binX, GROUND_Y - 36, 'bin').setScale(1.9).setDepth(5);
 
     this.buildSwatches();
 
@@ -283,19 +283,19 @@ export class PaperTossScene extends Phaser.Scene {
 
     // Rim physics: two rim knobs at the mouth edges deflect the ball, so
     // near-misses clip out (or rattle in) instead of ghosting through.
-    const mouthY = this.bin.y - 28;
-    for (const rx of [this.bin.x - 27, this.bin.x + 27]) {
+    const mouthY = this.bin.y - 36;
+    for (const rx of [this.bin.x - 34, this.bin.x + 34]) {
       const dx = this.ball.x - rx;
       const dy = this.ball.y - mouthY;
       const d = Math.hypot(dx, dy);
-      if (d < BALL_R + 5 && d > 0.01) {
+      if (d < BALL_R + 6 && d > 0.01) {
         const nx = dx / d;
         const ny = dy / d;
         const dot = this.vx * nx + this.vy * ny;
         if (dot < 0) {
           this.vx = (this.vx - 2 * dot * nx) * 0.55;
           this.vy = (this.vy - 2 * dot * ny) * 0.55;
-          const push = BALL_R + 5 - d;
+          const push = BALL_R + 6 - d;
           this.ball.x += nx * push;
           this.ball.y += ny * push;
           this.rimTouched = true;
@@ -312,8 +312,8 @@ export class PaperTossScene extends Phaser.Scene {
     if (
       !this.scored &&
       this.vy > 0 &&
-      Math.abs(this.ball.x - this.bin.x) < 18 &&
-      Math.abs(this.ball.y - mouthY) < 12
+      Math.abs(this.ball.x - this.bin.x) < 23 &&
+      Math.abs(this.ball.y - mouthY) < 14
     ) {
       return 'basket';
     }
@@ -354,7 +354,7 @@ export class PaperTossScene extends Phaser.Scene {
     // Corridor half-width: 58px each side of the mouth (~116px ≈ 26% of the
     // ~450px band planks can cover). Level 4's bin creeps ±40px, so widen
     // the protected strip to cover everywhere the mouth can be.
-    const corridorHalf = 58 + (this.stage === STAGES.length ? 40 : 0);
+    const corridorHalf = 72 + (this.stage === STAGES.length ? 40 : 0);
     const placed: { x: number; y: number }[] = [];
     for (let i = 0; i < count; i++) {
       const w = this.rng.between(70, 110);
