@@ -34,10 +34,14 @@ export class AdoptScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor('#1a1626');
-    this.add.rectangle(400, 300, 800, 600, 0x1a1626).setDepth(-10);
+    const cx = this.cameras.main.width / 2;
+    const cy = this.cameras.main.height / 2;
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    this.add.rectangle(cx, cy, w, h, 0x1a1626).setDepth(-10);
 
     this.add
-      .text(400, 36, 'Pet Village', {
+      .text(cx, 36, 'Pet Village', {
         fontFamily: '"Press Start 2P", monospace',
         fontSize: '16px',
         color: '#7ed6a8',
@@ -45,11 +49,11 @@ export class AdoptScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(400, 68, 'Choose your pet', { ...FONT, fontSize: '20px', color: '#ffb3d1' })
+      .text(cx, 68, 'Choose your pet', { ...FONT, fontSize: '20px', color: '#ffb3d1' })
       .setOrigin(0.5);
 
     this.add
-      .text(400, 92, 'Pick a companion — then give them a name.', {
+      .text(cx, 92, 'Pick a companion — then give them a name.', {
         ...FONT,
         fontSize: '12px',
         color: '#a89bc4',
@@ -57,20 +61,20 @@ export class AdoptScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(400, 118, 'Tamagotchi & friends', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .text(cx, 118, 'Tamagotchi & friends', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
 
     // One row of the four "big" companions, one row of the eight puffles.
     this.layoutRow([...CLASSIC_PETS, ...MASCOT_PETS], 182, 126, COMPANION_SCALE, 108);
     this.add
-      .text(400, 254, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .text(cx, 254, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
     this.layoutRow(PUFFLE_PETS, 314, 88, PUFFLE_SCALE, 96);
 
     this.selectSpecies('mametchi');
 
     this.add
-      .text(400, 396, 'Pet name', { ...FONT, fontSize: '13px', color: '#c8c8dc' })
+      .text(cx, 396, 'Pet name', { ...FONT, fontSize: '13px', color: '#c8c8dc' })
       .setOrigin(0.5);
 
     this.nameInput = document.createElement('input');
@@ -100,11 +104,11 @@ export class AdoptScene extends Phaser.Scene {
     this.scale.on('resize', () => this.positionNameInput());
 
     this.errorText = this.add
-      .text(400, 462, '', { ...FONT, fontSize: '13px', color: '#ff6b6b' })
+      .text(cx, 462, '', { ...FONT, fontSize: '13px', color: '#ff6b6b' })
       .setOrigin(0.5);
 
     const start = this.add
-      .text(400, 512, '[ Start adventure ]', {
+      .text(cx, 512, '[ Start adventure ]', {
         ...FONT,
         fontSize: '18px',
         color: '#7ed6a8',
@@ -134,7 +138,7 @@ export class AdoptScene extends Phaser.Scene {
     cardH: number,
   ) {
     const n = defs.length;
-    const startX = 400 - ((n - 1) * spacing) / 2;
+    const startX = this.cameras.main.width / 2 - ((n - 1) * spacing) / 2;
     const cardW = Math.min(180, spacing - 8);
 
     defs.forEach((def, i) => {
@@ -172,7 +176,7 @@ export class AdoptScene extends Phaser.Scene {
     const parentRect = parent.getBoundingClientRect();
     const scaleX = canvasRect.width / this.scale.width;
     const scaleY = canvasRect.height / this.scale.height;
-    const left = canvasRect.left - parentRect.left + 400 * scaleX - 110;
+    const left = canvasRect.left - parentRect.left + (this.scale.width / 2) * scaleX - 110;
     const top = canvasRect.top - parentRect.top + 428 * scaleY - 17;
     this.nameInput.style.left = `${left}px`;
     this.nameInput.style.top = `${top}px`;

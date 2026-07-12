@@ -12,11 +12,11 @@ import { Joystick } from '../systems/Joystick';
 const TILE = 48;
 const COLS = 12;
 const ROWS = 9;
-const ROOM_X = (800 - COLS * TILE) / 2; // center the room
 const ROOM_Y = 90;
 const WALL_ROWS = 2;
 
 export class HouseScene extends Phaser.Scene {
+  private roomX = 0;
   private player!: Phaser.Physics.Arcade.Sprite;
   private pet!: Pet;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -46,6 +46,7 @@ export class HouseScene extends Phaser.Scene {
 
   create() {
     generateTextures(this);
+    this.roomX = (this.cameras.main.width - COLS * TILE) / 2;
     this.menuOpen = false;
     this.placing = null;
     this.ghost = null;
@@ -56,27 +57,27 @@ export class HouseScene extends Phaser.Scene {
     for (let gy = 0; gy < ROWS; gy++) {
       for (let gx = 0; gx < COLS; gx++) {
         const tex = gy < WALL_ROWS ? 'tile-wall' : 'tile-floor';
-        this.add.image(ROOM_X + gx * TILE + TILE / 2, ROOM_Y + gy * TILE + TILE / 2, tex).setDepth(-100);
+        this.add.image(this.roomX + gx * TILE + TILE / 2, ROOM_Y + gy * TILE + TILE / 2, tex).setDepth(-100);
       }
     }
     // Door mat at bottom center
     const doorGx = Math.floor(COLS / 2);
     this.doorMat = this.add
-      .image(ROOM_X + doorGx * TILE + TILE / 2, ROOM_Y + (ROWS - 1) * TILE + TILE / 2, 'item-rug')
+      .image(this.roomX + doorGx * TILE + TILE / 2, ROOM_Y + (ROWS - 1) * TILE + TILE / 2, 'item-rug')
       .setDepth(-99)
       .setTint(0x8d6e63)
       .setScale(1.3);
 
     this.renderFurniture();
 
-    const px = ROOM_X + doorGx * TILE + TILE / 2;
+    const px = this.roomX + doorGx * TILE + TILE / 2;
     const py = ROOM_Y + (ROWS - 2) * TILE;
     this.player = this.physics.add.sprite(px, py, 'penguin-up', 0);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
     // Keep the penguin inside the floor area of the room.
     const b = this.player.body as Phaser.Physics.Arcade.Body;
     b.setBoundsRectangle(
-      new Phaser.Geom.Rectangle(ROOM_X, ROOM_Y + WALL_ROWS * TILE - 20, COLS * TILE, (ROWS - WALL_ROWS) * TILE + 20),
+      new Phaser.Geom.Rectangle(this.roomX, ROOM_Y + WALL_ROWS * TILE - 20, COLS * TILE, (ROWS - WALL_ROWS) * TILE + 20),
     );
     this.player.setCollideWorldBounds(true);
     this.facing = 'up';
@@ -112,7 +113,7 @@ export class HouseScene extends Phaser.Scene {
     );
 
     this.add
-      .text(400, 40, 'Your House — click to walk · I: pet · [Decorate] · ESC/E at door: leave', {
+      .text(this.cameras.main.width / 2, 40, 'Your House — click to walk · I: pet · [Decorate] · ESC/E at door: leave', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#c8c8dc',
@@ -122,7 +123,7 @@ export class HouseScene extends Phaser.Scene {
 
     // Clickable Decorate button.
     const decorateBtn = this.add
-      .text(790, 10, '[ Decorate ]', {
+      .text(this.cameras.main.width - 10, 10, '[ Decorate ]', {
         fontFamily: 'monospace',
         fontSize: '18px',
         color: '#a8e6cf',
@@ -190,7 +191,7 @@ export class HouseScene extends Phaser.Scene {
 
       if (g) {
         this.clickMove.setTarget(
-          ROOM_X + g.gx * TILE + TILE / 2,
+          this.roomX + g.gx * TILE + TILE / 2,
           ROOM_Y + g.gy * TILE + TILE / 2,
         );
         this.pointerHeld = true;
@@ -211,7 +212,7 @@ export class HouseScene extends Phaser.Scene {
     action: () => void;
     targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[];
   } | null {
-    const doorX = ROOM_X + Math.floor(COLS / 2) * TILE + TILE / 2;
+    const doorX = this.roomX + Math.floor(COLS / 2) * TILE + TILE / 2;
     const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
     const nearDoor = Phaser.Math.Distance.Between(this.player.x, this.player.y, doorX, doorY) < 55;
     if (nearDoor) {
@@ -238,7 +239,7 @@ export class HouseScene extends Phaser.Scene {
   }
 
   private pointerToGrid(pointer: Phaser.Input.Pointer): { gx: number; gy: number } | null {
-    const gx = Math.floor((pointer.x - ROOM_X) / TILE);
+    const gx = Math.floor((pointer.x - this.roomX) / TILE);
     const gy = Math.floor((pointer.y - ROOM_Y) / TILE);
     if (gx < 0 || gx >= COLS || gy < WALL_ROWS || gy >= ROWS) return null;
     return { gx, gy };
@@ -256,7 +257,7 @@ export class HouseScene extends Phaser.Scene {
     for (const p of State.data.placed) {
       const def = ITEMS[p.id];
       if (!def) continue;
-      const x = ROOM_X + p.gx * TILE + TILE / 2;
+      const x = this.roomX + p.gx * TILE + TILE / 2;
       const y = ROOM_Y + p.gy * TILE + TILE / 2;
       const img = this.add.image(x, y, def.texture).setScale(1.2);
       img.setDepth(p.id === 'rug' ? -50 : y);
@@ -267,7 +268,7 @@ export class HouseScene extends Phaser.Scene {
   private openDecorateMenu() {
     const furniture = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'furniture');
     if (furniture.length === 0) {
-      toast(this, 400, 300, 'No furniture in inventory — visit the shop!', '#ff6b6b');
+      toast(this, this.cameras.main.width / 2, this.cameras.main.height / 2, 'No furniture in inventory — visit the shop!', '#ff6b6b');
       return;
     }
     this.menuOpen = true;
@@ -465,7 +466,7 @@ export class HouseScene extends Phaser.Scene {
       const g = this.pointerToGrid(this.input.activePointer);
       if (g) {
         this.ghost.setVisible(true);
-        this.ghost.x = ROOM_X + g.gx * TILE + TILE / 2;
+        this.ghost.x = this.roomX + g.gx * TILE + TILE / 2;
         this.ghost.y = ROOM_Y + g.gy * TILE + TILE / 2;
         this.ghost.setTint(this.canPlaceAt(g.gx, g.gy) ? 0xffffff : 0xff6b6b);
       } else {

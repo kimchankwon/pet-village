@@ -13,7 +13,6 @@ import { CinnamorollNpc } from '../systems/CinnamorollNpc';
 const TILE = 48;
 const COLS = 12;
 const ROWS = 9;
-const ROOM_X = (800 - COLS * TILE) / 2;
 const ROOM_Y = 90;
 const WALL_ROWS = 2;
 
@@ -22,6 +21,7 @@ const WALL_ROWS = 2;
  * Cinnamoroll stands behind the counter and sells pet clothes.
  */
 export class ClothesShopScene extends Phaser.Scene {
+  private roomX = 0;
   private player!: Phaser.Physics.Arcade.Sprite;
   private pet!: Pet;
   private cinna!: CinnamorollNpc;
@@ -47,6 +47,7 @@ export class ClothesShopScene extends Phaser.Scene {
 
   create() {
     generateTextures(this);
+    this.roomX = (this.cameras.main.width - COLS * TILE) / 2;
     this.menuOpen = false;
     this.pointerHeld = false;
     this.ignoreClicksUntil = 0;
@@ -57,7 +58,7 @@ export class ClothesShopScene extends Phaser.Scene {
       for (let gx = 0; gx < COLS; gx++) {
         const tex = gy < WALL_ROWS ? 'tile-wall' : 'tile-floor';
         const img = this.add
-          .image(ROOM_X + gx * TILE + TILE / 2, ROOM_Y + gy * TILE + TILE / 2, tex)
+          .image(this.roomX + gx * TILE + TILE / 2, ROOM_Y + gy * TILE + TILE / 2, tex)
           .setDepth(-100);
         if (gy < WALL_ROWS) img.setTint(0xf5d0c8);
         else img.setTint(0xf0e0c8);
@@ -66,21 +67,21 @@ export class ClothesShopScene extends Phaser.Scene {
 
     const doorGx = Math.floor(COLS / 2);
     this.doorMat = this.add
-      .image(ROOM_X + doorGx * TILE + TILE / 2, ROOM_Y + (ROWS - 1) * TILE + TILE / 2, 'item-rug')
+      .image(this.roomX + doorGx * TILE + TILE / 2, ROOM_Y + (ROWS - 1) * TILE + TILE / 2, 'item-rug')
       .setDepth(-99)
       .setTint(0xffb3d1)
       .setScale(1.3);
 
     for (let gx = 4; gx <= 7; gx++) {
       const t = this.add
-        .image(ROOM_X + gx * TILE + TILE / 2, ROOM_Y + 3 * TILE + TILE / 2, 'item-table')
+        .image(this.roomX + gx * TILE + TILE / 2, ROOM_Y + 3 * TILE + TILE / 2, 'item-table')
         .setScale(1.3)
         .setTint(0xffe0c0);
       t.setDepth(t.y);
     }
 
     // Stationary behind the counter (single waypoint = no wander).
-    const cinnaX = ROOM_X + 6 * TILE;
+    const cinnaX = this.roomX + 6 * TILE;
     const cinnaY = ROOM_Y + 2.55 * TILE;
     this.cinna = new CinnamorollNpc(this, [{ x: cinnaX, y: cinnaY }]);
     // CinnamorollNpc scales itself to display height; no override needed.
@@ -95,12 +96,12 @@ export class ClothesShopScene extends Phaser.Scene {
       [10.5, 4.4, 'item-lamp', 1.1],
     ];
     for (const [gx, gy, tex, scale] of dressing) {
-      const img = this.add.image(ROOM_X + gx * TILE, ROOM_Y + gy * TILE, tex).setScale(scale ?? 1.2);
+      const img = this.add.image(this.roomX + gx * TILE, ROOM_Y + gy * TILE, tex).setScale(scale ?? 1.2);
       img.setDepth(img.y);
     }
 
     this.add
-      .text(400, 40, 'Cafe Cinnamon — E / tap Cinna to browse · ESC / door to leave', {
+      .text(this.cameras.main.width / 2, 40, 'Cafe Cinnamon — E / tap Cinna to browse · ESC / door to leave', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#ffe6f2',
@@ -108,13 +109,13 @@ export class ClothesShopScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(1000);
 
-    const px = ROOM_X + doorGx * TILE + TILE / 2;
+    const px = this.roomX + doorGx * TILE + TILE / 2;
     const py = ROOM_Y + (ROWS - 2) * TILE;
     this.player = this.physics.add.sprite(px, py, 'penguin-up', 0);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
     const b = this.player.body as Phaser.Physics.Arcade.Body;
     b.setBoundsRectangle(
-      new Phaser.Geom.Rectangle(ROOM_X, ROOM_Y + WALL_ROWS * TILE - 20, COLS * TILE, (ROWS - WALL_ROWS) * TILE + 20),
+      new Phaser.Geom.Rectangle(this.roomX, ROOM_Y + WALL_ROWS * TILE - 20, COLS * TILE, (ROWS - WALL_ROWS) * TILE + 20),
     );
     this.player.setCollideWorldBounds(true);
     this.facing = 'up';
@@ -132,13 +133,13 @@ export class ClothesShopScene extends Phaser.Scene {
       this.physics.add.existing(r, true);
       solids.push(r);
     };
-    addSolid(ROOM_X + 6 * TILE, ROOM_Y + 3.5 * TILE + 6, 4 * TILE + 12, 34);
-    addSolid(ROOM_X + 1.5 * TILE, ROOM_Y + 2.8 * TILE, 44, 30);
-    addSolid(ROOM_X + 10.5 * TILE, ROOM_Y + 2.8 * TILE, 44, 30);
-    addSolid(ROOM_X + 2.2 * TILE, ROOM_Y + 4 * TILE, 40, 28);
-    addSolid(ROOM_X + 9.8 * TILE, ROOM_Y + 4 * TILE, 40, 28);
-    addSolid(ROOM_X + 1.5 * TILE, ROOM_Y + 5.6 * TILE, 36, 26);
-    addSolid(ROOM_X + 10.5 * TILE, ROOM_Y + 5.6 * TILE, 36, 26);
+    addSolid(this.roomX + 6 * TILE, ROOM_Y + 3.5 * TILE + 6, 4 * TILE + 12, 34);
+    addSolid(this.roomX + 1.5 * TILE, ROOM_Y + 2.8 * TILE, 44, 30);
+    addSolid(this.roomX + 10.5 * TILE, ROOM_Y + 2.8 * TILE, 44, 30);
+    addSolid(this.roomX + 2.2 * TILE, ROOM_Y + 4 * TILE, 40, 28);
+    addSolid(this.roomX + 9.8 * TILE, ROOM_Y + 4 * TILE, 40, 28);
+    addSolid(this.roomX + 1.5 * TILE, ROOM_Y + 5.6 * TILE, 36, 26);
+    addSolid(this.roomX + 10.5 * TILE, ROOM_Y + 5.6 * TILE, 36, 26);
     this.physics.add.collider(this.player, solids);
 
     const kb = this.input.keyboard!;
@@ -224,7 +225,7 @@ export class ClothesShopScene extends Phaser.Scene {
         targets: [this.cinna.sprite],
       };
     }
-    const doorX = ROOM_X + Math.floor(COLS / 2) * TILE + TILE / 2;
+    const doorX = this.roomX + Math.floor(COLS / 2) * TILE + TILE / 2;
     const doorY = ROOM_Y + (ROWS - 1) * TILE + TILE / 2;
     if (Phaser.Math.Distance.Between(this.player.x, this.player.y, doorX, doorY) < 55) {
       return {

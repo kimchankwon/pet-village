@@ -7,18 +7,28 @@ import { ShopScene } from '../scenes/ShopScene';
 import { ClothesShopScene } from '../scenes/ClothesShopScene';
 import { PaperTossScene } from '../scenes/PaperTossScene';
 import { State } from '../systems/GameState';
+import { BASE_HEIGHT, BASE_WIDTH, designSizeForHost } from './viewport';
+
+function applyHostAspect(game: Phaser.Game, parent: HTMLElement) {
+  const { width, height } = designSizeForHost(parent.clientWidth, parent.clientHeight);
+  if (game.scale.width !== width || game.scale.height !== height) {
+    game.scale.resize(width, height);
+  }
+  game.scale.refresh();
+}
 
 export function startGame(parent: HTMLElement): Phaser.Game {
-  // Logical design is 800×600 (4:3). FIT scales uniformly into the host so
-  // pixels stay square — letterbox/pillarbox as needed, never stretch.
+  // Size matches the host aspect (expanded from 800×600). FIT then scales
+  // uniformly to fill the host — no letterbox, no stretched pixels.
+  const initial = designSizeForHost(parent.clientWidth || BASE_WIDTH, parent.clientHeight || BASE_HEIGHT);
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
-      width: 800,
-      height: 600,
+      width: initial.width,
+      height: initial.height,
     },
     pixelArt: true,
     backgroundColor: '#1a1626',
@@ -32,10 +42,10 @@ export function startGame(parent: HTMLElement): Phaser.Game {
     scene: [BootScene, AdoptScene, TownScene, HouseScene, ShopScene, ClothesShopScene, PaperTossScene],
   });
 
-  const onResize = () => {
-    game.scale.refresh();
-  };
+  const onResize = () => applyHostAspect(game, parent);
   window.addEventListener('resize', onResize);
+  game.events.once(Phaser.Core.Events.READY, () => applyHostAspect(game, parent));
+  queueMicrotask(() => applyHostAspect(game, parent));
 
   // save() persists locally and arms the cloud debounce; flush fires it now.
   const persistNow = () => {
