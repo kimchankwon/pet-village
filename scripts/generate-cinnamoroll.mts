@@ -36,7 +36,7 @@ const PALETTE: RGBA[] = [
   [32, 39, 40, 255],
   [255, 255, 247, 255],
   [193, 234, 240, 255],
-  [77, 177, 209, 255],
+  [47, 68, 77, 255], // muted blue-black eyes; avoids saturated face artifacts
   [249, 185, 182, 255],
 ];
 
@@ -54,8 +54,18 @@ function isPaper([r, g, b]: RGBA) {
   return r - b > 15 && g - b > 10 && distance([r, g, b, 255], PAPER) < 105;
 }
 
-function quantize(color: RGBA) {
-  return PALETTE.reduce((best, candidate) => distance(color, candidate) < distance(color, best) ? candidate : best);
+function quantize([r, g, b]: RGBA): RGBA {
+  const brightness = (r + g + b) / 3;
+  if (brightness < 125) return PALETTE[0]!;
+  if (r > g + 18 && r > b + 18) return PALETTE[4]!;
+  // Cyan is reserved for intentional blue eyes and ear/body shadows. Neutral
+  // anti-aliasing pixels should remain fur rather than turn into blue blotches.
+  if (b > r + 22 && g > r + 14) return brightness < 175 ? PALETTE[3]! : PALETTE[2]!;
+  return PALETTE[1]!;
+}
+
+function isLightNeutral([r, g, b]: RGBA) {
+  return Math.max(r, g, b) - Math.min(r, g, b) < 30 && (r + g + b) / 3 > 160;
 }
 
 function set(output: InstanceType<typeof PNG>, x: number, y: number, color: RGBA) {
@@ -94,16 +104,53 @@ function cleanup(output: InstanceType<typeof PNG>, bottom: number) {
   }
 }
 
+function trimWhiteOutsideOutline(output: InstanceType<typeof PNG>) {
+  const [wr, wg, wb] = PALETTE[1]!;
+  // A correct outline shields fur from transparency. Any white pixel exposed to
+  // the outside is paper/anti-alias spill rather than intentional fur.
+  for (let pass = 0; pass < 3; pass++) {
+    const remove: number[] = [];
+    for (let y = 0; y < output.height; y++) for (let x = 0; x < output.width; x++) {
+      const index = y * output.width + x, i = index * 4;
+      if (output.data[i + 3] === 0 || output.data[i] !== wr || output.data[i + 1] !== wg || output.data[i + 2] !== wb) continue;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= output.width || ny >= output.height || output.data[(ny * output.width + nx) * 4 + 3] === 0) { remove.push(i); break; }
+      }
+    }
+    for (const i of remove) output.data[i + 3] = 0;
+  }
+}
+
 function extract(source: InstanceType<typeof PNG>, crop: Crop) {
   const output = new PNG({ width: crop.width, height: crop.height });
   output.data.fill(0);
-  for (let y = 0; y < crop.height; y++) {
-    for (let x = 0; x < crop.width; x++) {
-      const color = read(source, crop.x + x, crop.y + y);
-      if (!isPaper(color)) set(output, x, y, color);
+  const outside = new Uint8Array(crop.width * crop.height);
+  const isBackgroundCandidate = (x: number, y: number) => {
+    const color = read(source, crop.x + x, crop.y + y);
+    return isPaper(color) || isLightNeutral(color);
+  };
+  const queue: number[] = [];
+  const addOutside = (x: number, y: number) => {
+    const index = y * crop.width + x;
+    if (!outside[index] && isBackgroundCandidate(x, y)) { outside[index] = 1; queue.push(index); }
+  };
+  for (let x = 0; x < crop.width; x++) { addOutside(x, 0); addOutside(x, crop.height - 1); }
+  for (let y = 1; y < crop.height - 1; y++) { addOutside(0, y); addOutside(crop.width - 1, y); }
+  for (let i = 0; i < queue.length; i++) {
+    const index = queue[i]!; const x = index % crop.width; const y = Math.floor(index / crop.width);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < crop.width && ny < crop.height) addOutside(nx, ny);
     }
   }
+  for (let y = 0; y < crop.height; y++) for (let x = 0; x < crop.width; x++) {
+    const index = y * crop.width + x;
+    const color = read(source, crop.x + x, crop.y + y);
+    if (!outside[index] && !isPaper(color)) set(output, x, y, color);
+  }
   cleanup(output, crop.bottom);
+  trimWhiteOutsideOutline(output);
   return output;
 }
 
