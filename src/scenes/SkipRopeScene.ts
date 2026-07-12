@@ -28,7 +28,10 @@ const WINDOW_HALF = 0.07;
 const JUMP_AIR_MS = 340;
 const JUMP_HEIGHT = 52;
 
-type Mode = 'playing' | 'won' | 'failed' | 'done';
+type Mode = 'ready' | 'playing' | 'won' | 'failed' | 'done';
+
+/** Hold on "Get ready…" before the rope starts turning. */
+const READY_MS = 1500;
 
 /**
  * Skip Rope — Tamagotchi V3-style rhythm timing.
@@ -63,6 +66,8 @@ export class SkipRopeScene extends Phaser.Scene {
   private jumpedThisSwing = false;
   private airborneUntil = 0;
   private petBaseY = PET_GROUND_Y;
+  /** Rope stays frozen until this time (after the get-ready beat). */
+  private ropeStartsAt = 0;
 
   constructor() {
     super('SkipRope');
@@ -70,15 +75,16 @@ export class SkipRopeScene extends Phaser.Scene {
 
   create() {
     generateTextures(this);
-    this.mode = 'playing';
+    this.mode = 'ready';
     this.menuOpen = false;
     this.ignoreClicksUntil = 0;
     this.jumps = 0;
     this.periodMs = PERIOD_START;
-    // Start just past the window so the first pass gives a full turn of lead-in.
+    // Parked just past the window — first live pass gets a full turn of lead-in.
     this.phase = 0.62;
     this.jumpedThisSwing = true;
     this.airborneUntil = 0;
+    this.ropeStartsAt = 0;
 
     const cx = this.cameras.main.width / 2;
     const viewW = this.cameras.main.width;
@@ -175,7 +181,18 @@ export class SkipRopeScene extends Phaser.Scene {
       if (this.mode === 'playing') this.tryJump();
     });
 
-    this.flashFeedback('Get ready…', '#c8c8dc');
+    this.ropeStartsAt = this.time.now + READY_MS;
+    this.feedbackText.setText('Get ready…').setColor('#c8c8dc').setAlpha(1);
+    this.hintText.setText('Get ready…');
+    this.time.delayedCall(READY_MS, () => {
+      if (this.mode !== 'ready') return;
+      this.mode = 'playing';
+      this.feedbackText.setAlpha(0);
+      this.hintText.setText(
+        `Click / Space / tap as the rope passes the ground · one miss ends the run · ${SKIP_ROPE_TARGET} wins!`,
+      );
+      this.flashFeedback('Go!', '#a8e6cf');
+    });
   }
 
   private refreshHud() {
@@ -392,7 +409,7 @@ export class SkipRopeScene extends Phaser.Scene {
   }
 
   private requestLeave() {
-    if (this.mode !== 'playing') {
+    if (this.mode !== 'playing' && this.mode !== 'ready') {
       this.scene.start('Town', { spawn: 'skiprope' });
       return;
     }
@@ -425,6 +442,12 @@ export class SkipRopeScene extends Phaser.Scene {
 
     // Failed/done: the rope freezes where the run ended.
     if (this.mode === 'done' || this.mode === 'failed') return;
+
+    // Get-ready beat — rope stays still until READY_MS elapses.
+    if (this.mode === 'ready' || this.time.now < this.ropeStartsAt) {
+      this.drawRope();
+      return;
+    }
 
     if (Phaser.Input.Keyboard.JustDown(this.keySpace) && this.mode === 'playing') {
       this.tryJump();
