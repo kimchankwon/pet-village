@@ -8,7 +8,7 @@ export type PuffleColor =
   | 'red'
   | 'yellow'
   | 'white';
-export type PetSpecies = ClassicSpecies | `puffle-${PuffleColor}` | 'bongbongee';
+export type PetSpecies = ClassicSpecies | `puffle-${PuffleColor}` | 'bongbongee' | 'cinnamoroll' | 'kirby';
 
 export const PUFFLE_COLORS: PuffleColor[] = [
   'blue',
@@ -80,6 +80,20 @@ const MASCOT: PetDef[] = [
     blurb: 'SEVENTEEN CARAT mascot · loves sparkles',
     group: 'mascot',
   },
+  {
+    id: 'cinnamoroll',
+    label: 'Cinnamoroll',
+    defaultName: 'Cinna',
+    blurb: 'Fluffy cafe pup · naps on laps',
+    group: 'mascot',
+  },
+  {
+    id: 'kirby',
+    label: 'Kirby',
+    defaultName: 'Poyo',
+    blurb: 'Pink puffball · eats everything',
+    group: 'mascot',
+  },
 ];
 
 export const PET_SPECIES: Record<PetSpecies, PetDef> = Object.fromEntries(
@@ -141,5 +155,7 @@ export const petSpeciesValidatorLiterals = [
   'kuchipatchi',
   'mimitchi',
   'bongbongee',
+  'cinnamoroll',
+  'kirby',
   ...PUFFLE_COLORS.map((c) => `puffle-${c}`),
 ] as const;

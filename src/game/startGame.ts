@@ -9,6 +9,8 @@ import { PaperTossScene } from '../scenes/PaperTossScene';
 import { State } from '../systems/GameState';
 
 export function startGame(parent: HTMLElement): Phaser.Game {
+  // Host CSS fills the remaining viewport (any W×H). FIT scales the 800×600
+  // design into that box — no locked square/4:3 page frame on the host.
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
@@ -29,6 +31,11 @@ export function startGame(parent: HTMLElement): Phaser.Game {
     },
     scene: [BootScene, AdoptScene, TownScene, HouseScene, ShopScene, ClothesShopScene, PaperTossScene],
   });
+
+  const onResize = () => {
+    game.scale.refresh();
+  };
+  window.addEventListener('resize', onResize);
 
   // save() persists locally and arms the cloud debounce; flush fires it now.
   const persistNow = () => {
@@ -52,6 +59,7 @@ export function startGame(parent: HTMLElement): Phaser.Game {
   window.addEventListener('pagehide', persistNow);
   document.addEventListener('visibilitychange', onHide);
   game.events.once(Phaser.Core.Events.DESTROY, () => {
+    window.removeEventListener('resize', onResize);
     window.removeEventListener('beforeunload', persistNow);
     window.removeEventListener('pagehide', persistNow);
     document.removeEventListener('visibilitychange', onHide);

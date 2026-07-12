@@ -319,12 +319,69 @@ function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
   for (const [x, y] of face.mouth ?? []) put(x, y, PALETTE[0]!);
 }
 
+/** Paste a frame onto a 32x32 canvas, bottom-centred like the other pets. */
+function padToPet(frame: InstanceType<typeof PNG>, bob = 0) {
+  const out = new PNG({ width: 32, height: 32 });
+  out.data.fill(0);
+  const x0 = Math.floor((32 - frame.width) / 2);
+  const y0 = 30 - frame.height + bob;
+  for (let y = 0; y < frame.height; y++) {
+    for (let x = 0; x < frame.width; x++) {
+      const i = (y * frame.width + x) * 4;
+      if (frame.data[i + 3] === 0) continue;
+      const o = ((y0 + y) * 32 + (x0 + x)) * 4;
+      out.data[o] = frame.data[i]; out.data[o + 1] = frame.data[i + 1];
+      out.data[o + 2] = frame.data[i + 2]; out.data[o + 3] = 255;
+    }
+  }
+  return out;
+}
+
+/** Sleep frame: the idle pose with the blue eyes swapped for closed lids. */
+function makeSleep(idle: InstanceType<typeof PNG>) {
+  const out = new PNG({ width: idle.width, height: idle.height });
+  idle.data.copy(out.data);
+  const fur = PALETTE[1]!;
+  const dark = PALETTE[0]!;
+  for (const eye of FACES.idle.eyes ?? []) {
+    for (let dy = 0; dy < eye.h; dy++) for (let dx = 0; dx < eye.w; dx++) {
+      const i = ((eye.y + dy) * idle.width + (eye.x + dx)) * 4;
+      const closed = dy === eye.h - 1;
+      const c = closed ? dark : fur;
+      out.data[i] = c[0]; out.data[i + 1] = c[1]; out.data[i + 2] = c[2]; out.data[i + 3] = 255;
+    }
+  }
+  return out;
+}
+
 const source = PNG.sync.read(fs.readFileSync(SOURCE));
 if (source.width !== 736 || source.height !== 736) throw new Error(`Unexpected reference dimensions: ${source.width}×${source.height}`);
 fs.mkdirSync(ROOT, { recursive: true });
+const frames = new Map<Pose, InstanceType<typeof PNG>>();
 for (const crop of CROPS) {
   const png = extract(source, crop);
+  frames.set(crop.pose, png);
   fs.writeFileSync(path.join(ROOT, `${crop.pose}.png`), PNG.sync.write(png));
   console.log(`${crop.pose}: ${png.width}x${png.height}`);
 }
 console.log('Resampled Cinnamoroll to true pixel size');
+
+// Pet frames: same art, padded to the 32x32 pet canvas. neutral2 bobs one
+// pixel for the bounce animation; sleep closes the idle pose's eyes.
+const PET_ROOT = path.resolve('public/assets/pet/cinnamoroll');
+fs.mkdirSync(PET_ROOT, { recursive: true });
+const idle = frames.get('idle')!;
+const petFrames: Record<string, InstanceType<typeof PNG>> = {
+  neutral1: padToPet(idle),
+  neutral2: padToPet(idle, 1),
+  walk1: padToPet(frames.get('walk1')!),
+  walk2: padToPet(frames.get('walk2')!),
+  sad: padToPet(frames.get('sad')!),
+  happy: padToPet(frames.get('happy')!),
+  jump: padToPet(frames.get('jump')!, -2),
+  sleep: padToPet(makeSleep(idle)),
+};
+for (const [name, png] of Object.entries(petFrames)) {
+  fs.writeFileSync(path.join(PET_ROOT, `${name}.png`), PNG.sync.write(png));
+}
+console.log('Wrote Cinnamoroll pet frames (32x32)');

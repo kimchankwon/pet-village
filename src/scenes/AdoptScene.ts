@@ -12,6 +12,10 @@ import {
 } from '../systems/pets';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#efe8ff' };
+/** Must match `layoutRow` scales so selection doesn't blow out the denser row. */
+const COMPANION_SCALE = 1.9;
+const PUFFLE_SCALE = 1.55;
+const SELECTED_SCALE_BUMP = 0.35;
 
 /**
  * First-run screen: pick a Tamagotchi or Club Penguin Puffle and name them.
@@ -45,7 +49,7 @@ export class AdoptScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(400, 92, 'Tamagotchi, puffles, or CARAT’s Bongbongee — then pick a name.', {
+      .text(400, 92, 'Pick a companion — then give them a name.', {
         ...FONT,
         fontSize: '12px',
         color: '#a89bc4',
@@ -53,15 +57,15 @@ export class AdoptScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(400, 118, 'Tamagotchi & Bongbongee', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .text(400, 118, 'Tamagotchi & friends', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
 
     // One row of the four "big" companions, one row of the eight puffles.
-    this.layoutRow([...CLASSIC_PETS, ...MASCOT_PETS], 182, 186, 2.1, 108);
+    this.layoutRow([...CLASSIC_PETS, ...MASCOT_PETS], 182, 126, COMPANION_SCALE, 108);
     this.add
       .text(400, 254, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
-    this.layoutRow(PUFFLE_PETS, 314, 88, 1.55, 96);
+    this.layoutRow(PUFFLE_PETS, 314, 88, PUFFLE_SCALE, 96);
 
     this.selectSpecies('mametchi');
 
@@ -182,8 +186,8 @@ export class AdoptScene extends Phaser.Scene {
       const on = def.id === species;
       card.ring.setStrokeStyle(2, on ? 0x7ed6a8 : 0x3a3352);
       card.ring.setFillStyle(on ? 0x342a52 : 0x2a2440, 0.95);
-      const base = def.group === 'puffle' ? 1.55 : 2.1;
-      card.sprite.setScale(on ? base + 0.35 : base);
+      const base = def.group === 'puffle' ? PUFFLE_SCALE : COMPANION_SCALE;
+      card.sprite.setScale(on ? base + SELECTED_SCALE_BUMP : base);
     }
     if (this.nameInput) {
       const def = PET_SPECIES[species];
