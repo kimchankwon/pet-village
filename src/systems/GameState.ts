@@ -9,7 +9,7 @@ import {
   type AccessoryId,
   type AccessorySlot,
 } from './accessories';
-import { isPetSpecies, type PetSpecies } from './pets';
+import { isPetSpecies, isPuffleSpecies, type PetSpecies } from './pets';
 
 export interface PetStats {
   hunger: number; // 0 = starving, 100 = full
@@ -424,6 +424,16 @@ class GameStateStore {
     return this.data.equippedAccessories[slot] === id;
   }
 
+  /** Whether the current pet species may wear this item. */
+  canWearAccessory(id: AccessoryId): boolean {
+    const def = ACCESSORIES[id];
+    if (!def) return false;
+    if ((def.wearable ?? 'any') === 'puffle') {
+      return isPuffleSpecies(this.data.petSpecies);
+    }
+    return true;
+  }
+
   grantAccessory(id: AccessoryId) {
     if (!this.data.ownedAccessories.includes(id)) {
       this.data.ownedAccessories.push(id);
@@ -431,7 +441,7 @@ class GameStateStore {
     }
   }
 
-  /** Buy a priced accessory (Cinnamoroll shop). Returns false if can't afford / already owned. */
+  /** Buy a priced accessory. Returns false if can't afford / already owned. */
   buyAccessory(id: AccessoryId): boolean {
     const def = ACCESSORIES[id];
     if (!def?.price) return false;
@@ -456,6 +466,7 @@ class GameStateStore {
 
   toggleAccessory(id: AccessoryId) {
     if (!this.ownsAccessory(id)) return;
+    if (!this.canWearAccessory(id)) return;
     const slot = ACCESSORIES[id].slot;
     if (this.data.equippedAccessories[slot] === id) {
       delete this.data.equippedAccessories[slot];
@@ -473,7 +484,7 @@ class GameStateStore {
   equippedAccessoryIds(): AccessoryId[] {
     const ids: AccessoryId[] = [];
     for (const id of Object.values(this.data.equippedAccessories)) {
-      if (id) ids.push(id);
+      if (id && this.canWearAccessory(id)) ids.push(id);
     }
     return ids;
   }

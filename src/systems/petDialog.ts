@@ -42,6 +42,8 @@ const PERSONALITY: Record<PetSpecies, string[]> = {
   'puffle-red': ['Race you to the plaza!', 'Roll roll roll roll!', 'One more lap! C’mon!'],
   'puffle-yellow': ['Why did the fish cross town? Gills!', 'Heehee! Your face!', 'Joke time! Knock knock!'],
   'puffle-white': ['…hi. This is nice.', '*quiet happy wiggle*', 'I like the snow clouds today…'],
+  'puffle-orange': ['Teehee! Look at my teeth!', 'Curly day! Every day!', 'Wanna goof off?'],
+  'puffle-brown': ['Hypothesis: snacks improve morale.', 'Goggles on. Science time.', 'I invented a tiny thing!'],
 };
 
 const HAPPY_LINES = ['Best day ever!', 'I love it here!', 'You’re my favorite!'];

@@ -1,4 +1,4 @@
-/** Equippable pet clothes/accessories from Bongbongee gifts + Cinnamoroll's shop. */
+/** Equippable pet clothes — Bongbongee gifts, Cinnamoroll cafe + puffle dig finds. */
 
 export type AccessorySlot = 'headLeft' | 'headRight' | 'body' | 'extra';
 
@@ -10,9 +10,21 @@ export type AccessoryId =
   | 'cloud-bow'
   | 'ear-cloud'
   | 'cafe-apron'
-  | 'cinnamon-scarf';
+  | 'cinnamon-scarf'
+  | 'puffle-tee'
+  | 'puffle-cape'
+  | 'feather-boa'
+  | 'propeller-hat'
+  | 'newspaper-hat'
+  | 'snorkel'
+  | 'glam-glasses'
+  | 'brown-goggles'
+  | 'big-sunglasses';
 
-export type AccessorySource = 'bongbongee' | 'cinnamoroll';
+export type AccessorySource = 'bongbongee' | 'cinnamoroll' | 'puffle-dig';
+
+/** Who can wear this. Puffle dig finds are puffles only. */
+export type AccessoryWearable = 'any' | 'puffle';
 
 export interface AccessoryDef {
   id: AccessoryId;
@@ -23,8 +35,10 @@ export interface AccessoryDef {
   texture: string;
   /** Who provides this item. */
   owner: AccessorySource;
-  /** Coin price when sold by Cinnamoroll. Gifts omit this. */
+  /** Coin price when sold. Gifts omit this. */
   price?: number;
+  /** Default `any`. */
+  wearable?: AccessoryWearable;
 }
 
 export const ACCESSORIES: Record<AccessoryId, AccessoryDef> = {
@@ -96,11 +110,104 @@ export const ACCESSORIES: Record<AccessoryId, AccessoryDef> = {
     owner: 'cinnamoroll',
     price: 22,
   },
+  // Mine Shack–style puffle dig finds (puffles only)
+  'puffle-tee': {
+    id: 'puffle-tee',
+    name: 'Puffle Tee',
+    blurb: 'Classic dig-list puffle shirt',
+    slot: 'body',
+    texture: 'acc-puffle-tee',
+    owner: 'puffle-dig',
+    price: 20,
+    wearable: 'puffle',
+  },
+  'puffle-cape': {
+    id: 'puffle-cape',
+    name: 'Puffle Cape',
+    blurb: 'Hero cape · every colour has one',
+    slot: 'extra',
+    texture: 'acc-puffle-cape',
+    owner: 'puffle-dig',
+    price: 26,
+    wearable: 'puffle',
+  },
+  'feather-boa': {
+    id: 'feather-boa',
+    name: 'Feather Boa',
+    blurb: 'Fabulous dig-list fluff',
+    slot: 'extra',
+    texture: 'acc-feather-boa',
+    owner: 'puffle-dig',
+    price: 24,
+    wearable: 'puffle',
+  },
+  'propeller-hat': {
+    id: 'propeller-hat',
+    name: 'Propeller Hat',
+    blurb: 'Green dig find · spin spin',
+    slot: 'headLeft',
+    texture: 'acc-propeller-hat',
+    owner: 'puffle-dig',
+    price: 22,
+    wearable: 'puffle',
+  },
+  'newspaper-hat': {
+    id: 'newspaper-hat',
+    name: 'Newspaper Hat',
+    blurb: 'Blue dig find · origami chic',
+    slot: 'headLeft',
+    texture: 'acc-newspaper-hat',
+    owner: 'puffle-dig',
+    price: 14,
+    wearable: 'puffle',
+  },
+  snorkel: {
+    id: 'snorkel',
+    name: 'Green Snorkel',
+    blurb: 'Pink dig find · ready to dive',
+    slot: 'headLeft',
+    texture: 'acc-snorkel',
+    owner: 'puffle-dig',
+    price: 18,
+    wearable: 'puffle',
+  },
+  'glam-glasses': {
+    id: 'glam-glasses',
+    name: 'Glam Glasses',
+    blurb: 'Purple dig find · star frames',
+    slot: 'headRight',
+    texture: 'acc-glam-glasses',
+    owner: 'puffle-dig',
+    price: 22,
+    wearable: 'puffle',
+  },
+  'brown-goggles': {
+    id: 'brown-goggles',
+    name: 'Lab Goggles',
+    blurb: 'Brown puffle’s red-rim specs',
+    slot: 'headRight',
+    texture: 'acc-brown-goggles',
+    owner: 'puffle-dig',
+    price: 20,
+    wearable: 'puffle',
+  },
+  'big-sunglasses': {
+    id: 'big-sunglasses',
+    name: 'Giant Sunglasses',
+    blurb: 'White dig find · snow-blind cool',
+    slot: 'headRight',
+    texture: 'acc-big-sunglasses',
+    owner: 'puffle-dig',
+    price: 18,
+    wearable: 'puffle',
+  },
 };
 
 export const ACCESSORY_LIST = Object.values(ACCESSORIES);
 
 export const CINNA_SHOP_ITEMS = ACCESSORY_LIST.filter((a) => a.owner === 'cinnamoroll');
+
+export const PUFFLE_SHOP_ITEMS = ACCESSORY_LIST.filter((a) => a.owner === 'puffle-dig');
 
 export const ACCESSORY_ASSET_PATH: Record<AccessoryId, string> = {
   'mint-pom': 'assets/accessories/mint-pom.png',
@@ -111,6 +218,15 @@ export const ACCESSORY_ASSET_PATH: Record<AccessoryId, string> = {
   'ear-cloud': 'assets/accessories/ear-cloud.png',
   'cafe-apron': 'assets/accessories/cafe-apron.png',
   'cinnamon-scarf': 'assets/accessories/cinnamon-scarf.png',
+  'puffle-tee': 'assets/accessories/puffle-tee.png',
+  'puffle-cape': 'assets/accessories/puffle-cape.png',
+  'feather-boa': 'assets/accessories/feather-boa.png',
+  'propeller-hat': 'assets/accessories/propeller-hat.png',
+  'newspaper-hat': 'assets/accessories/newspaper-hat.png',
+  snorkel: 'assets/accessories/snorkel.png',
+  'glam-glasses': 'assets/accessories/glam-glasses.png',
+  'brown-goggles': 'assets/accessories/brown-goggles.png',
+  'big-sunglasses': 'assets/accessories/big-sunglasses.png',
 };
 
 export function isAccessoryId(value: unknown): value is AccessoryId {

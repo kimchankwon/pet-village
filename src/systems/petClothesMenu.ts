@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
 import { ACCESSORIES, ACCESSORY_LIST, type AccessoryId } from './accessories';
 import { State } from './GameState';
+import { isPuffleSpecies } from './pets';
 import { Menu, type MenuOption } from './UI';
 import type { Pet } from './Pet';
 
@@ -32,12 +33,19 @@ export function openClothesMenu(
   keepMenuOpen?: () => void,
 ) {
   keepMenuOpen?.();
+  const isPuffle = isPuffleSpecies(State.data.petSpecies);
   const options: MenuOption[] = ACCESSORY_LIST.filter((a) => State.ownsAccessory(a.id)).map((a) => {
     const equipped = State.isAccessoryEquipped(a.id);
+    const puffleOnly = (a.wearable ?? 'any') === 'puffle';
+    const locked = puffleOnly && !isPuffle;
     return {
-      label: `${equipped ? '● ' : '○ '}${a.name}${equipped ? ' (equipped)' : ''}`,
+      label: locked
+        ? `○ ${a.name} (puffles only)`
+        : `${equipped ? '● ' : '○ '}${a.name}${equipped ? ' (equipped)' : ''}`,
       icon: a.texture,
+      disabled: locked,
       onSelect: () => {
+        if (locked) return;
         State.toggleAccessory(a.id);
         pet.refreshAccessories();
         keepMenuOpen?.();
@@ -64,7 +72,7 @@ export function openClothesMenu(
     });
   }
 
-  const equippedNames = ACCESSORY_LIST.filter((a) => State.isAccessoryEquipped(a.id))
+  const equippedNames = ACCESSORY_LIST.filter((a) => State.isAccessoryEquipped(a.id) && State.canWearAccessory(a.id))
     .map((a) => a.name)
     .join(', ');
   const menu = new Menu(

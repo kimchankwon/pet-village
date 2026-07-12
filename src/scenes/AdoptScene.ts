@@ -61,7 +61,7 @@ export class AdoptScene extends Phaser.Scene {
     this.add
       .text(400, 254, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
-    this.layoutRow(PUFFLE_PETS, 314, 88, 1.55, 96);
+    this.layoutRow(PUFFLE_PETS, 314, 72, 1.4, 96);
 
     this.selectSpecies('mametchi');
 
