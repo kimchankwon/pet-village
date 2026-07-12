@@ -251,7 +251,11 @@ export class ShopScene extends Phaser.Scene {
         this.closeMenu();
       },
     }));
-    const menu = new Menu(this, "Daniel's Shop", options, `You have ${State.coins} coins`);
+    const menu = new Menu(this, "Daniel's Shop", options, {
+      subtitle: `You have ${State.coins} coins`,
+      anchor: 'bottom',
+      face: 'bunny',
+    });
     menu.onClose = () => this.closeMenu();
   }
 

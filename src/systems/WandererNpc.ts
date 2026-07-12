@@ -41,6 +41,9 @@ export class WandererNpc {
   private facingLeft = false;
   private readonly speed: number;
   private readonly pauseMs: [number, number];
+  /** Off-map / mid enter-exit — hidden from interact prompts. */
+  private present = true;
+  private transit: { x: number; y: number; onDone: () => void } | null = null;
 
   constructor(scene: Phaser.Scene, opts: WandererOptions) {
     this.scene = scene;
@@ -54,6 +57,50 @@ export class WandererNpc {
     this.sprite.setDepth(feetDepth(this.sprite));
     this.playBounce();
     this.pickNext();
+  }
+
+  isPresent() {
+    return this.present && this.sprite.active;
+  }
+
+  canInteract() {
+    return this.isPresent() && !this.transit;
+  }
+
+  destroy() {
+    this.transit = null;
+    this.present = false;
+    this.sprite.destroy();
+  }
+
+  /** Walk to an off-map point, then invoke onDone (caller destroys). */
+  walkOff(dest: { x: number; y: number }, onDone: () => void) {
+    this.transit = { x: dest.x, y: dest.y, onDone };
+    this.pauseUntil = 0;
+    this.emoteUntil = 0;
+  }
+
+  /** Appear at an edge and walk toward first home waypoint. */
+  appearFrom(start: { x: number; y: number }, onDone: () => void) {
+    const home = this.waypoints[0] ?? { x: 400, y: 400 };
+    this.sprite.setPosition(start.x, start.y);
+    this.sprite.setVisible(true);
+    this.sprite.setAlpha(1);
+    this.present = true;
+    this.transit = {
+      x: home.x,
+      y: home.y,
+      onDone: () => {
+        this.transit = null;
+        this.playBounce();
+        onDone();
+      },
+    };
+  }
+
+  /** Idle portrait texture for dialogue windows. */
+  faceKey() {
+    return `${this.prefix}-idle`;
   }
 
   /** Open this NPC's dialogue. Subclasses build their own menu. */
@@ -113,6 +160,31 @@ export class WandererNpc {
   }
 
   update() {
+    if (!this.sprite.active) return;
+
+    // Entering / leaving the map — walk straight to transit target.
+    if (this.transit) {
+      const dx = this.transit.x - this.sprite.x;
+      const dy = this.transit.y - this.sprite.y;
+      const dist = Math.hypot(dx, dy);
+      const dt = Math.min(this.scene.game.loop.delta / 1000, 0.05);
+      if (dist < 8) {
+        const done = this.transit.onDone;
+        this.transit = null;
+        done();
+        return;
+      }
+      const step = Math.min(this.speed * 1.35 * dt, dist);
+      this.sprite.x += (dx / dist) * step;
+      this.sprite.y += (dy / dist) * step;
+      if (dx < -0.5) this.facingLeft = true;
+      else if (dx > 0.5) this.facingLeft = false;
+      this.sprite.setFlipX(this.facingLeft);
+      this.sprite.play(`${this.prefix}-walk`, true);
+      this.sprite.setDepth(feetDepth(this.sprite));
+      return;
+    }
+
     // An emote/hop is playing — leave texture, animation and position be.
     if (this.scene.time.now < this.emoteUntil) {
       this.sprite.setDepth(feetDepth(this.sprite));

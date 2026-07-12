@@ -431,6 +431,17 @@ class GameStateStore {
     }
   }
 
+  /** Buy a priced accessory (Cinnamoroll shop). Returns false if can't afford / already owned. */
+  buyAccessory(id: AccessoryId): boolean {
+    const def = ACCESSORIES[id];
+    if (!def?.price) return false;
+    if (this.ownsAccessory(id)) return false;
+    if (!this.spendCoins(def.price)) return false;
+    this.data.ownedAccessories.push(id);
+    this.save();
+    return true;
+  }
+
   grantAllBongbongeeAccessories() {
     let changed = false;
     for (const a of ACCESSORY_LIST) {

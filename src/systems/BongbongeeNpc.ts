@@ -29,7 +29,9 @@ export class BongbongeeNpc extends WandererNpc {
   override talk(cbs: NpcTalkCallbacks) {
     const line = this.pickLine(LINES);
     this.playBounce();
-    const missing = ACCESSORY_LIST.filter((a) => !State.ownsAccessory(a.id));
+    const missing = ACCESSORY_LIST.filter(
+      (a) => a.owner === 'bongbongee' && !State.ownsAccessory(a.id),
+    );
     const options = [
       {
         label: missing.length
@@ -54,7 +56,11 @@ export class BongbongeeNpc extends WandererNpc {
             this.scene,
             'Bongbongee',
             [{ label: 'Shine on, little diamond.', onSelect: () => undefined }],
-            'Every CARAT is a diamond — that’s why I sparkle!',
+            {
+              subtitle: 'Every CARAT is a diamond — that’s why I sparkle!',
+              anchor: 'bottom',
+              face: this.faceKey(),
+            },
           );
           follow.onClose = cbs.onClose;
         },
@@ -64,7 +70,11 @@ export class BongbongeeNpc extends WandererNpc {
         onSelect: () => this.hop(22),
       },
     ];
-    const menu = new Menu(this.scene, 'Bongbongee', options, line);
+    const menu = new Menu(this.scene, 'Bongbongee', options, {
+      subtitle: line,
+      anchor: 'bottom',
+      face: this.faceKey(),
+    });
     menu.onClose = cbs.onClose;
   }
 }
