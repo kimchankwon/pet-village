@@ -3,19 +3,27 @@ import { State } from './GameState';
 import { toast } from './UI';
 import { feetDepth } from './depth';
 import { petAnimKey, petTextureKey, type PetPose } from './pets';
+import { petLine } from './petDialog';
+import { ACCESSORIES } from './accessories';
 
-// Tamagotchi companion. Smoothly chases a follow-slot beside the player
-// (no breadcrumb trail — that caused weird U-turns on direction changes).
+/**
+ * Companion that stays a short distance *behind* the player along their
+ * recent travel direction — never glued to their side (which caused the
+ * pet to flip in front/behind when the player stood still and flipped).
+ */
 export class Pet {
   sprite: Phaser.GameObjects.Sprite;
   private scene: Phaser.Scene;
-  // Softened follow point so player flip/turnarounds don't yank the pet.
   private followX: number;
   private followY: number;
+  /** Unit vector pointing from player toward the pet's preferred slot (behind). */
+  private trailX = 0;
+  private trailY = 1;
   private facingLeft = false;
-  private readonly ARRIVE = 3;
-  // While an emotion pose (happy/sleep/jump) is showing, walk/idle don't override it.
+  private readonly ARRIVE = 4;
+  private readonly FOLLOW_DIST = 46;
   private emotionUntil = 0;
+  private accessorySprites: Phaser.GameObjects.Image[] = [];
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
@@ -24,6 +32,7 @@ export class Pet {
     this.sprite = scene.add.sprite(x, y, this.tex('idle1')).setScale(1.5);
     this.sprite.setDepth(feetDepth(this.sprite));
     this.sprite.play(this.anim('bounce'));
+    this.refreshAccessories();
     this.updateMood();
   }
 
@@ -39,30 +48,79 @@ export class Pet {
     return petAnimKey(this.species(), kind);
   }
 
-  update(targetX: number, targetY: number, playerMoving: boolean) {
+  /** Rebuild equipped accessory overlays (call after equip changes). */
+  refreshAccessories() {
+    for (const img of this.accessorySprites) img.destroy();
+    this.accessorySprites = [];
+    for (const id of State.equippedAccessoryIds()) {
+      const def = ACCESSORIES[id];
+      if (!def) continue;
+      if (!this.scene.textures.exists(def.texture)) continue;
+      const img = this.scene.add
+        .image(this.sprite.x, this.sprite.y, def.texture)
+        .setScale(this.sprite.scaleX)
+        .setFlipX(this.facingLeft);
+      this.accessorySprites.push(img);
+    }
+    this.syncAccessories();
+  }
+
+  private syncAccessories() {
+    const depth = feetDepth(this.sprite) + 1;
+    for (const img of this.accessorySprites) {
+      img.setPosition(this.sprite.x, this.sprite.y);
+      img.setScale(this.sprite.scaleX);
+      img.setFlipX(this.facingLeft);
+      img.setDepth(depth);
+      img.setVisible(this.sprite.visible);
+      img.setAlpha(this.sprite.alpha);
+    }
+  }
+
+  /**
+   * @param playerX player world x
+   * @param playerY player world y
+   * @param playerVx player velocity x (px/s)
+   * @param playerVy player velocity y (px/s)
+   */
+  update(playerX: number, playerY: number, playerVx: number, playerVy: number) {
     const dt = Math.min(this.scene.game.loop.delta / 1000, 0.05);
     const prevX = this.sprite.x;
+    const speed = Math.hypot(playerVx, playerVy);
+    const moving = speed > 12;
 
-    // Ease the desired slot (side-swap on flip is gradual, not instant).
-    const slotRate = playerMoving ? 7 : 4;
+    if (moving) {
+      // Behind = opposite of travel direction. Ease so sharp turns don't yank.
+      const behindX = -playerVx / speed;
+      const behindY = -playerVy / speed;
+      const turn = 1 - Math.exp(-5 * dt);
+      this.trailX += (behindX - this.trailX) * turn;
+      this.trailY += (behindY - this.trailY) * turn;
+      const tlen = Math.hypot(this.trailX, this.trailY) || 1;
+      this.trailX /= tlen;
+      this.trailY /= tlen;
+    }
+
+    const slotX = playerX + this.trailX * this.FOLLOW_DIST;
+    const slotY = playerY + this.trailY * this.FOLLOW_DIST + 4;
+
+    const slotRate = moving ? 8 : 3.5;
     const slotT = 1 - Math.exp(-slotRate * dt);
-    this.followX += (targetX - this.followX) * slotT;
-    this.followY += (targetY - this.followY) * slotT;
+    this.followX += (slotX - this.followX) * slotT;
+    this.followY += (slotY - this.followY) * slotT;
 
     const dx = this.followX - this.sprite.x;
     const dy = this.followY - this.sprite.y;
     const dist = Math.hypot(dx, dy);
 
-    let moving = false;
+    let petMoving = false;
     if (dist > this.ARRIVE) {
-      // Match player pace when close; boost when lagging after a long dash.
-      const base = playerMoving ? 175 : 110;
-      const boost = Phaser.Math.Clamp((dist - 40) * 2.5, 0, 180);
-      const speed = base + boost;
-      const step = Math.min(speed * dt, dist);
+      const base = moving ? 170 : 95;
+      const boost = Phaser.Math.Clamp((dist - 50) * 2.2, 0, 160);
+      const step = Math.min((base + boost) * dt, dist);
       this.sprite.x += (dx / dist) * step;
       this.sprite.y += (dy / dist) * step;
-      moving = step > 0.4;
+      petMoving = step > 0.35;
     } else {
       this.sprite.x = this.followX;
       this.sprite.y = this.followY;
@@ -70,19 +128,36 @@ export class Pet {
 
     this.sprite.setDepth(feetDepth(this.sprite));
 
-    if (this.scene.time.now < this.emotionUntil) return;
+    if (this.scene.time.now < this.emotionUntil) {
+      this.syncAccessories();
+      return;
+    }
 
-    // Hysteresis so tiny corrections don't flicker facing.
     const movedX = this.sprite.x - prevX;
     if (movedX < -1.0) this.facingLeft = true;
     else if (movedX > 1.0) this.facingLeft = false;
     this.sprite.setFlipX(this.facingLeft);
 
-    if (State.petMood() === 'sad') {
+    if (petMoving) {
+      this.sprite.play(this.anim('walk'), true);
+    } else {
+      this.applyExpression();
+    }
+    this.syncAccessories();
+  }
+
+  /**
+   * Idle face for the current needs: sad when hungry/unhappy, dozing when
+   * out of energy, bouncing otherwise.
+   */
+  private applyExpression() {
+    const expr = State.petExpression();
+    if (expr === 'hungry' || expr === 'sad') {
       if (this.sprite.anims.isPlaying) this.sprite.stop();
       if (this.sprite.texture.key !== this.tex('sad')) this.sprite.setTexture(this.tex('sad'));
-    } else if (moving) {
-      this.sprite.play(this.anim('walk'), true);
+    } else if (expr === 'tired') {
+      if (this.sprite.anims.isPlaying) this.sprite.stop();
+      if (this.sprite.texture.key !== this.tex('sleep')) this.sprite.setTexture(this.tex('sleep'));
     } else {
       this.sprite.play(this.anim('bounce'), true);
     }
@@ -90,19 +165,29 @@ export class Pet {
 
   updateMood() {
     if (this.scene.time.now < this.emotionUntil) return;
-    if (State.petMood() === 'sad') {
-      this.sprite.stop();
-      this.sprite.setTexture(this.tex('sad'));
-    } else if (!this.sprite.anims.isPlaying) {
-      this.sprite.play(this.anim('bounce'));
-    }
+    this.applyExpression();
+    this.syncAccessories();
   }
 
-  // Show a one-off pose for a moment.
+  /** The pet says something fitting its needs/personality. */
+  speak() {
+    const line = petLine();
+    toast(this.scene, this.sprite.x, this.sprite.y - 30, line, '#ffe6f2');
+    const expr = State.petExpression();
+    if (expr === 'happy') {
+      this.showEmotion('happy', 1000);
+      this.emitHearts();
+    } else if (expr === 'ok') {
+      this.showEmotion('happy', 900);
+    }
+    // Needy pets keep their hungry/tired/sad face while they talk.
+  }
+
   showEmotion(pose: Extract<PetPose, 'happy' | 'sleep' | 'jump'>, ms: number) {
     this.emotionUntil = this.scene.time.now + ms;
     this.sprite.stop();
     this.sprite.setTexture(this.tex(pose));
+    this.syncAccessories();
   }
 
   emitHearts() {

@@ -1,30 +1,95 @@
-export type PetSpecies = 'mametchi' | 'kuchipatchi' | 'mimitchi';
+export type ClassicSpecies = 'mametchi' | 'kuchipatchi' | 'mimitchi';
+export type PuffleColor =
+  | 'blue'
+  | 'pink'
+  | 'green'
+  | 'black'
+  | 'purple'
+  | 'red'
+  | 'yellow'
+  | 'white';
+export type PetSpecies = ClassicSpecies | `puffle-${PuffleColor}` | 'bongbongee';
 
-export const PET_SPECIES: Record<
-  PetSpecies,
-  { id: PetSpecies; label: string; defaultName: string; blurb: string }
-> = {
-  mametchi: {
+export const PUFFLE_COLORS: PuffleColor[] = [
+  'blue',
+  'pink',
+  'green',
+  'black',
+  'purple',
+  'red',
+  'yellow',
+  'white',
+];
+
+type PetDef = {
+  id: PetSpecies;
+  label: string;
+  defaultName: string;
+  blurb: string;
+  group: 'classic' | 'puffle' | 'mascot';
+};
+
+const CLASSIC: PetDef[] = [
+  {
     id: 'mametchi',
     label: 'Mametchi',
     defaultName: 'Mochi',
     blurb: 'Curious inventor · loves gadgets',
+    group: 'classic',
   },
-  kuchipatchi: {
+  {
     id: 'kuchipatchi',
     label: 'Kuchipatchi',
     defaultName: 'Patchi',
     blurb: 'Hungry goofball · loves snacks',
+    group: 'classic',
   },
-  mimitchi: {
+  {
     id: 'mimitchi',
     label: 'Mimitchi',
     defaultName: 'Mimi',
     blurb: 'Stylish trendsetter · loves fashion',
+    group: 'classic',
   },
+];
+
+const PUFFLE_META: Record<PuffleColor, { label: string; defaultName: string; blurb: string }> = {
+  blue: { label: 'Blue Puffle', defaultName: 'Bluey', blurb: 'Loyal · loves to play' },
+  pink: { label: 'Pink Puffle', defaultName: 'Pinkie', blurb: 'Cheerful · loves dancing' },
+  green: { label: 'Green Puffle', defaultName: 'Gogo', blurb: 'Zany · loves tricks' },
+  black: { label: 'Black Puffle', defaultName: 'Shadow', blurb: 'Grumpy · secretly soft' },
+  purple: { label: 'Purple Puffle', defaultName: 'Violet', blurb: 'Dramatic · loves attention' },
+  red: { label: 'Red Puffle', defaultName: 'Rusty', blurb: 'Sporty · loves rolling' },
+  yellow: { label: 'Yellow Puffle', defaultName: 'Sunny', blurb: 'Silly · loves jokes' },
+  white: { label: 'White Puffle', defaultName: 'Snowy', blurb: 'Shy · loves quiet' },
 };
 
+const PUFFLES: PetDef[] = PUFFLE_COLORS.map((color) => ({
+  id: `puffle-${color}` as PetSpecies,
+  label: PUFFLE_META[color].label,
+  defaultName: PUFFLE_META[color].defaultName,
+  blurb: PUFFLE_META[color].blurb,
+  group: 'puffle' as const,
+}));
+
+const MASCOT: PetDef[] = [
+  {
+    id: 'bongbongee',
+    label: 'Bongbongee',
+    defaultName: 'Bong',
+    blurb: 'SEVENTEEN CARAT mascot · loves sparkles',
+    group: 'mascot',
+  },
+];
+
+export const PET_SPECIES: Record<PetSpecies, PetDef> = Object.fromEntries(
+  [...CLASSIC, ...PUFFLES, ...MASCOT].map((d) => [d.id, d]),
+) as Record<PetSpecies, PetDef>;
+
 export const PET_SPECIES_LIST = Object.values(PET_SPECIES);
+export const CLASSIC_PETS = CLASSIC;
+export const PUFFLE_PETS = PUFFLES;
+export const MASCOT_PETS = MASCOT;
 
 /** File stem under public/assets/pet/<species>/ */
 export const PET_ASSET_FILES = [
@@ -68,5 +133,13 @@ export function poseFromAssetFile(file: (typeof PET_ASSET_FILES)[number]): PetPo
 }
 
 export function isPetSpecies(value: unknown): value is PetSpecies {
-  return value === 'mametchi' || value === 'kuchipatchi' || value === 'mimitchi';
+  return typeof value === 'string' && value in PET_SPECIES;
 }
+
+export const petSpeciesValidatorLiterals = [
+  'mametchi',
+  'kuchipatchi',
+  'mimitchi',
+  'bongbongee',
+  ...PUFFLE_COLORS.map((c) => `puffle-${c}`),
+] as const;

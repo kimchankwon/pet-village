@@ -52,6 +52,7 @@ export class PaperTossScene extends Phaser.Scene {
   private bin!: Phaser.GameObjects.Image;
   private binX = 560;
   private mode: Mode = 'aiming';
+  private backBtn!: Phaser.GameObjects.Text;
   private vx = 0;
   private vy = 0;
   private wind = 0; // horizontal acceleration px/s^2
@@ -176,13 +177,14 @@ export class PaperTossScene extends Phaser.Scene {
       },
     });
 
-    // Always-visible leave control — top-left, confirms before leaving.
-    const backBtn = this.add
+    // Leave control — top-left, confirms before leaving mid-round. Hidden
+    // while the end panel shows its own [ Back to town ].
+    this.backBtn = this.add
       .text(14, 10, '[ Back ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', padding: { x: 8, y: 8 } })
       .setOrigin(0, 0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
-    backBtn.on('pointerdown', () => {
+    this.backBtn.on('pointerdown', () => {
       this.ignoreClicksUntil = this.time.now + 150;
       this.requestLeave();
     });
@@ -537,6 +539,8 @@ export class PaperTossScene extends Phaser.Scene {
   // stage 1 after a win).
   private endPanel(title: string, titleColor: string, primaryLabel: string, restartData: object) {
     this.mode = 'done';
+    // Single back control: the panel has its own [ Back to town ].
+    this.backBtn.setVisible(false);
     this.updateBest();
     // Depth above toasts (1500) so lingering "+SWISH!" text can't overlap
     // the buttons; interactive so clicks don't leak to the scene.

@@ -4,7 +4,7 @@ import { useAuthActions } from '@convex-dev/auth/react';
 import { api } from '../convex/_generated/api';
 import { AuthPanel } from './ui/AuthPanel';
 import { startGame } from './game/startGame';
-import { State } from './systems/GameState';
+import { State, type SaveData } from './systems/GameState';
 import { applyPenguinColor, PENGUIN_COLORS } from './sprites/pixelart';
 import { blockUi, resetUiBlock, setLeaveHandler, unblockUi } from './systems/nav';
 import type Phaser from 'phaser';
@@ -172,8 +172,8 @@ function PlayChrome({
       {panel === 'pet' && onChangePet && (
         <ConfirmModal
           title="Change pet?"
-          body="This resets your whole village — coins, furniture, inventory, and best scores — and returns you to the adopt screen."
-          confirmLabel="Reset village"
+          body="You’ll pick a new pet and name. Your coins, house, inventory, scores, and clothes stay."
+          confirmLabel="Change pet"
           onConfirm={() => {
             setPanel(null);
             onChangePet();
@@ -215,6 +215,10 @@ function CloudGame() {
         inventory: cloudSave.inventory,
         placed: cloudSave.placed,
         bestPaperToss: cloudSave.bestPaperToss,
+        ownedAccessories: cloudSave.ownedAccessories as SaveData['ownedAccessories'] | undefined,
+        equippedAccessories: cloudSave.equippedAccessories as
+          | SaveData['equippedAccessories']
+          | undefined,
       });
       // hydrate() applied offline decay locally; push that (and the fresh
       // lastSeen) to the cloud so an immediate sign-out can't leave the
@@ -258,15 +262,14 @@ function CloudGame() {
     if (scene) applyPenguinColor(scene, id);
   }
 
-  // Wipe the save (local + cloud) and relaunch into the adopt screen.
-  // The cloud echo of the reset can't clobber anything: hydration is
-  // one-shot, so later query updates are ignored.
+  // Return to adopt without wiping the village; push the adopt=false
+  // snapshot so cloud matches. Hydration is one-shot, so the echo is fine.
   function changePet() {
     gameRef.current?.destroy(true);
     gameRef.current = null;
     State.resetToPetSelect();
-    State.save(); // arms the cloud debounce with the fresh default save
-    State.flushCloud(); // push the wipe now, not 700ms later
+    State.save();
+    State.flushCloud();
     setGameKey((k) => k + 1);
   }
 

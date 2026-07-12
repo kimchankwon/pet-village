@@ -3,9 +3,10 @@ import { generateTextures } from '../sprites/pixelart';
 import { State, ITEMS } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
+import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
-import { blockUi, forceLeave, isUiBlocked, unblockUi } from '../systems/nav';
+import { blockUi, isUiBlocked, unblockUi } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 
 const TILE = 48;
@@ -81,6 +82,12 @@ export class HouseScene extends Phaser.Scene {
     this.facing = 'up';
 
     this.pet = new Pet(this, px - 30, py + 10);
+    // Tap/click your pet to hear what's on its mind.
+    this.pet.sprite.setInteractive({ useHandCursor: true });
+    this.pet.sprite.on('pointerdown', () => {
+      this.ignoreClicksUntil = this.time.now + 200;
+      if (!this.menuOpen && !this.placing && !isUiBlocked()) this.pet.speak();
+    });
 
     const kb = this.input.keyboard!;
     this.cursors = kb.createCursorKeys();
@@ -95,12 +102,10 @@ export class HouseScene extends Phaser.Scene {
     this.joystick = new Joystick(this);
     this.pointerHeld = false;
 
+    // Pet care only — the game menu lives on the shell's top-bar Menu button.
     bottomButtons(
       this,
-      [
-        { label: '[ Menu ]', onTap: () => forceLeave() },
-        { label: '[ Pet ]', onTap: () => { if (!this.menuOpen && !this.placing) this.openPetMenuInHouse(); } },
-      ],
+      [{ label: '[ Pet ]', onTap: () => { if (!this.menuOpen && !this.placing) this.openPetMenuInHouse(); } }],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;
       },
@@ -303,6 +308,14 @@ export class HouseScene extends Phaser.Scene {
     const foods = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'food');
     const options = [
       {
+        label: `Chat with ${State.data.petName}`,
+        icon: this.pet.sprite.texture.key,
+        onSelect: () => {
+          this.pet.speak();
+          this.menuOpen = false;
+        },
+      },
+      {
         label: `Feed ${State.data.petName}`,
         icon: 'fish',
         disabled: foods.length === 0,
@@ -336,6 +349,15 @@ export class HouseScene extends Phaser.Scene {
           this.menuOpen = false;
         },
       },
+      clothesPetMenuOption(this, this.pet, {
+        closeMenu: () => {
+          this.menuOpen = false;
+          this.ignoreClicksUntil = this.time.now + 200;
+        },
+        keepMenuOpen: () => {
+          this.menuOpen = true;
+        },
+      }),
     ];
     const p = State.data.pet;
     const menu = new Menu(
@@ -435,7 +457,8 @@ export class HouseScene extends Phaser.Scene {
       );
     }
     this.player.setDepth(feetDepth(this.player));
-    this.pet.update(this.player.x - (this.player.flipX ? -26 : 26), this.player.y + 8, moving);
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
 
     // Ghost follows the mouse, snapped to the grid
     if (this.placing && this.ghost) {
