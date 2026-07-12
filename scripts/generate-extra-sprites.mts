@@ -155,112 +155,113 @@ function darken(c: [number, number, number, number], f = 0.72): [number, number,
 }
 
 /**
- * Club Penguin puffle, per the official art: a wide squat ball whose top
- * and sides are chunky fur spikes (smoother underneath), no limbs, huge
- * joined white eyes and a big smile.
+ * Classic Club Penguin puffle: round fluffy ball, spiky left/top and smoother
+ * bottom/right, one large white face with tall rectangular eyes and a wide smile.
  */
 function drawPuffle(color: [number, number, number, number], pose: PufflePose, angry = false) {
   const png = blank(32, 32);
   const yOff = pose === 'jump' ? -3 : pose === 'walk2' ? 1 : 0;
   const cx = 16;
-  const cy = 18 + yOff;
-  void darken;
-  // Face lines must stay visible on dark fur
-  const luma = 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2];
-  const INK: [number, number, number, number] = luma < 110 ? [235, 235, 245, 255] : OUT;
+  const cy = 17 + yOff;
+  const shade = darken(color, 0.78);
+  const FACE_INK: [number, number, number, number] = OUT;
 
-  // Fur silhouette: chunky spikes on the crown and sides, gentle bumps on
-  // the belly. The spike phase shifts per frame so the fluff wiggles.
-  const RX = 10;
-  const RY = 9;
-  const phase = pose === 'walk1' ? 0.7 : pose === 'walk2' ? -0.7 : pose === 'neutral2' ? 0.35 : 0;
-  for (let y = -13; y <= 11; y++) {
-    for (let x = -13; x <= 13; x++) {
+  // Asymmetric silhouette: chunky fur clumps on the top-left, calm curve
+  // on the bottom-right — matches the classic CP "puffle blob".
+  const phase = pose === 'walk1' ? 0.55 : pose === 'walk2' ? -0.55 : pose === 'neutral2' ? 0.28 : 0;
+  const RX = 11;
+  const RY = 10;
+  for (let y = -14; y <= 12; y++) {
+    for (let x = -14; x <= 13; x++) {
       const a = Math.atan2(y / RY, x / RX);
-      // -sin(a) is 1 at the crown, 0 at the equator, negative underneath:
-      // big spikes up top, calm curve below. The +0.6 keeps a spike at the
-      // very top instead of a dip.
-      // Shaggy over the whole top and down the sides; only the bottom
-      // third is a clean round curve. Dips are clamped so no frame gets a
-      // notch carved out of the fur.
-      const amp = 0.3 * Math.max(0, (-Math.sin(a) + 0.35) / 1.35);
-      const wob = Math.max(amp * Math.sin(a * 8 + phase + 0.6), -0.06);
-      const n = Math.hypot(x / RX, y / RY);
-      if (n <= 0.86 + wob) set(png, cx + x, cy + y, color);
-      else if (n <= 1.0 + wob) set(png, cx + x, cy + y, OUT);
+      // Left/top get strong spikes; right/bottom stay near round.
+      const leftBias = Math.max(0, -x / RX); // 0..1 on the left
+      const topBias = Math.max(0, -y / RY); // 0..1 on the top
+      const spikeZone = Math.min(1, leftBias * 1.15 + topBias * 0.95);
+      const amp = 0.38 * spikeZone;
+      // ~5 distinct clumps along the top-left quadrant
+      const clumps = Math.sin(a * 5.2 + phase + 0.9) * 0.55 + Math.sin(a * 9.1 + phase * 1.3) * 0.25;
+      const wob = amp * Math.max(clumps, -0.15);
+      // Slight rightward squash so the face can sit a touch off-center
+      const n = Math.hypot((x - 0.4) / RX, y / RY);
+      const inside = 0.88 + wob;
+      if (n <= inside) {
+        // Subtle shade in the denser left/top tufts
+        const tuft = spikeZone > 0.55 && clumps > 0.35 && n > inside - 0.22;
+        set(png, cx + x, cy + y, tuft ? shade : color);
+      } else if (n <= inside + 0.12) {
+        set(png, cx + x, cy + y, OUT);
+      }
     }
   }
 
-  const eyeY = cy - 1;
-  const px = pose === 'walk1' ? -1 : pose === 'walk2' ? 1 : 0;
+  // Large white face (~half the front), slightly right of center, soft M-top
+  const fx = cx + 1;
+  const fy = cy + 1;
+  const facePx = pose === 'walk1' ? -1 : pose === 'walk2' ? 1 : 0;
+  for (let y = -7; y <= 7; y++) {
+    for (let x = -8; x <= 8; x++) {
+      // Heart/M dip along the top edge
+      const topDip = y < -3 ? (Math.abs(x) < 2.2 ? 0.22 : Math.abs(x) < 4.5 ? -0.08 : 0) : 0;
+      const n = Math.hypot(x / 7.4, (y + topDip) / 6.6);
+      if (n > 0.98) continue;
+      const wx = fx + x + facePx;
+      const wy = fy + y;
+      if (wx < 0 || wy < 0 || wx >= png.width || wy >= png.height) continue;
+      const i = (png.width * wy + wx) << 2;
+      if (png.data[i + 3] === 0) continue; // stay inside the fur silhouette
+      set(png, wx, wy, W);
+    }
+  }
+
+  const eyeY = fy - 2;
   if (pose === 'sleep') {
-    // Closed curved lids, no mask
-    for (const s of [-1, 1]) {
-      set(png, cx + s * 5, eyeY, INK);
-      set(png, cx + s * 4, eyeY + 1, INK);
-      set(png, cx + s * 3, eyeY + 1, INK);
-      set(png, cx + s * 2, eyeY, INK);
-    }
+    // Simple closed lids (— —) on the white face
+    fill(png, fx - 4 + facePx, eyeY + 1, fx - 1 + facePx, eyeY + 1, FACE_INK);
+    fill(png, fx + 1 + facePx, eyeY + 1, fx + 4 + facePx, eyeY + 1, FACE_INK);
   } else {
-    // Huge joined white eyes — two ovals touching in the middle (CP mask)
-    for (const s of [-1, 1]) {
-      for (let y = -4; y <= 4; y++) {
-        for (let x = -3; x <= 3; x++) {
-          const n = Math.hypot(x / 3.1, y / 2.9);
-          const exx = cx + s * 3 + x;
-          const eyy = eyeY + y;
-          if (n <= 0.99) set(png, exx, eyy, W);
-          else if (n <= 1.28) {
-            // outline only where not overlapping the other eye's white
-            const other = Math.hypot((exx - (cx - s * 3)) / 3.1, (eyy - eyeY) / 2.9);
-            if (other > 0.99) set(png, exx, eyy, OUT);
-          }
-        }
-      }
-    }
-    // Re-fill both whites so no outline crosses the shared middle
-    for (const s of [-1, 1]) {
-      for (let y = -4; y <= 4; y++) {
-        for (let x = -3; x <= 3; x++) {
-          if (Math.hypot(x / 3.1, y / 2.9) <= 0.99) set(png, cx + s * 3 + x, eyeY + y, W);
-        }
-      }
-    }
-    // Pupils sit low and toward the middle
+    // Tall rectangular eyes: 2×4 with a 2px white gap (fx-1 and fx)
     const pdy = pose === 'sad' ? 1 : 0;
-    for (const s of [-1, 1]) {
-      fill(png, cx + s * 2 - 1 + px, eyeY + pdy, cx + s * 2 + px, eyeY + pdy + 1, OUT);
-    }
-    // Brows: sad slants outward, the black puffle scowls
+    fill(png, fx - 3 + facePx, eyeY + pdy, fx - 2 + facePx, eyeY + pdy + 3, FACE_INK);
+    fill(png, fx + 1 + facePx, eyeY + pdy, fx + 2 + facePx, eyeY + pdy + 3, FACE_INK);
     if (pose === 'sad') {
-      for (const s of [-1, 1]) {
-        set(png, cx + s * 7, eyeY - 5, INK);
-        set(png, cx + s * 6, eyeY - 4, INK);
+      for (const s of [-1, 1] as const) {
+        set(png, fx + s * 6 + facePx, eyeY - 3, FACE_INK);
+        set(png, fx + s * 5 + facePx, eyeY - 2, FACE_INK);
       }
     } else if (angry) {
-      for (const s of [-1, 1]) {
-        set(png, cx + s * 6, eyeY - 6, INK);
-        set(png, cx + s * 5, eyeY - 5, INK);
-        set(png, cx + s * 4, eyeY - 5, INK);
+      for (const s of [-1, 1] as const) {
+        set(png, fx + s * 5 + facePx, eyeY - 3, FACE_INK);
+        set(png, fx + s * 4 + facePx, eyeY - 2, FACE_INK);
+        set(png, fx + s * 3 + facePx, eyeY - 2, FACE_INK);
       }
     }
   }
 
-  // Big wide smile (flips on sad)
-  const my = cy + 4;
+  // Wide smile on the face (~11px), outer corners one row higher
+  const my = fy + 4;
   if (pose === 'sad') {
-    set(png, cx - 3, my + 2, INK);
-    set(png, cx - 2, my + 1, INK);
-    fill(png, cx - 1, my, cx + 1, my, INK);
-    set(png, cx + 2, my + 1, INK);
-    set(png, cx + 3, my + 2, INK);
+    set(png, fx - 4 + facePx, my + 2, FACE_INK);
+    set(png, fx - 3 + facePx, my + 1, FACE_INK);
+    fill(png, fx - 2 + facePx, my, fx + 2 + facePx, my, FACE_INK);
+    set(png, fx + 3 + facePx, my + 1, FACE_INK);
+    set(png, fx + 4 + facePx, my + 2, FACE_INK);
   } else if (pose !== 'sleep') {
-    const wide = pose === 'happy' ? 4 : 3;
-    set(png, cx - wide, my, INK);
-    set(png, cx - wide + 1, my + 1, INK);
-    fill(png, cx - wide + 2, my + 2, cx + wide - 2, my + 2, INK);
-    set(png, cx + wide - 1, my + 1, INK);
-    set(png, cx + wide, my, INK);
+    const half = 5;
+    set(png, fx - half + facePx, my, FACE_INK);
+    set(png, fx + half + facePx, my, FACE_INK);
+    fill(png, fx - half + 1 + facePx, my + 1, fx + half - 1 + facePx, my + 1, FACE_INK);
+  }
+
+  // Tiny sparkle (neutral / happy) — classic CP accent
+  if (pose === 'neutral1' || pose === 'happy' || pose === 'jump') {
+    const sx = cx + 11;
+    const sy = cy - 10;
+    set(png, sx, sy, W);
+    set(png, sx - 1, sy, W);
+    set(png, sx + 1, sy, W);
+    set(png, sx, sy - 1, W);
+    set(png, sx, sy + 1, W);
   }
   return png;
 }
