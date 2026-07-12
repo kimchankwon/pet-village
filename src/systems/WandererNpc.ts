@@ -36,6 +36,8 @@ export class WandererNpc {
   private waypoints: { x: number; y: number }[];
   private destIndex = 0;
   private pauseUntil = 0;
+  /** While set, update() leaves the sprite alone so emotes/hops play out. */
+  private emoteUntil = 0;
   private facingLeft = false;
   private readonly speed: number;
   private readonly pauseMs: [number, number];
@@ -84,6 +86,7 @@ export class WandererNpc {
 
   /** Show a one-off pose, then resume bouncing. */
   protected emote(pose: 'happy' | 'sad' | 'jump', ms = 1000) {
+    this.emoteUntil = this.scene.time.now + ms;
     this.sprite.stop();
     this.sprite.setTexture(`${this.prefix}-${pose}`);
     this.scene.time.delayedCall(ms, () => {
@@ -93,6 +96,9 @@ export class WandererNpc {
 
   /** Little hop with the jump pose. */
   protected hop(height = 24) {
+    // Cover the full up+down tween so update() can't move the sprite
+    // (or restart walk/bounce) mid-air.
+    this.emoteUntil = this.scene.time.now + 900;
     this.sprite.stop();
     this.sprite.setTexture(`${this.prefix}-jump`);
     this.scene.tweens.add({
@@ -107,6 +113,12 @@ export class WandererNpc {
   }
 
   update() {
+    // An emote/hop is playing — leave texture, animation and position be.
+    if (this.scene.time.now < this.emoteUntil) {
+      this.sprite.setDepth(feetDepth(this.sprite));
+      return;
+    }
+
     if (this.scene.time.now < this.pauseUntil) {
       if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) {
         this.playBounce();

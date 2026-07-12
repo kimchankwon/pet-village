@@ -479,7 +479,10 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
     if (pose === 'happy' || pose === 'sad') {
       eyes(f, 'dot', 3, cy - 1);
     } else {
-      for (const s of [-1, 1]) fill(png, CX + s * 3, cy - 2, CX + s * 3 + (s > 0 ? 1 : -1), cy - 1, OUT);
+      // Two chunky 2x2 dot eyes (the old fill had inverted bounds on the
+      // left side, so only the right eye was drawn)
+      fill(png, CX - 4, cy - 2, CX - 3, cy - 1, OUT);
+      fill(png, CX + 3, cy - 2, CX + 4, cy - 1, OUT);
     }
     set(png, CX, cy + 1, OUT);
     set(png, CX + 1, cy + 2, OUT);
