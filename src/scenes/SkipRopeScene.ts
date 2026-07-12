@@ -123,7 +123,7 @@ export class SkipRopeScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(30);
     this.hintText = this.add
-      .text(cx, viewH - 28, 'Click / Space / tap when the rope swings low · 25 in a row!', {
+      .text(cx, viewH - 28, `Click / Space / tap when the rope swings low · ${SKIP_ROPE_TARGET} in a row!`, {
         ...FONT,
         fontSize: '12px',
         color: '#c8c8dc',
@@ -179,12 +179,12 @@ export class SkipRopeScene extends Phaser.Scene {
   private tryJump() {
     if (this.mode !== 'playing') return;
     if (this.time.now < this.airborneUntil) return; // already mid-jump
+    if (this.jumpedThisSwing) return; // already resolved (jumped or missed) this swing
 
     if (!this.inJumpWindow()) {
       this.miss(this.phase < 0.5 ? 'Too early!' : 'Too late!');
       return;
     }
-    if (this.jumpedThisSwing) return;
 
     this.jumpedThisSwing = true;
     this.airborneUntil = this.time.now + JUMP_AIR_MS;

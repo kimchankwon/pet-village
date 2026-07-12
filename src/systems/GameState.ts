@@ -382,6 +382,7 @@ class GameStateStore {
 
   /** Record a Skip Rope streak. Returns true if it set a new personal best. */
   recordSkipRope(jumps: number): boolean {
+    if (!Number.isFinite(jumps)) return false;
     const n = Math.max(0, Math.floor(jumps));
     if (n <= this.data.bestSkipRope) return false;
     this.data.bestSkipRope = n;

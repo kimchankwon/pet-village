@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { State } from './GameState';
 import { blockUi, unblockUi } from './nav';
+import { isPortraitDesign, joystickAnchor } from '../game/viewport';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 const FONT_SM = { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff' };
@@ -63,9 +64,19 @@ export class HUD {
   private place = () => {
     const cam = this.scene.cameras.main;
     const pad = 10;
-    // Touch: sit above the bottom-left joystick. Desktop: flush bottom-left.
-    const aboveJoystick = this.scene.sys.game.device.input.touch ? 128 : pad;
-    this.root.setPosition(pad, cam.height - this.panelH - aboveJoystick);
+    if (!this.scene.sys.game.device.input.touch) {
+      this.root.setPosition(pad, cam.height - this.panelH - pad);
+      return;
+    }
+    const radius = 54;
+    const anchor = joystickAnchor(cam.width, cam.height, radius);
+    if (isPortraitDesign(cam.width, cam.height)) {
+      // Portrait joystick sits higher/right — HUD hugs the very bottom-left.
+      this.root.setPosition(pad, cam.height - this.panelH - pad);
+    } else {
+      // Landscape joystick is bottom-left — stack the HUD above it.
+      this.root.setPosition(pad, anchor.cy - radius - this.panelH - pad);
+    }
   };
 
   refresh() {
