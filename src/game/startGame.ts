@@ -6,6 +6,8 @@ import { HouseScene } from '../scenes/HouseScene';
 import { ShopScene } from '../scenes/ShopScene';
 import { ClothesShopScene } from '../scenes/ClothesShopScene';
 import { PaperTossScene } from '../scenes/PaperTossScene';
+import { ShoreScene } from '../scenes/ShoreScene';
+import { FishingScene } from '../scenes/FishingScene';
 import { State } from '../systems/GameState';
 import { BASE_HEIGHT, BASE_WIDTH, designSizeForHost } from './viewport';
 
@@ -39,7 +41,17 @@ export function startGame(parent: HTMLElement): Phaser.Game {
       default: 'arcade',
       arcade: { debug: false },
     },
-    scene: [BootScene, AdoptScene, TownScene, HouseScene, ShopScene, ClothesShopScene, PaperTossScene],
+    scene: [
+      BootScene,
+      AdoptScene,
+      TownScene,
+      HouseScene,
+      ShopScene,
+      ClothesShopScene,
+      PaperTossScene,
+      ShoreScene,
+      FishingScene,
+    ],
   });
 
   const onResize = () => applyHostAspect(game, parent);

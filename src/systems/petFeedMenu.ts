@@ -40,13 +40,18 @@ export function openFeedMenu(
   const foods = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'food');
   const options: MenuOption[] = foods.map(([id, count]) => {
     const item = ITEMS[id]!;
+    const tip = item.catchOnly
+      ? `+${item.hunger} food`
+      : `+${item.hunger} food, +${FEED_COIN_REWARD}c`;
     return {
-      label: `${item.name} x${count} (+${item.hunger} food, +${FEED_COIN_REWARD}c)`,
+      label: `${item.name} x${count} (${tip})`,
       icon: item.texture,
       onSelect: () => {
         if (State.feedPet(id)) {
           pet.celebrate('Yum!');
-          toast(scene, pet.sprite.x, pet.sprite.y - 28, `+${FEED_COIN_REWARD} coins`, '#ffe066');
+          if (!item.catchOnly) {
+            toast(scene, pet.sprite.x, pet.sprite.y - 28, `+${FEED_COIN_REWARD} coins`, '#ffe066');
+          }
           pet.updateMood();
           opts.onFed?.();
         }

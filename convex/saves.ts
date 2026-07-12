@@ -29,6 +29,7 @@ const saveFields = {
   inventory: v.record(v.string(), v.number()),
   placed: v.array(placedItem),
   bestPaperToss: v.number(),
+  biggestCatch: v.optional(v.number()),
   ownedAccessories: v.optional(v.array(v.string())),
   equippedAccessories: equippedAccessoriesValidator,
 };

@@ -69,7 +69,7 @@ export class TownScene extends Phaser.Scene {
     super('Town');
   }
 
-  create(data: { spawn?: 'house' | 'arcade' | 'shop' | 'cafe' }) {
+  create(data: { spawn?: 'house' | 'arcade' | 'shop' | 'cafe' | 'shore' }) {
     generateTextures(this);
     this.interactables = [];
     this.menuOpen = false;
@@ -95,6 +95,9 @@ export class TownScene extends Phaser.Scene {
     } else if (data?.spawn === 'cafe') {
       sx = CAFE_POS.tx * TILE;
       sy = (CAFE_POS.ty + 2.4) * TILE;
+    } else if (data?.spawn === 'shore') {
+      sx = 10.5 * TILE;
+      sy = (MAP_H - 2.2) * TILE;
     }
 
     this.player = this.physics.add.sprite(sx, sy, 'penguin-down', 0);
@@ -367,6 +370,30 @@ export class TownScene extends Phaser.Scene {
       label: 'E / click — Play Paper Toss',
       action: () => this.scene.start('PaperToss'),
       targets: [arcade],
+    });
+
+    // South path → shore / ocean (bottom-centre)
+    const shoreX = 10.5 * TILE;
+    const shoreY = (MAP_H - 1.15) * TILE;
+    const shoreSign = this.add.image(shoreX + 36, shoreY - 8, 'signpost').setScale(1.2);
+    shoreSign.setDepth(shoreSign.y + shoreSign.displayHeight / 2);
+    this.add
+      .text(shoreX, shoreY - 40, 'Shore →', {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#ffffff',
+        stroke: '#1a1a2e',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(900);
+    this.interactables.push({
+      x: shoreX,
+      y: shoreY,
+      radius: 95,
+      label: 'E / click — Walk to the shore',
+      action: () => this.scene.start('Shore', { spawn: 'town' }),
+      targets: [shoreSign],
     });
 
     this.scatterTownDecor();
