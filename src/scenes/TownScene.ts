@@ -13,8 +13,18 @@ import type { WandererNpc } from '../systems/WandererNpc';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
 
 const TILE = 48;
-const WORLD_W = 32 * TILE;
-const WORLD_H = 24 * TILE;
+/** Compact town — smaller than the old 32×24 crossroads map. */
+const MAP_W = 22;
+const MAP_H = 16;
+const WORLD_W = MAP_W * TILE;
+const WORLD_H = MAP_H * TILE;
+
+/** Building anchors (tile coords) — clustered around the central square. */
+const HOUSE_POS = { tx: 11, ty: 3.15 };
+const SHOP_POS = { tx: 17.2, ty: 3.5 };
+const CAFE_POS = { tx: 4.8, ty: 3.5 };
+const ARCADE_POS = { tx: 16.8, ty: 12.1 };
+const FOUNTAIN_POS = { tx: 11, ty: 8.4 };
 
 interface Interactable {
   x: number;
@@ -69,21 +79,21 @@ export class TownScene extends Phaser.Scene {
 
     this.buildMap();
 
-    // Spawn position depends on where we came from.
-    let sx = 16 * TILE;
-    let sy = 14 * TILE;
+    // Spawn in the town square (or just outside the building you left).
+    let sx = FOUNTAIN_POS.tx * TILE;
+    let sy = (FOUNTAIN_POS.ty + 2.2) * TILE;
     if (data?.spawn === 'house') {
-      sx = 6.5 * TILE;
-      sy = 8.5 * TILE;
+      sx = HOUSE_POS.tx * TILE;
+      sy = (HOUSE_POS.ty + 2.4) * TILE;
     } else if (data?.spawn === 'arcade') {
-      sx = 25 * TILE;
-      sy = 17.2 * TILE;
+      sx = ARCADE_POS.tx * TILE;
+      sy = (ARCADE_POS.ty + 1.2) * TILE;
     } else if (data?.spawn === 'shop') {
-      sx = 25 * TILE;
-      sy = 9.4 * TILE;
+      sx = SHOP_POS.tx * TILE;
+      sy = (SHOP_POS.ty + 2.4) * TILE;
     } else if (data?.spawn === 'cafe') {
-      sx = 7 * TILE;
-      sy = 18.5 * TILE;
+      sx = CAFE_POS.tx * TILE;
+      sy = (CAFE_POS.ty + 2.4) * TILE;
     }
 
     this.player = this.physics.add.sprite(sx, sy, 'penguin-down', 0);
@@ -99,13 +109,13 @@ export class TownScene extends Phaser.Scene {
     });
 
     this.npcs = [
-      // Bongbongee wanders town; Cinnamoroll is inside Cafe Cinnamon.
+      // Bongbongee wanders the square; Cinnamoroll is inside Cafe Cinnamon.
       new BongbongeeNpc(this, [
-        { x: 12 * TILE, y: 15 * TILE },
-        { x: 18 * TILE, y: 11 * TILE },
-        { x: 27 * TILE, y: 12 * TILE },
-        { x: 14 * TILE, y: 19 * TILE },
-        { x: 21 * TILE, y: 17 * TILE },
+        { x: 7.5 * TILE, y: 9.5 * TILE },
+        { x: 14 * TILE, y: 7.2 * TILE },
+        { x: 18 * TILE, y: 10 * TILE },
+        { x: 8.5 * TILE, y: 12 * TILE },
+        { x: 14.5 * TILE, y: 11.5 * TILE },
       ]),
     ];
     // Only a few MINITEEN on the map at a time; they rotate in/out.
@@ -145,32 +155,47 @@ export class TownScene extends Phaser.Scene {
       // Clicking anywhere on the house enters it when near; otherwise walk
       // to the door instead of into the walls.
       if (this.houseImg.getBounds().contains(pointer.worldX, pointer.worldY)) {
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, 6.5 * TILE, 6.3 * TILE);
+        const d = Phaser.Math.Distance.Between(
+          this.player.x,
+          this.player.y,
+          HOUSE_POS.tx * TILE,
+          (HOUSE_POS.ty + 0.15) * TILE,
+        );
         if (d < 150) {
           this.clickMove.clear();
           this.scene.start('House');
         } else {
-          this.clickMove.setTarget(6.5 * TILE, 8.4 * TILE);
+          this.clickMove.setTarget(HOUSE_POS.tx * TILE, (HOUSE_POS.ty + 2.2) * TILE);
         }
         return;
       }
       if (this.shopImg.getBounds().contains(pointer.worldX, pointer.worldY)) {
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, 25 * TILE, 6.3 * TILE);
+        const d = Phaser.Math.Distance.Between(
+          this.player.x,
+          this.player.y,
+          SHOP_POS.tx * TILE,
+          (SHOP_POS.ty + 0.15) * TILE,
+        );
         if (d < 150) {
           this.clickMove.clear();
           this.scene.start('Shop');
         } else {
-          this.clickMove.setTarget(25 * TILE, 8.6 * TILE);
+          this.clickMove.setTarget(SHOP_POS.tx * TILE, (SHOP_POS.ty + 2.1) * TILE);
         }
         return;
       }
       if (this.cafeImg.getBounds().contains(pointer.worldX, pointer.worldY)) {
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, 7 * TILE, 16.3 * TILE);
+        const d = Phaser.Math.Distance.Between(
+          this.player.x,
+          this.player.y,
+          CAFE_POS.tx * TILE,
+          (CAFE_POS.ty + 0.15) * TILE,
+        );
         if (d < 150) {
           this.clickMove.clear();
           this.scene.start('ClothesShop');
         } else {
-          this.clickMove.setTarget(7 * TILE, 18.2 * TILE);
+          this.clickMove.setTarget(CAFE_POS.tx * TILE, (CAFE_POS.ty + 2.1) * TILE);
         }
         return;
       }
@@ -214,27 +239,50 @@ export class TownScene extends Phaser.Scene {
 
   private buildMap() {
     // Grass base
-    for (let ty = 0; ty < 24; ty++) {
-      for (let tx = 0; tx < 32; tx++) {
+    for (let ty = 0; ty < MAP_H; ty++) {
+      for (let tx = 0; tx < MAP_W; tx++) {
         this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-grass').setDepth(-100);
       }
     }
-    // Paths: a crossroads through the middle of town
-    for (let tx = 0; tx < 32; tx++) {
-      this.add.image(tx * TILE + TILE / 2, 12 * TILE + TILE / 2, 'tile-path').setDepth(-99);
-      this.add.image(tx * TILE + TILE / 2, 13 * TILE + TILE / 2, 'tile-path').setDepth(-99);
+
+    // Central cobblestone town square
+    for (let ty = 5; ty <= 11; ty++) {
+      for (let tx = 5; tx <= 16; tx++) {
+        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-plaza').setDepth(-99);
+      }
     }
-    for (let ty = 0; ty < 24; ty++) {
-      this.add.image(15 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
-      this.add.image(16 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+    // Soft dirt paths from square to south gate + building fronts
+    for (let ty = 12; ty < MAP_H; ty++) {
+      this.add.image(10 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      this.add.image(11 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+    }
+    for (let tx = 4; tx <= 6; tx++) {
+      for (let ty = 4; ty <= 5; ty++) {
+        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      }
+    }
+    for (let tx = 10; tx <= 12; tx++) {
+      for (let ty = 4; ty <= 5; ty++) {
+        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      }
+    }
+    for (let tx = 16; tx <= 18; tx++) {
+      for (let ty = 4; ty <= 5; ty++) {
+        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      }
+    }
+    for (let tx = 15; tx <= 17; tx++) {
+      for (let ty = 11; ty <= 13; ty++) {
+        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      }
     }
 
-    // Player's house — walk near any side and click anywhere on it to enter.
-    const house = this.add.image(6.5 * TILE, 6 * TILE, 'house').setScale(2);
+    // Player's house — north edge of the square
+    const house = this.add.image(HOUSE_POS.tx * TILE, HOUSE_POS.ty * TILE, 'house').setScale(1.85);
     house.setDepth(house.y + house.displayHeight / 2);
     this.houseImg = house;
     this.add
-      .text(6.5 * TILE, 6 * TILE - house.displayHeight / 2 - 12, 'My House', {
+      .text(HOUSE_POS.tx * TILE, HOUSE_POS.ty * TILE - house.displayHeight / 2 - 10, 'My House', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#ffffff',
@@ -244,22 +292,20 @@ export class TownScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(900);
     this.interactables.push({
-      // Centred on the house body with a radius that covers every side,
-      // so standing anywhere near the house lets you enter.
-      x: 6.5 * TILE,
-      y: 6.3 * TILE,
-      radius: 130,
+      x: HOUSE_POS.tx * TILE,
+      y: (HOUSE_POS.ty + 0.2) * TILE,
+      radius: 120,
       label: 'E / click — Enter house',
       action: () => this.scene.start('House'),
       targets: [house],
     });
 
-    // Daniel's shop — Daniel is inside; walk near and enter.
-    const shop = this.add.image(25 * TILE, 6 * TILE, 'shop').setScale(2);
+    // Daniel's shop — NE of the square
+    const shop = this.add.image(SHOP_POS.tx * TILE, SHOP_POS.ty * TILE, 'shop').setScale(1.85);
     shop.setDepth(shop.y + shop.displayHeight / 2);
     this.shopImg = shop;
     this.add
-      .text(25 * TILE, 6 * TILE - shop.displayHeight / 2 - 12, "Daniel's Shop", {
+      .text(SHOP_POS.tx * TILE, SHOP_POS.ty * TILE - shop.displayHeight / 2 - 10, "Daniel's Shop", {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#ffffff',
@@ -269,20 +315,20 @@ export class TownScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(900);
     this.interactables.push({
-      x: 25 * TILE,
-      y: 6.3 * TILE,
-      radius: 130,
+      x: SHOP_POS.tx * TILE,
+      y: (SHOP_POS.ty + 0.2) * TILE,
+      radius: 120,
       label: "E / click — Enter Daniel's Shop",
       action: () => this.scene.start('Shop'),
       targets: [shop],
     });
 
-    // Cafe Cinnamon — SW; Cinnamoroll sells pet clothes inside.
-    const cafe = this.add.image(7 * TILE, 16 * TILE, 'cafe').setScale(2);
+    // Cafe Cinnamon — NW of the square
+    const cafe = this.add.image(CAFE_POS.tx * TILE, CAFE_POS.ty * TILE, 'cafe').setScale(1.85);
     cafe.setDepth(cafe.y + cafe.displayHeight / 2);
     this.cafeImg = cafe;
     this.add
-      .text(7 * TILE, 16 * TILE - cafe.displayHeight / 2 - 12, 'Cafe Cinnamon', {
+      .text(CAFE_POS.tx * TILE, CAFE_POS.ty * TILE - cafe.displayHeight / 2 - 10, 'Cafe Cinnamon', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#ffe6f2',
@@ -292,19 +338,19 @@ export class TownScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(900);
     this.interactables.push({
-      x: 7 * TILE,
-      y: 16.3 * TILE,
-      radius: 130,
+      x: CAFE_POS.tx * TILE,
+      y: (CAFE_POS.ty + 0.2) * TILE,
+      radius: 120,
       label: 'E / click — Enter Cafe Cinnamon',
       action: () => this.scene.start('ClothesShop'),
       targets: [cafe],
     });
 
-    // Arcade cabinet → paper toss minigame (SE, near Daniel's side of town)
-    const arcade = this.add.image(25 * TILE, 16 * TILE, 'arcade').setScale(1.5);
+    // Arcade — SE edge of the square
+    const arcade = this.add.image(ARCADE_POS.tx * TILE, ARCADE_POS.ty * TILE, 'arcade').setScale(1.4);
     arcade.setDepth(arcade.y + arcade.displayHeight / 2);
     this.add
-      .text(25 * TILE, 16 * TILE - 50, 'Paper Toss', {
+      .text(ARCADE_POS.tx * TILE, ARCADE_POS.ty * TILE - 46, 'Paper Toss', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#ffffff',
@@ -314,38 +360,19 @@ export class TownScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(900);
     this.interactables.push({
-      x: 25 * TILE,
-      y: 16 * TILE,
-      radius: 90,
+      x: ARCADE_POS.tx * TILE,
+      y: ARCADE_POS.ty * TILE,
+      radius: 80,
       label: 'E / click — Play Paper Toss',
       action: () => this.scene.start('PaperToss'),
       targets: [arcade],
     });
 
-    // Path spurs to buildings (keep paths clear of clutter)
-    for (let ty = 14; ty <= 16; ty++) {
-      for (let tx = 23; tx <= 26; tx++) {
-        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
-      }
-    }
-    for (let ty = 8; ty <= 11; ty++) {
-      this.add.image(6 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
-      this.add.image(7 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
-    }
-    for (let ty = 8; ty <= 11; ty++) {
-      this.add.image(24 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
-      this.add.image(25 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
-    }
-    for (let ty = 14; ty <= 17; ty++) {
-      this.add.image(6 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
-      this.add.image(7 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
-    }
-
     this.scatterTownDecor();
   }
 
   /**
-   * Light outdoor décor — corners and path edges only, so buildings stay readable.
+   * Bustling square décor — fountain landmark, seating, lamps, shop clutter.
    * `solid` = [width, height, yOffset] for physics; omit for walk-through décor.
    */
   private scatterTownDecor() {
@@ -358,47 +385,68 @@ export class TownScene extends Phaser.Scene {
     };
 
     const trees: Spot[] = [
-      { tex: 'tree', tx: 2, ty: 2.5, scale: 1.5, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 29.5, ty: 3, scale: 1.5, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 2, ty: 21, scale: 1.5, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 29.5, ty: 21, scale: 1.5, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 29.5, ty: 10, scale: 1.45, solid: [40, 30, 20] },
-      { tex: 'tree', tx: 2, ty: 10.5, scale: 1.45, solid: [40, 30, 20] },
+      { tex: 'tree', tx: 1.2, ty: 1.8, scale: 1.4, solid: [36, 28, 18] },
+      { tex: 'tree', tx: 20.5, ty: 1.8, scale: 1.4, solid: [36, 28, 18] },
+      { tex: 'tree', tx: 1.4, ty: 14.2, scale: 1.4, solid: [36, 28, 18] },
+      { tex: 'tree', tx: 20.4, ty: 14.2, scale: 1.4, solid: [36, 28, 18] },
+      { tex: 'tree', tx: 8.2, ty: 1.6, scale: 1.3, solid: [34, 26, 16] },
+      { tex: 'tree', tx: 14, ty: 1.5, scale: 1.3, solid: [34, 26, 16] },
+      { tex: 'tree', tx: 1.6, ty: 7.5, scale: 1.25, solid: [34, 26, 16] },
+      { tex: 'tree', tx: 20.2, ty: 7.8, scale: 1.25, solid: [34, 26, 16] },
     ];
 
     const bushes: Spot[] = [
-      { tex: 'bush', tx: 4.5, ty: 4, scale: 1.25, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 10, ty: 3.5, scale: 1.2, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 22, ty: 3.5, scale: 1.25, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 27.5, ty: 4.2, scale: 1.2, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 11, ty: 19, scale: 1.2, solid: [28, 18, 8] },
-      { tex: 'bush', tx: 20, ty: 19.5, scale: 1.25, solid: [28, 18, 8] },
+      { tex: 'bush', tx: 7.2, ty: 3.2, scale: 1.15, solid: [26, 16, 6] },
+      { tex: 'bush', tx: 14.6, ty: 3.1, scale: 1.15, solid: [26, 16, 6] },
+      { tex: 'bush', tx: 2.8, ty: 5.2, scale: 1.1, solid: [26, 16, 6] },
+      { tex: 'bush', tx: 19, ty: 5.4, scale: 1.1, solid: [26, 16, 6] },
+      { tex: 'bush', tx: 6.5, ty: 13.5, scale: 1.15, solid: [26, 16, 6] },
+      { tex: 'bush', tx: 13.5, ty: 13.8, scale: 1.15, solid: [26, 16, 6] },
+      { tex: 'bush', tx: 18.8, ty: 13.2, scale: 1.1, solid: [26, 16, 6] },
     ];
 
     const flowers: Spot[] = [
-      { tex: 'wildflower', tx: 5, ty: 8.8, scale: 1.35 },
-      { tex: 'wildflower', tx: 9, ty: 9.2, scale: 1.3 },
-      { tex: 'wildflower', tx: 23, ty: 8.8, scale: 1.35 },
-      { tex: 'wildflower', tx: 27, ty: 9.2, scale: 1.3 },
-      { tex: 'wildflower', tx: 10, ty: 17.5, scale: 1.3 },
-      { tex: 'wildflower', tx: 22, ty: 18, scale: 1.35 },
+      { tex: 'wildflower', tx: 6.2, ty: 5.4, scale: 1.25 },
+      { tex: 'wildflower', tx: 9.2, ty: 5.2, scale: 1.2 },
+      { tex: 'wildflower', tx: 12.8, ty: 5.3, scale: 1.25 },
+      { tex: 'wildflower', tx: 15.8, ty: 5.5, scale: 1.2 },
+      { tex: 'wildflower', tx: 7.5, ty: 11.6, scale: 1.2 },
+      { tex: 'wildflower', tx: 13.2, ty: 11.4, scale: 1.25 },
+      { tex: 'wildflower', tx: 3.5, ty: 10.5, scale: 1.2 },
+      { tex: 'wildflower', tx: 18.5, ty: 9.2, scale: 1.2 },
+      { tex: 'mushroom', tx: 2.4, ty: 11.2, scale: 1.15 },
+      { tex: 'mushroom', tx: 19.2, ty: 12.5, scale: 1.15 },
     ];
 
     const hardscape: Spot[] = [
-      { tex: 'fountain', tx: 12.5, ty: 10.2, scale: 1.55, solid: [50, 36, 10] },
-      { tex: 'bench', tx: 14, ty: 11.2, scale: 1.3, solid: [56, 22, 6] },
-      { tex: 'bench', tx: 18.5, ty: 14.2, scale: 1.3, solid: [56, 22, 6] },
-      { tex: 'streetlamp', tx: 14.2, ty: 8.2, scale: 1.45, solid: [18, 16, 22] },
-      { tex: 'streetlamp', tx: 17.8, ty: 8.2, scale: 1.45, solid: [18, 16, 22] },
-      { tex: 'streetlamp', tx: 14.2, ty: 16.2, scale: 1.45, solid: [18, 16, 22] },
-      { tex: 'streetlamp', tx: 17.8, ty: 16.2, scale: 1.45, solid: [18, 16, 22] },
-      { tex: 'mailbox', tx: 8.6, ty: 8.2, scale: 1.3, solid: [24, 20, 8] },
-      { tex: 'fence', tx: 4.2, ty: 8.6, scale: 1.35, solid: [60, 18, 4] },
-      { tex: 'fence', tx: 9, ty: 8.6, scale: 1.35, solid: [60, 18, 4] },
-      { tex: 'signpost', tx: 9.5, ty: 11.5, scale: 1.25, solid: [20, 16, 10] },
-      { tex: 'signpost', tx: 22.5, ty: 11.5, scale: 1.25, solid: [20, 16, 10] },
-      { tex: 'rock', tx: 30, ty: 15, scale: 1.3, solid: [32, 20, 6] },
-      { tex: 'rock', tx: 1.8, ty: 14.5, scale: 1.3, solid: [32, 20, 6] },
+      // Town square fountain — landmark in the middle
+      { tex: 'fountain', tx: FOUNTAIN_POS.tx, ty: FOUNTAIN_POS.ty, scale: 1.7, solid: [52, 38, 10] },
+      { tex: 'fountain', tx: 13.4, ty: 9.8, scale: 1.05, solid: [36, 26, 8] },
+      // Seating around the square
+      { tex: 'bench', tx: 8.2, ty: 7.4, scale: 1.2, solid: [52, 20, 5] },
+      { tex: 'bench', tx: 13.8, ty: 7.3, scale: 1.2, solid: [52, 20, 5] },
+      { tex: 'bench', tx: 8.4, ty: 10.6, scale: 1.2, solid: [52, 20, 5] },
+      { tex: 'bench', tx: 14, ty: 10.5, scale: 1.2, solid: [52, 20, 5] },
+      // Lamps at plaza corners
+      { tex: 'streetlamp', tx: 5.6, ty: 5.6, scale: 1.35, solid: [16, 14, 20] },
+      { tex: 'streetlamp', tx: 16.4, ty: 5.6, scale: 1.35, solid: [16, 14, 20] },
+      { tex: 'streetlamp', tx: 5.6, ty: 11.2, scale: 1.35, solid: [16, 14, 20] },
+      { tex: 'streetlamp', tx: 16.4, ty: 11.2, scale: 1.35, solid: [16, 14, 20] },
+      // Shop / cafe clutter
+      { tex: 'barrel', tx: 6.6, ty: 5.1, scale: 1.2, solid: [28, 24, 4] },
+      { tex: 'barrel', tx: 7.4, ty: 5.3, scale: 1.1, solid: [26, 22, 4] },
+      { tex: 'crate', tx: 15.4, ty: 5.1, scale: 1.15, solid: [32, 24, 4] },
+      { tex: 'crate', tx: 16.2, ty: 5.35, scale: 1.05, solid: [30, 22, 4] },
+      { tex: 'barrel', tx: 15.2, ty: 12.6, scale: 1.15, solid: [28, 24, 4] },
+      { tex: 'crate', tx: 18.2, ty: 11.6, scale: 1.1, solid: [30, 22, 4] },
+      { tex: 'mailbox', tx: 12.6, ty: 5.15, scale: 1.2, solid: [22, 18, 6] },
+      { tex: 'signpost', tx: 9.4, ty: 12.2, scale: 1.15, solid: [18, 14, 8] },
+      { tex: 'signpost', tx: 12.6, ty: 12.2, scale: 1.15, solid: [18, 14, 8] },
+      { tex: 'fence', tx: 2.4, ty: 4.2, scale: 1.2, solid: [54, 16, 3] },
+      { tex: 'fence', tx: 19.4, ty: 4.2, scale: 1.2, solid: [54, 16, 3] },
+      { tex: 'rock', tx: 3.2, ty: 13.5, scale: 1.15, solid: [28, 18, 5] },
+      { tex: 'rock', tx: 19, ty: 14, scale: 1.15, solid: [28, 18, 5] },
+      { tex: 'stump', tx: 2.6, ty: 9.5, scale: 1.15, solid: [28, 18, 4] },
     ];
 
     this.decoSolids = [];
@@ -419,10 +467,10 @@ export class TownScene extends Phaser.Scene {
       this.physics.add.existing(r, true);
       solids.push(r);
     };
-    addSolid(6.5 * TILE, 6.3 * TILE, 140, 80); // house
-    addSolid(25 * TILE, 6.3 * TILE, 140, 80); // Daniel's shop
-    addSolid(7 * TILE, 16.3 * TILE, 140, 80); // Cafe Cinnamon
-    addSolid(25 * TILE, 16 * TILE, 60, 40); // arcade
+    addSolid(HOUSE_POS.tx * TILE, (HOUSE_POS.ty + 0.2) * TILE, 128, 72);
+    addSolid(SHOP_POS.tx * TILE, (SHOP_POS.ty + 0.2) * TILE, 128, 72);
+    addSolid(CAFE_POS.tx * TILE, (CAFE_POS.ty + 0.2) * TILE, 128, 72);
+    addSolid(ARCADE_POS.tx * TILE, ARCADE_POS.ty * TILE, 56, 36);
     for (const s of this.decoSolids) addSolid(s.x, s.y, s.w, s.h);
     this.physics.add.collider(this.player, solids);
   }

@@ -586,6 +586,36 @@ const SIGNPOST: Grid = [
   '............',
 ];
 
+const BARREL: Grid = [
+  '............',
+  '...knnNNk...',
+  '..knCCCCNk..',
+  '..knCyyCNk..',
+  '..knCCCCNk..',
+  '..knCCCCNk..',
+  '..knCCCCNk..',
+  '...knnNNk...',
+  '....kkkk....',
+  '............',
+  '............',
+  '............',
+];
+
+const CRATE: Grid = [
+  '............',
+  '.knnNNNNNnk.',
+  '.knCCCCCCnk.',
+  '.knCkkkkCnk.',
+  '.knCCCCCCnk.',
+  '.knCkkkkCnk.',
+  '.knCCCCCCnk.',
+  '.knnNNNNNnk.',
+  '............',
+  '............',
+  '............',
+  '............',
+];
+
 const CLOTHES_RACK: Grid = [
   '................',
   '..kt..........tk',
@@ -808,6 +838,38 @@ function makeTile(scene: Phaser.Scene, key: string, base: string, speck: string,
   scene.textures.addCanvas(key, canvas);
 }
 
+/** Cobblestone plaza tile — irregular grey/tan stones with grout. */
+function makeCobbleTile(scene: Phaser.Scene, key: string, size = 16) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size * SCALE;
+  canvas.height = size * SCALE;
+  const ctx = canvas.getContext('2d')!;
+  const stones = ['#a8a090', '#9a9a92', '#b0a898', '#8e8e86', '#aba498'];
+  let seed = 42;
+  const rand = () => {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
+  ctx.fillStyle = '#6a6860';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const cell = 4;
+  for (let row = 0; row < size / cell; row++) {
+    const ox = row % 2 === 0 ? 0 : 2;
+    for (let col = -1; col < size / cell + 1; col++) {
+      const px = col * cell + ox;
+      const py = row * cell;
+      if (px >= size || py >= size) continue;
+      ctx.fillStyle = stones[Math.floor(rand() * stones.length)]!;
+      const w = Math.min(cell - 1, size - px);
+      const h = Math.min(cell - 1, size - py);
+      if (w > 0 && h > 0) {
+        ctx.fillRect(Math.max(0, px) * SCALE, py * SCALE, w * SCALE, h * SCALE);
+      }
+    }
+  }
+  scene.textures.addCanvas(key, canvas);
+}
+
 function makePenguin(scene: Phaser.Scene) {
   makeTexture(scene, 'penguin-down', [PENGUIN_DOWN_0, PENGUIN_DOWN_1]);
   makeTexture(scene, 'penguin-up', [PENGUIN_UP_0, PENGUIN_UP_1]);
@@ -869,6 +931,8 @@ export function generateTextures(scene: Phaser.Scene) {
 
   if (!scene.textures.exists('cafe')) makeTexture(scene, 'cafe', [CAFE]);
 
+  if (!scene.textures.exists('tile-plaza')) makeCobbleTile(scene, 'tile-plaza');
+
   // Outdoor décor — ensure on every call so hot reloads pick up new props.
   const outdoor: [string, Grid][] = [
     ['bush', BUSH],
@@ -882,6 +946,8 @@ export function generateTextures(scene: Phaser.Scene) {
     ['mushroom', MUSHROOM],
     ['stump', STUMP],
     ['signpost', SIGNPOST],
+    ['barrel', BARREL],
+    ['crate', CRATE],
     ['clothes-rack', CLOTHES_RACK],
   ];
   for (const [key, grid] of outdoor) {
