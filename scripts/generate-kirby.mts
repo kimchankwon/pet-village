@@ -131,28 +131,28 @@ function outlineSilhouette(png: InstanceType<typeof PNG>) {
  * 8-phase walk (GIF style) — body motion is the hero, not just the feet.
  * Mid-stride (0,4): body lowest + squashed, feet widest.
  * Pass (2,6): body highest + stretched, feet cross under.
- * Arms pump opposite the feet; face leans into the stride.
+ * Arms pump opposite the feet.
+ * Face stays on sprite-right every frame so Pet.setFlipX mirrors it when
+ * walking left (GIF: features always lean into travel — never oscillate).
  */
 function walkParams(phase: number) {
   const t = (phase / 8) * Math.PI * 2;
-  // Strong vertical bob (GIF reads clearly at pet scale)
-  const bob = Math.round(Math.cos(t) * 2.4); // -2..+2
-  // Squash when low, stretch when high
-  const squash = bob >= 1 ? -0.9 : bob <= -1 ? 1.2 : 0;
-  const widen = bob <= -1 ? 1.1 : bob >= 1 ? -0.6 : 0;
-  // Lean toward the forward foot
-  const lean = Math.round(Math.cos(t) * 1.2);
-  // Feet on an ellipse
-  const leftFootX = Math.round(Math.cos(t) * 5);
+  // Mild bob — big lifts leave a gap above planted feet
+  const bob = Math.round(Math.cos(t) * 1.35); // -1..+1 mostly
+  const squash = bob >= 1 ? -0.55 : bob <= -1 ? 0.85 : 0;
+  const widen = bob <= -1 ? 0.7 : bob >= 1 ? -0.35 : 0;
+  const lean = Math.round(Math.sin(t) * 0.75);
+  // Small stride under the belly (large offsets look like detached shoes)
+  const leftFootX = Math.round(Math.cos(t) * 2.2);
   const rightFootX = -leftFootX;
-  const leftLift = Math.min(0, Math.round(Math.sin(t) * 3.5));
-  const rightLift = Math.min(0, Math.round(Math.sin(t + Math.PI) * 3.5));
-  // Arms opposite feet — 0 tucked, 2–3 extended (silhouette wobble)
-  const armL = Math.round((1 - Math.cos(t)) * 1.5); // 0..3
-  const armR = Math.round((1 + Math.cos(t)) * 1.5); // 0..3
-  const armLy = Math.round(Math.sin(t) * 1.5); // circular wiggle
-  const armRy = Math.round(Math.sin(t + Math.PI) * 1.5);
-  const face = Math.round(Math.cos(t) * 1.5); // -1..1 toward stride
+  const leftLift = Math.min(0, Math.round(Math.sin(t) * 2));
+  const rightLift = Math.min(0, Math.round(Math.sin(t + Math.PI) * 2));
+  const armL = Math.round((1 - Math.cos(t)) * 1.35);
+  const armR = Math.round((1 + Math.cos(t)) * 1.35);
+  const armLy = Math.round(Math.sin(t) * 1.1);
+  const armRy = Math.round(Math.sin(t + Math.PI) * 1.1);
+  // Constant forward bias + tiny step wobble (always ≥ 3 toward right)
+  const face = 3 + (Math.sin(t) > 0.3 ? 1 : 0);
   return {
     bob,
     lean,
@@ -210,26 +210,33 @@ function drawKirby(pose: Pose) {
   const raised = pose === 'happy' || pose === 'jump';
   const dy = pose === 'jump' ? -3 : pose === 'neutral2' ? 1 : wp ? wp.bob : 0;
   const lean = wp?.lean ?? 0;
+  // Walk: face locked to sprite-right. Idle stays centered.
   const faceShift = wp ? wp.face : 0;
   const cx = 16 + lean;
-  const cy = 14 + dy;
   const rx = 8.6 + (wp?.widen ?? 0);
   const ry = 8.0 - (wp?.squash ?? 0);
 
-  // --- Feet first (no outline yet; body will cover tops) ---
-  const spread = pose === 'jump' ? 3 : 5;
-  const lfx = 16 - spread + (wp?.leftFootX ?? 0); // feet stay under world center
-  const rfx = 16 + spread + (wp?.rightFootX ?? 0);
-  const ground = 26;
-  // Planted foot stays on ground; body bob doesn't drag the planted foot up
+  // Planted ground line — feet never float with the bob.
+  const ground = pose === 'jump' ? 23 : 25;
+  // Clamp belly onto the shoes so high-bob frames don't leave a gap
+  // (jump keeps its air pose — feet are drawn higher via `ground`).
+  let cy = 14 + dy;
+  if (pose !== 'jump') {
+    cy = Math.max(cy, ground - ry + 1.2);
+  }
+
+  // --- Feet under body center (same cx); small spread stays attached ---
+  const spread = pose === 'jump' ? 3 : 3.6;
+  const lfx = cx - spread + (wp?.leftFootX ?? 0);
+  const rfx = cx + spread + (wp?.rightFootX ?? 0);
   const lfy = ground + (wp?.leftLift ?? 0);
   const rfy = ground + (wp?.rightLift ?? 0);
-  ellipseFill(png, lfx, lfy, 3.8, 2.5, RED);
-  ellipseFill(png, rfx, rfy, 3.8, 2.5, RED);
+  ellipseFill(png, lfx, lfy, 3.5, 2.2, RED);
+  ellipseFill(png, rfx, rfy, 3.5, 2.2, RED);
   fill(png, lfx - 2, lfy - 1, lfx, lfy, RED_H);
   fill(png, rfx - 2, rfy - 1, rfx, rfy, RED_H);
 
-  // --- Body (covers upper foot overlap; leans + squashes with the stride) ---
+  // --- Body (covers foot tops; leans + squashes with the stride) ---
   ellipseFill(png, cx, cy, rx, ry, PINK);
 
   // Hands — continuous pink with body; pump opposite the feet
@@ -249,7 +256,7 @@ function drawKirby(pose: Pose) {
     handNub(png, 1, cx, cy, 0, 0);
   }
 
-  // Soft lower-right shading (skip hand nub region)
+  // Soft lower shading (skip hand nub region)
   for (let y = -Math.ceil(ry); y <= Math.ceil(ry); y++) {
     for (let x = -Math.ceil(rx); x <= Math.ceil(rx); x++) {
       const d = Math.hypot(x / rx, y / ry);
@@ -261,11 +268,11 @@ function drawKirby(pose: Pose) {
 
   outlineSilhouette(png);
 
-  // Shine follows the lean
-  fill(png, cx - 5 + faceShift, cy - 5, cx - 4 + faceShift, cy - 4, WHITE);
-  set(png, cx - 6 + faceShift, cy - 4, WHITE);
+  // Shine — left of face bias so it still reads when features sit right
+  fill(png, cx - 5 + Math.min(1, faceShift), cy - 5, cx - 4 + Math.min(1, faceShift), cy - 4, WHITE);
+  set(png, cx - 6 + Math.min(1, faceShift), cy - 4, WHITE);
 
-  // Face — tall eyes: white top, deep bottom (GIF style); shifts with stride
+  // Face — biased to sprite-right (walk-forward); flipX mirrors for left
   const eyeTop = cy - 3;
   const lx = cx - 3 + faceShift;
   const rxEye = cx + 3 + faceShift;
