@@ -37,8 +37,8 @@ const PALETTE: RGBA[] = [
   [32, 39, 40, 255], // outline
   [255, 255, 247, 255], // fur
   [193, 234, 240, 255], // light cyan shading
-  [47, 68, 77, 255], // blue-black eyes
-  [249, 185, 182, 255], // blush
+  [86, 164, 214, 255], // sky-blue eyes (calibrated from the sheet)
+  [246, 168, 178, 255], // blush
 ];
 
 function read(source: InstanceType<typeof PNG>, x: number, y: number): RGBA {
@@ -51,9 +51,13 @@ function classify([r, g, b]: RGBA): number {
   // The sheet's warm cream paper: noticeably warmer than the blue-white fur.
   if (r - b > 15 && g - b > 10 && Math.hypot(r - 251, g - 244, b - 224) < 105) return -1;
   const brightness = (r + g + b) / 3;
-  if (brightness < 125) return 0; // outline / dark eye pixels
-  if (r > g + 18 && r > b + 18) return 4; // warm pink = blush
-  if (b > r + 22 && g > r + 14) return brightness < 175 ? 3 : 2; // blue eye / cyan shade
+  // Saturated sky-blue = open eyes (calibrated anchor from the sheet)
+  if (Math.hypot(r - 72, g - 168, b - 216) < 70 && b - r > 60) return 3;
+  // Warm pink = blush
+  if (r > 200 && r - b > 25 && g < 215) return 4;
+  if (brightness < 132) return 0; // outline (incl. anti-aliased edge grays)
+  // Pale cyan shading; neutral grays already fell into the outline bucket
+  if (b > r + 22 && g > r + 14) return 2;
   return 1; // fur
 }
 
@@ -108,7 +112,11 @@ function extract(source: InstanceType<typeof PNG>, crop: Crop) {
           votes.set(cls, (votes.get(cls) ?? 0) + 1);
         }
       }
-      const winner = [...votes.entries()].sort((a, b) => b[1] - a[1])[0]![0];
+      let winner = [...votes.entries()].sort((a, b) => b[1] - a[1])[0]![0];
+      // Eye/blush source pixels are erased here; the face is stamped
+      // deterministically afterwards so features sit exactly where the
+      // reference has them.
+      if (winner === 3 || winner === 4) winner = 1;
       if (winner === -1) continue; // paper → transparent
       const c = PALETTE[winner]!;
       const i = (gy * gw + gx) * 4;
@@ -116,7 +124,89 @@ function extract(source: InstanceType<typeof PNG>, crop: Crop) {
     }
   }
   keepLargestComponent(output);
+  fillInterior(output);
+  borderize(output);
+  closeOutlineGaps(output);
+  fillInterior(output); // gaps sealed — nothing inside stays see-through
+  stampFace(crop.pose, output);
   return output;
+}
+
+/** Transparent cells reachable from the border (the true outside). */
+function outsideMask(output: InstanceType<typeof PNG>) {
+  const { width: w, height: h } = output;
+  const outside = new Uint8Array(w * h);
+  const queue: number[] = [];
+  const add = (x: number, y: number) => {
+    const i = y * w + x;
+    if (!outside[i] && output.data[i * 4 + 3] === 0) { outside[i] = 1; queue.push(i); }
+  };
+  for (let x = 0; x < w; x++) { add(x, 0); add(x, h - 1); }
+  for (let y = 1; y < h - 1; y++) { add(0, y); add(w - 1, y); }
+  for (let i = 0; i < queue.length; i++) {
+    const x = queue[i]! % w, y = Math.floor(queue[i]! / w);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < w && ny < h) add(nx, ny);
+    }
+  }
+  return outside;
+}
+
+/**
+ * The silhouette boundary must be black outline: any non-dark cell that
+ * touches the outside becomes outline (never deleted — deleting would
+ * open see-through notches into the body).
+ */
+function borderize(output: InstanceType<typeof PNG>) {
+  const { width: w, height: h } = output;
+  const dark = PALETTE[0]!;
+  const outside = outsideMask(output);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    if (output.data[i + 3] === 0 || output.data[i] === dark[0]) continue;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h || outside[ny * w + nx]) {
+        output.data[i] = dark[0]; output.data[i + 1] = dark[1]; output.data[i + 2] = dark[2];
+        break;
+      }
+    }
+  }
+}
+
+/** Bridge 1-cell breaks in the outline so the interior can't leak out. */
+function closeOutlineGaps(output: InstanceType<typeof PNG>) {
+  const { width: w, height: h } = output;
+  const dark = PALETTE[0]!;
+  for (let pass = 0; pass < 2; pass++) {
+    const add: number[] = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (output.data[i + 3] !== 0) continue;
+      let darkNeighbours = 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const n = (ny * w + nx) * 4;
+        if (output.data[n + 3] !== 0 && output.data[n] === dark[0]) darkNeighbours++;
+      }
+      if (darkNeighbours >= 4) add.push(i);
+    }
+    for (const i of add) { output.data[i] = dark[0]; output.data[i + 1] = dark[1]; output.data[i + 2] = dark[2]; output.data[i + 3] = 255; }
+  }
+}
+
+/** Transparent cells NOT reachable from the border are interior: make them fur. */
+function fillInterior(output: InstanceType<typeof PNG>) {
+  const { width: w, height: h } = output;
+  const outside = outsideMask(output);
+  const fur = PALETTE[1]!;
+  for (let i = 0; i < w * h; i++) {
+    if (output.data[i * 4 + 3] === 0 && !outside[i]) {
+      output.data[i * 4] = fur[0]; output.data[i * 4 + 1] = fur[1]; output.data[i * 4 + 2] = fur[2]; output.data[i * 4 + 3] = 255;
+    }
+  }
 }
 
 /** Drop fragments of captions/neighbouring sprites caught by the crop. */
@@ -148,6 +238,49 @@ function keepLargestComponent(output: InstanceType<typeof PNG>) {
   for (let i = 0; i < w * h; i++) {
     if (label[i] !== -1 && label[i] !== biggest) output.data[i * 4 + 3] = 0;
   }
+}
+
+type Face = {
+  /** Two sky-blue eyes: top row, height, left/right x, width. */
+  eyes?: { y: number; h: number; lx: number; rx: number; w: number };
+  /** Blush cells under the eyes. */
+  blush?: { y: number; lx: number; rx: number; w: number };
+  /** Dark mouth cells. */
+  mouth?: [number, number][];
+};
+
+const FACES: Record<Pose, Face> = {
+  idle: { eyes: { y: 6, h: 3, lx: 9, rx: 17, w: 2 }, blush: { y: 10, lx: 7, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
+  walk1: { eyes: { y: 6, h: 3, lx: 9, rx: 17, w: 2 }, blush: { y: 11, lx: 9, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
+  walk2: { eyes: { y: 6, h: 3, lx: 9, rx: 17, w: 2 }, blush: { y: 10, lx: 8, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
+  jump: { eyes: { y: 6, h: 3, lx: 10, rx: 18, w: 2 }, blush: { y: 10, lx: 9, rx: 19, w: 2 }, mouth: [[13, 12], [14, 12], [15, 12]] },
+  // sad/happy keep their natural dark closed-eye marks from the sheet
+  sad: { blush: { y: 10, lx: 11, rx: 19, w: 2 } },
+  happy: { blush: { y: 9, lx: 11, rx: 19, w: 2 } },
+};
+
+function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
+  const face = FACES[pose];
+  const put = (x: number, y: number, c: RGBA) => {
+    const i = (y * output.width + x) * 4;
+    if (output.data[i + 3] === 0) return; // never paint outside the body
+    output.data[i] = c[0]; output.data[i + 1] = c[1]; output.data[i + 2] = c[2]; output.data[i + 3] = 255;
+  };
+  if (face.eyes) {
+    const { y, h, lx, rx, w } = face.eyes;
+    for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) {
+      put(lx + dx, y + dy, PALETTE[3]!);
+      put(rx + dx, y + dy, PALETTE[3]!);
+    }
+  }
+  if (face.blush) {
+    const { y, lx, rx, w } = face.blush;
+    for (let dx = 0; dx < w; dx++) {
+      put(lx + dx, y, PALETTE[4]!);
+      put(rx + dx, y, PALETTE[4]!);
+    }
+  }
+  for (const [x, y] of face.mouth ?? []) put(x, y, PALETTE[0]!);
 }
 
 const source = PNG.sync.read(fs.readFileSync(SOURCE));
