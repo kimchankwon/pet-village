@@ -28,12 +28,12 @@ export class CinnamorollNpc extends WandererNpc {
       name: 'Cinnamoroll',
       texPrefix: 'cinna',
       waypoints,
-      // Source-extracted frames retain their native 1:1 pixels (~180px tall),
-      // so this lands beside the ~60px displayed player sprite.
-      scale: 0.42,
       speed: 42,
       pauseMs: [1800, 3600],
     });
+    // Frames are true pixel size (~21px tall); land beside the ~60px
+    // displayed player sprite regardless of the exact frame height.
+    this.sprite.setScale(72 / this.sprite.height);
   }
 
   protected override openTalk(cbs: NpcTalkCallbacks) {
