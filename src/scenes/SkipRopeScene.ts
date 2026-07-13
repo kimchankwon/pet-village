@@ -76,10 +76,11 @@ type AudienceMember = {
 };
 
 /**
- * Skip Rope — press to jump, hold to stay up / go higher, release to land.
- * Clear by being airborne when the rope sweeps underfoot. Jump too early
- * and the hop is cut short — the rope catches you on the pass. One miss
- * ends the run, banking coins + happiness per 5 cleared; 25 in a row wins.
+ * Skip Rope — press to jump, hold to go higher, release to cut short.
+ * Reaching max height always falls (even while held). Clear by being
+ * airborne when the rope sweeps underfoot. Jump too early and the hop is
+ * cut short — the rope catches you on the pass. One miss ends the run;
+ * 25 in a row wins.
  */
 export class SkipRopeScene extends Phaser.Scene {
   private mode: Mode = 'playing';
@@ -117,6 +118,11 @@ export class SkipRopeScene extends Phaser.Scene {
   private groundedSince = 0;
   /** Jumped before TOO_EARLY_PHASE — hop aborted; fail when the rope arrives. */
   private pendingEarlyFail = false;
+  /**
+   * Input was already held when playing started (ready beat / scene enter).
+   * Ignore until release so a held press can't jump a beat later.
+   */
+  private ignoreHeldJumpUntilRelease = false;
 
   /** One randomised villager on each end, turning the rope (no posts). */
   private holders: RopeHolder[] = [];
@@ -145,6 +151,7 @@ export class SkipRopeScene extends Phaser.Scene {
     this.jumpLockedHeight = JUMP_HEIGHT_MIN;
     this.groundedSince = 0;
     this.pendingEarlyFail = false;
+    this.ignoreHeldJumpUntilRelease = false;
     this.ropeStartsAt = 0;
 
     const cx = this.cameras.main.width / 2;
@@ -198,7 +205,7 @@ export class SkipRopeScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(30);
     const hint =
-      `Hold click / Space to stay up · release to land · clear when the rope passes under you · ${SKIP_ROPE_TARGET} wins!`;
+      `Hold to jump higher · release early to cut short · max height always falls · ${SKIP_ROPE_TARGET} wins!`;
     this.hintText = this.add
       .text(cx, viewH - 28, hint, {
         ...FONT,
@@ -239,13 +246,25 @@ export class SkipRopeScene extends Phaser.Scene {
       this.onJumpRelease();
     });
 
+    // Blur / tab-hide can drop the matching keyup/pointerup — clear the latch
+    // so jumps aren't blocked for the rest of the scene.
+    const clearHeldLatch = () => this.clearHeldJumpLatch();
+    this.game.events.on(Phaser.Core.Events.BLUR, clearHeldLatch);
+    document.addEventListener('visibilitychange', clearHeldLatch);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off(Phaser.Core.Events.BLUR, clearHeldLatch);
+      document.removeEventListener('visibilitychange', clearHeldLatch);
+    });
+
     this.ropeStartsAt = this.time.now + READY_MS;
     this.feedbackText.setText('Get ready…').setColor('#c8c8dc').setAlpha(1);
     this.hintText.setText('Get ready…');
     this.time.delayedCall(READY_MS, () => {
       if (this.mode !== 'ready') return;
       this.mode = 'playing';
-      // Drop any Space press held through the ready beat so it can't jump on frame 1.
+      // Any Space/pointer still held through ready must be released before jumping.
+      this.ignoreHeldJumpUntilRelease =
+        this.keySpace.isDown || this.input.activePointer.leftButtonDown();
       Phaser.Input.Keyboard.JustDown(this.keySpace);
       Phaser.Input.Keyboard.JustUp(this.keySpace);
       this.feedbackText.setAlpha(0);
@@ -577,7 +596,19 @@ export class SkipRopeScene extends Phaser.Scene {
     return true;
   }
 
+  /** Drop held-input latch + in-progress hold (focus loss / tab hide). */
+  private clearHeldJumpLatch() {
+    this.ignoreHeldJumpUntilRelease = false;
+    if (this.holdingJump && this.airborne && !this.pendingEarlyFail) {
+      // Treat blur like a release so we don't hang mid-air forever.
+      this.onJumpRelease();
+      return;
+    }
+    this.holdingJump = false;
+  }
+
   private onJumpPress() {
+    if (this.ignoreHeldJumpUntilRelease) return;
     if (!this.canStartJump()) return;
 
     this.jumpPressAt = this.time.now;
@@ -594,10 +625,11 @@ export class SkipRopeScene extends Phaser.Scene {
   }
 
   private onJumpRelease() {
+    // Clear the ready-beat hold so the next press can jump.
+    this.ignoreHeldJumpUntilRelease = false;
     if (!this.holdingJump) return;
     this.holdingJump = false;
     // Letting go cuts the jump immediately — fall from wherever we are.
-    // Allow this after the final clear (`won`) so a held apex still lands.
     if (
       this.airborne &&
       !this.pendingEarlyFail &&
@@ -650,6 +682,17 @@ export class SkipRopeScene extends Phaser.Scene {
     );
   }
 
+  private atMaxJumpHeight(): boolean {
+    return this.jumpLockedHeight >= JUMP_HEIGHT_MAX - 0.5;
+  }
+
+  private beginFallFromJump() {
+    this.jumpRising = false;
+    this.holdingJump = false;
+    this.tweens.killTweensOf(this.petSprite);
+    this.tweenFallToGround();
+  }
+
   private tweenRiseToLockedHeight() {
     const targetY = this.petBaseY - this.jumpLockedHeight;
     const fromY = this.petSprite.y;
@@ -666,9 +709,9 @@ export class SkipRopeScene extends Phaser.Scene {
       onComplete: () => {
         if (!this.petSprite.active || this.mode === 'failed' || this.mode === 'done') return;
         this.jumpRising = false;
-        // Still holding → hang at the apex until release. Fall only on let-go.
-        if (!this.holdingJump) {
-          this.tweenFallToGround();
+        // Max height always falls, even if still holding. Otherwise fall on release.
+        if (this.atMaxJumpHeight() || !this.holdingJump) {
+          this.beginFallFromJump();
         }
       },
     });
@@ -689,8 +732,8 @@ export class SkipRopeScene extends Phaser.Scene {
   }
 
   /**
-   * While held: keep rising toward max height. Jump only ends when the
-   * player lets go (see onJumpRelease) — not when the rise tween peaks.
+   * While held: keep rising toward max height. Releasing cuts short; reaching
+   * max always starts the fall (no infinite hang).
    */
   private syncHoldHeight() {
     if (!this.holdingJump || !this.airborne) return;
@@ -698,12 +741,19 @@ export class SkipRopeScene extends Phaser.Scene {
 
     const t = Phaser.Math.Clamp((this.time.now - this.jumpPressAt) / JUMP_HOLD_FOR_MAX_MS, 0, 1);
     const height = Phaser.Math.Linear(JUMP_HEIGHT_MIN, JUMP_HEIGHT_MAX, t);
-    if (height <= this.jumpLockedHeight + 0.5) return;
+    if (height <= this.jumpLockedHeight + 0.5) {
+      // Already at the current target — if that's max, fall now.
+      if (this.atMaxJumpHeight() && !this.jumpRising) {
+        this.beginFallFromJump();
+      }
+      return;
+    }
 
     this.jumpLockedHeight = height;
     const targetY = this.petBaseY - height;
     if (this.petSprite.y <= targetY + 1) {
       this.jumpRising = false;
+      if (this.atMaxJumpHeight()) this.beginFallFromJump();
       return;
     }
 
@@ -936,8 +986,11 @@ export class SkipRopeScene extends Phaser.Scene {
     // Failed/done: the rope freezes where the run ended.
     if (this.mode === 'done' || this.mode === 'failed') return;
 
-    // Get-ready beat — rope stays still until READY_MS elapses.
+    // Get-ready beat — rope stays still; drain key latches so a press here
+    // can't fire a jump when playing starts ~1.5s later.
     if (this.mode === 'ready' || this.time.now < this.ropeStartsAt) {
+      Phaser.Input.Keyboard.JustDown(this.keySpace);
+      Phaser.Input.Keyboard.JustUp(this.keySpace);
       this.drawRope();
       return;
     }
