@@ -76,10 +76,10 @@ type AudienceMember = {
 };
 
 /**
- * Skip Rope — hold to jump higher; clear by being off the ground when the
- * rope sweeps underfoot. Jump too early and the hop is cut short — the rope
- * catches you on the pass. One miss ends the run, banking coins + happiness
- * per 5 cleared; 25 in a row wins outright.
+ * Skip Rope — press to jump, hold to stay up / go higher, release to land.
+ * Clear by being airborne when the rope sweeps underfoot. Jump too early
+ * and the hop is cut short — the rope catches you on the pass. One miss
+ * ends the run, banking coins + happiness per 5 cleared; 25 in a row wins.
  */
 export class SkipRopeScene extends Phaser.Scene {
   private mode: Mode = 'playing';
@@ -198,7 +198,7 @@ export class SkipRopeScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(30);
     const hint =
-      `Hold click / Space to jump higher · be off the ground when the rope passes · one miss ends the run · ${SKIP_ROPE_TARGET} wins!`;
+      `Hold click / Space to stay up · release to land · clear when the rope passes under you · ${SKIP_ROPE_TARGET} wins!`;
     this.hintText = this.add
       .text(cx, viewH - 28, hint, {
         ...FONT,
@@ -594,7 +594,19 @@ export class SkipRopeScene extends Phaser.Scene {
   }
 
   private onJumpRelease() {
+    if (!this.holdingJump) return;
     this.holdingJump = false;
+    // Letting go cuts the jump immediately — fall from wherever we are.
+    // Allow this after the final clear (`won`) so a held apex still lands.
+    if (
+      this.airborne &&
+      !this.pendingEarlyFail &&
+      (this.mode === 'playing' || this.mode === 'won')
+    ) {
+      this.jumpRising = false;
+      this.tweens.killTweensOf(this.petSprite);
+      this.tweenFallToGround();
+    }
   }
 
   /** Short hop that is cut short — pet is planted before the rope arrives. */
@@ -630,8 +642,9 @@ export class SkipRopeScene extends Phaser.Scene {
   }
 
   private heightBlend(): number {
+    const height = Math.max(JUMP_HEIGHT_MIN, this.petBaseY - this.petSprite.y);
     return Phaser.Math.Clamp(
-      (this.jumpLockedHeight - JUMP_HEIGHT_MIN) / (JUMP_HEIGHT_MAX - JUMP_HEIGHT_MIN),
+      (height - JUMP_HEIGHT_MIN) / (JUMP_HEIGHT_MAX - JUMP_HEIGHT_MIN),
       0,
       1,
     );
@@ -653,8 +666,10 @@ export class SkipRopeScene extends Phaser.Scene {
       onComplete: () => {
         if (!this.petSprite.active || this.mode === 'failed' || this.mode === 'done') return;
         this.jumpRising = false;
-        this.holdingJump = false;
-        this.tweenFallToGround();
+        // Still holding → hang at the apex until release. Fall only on let-go.
+        if (!this.holdingJump) {
+          this.tweenFallToGround();
+        }
       },
     });
   }
@@ -673,9 +688,12 @@ export class SkipRopeScene extends Phaser.Scene {
     });
   }
 
-  /** While holding during the rise, grow the peak toward max height. */
+  /**
+   * While held: keep rising toward max height. Jump only ends when the
+   * player lets go (see onJumpRelease) — not when the rise tween peaks.
+   */
   private syncHoldHeight() {
-    if (!this.holdingJump || !this.jumpRising || !this.airborne) return;
+    if (!this.holdingJump || !this.airborne) return;
     if (this.pendingEarlyFail) return;
 
     const t = Phaser.Math.Clamp((this.time.now - this.jumpPressAt) / JUMP_HOLD_FOR_MAX_MS, 0, 1);
@@ -684,8 +702,12 @@ export class SkipRopeScene extends Phaser.Scene {
 
     this.jumpLockedHeight = height;
     const targetY = this.petBaseY - height;
-    if (this.petSprite.y <= targetY + 1) return;
+    if (this.petSprite.y <= targetY + 1) {
+      this.jumpRising = false;
+      return;
+    }
 
+    this.jumpRising = true;
     this.tweens.killTweensOf(this.petSprite);
     this.tweenRiseToLockedHeight();
   }
@@ -920,8 +942,10 @@ export class SkipRopeScene extends Phaser.Scene {
       return;
     }
 
-    if (this.mode === 'playing') {
-      if (Phaser.Input.Keyboard.JustDown(this.keySpace)) this.onJumpPress();
+    if (this.mode === 'playing' || this.mode === 'won') {
+      if (this.mode === 'playing' && Phaser.Input.Keyboard.JustDown(this.keySpace)) {
+        this.onJumpPress();
+      }
       if (Phaser.Input.Keyboard.JustUp(this.keySpace)) this.onJumpRelease();
       this.syncHoldHeight();
     }
