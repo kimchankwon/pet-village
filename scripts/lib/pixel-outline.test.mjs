@@ -24,7 +24,9 @@ test('replaces a thick external outline with a one-pixel outer boundary', () => 
   for (let y = 3; y <= 5; y++) for (let x = 3; x <= 5; x++) set(image, x, y, BODY);
 
   const repaired = repairExternalOutline(image, { outline: BLACK });
+  const repairedAgain = repairExternalOutline(repaired, { outline: BLACK });
 
+  assert.deepEqual(Buffer.from(repairedAgain.data), Buffer.from(repaired.data), 'repair must be idempotent');
   assert.deepEqual(get(repaired, 1, 4), [0, 0, 0, 0]);
   assert.deepEqual(get(repaired, 2, 4), BLACK);
   assert.deepEqual(get(repaired, 3, 4), BODY);
@@ -45,11 +47,11 @@ test('preserves enclosed black facial details', () => {
   const image = rgba(9, 9);
   for (let y = 1; y <= 7; y++) for (let x = 1; x <= 7; x++) set(image, x, y, BLACK);
   for (let y = 2; y <= 6; y++) for (let x = 2; x <= 6; x++) set(image, x, y, BODY);
-  set(image, 4, 4, BLACK);
+  for (let y = 3; y <= 4; y++) for (let x = 3; x <= 4; x++) set(image, x, y, BLACK);
 
   const repaired = repairExternalOutline(image, { outline: BLACK });
 
-  assert.deepEqual(get(repaired, 4, 4), BLACK);
+  for (let y = 3; y <= 4; y++) for (let x = 3; x <= 4; x++) assert.deepEqual(get(repaired, x, y), BLACK);
   assert.deepEqual(get(repaired, 1, 4), BLACK);
   assert.deepEqual(get(repaired, 0, 4), [0, 0, 0, 0]);
 });
@@ -86,7 +88,7 @@ test('generated character frames already satisfy the one-pixel outline invariant
   for (const name of ['idle', 'walk1', 'walk2', 'happy', 'sad', 'jump']) {
     files.push({ file: path.join('public/assets/npc/bongbongee', `${name}.png`), outline: BLACK });
   }
-  assert.ok(files.length > 100, 'expected to verify every generated animation frame');
+  assert.equal(files.length, 200, 'expected the complete generated animation-frame corpus');
 
   for (const { file, outline } of files) {
     const image = PNG.sync.read(fs.readFileSync(file));
