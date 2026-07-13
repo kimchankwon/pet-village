@@ -37,7 +37,9 @@ function repairExternalOutlinePass(image, options = {}) {
   const result = {
     width: image.width,
     height: image.height,
-    data: new Uint8Array(image.data),
+    // Buffer, not Uint8Array: callers hand the result straight to
+    // PNG.sync.write, whose documented contract expects Buffer data.
+    data: Buffer.from(image.data),
   };
   const exterior = new Uint8Array(image.width * image.height);
   const visited = new Uint8Array(image.width * image.height);

@@ -3,10 +3,9 @@
  * Faces match official art: round fuzzy body, joined white eyes, per-color
  * personality (orange buck teeth + curls, black scowl, green toothy grin, etc.).
  */
-import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
-import { repairExternalOutline } from './lib/pixel-outline.mjs';
+import { saveSprite } from './lib/save-sprite.mjs';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
@@ -48,9 +47,7 @@ function circle(png: InstanceType<typeof PNG>, cx: number, cy: number, r: number
 }
 
 function save(png: InstanceType<typeof PNG>, file: string, repairOutline = false) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const output = repairOutline ? repairExternalOutline(png, { outline: OUT }) : png;
-  fs.writeFileSync(file, PNG.sync.write(output));
+  saveSprite(png, file, { repairOutline, outline: OUT });
 }
 
 const COLORS: Record<string, RGBA> = {
