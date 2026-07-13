@@ -279,7 +279,6 @@ class ZoomSlider {
     this.opts = opts;
 
     this.root = scene.add.container(0, 0).setScrollFactor(0).setDepth(1460);
-    markAsUi(scene, this.root);
 
     const bg = scene.add
       .rectangle(0, 0, 36, this.trackH + 48, 0x1a1a2e, 0.55)
@@ -304,6 +303,8 @@ class ZoomSlider {
       .setOrigin(0.5);
 
     this.root.add([bg, this.track, this.fill, this.thumb, plus, minus]);
+    // Mark after children exist so clearCameraIgnore can un-ignore them on the UI cam.
+    markAsUi(scene, this.root);
 
     // Hit area covers the whole chrome so it's easy to grab on touch.
     bg.setInteractive({ useHandCursor: true });
