@@ -6,6 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { repairExternalOutline } from './lib/pixel-outline.mjs';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
@@ -78,9 +79,10 @@ function circle(png: InstanceType<typeof PNG>, cx: number, cy: number, r: number
   }
 }
 
-function save(png: InstanceType<typeof PNG>, file: string) {
+function save(png: InstanceType<typeof PNG>, file: string, repairOutline = false) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, PNG.sync.write(png));
+  const output = repairOutline ? repairExternalOutline(png, { outline: OUT }) : png;
+  fs.writeFileSync(file, PNG.sync.write(output));
 }
 
 type Pose = 'neutral1' | 'neutral2' | 'walk1' | 'walk2' | 'sad' | 'happy' | 'sleep' | 'jump';
@@ -314,10 +316,10 @@ const NPC_MAP: Record<string, Pose> = {
 };
 
 for (const pose of PET_POSES) {
-  save(drawBong(pose), path.join(ROOT, 'pet/bongbongee', `${pose}.png`));
+  save(drawBong(pose), path.join(ROOT, 'pet/bongbongee', `${pose}.png`), true);
 }
 for (const [npc, pose] of Object.entries(NPC_MAP)) {
-  save(drawBong(pose), path.join(ROOT, 'npc/bongbongee', `${npc}.png`));
+  save(drawBong(pose), path.join(ROOT, 'npc/bongbongee', `${npc}.png`), true);
 }
 
 save(drawMintPom(), path.join(ROOT, 'accessories/mint-pom.png'));

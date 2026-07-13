@@ -6,6 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { repairExternalOutline } from './lib/pixel-outline.mjs';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
@@ -46,9 +47,10 @@ function circle(png: InstanceType<typeof PNG>, cx: number, cy: number, r: number
   }
 }
 
-function save(png: InstanceType<typeof PNG>, file: string) {
+function save(png: InstanceType<typeof PNG>, file: string, repairOutline = false) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, PNG.sync.write(png));
+  const output = repairOutline ? repairExternalOutline(png, { outline: OUT }) : png;
+  fs.writeFileSync(file, PNG.sync.write(output));
 }
 
 const COLORS: Record<string, RGBA> = {
@@ -208,7 +210,7 @@ const POSES: Pose[] = ['neutral1', 'neutral2', 'walk1', 'walk2', 'sad', 'happy',
 for (const [name, color] of Object.entries(COLORS)) {
   const dir = path.join(ROOT, `pet/puffle-${name}`);
   for (const pose of POSES) {
-    save(drawPuffle(color, pose, styleFor(name)), path.join(dir, `${pose}.png`));
+    save(drawPuffle(color, pose, styleFor(name)), path.join(dir, `${pose}.png`), true);
   }
 }
 

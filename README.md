@@ -113,6 +113,30 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 - `src/scenes/` — `TownScene` (overworld), `HouseScene` (decorating),
   `PaperTossScene` (minigame).
 
+## Repairing a sprite outline
+
+Repair a PNG without changing its canvas size or enclosed black details such as
+eyes and mouths:
+
+```sh
+npm run sprite:repair -- public/assets/pet/cinnamoroll/neutral1.png
+```
+
+This writes `neutral1.repaired.png` by default. After visually comparing it at
+native size and with nearest-neighbor zoom, replace the original explicitly:
+
+```sh
+npm run sprite:repair -- public/assets/pet/cinnamoroll/neutral1.png --in-place
+```
+
+The repair removes only outline-colored pixels connected to the transparent
+exterior, preserves the colored silhouette and enclosed details, then draws one
+4-connected black pixel outside that silhouette. The default tolerance is `0`
+(exact color only); raise `--tolerance` explicitly for anti-aliased source art,
+or use `--outline '#14141c'` for a different ink.
+Do not use erosion or generic line-thinning filters: they can destroy thin ears,
+feet, tails, and facial features.
+
 ## Art notes
 
 - The penguin is original pixel art inspired by iChibi's fan-made Club
