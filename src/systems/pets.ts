@@ -1,4 +1,4 @@
-export type ClassicSpecies = 'mametchi' | 'kuchipatchi' | 'mimitchi';
+export type ClassicSpecies = 'mametchi' | 'kuchipatchi' | 'mimitchi' | 'violetchi';
 export type PuffleColor =
   | 'blue'
   | 'pink'
@@ -45,14 +45,21 @@ const CLASSIC: PetDef[] = [
     id: 'kuchipatchi',
     label: 'Kuchipatchi',
     defaultName: 'Patchi',
-    blurb: 'Hungry goofball · loves snacks',
+    blurb: 'Easygoing daydreamer · loves Tama-Donuts',
     group: 'classic',
   },
   {
     id: 'mimitchi',
     label: 'Mimitchi',
     defaultName: 'Mimi',
-    blurb: 'Stylish trendsetter · loves fashion',
+    blurb: 'Cheerful & caring · perfect-care pal',
+    group: 'classic',
+  },
+  {
+    id: 'violetchi',
+    label: 'Violetchi',
+    defaultName: 'Petal',
+    blurb: 'Gentle gardener · speaks flower',
     group: 'classic',
   },
 ];
@@ -190,6 +197,7 @@ export const petSpeciesValidatorLiterals = [
   'mametchi',
   'kuchipatchi',
   'mimitchi',
+  'violetchi',
   'bongbongee',
   'cinnamoroll',
   'kirby',
