@@ -8,6 +8,7 @@ import { State, type SaveData } from './systems/GameState';
 import { applyPenguinColor, PENGUIN_COLORS } from './sprites/pixelart';
 import { blockUi, resetUiBlock, setLeaveHandler, unblockUi } from './systems/nav';
 import type Phaser from 'phaser';
+import { APP_VERSION } from './appVersion';
 
 // Game-styled confirmation dialog. ESC cancels via a capture-phase listener
 // with stopPropagation so Phaser's own window keydown listener doesn't also
@@ -177,6 +178,7 @@ function PlayChrome({
               ))}
             </div>
             <p className="menu-hint">↑↓ / WASD · Space / E · ESC</p>
+            <p className="menu-version">v{APP_VERSION}</p>
           </div>
         </div>
       )}

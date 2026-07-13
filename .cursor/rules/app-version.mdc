@@ -1,0 +1,21 @@
+---
+description: Bump APP_VERSION when shipping player-facing features
+alwaysApply: true
+---
+
+# App version bumps
+
+When you ship a **player-facing feature or fix**, bump the app version before finishing:
+
+1. Update `src/appVersion.ts` (`APP_VERSION`)
+2. Update `package.json` `"version"` to match
+
+## Semver
+
+- **patch** (`1.0.0` → `1.0.1`) — bug fixes, polish, asset tweaks
+- **minor** (`1.0.0` → `1.1.0`) — new features / gameplay
+- **major** (`1.0.0` → `2.0.0`) — breaking save/API or large redesigns
+
+The version is shown in the shell **Menu** as `v{APP_VERSION}`.
+
+Do not bump for pure chores (lint config, docs-only, comment-only) unless the user asks.
