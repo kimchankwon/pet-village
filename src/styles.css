@@ -336,6 +336,15 @@ body {
   font-size: 1rem;
 }
 
+.menu-version {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  opacity: 0.85;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Penguin colour picker — the classic dozen. */
 .color-grid {
   display: grid;
