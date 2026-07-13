@@ -4,7 +4,7 @@ import { toast } from './UI';
 import { characterDepth } from './depth';
 import { petAnimKey, petTextureKey, type PetPose } from './pets';
 import { petLine } from './petDialog';
-import { ACCESSORIES } from './accessories';
+import { ACCESSORIES, ACCESSORY_LAYOUT, type AccessoryId } from './accessories';
 
 /**
  * Companion that stays a short distance *behind* the player along their
@@ -24,6 +24,7 @@ export class Pet {
   private readonly FOLLOW_DIST = 46;
   private emotionUntil = 0;
   private accessorySprites: Phaser.GameObjects.Image[] = [];
+  private accessoryIds: AccessoryId[] = [];
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
@@ -52,24 +53,34 @@ export class Pet {
   refreshAccessories() {
     for (const img of this.accessorySprites) img.destroy();
     this.accessorySprites = [];
+    this.accessoryIds = [];
     for (const id of State.equippedAccessoryIds()) {
       const def = ACCESSORIES[id];
       if (!def) continue;
       if (!this.scene.textures.exists(def.texture)) continue;
+      const layout = ACCESSORY_LAYOUT[id];
+      const scale = this.sprite.scaleX * (layout?.scale ?? 1);
       const img = this.scene.add
         .image(this.sprite.x, this.sprite.y, def.texture)
-        .setScale(this.sprite.scaleX)
+        .setScale(scale)
         .setFlipX(this.facingLeft);
       this.accessorySprites.push(img);
+      this.accessoryIds.push(id);
     }
     this.syncAccessories();
   }
 
   private syncAccessories() {
     const depth = characterDepth(this.sprite) + 1;
-    for (const img of this.accessorySprites) {
-      img.setPosition(this.sprite.x, this.sprite.y);
-      img.setScale(this.sprite.scaleX);
+    for (let i = 0; i < this.accessorySprites.length; i++) {
+      const img = this.accessorySprites[i]!;
+      const id = this.accessoryIds[i]!;
+      const layout = ACCESSORY_LAYOUT[id];
+      const ox = (layout?.offsetX ?? 0) * (this.facingLeft ? -1 : 1);
+      const oy = layout?.offsetY ?? 0;
+      const scale = this.sprite.scaleX * (layout?.scale ?? 1);
+      img.setPosition(this.sprite.x + ox, this.sprite.y + oy);
+      img.setScale(scale);
       img.setFlipX(this.facingLeft);
       img.setDepth(depth);
       img.setVisible(this.sprite.visible);
