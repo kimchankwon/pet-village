@@ -245,6 +245,9 @@ export class SkipRopeScene extends Phaser.Scene {
     this.time.delayedCall(READY_MS, () => {
       if (this.mode !== 'ready') return;
       this.mode = 'playing';
+      // Drop any Space press held through the ready beat so it can't jump on frame 1.
+      Phaser.Input.Keyboard.JustDown(this.keySpace);
+      Phaser.Input.Keyboard.JustUp(this.keySpace);
       this.feedbackText.setAlpha(0);
       this.hintText.setText(hint);
       this.flashFeedback('Go!', '#a8e6cf');
