@@ -8,19 +8,23 @@ export const ZOOM_MAX = 2.0;
 /** Town, shore, interiors — slightly closer than the old 1× view. */
 export const ZOOM_DEFAULT_HUB = 1.25;
 
-/** Minigames — noticeably closer so the playfield fills the view. */
-export const ZOOM_DEFAULT_GAME = 1.55;
+/** Minigames — 1× so the designed playfield fits the view. */
+export const ZOOM_DEFAULT_GAME = 1.0;
 
 export type ZoomKind = 'hub' | 'game';
 
 const UI_CAM_NAME = 'ui';
 const UI_FLAG = 'zoomUi';
 
-/** Last zoom per kind so switching scenes keeps a sensible preference. */
-const remembered: Partial<Record<ZoomKind, number>> = {};
+/** Last zoom per scene so each minigame can keep its own fit default. */
+const remembered: Record<string, number> = {};
 
 function clampZoom(z: number): number {
   return Phaser.Math.Clamp(z, ZOOM_MIN, ZOOM_MAX);
+}
+
+function memoryKey(kind: ZoomKind, sceneKey: string): string {
+  return `${kind}:${sceneKey}`;
 }
 
 /**
@@ -137,7 +141,9 @@ export class CameraZoom {
     this.opts = opts;
     ensureUiCamera(scene);
 
-    const initial = clampZoom(remembered[opts.kind] ?? (opts.kind === 'game' ? ZOOM_DEFAULT_GAME : ZOOM_DEFAULT_HUB));
+    const key = memoryKey(opts.kind, scene.scene.key);
+    const fallback = opts.kind === 'game' ? ZOOM_DEFAULT_GAME : ZOOM_DEFAULT_HUB;
+    const initial = clampZoom(remembered[key] ?? fallback);
     this.zoom = initial;
     scene.cameras.main.setZoom(initial);
 
@@ -178,7 +184,7 @@ export class CameraZoom {
       return;
     }
     this.zoom = next;
-    remembered[this.opts.kind] = next;
+    remembered[memoryKey(this.opts.kind, this.scene.scene.key)] = next;
     this.scene.cameras.main.setZoom(next);
     this.slider.sync();
   }
@@ -284,7 +290,8 @@ class ZoomSlider {
       .rectangle(0, 0, 36, this.trackH + 48, 0x1a1a2e, 0.55)
       .setStrokeStyle(2, 0xffffff, 0.12);
     this.track = scene.add.rectangle(0, 0, this.trackW, this.trackH, 0x3d3d5c).setOrigin(0.5);
-    this.fill = scene.add.rectangle(0, 0, this.trackW, this.trackH, 0x6b63a8).setOrigin(0.5, 1);
+    // Origin top — sync() pins the top to the thumb and grows toward the bottom.
+    this.fill = scene.add.rectangle(0, 0, this.trackW, 2, 0x6b63a8).setOrigin(0.5, 0);
     this.thumb = scene.add.circle(0, 0, 11, 0xffe066).setStrokeStyle(2, 0x1a1a2e, 0.9);
 
     const plus = scene.add
@@ -336,11 +343,20 @@ class ZoomSlider {
   }
 
   sync() {
-    const t = (this.opts.getZoom() - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN);
-    const y = Phaser.Math.Linear(this.trackH / 2, -this.trackH / 2, t);
-    this.thumb.setPosition(0, y);
-    this.fill.height = Math.max(2, this.trackH / 2 - y);
-    this.fill.y = this.trackH / 2;
+    const half = this.trackH / 2;
+    const t = Phaser.Math.Clamp(
+      (this.opts.getZoom() - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN),
+      0,
+      1,
+    );
+    // Bottom = zoomed out, top = zoomed in. Thumb and fill share that side.
+    const thumbY = half - t * this.trackH;
+    this.thumb.setPosition(0, thumbY);
+    // Fill is anchored to the thumb and grows downward to the track bottom.
+    const fillH = Math.max(2, half - thumbY);
+    this.fill.setOrigin(0.5, 0);
+    this.fill.setPosition(0, thumbY);
+    this.fill.setSize(this.trackW, fillH);
   }
 
   destroy() {

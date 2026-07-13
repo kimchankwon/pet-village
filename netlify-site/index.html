@@ -3,14 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PR #46 — Pet Village camera zoom</title>
+  <title>PR — Zoom slider + game fit default</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
   <style>
     :root {
       --bg-deep: #12101a;
-      --bg: #1a1626;
       --panel: #241f35;
       --line: #3a3352;
       --text: #efe8ff;
@@ -24,9 +23,7 @@
       margin: 0;
       min-height: 100%;
       color: var(--text);
-      background:
-        radial-gradient(ellipse at top, #2a2440 0%, var(--bg-deep) 55%),
-        var(--bg-deep);
+      background: radial-gradient(ellipse at top, #2a2440 0%, var(--bg-deep) 55%), var(--bg-deep);
       font-family: "VT323", monospace;
       font-size: 1.35rem;
       line-height: 1.4;
@@ -54,7 +51,6 @@
       color: var(--accent);
       margin: 32px 0 12px;
     }
-    p, li { color: var(--text); }
     .muted { color: var(--muted); }
     a { color: var(--warm); }
     .card {
@@ -70,96 +66,30 @@
       padding: 0 4px;
       color: var(--gold);
     }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 12px;
-      margin-top: 12px;
-    }
-    .grid .card {
-      margin: 0;
-    }
-    .label {
-      display: block;
-      color: var(--muted);
-      font-size: 1.1rem;
-      margin-bottom: 4px;
-    }
-    .value {
-      color: var(--gold);
-      font-size: 1.5rem;
-    }
   </style>
 </head>
 <body>
   <main>
-    <div class="pill">PET VILLAGE · PR #46</div>
-    <h1>Camera zoom: scroll, pinch, and a right-side slider</h1>
-    <p class="muted">
-      Zoom into the village and minigames — closer by default, especially in games —
-      without losing readable HUD chrome.
-    </p>
+    <div class="pill">PET VILLAGE · ZOOM POLISH</div>
+    <h1>Game-fit zoom default + slider fill fix</h1>
+    <p class="muted">Minigames open at 1× so the designed playfield fits. The zoom slider fill now rides with the thumb from the bottom.</p>
 
     <div class="card">
       <p><strong>TL;DR</strong></p>
       <ul>
-        <li><strong>Web:</strong> mouse wheel / trackpad scrolls to zoom.</li>
-        <li><strong>Mobile:</strong> two-finger pinch zooms (joystick and walk stay separate).</li>
-        <li><strong>Slider:</strong> vertical control on the right edge (+ / −).</li>
-        <li>Hub opens at <strong>1.25×</strong>; Skip Rope / Paper Toss / Fishing at <strong>1.55×</strong>.</li>
-        <li>Range clamped <code>0.9×–2.0×</code>. App version → <strong>1.1.0</strong>.</li>
+        <li>Skip Rope / Paper Toss / Fishing default zoom → <strong>1.0×</strong> (fits the layout).</li>
+        <li>Hub stays <strong>1.25×</strong>.</li>
+        <li>Slider fill is anchored to the thumb and grows toward the bottom (same side as the circle).</li>
+        <li>App version → <strong>1.1.1</strong>.</li>
       </ul>
     </div>
 
-    <h2>Defaults</h2>
-    <div class="grid">
-      <div class="card">
-        <span class="label">Minimum</span>
-        <span class="value">0.9×</span>
-      </div>
-      <div class="card">
-        <span class="label">Hub default</span>
-        <span class="value">1.25×</span>
-      </div>
-      <div class="card">
-        <span class="label">Game default</span>
-        <span class="value">1.55×</span>
-      </div>
-      <div class="card">
-        <span class="label">Maximum</span>
-        <span class="value">2.0×</span>
-      </div>
-    </div>
-
-    <h2>What changed</h2>
-    <ul>
-      <li><strong>Shared zoom:</strong> <code>src/systems/cameraZoom.ts</code> wires wheel, pinch, and the slider.</li>
-      <li><strong>Scenes:</strong> Town, Shore, House, Shop, Cafe, Skip Rope, Paper Toss, Fishing.</li>
-      <li><strong>UI camera:</strong> HUD, menus, joystick, Back, and the slider stay sharp while the world zooms.</li>
-      <li><strong>Touch:</strong> up to 4 active pointers so joystick + pinch can coexist.</li>
-      <li><strong>Gesture safety:</strong> pinch cancels walk / aim drag so zoom doesn’t start a throw or jump.</li>
-      <li><strong>Memory:</strong> last hub zoom and last game zoom are remembered for the session.</li>
-    </ul>
-
     <h2>How to try it</h2>
     <ol>
-      <li>Check out <code>feat/camera-zoom</code> and run <code>npm run dev</code> → <code>/pet-village/</code>.</li>
-      <li>In <strong>Town</strong>, scroll the wheel or drag the right-edge slider — the plaza should zoom around you.</li>
-      <li>On a phone, pinch with two fingers away from the joystick.</li>
-      <li>Enter <strong>Skip Rope</strong> or <strong>Paper Toss</strong> — the view should start more zoomed in than town.</li>
-      <li>Open a menu / check the HUD — labels and buttons should stay crisp, not scaled up with the world.</li>
-      <li>Shell <strong>Menu</strong> should show <code>v1.1.0</code>.</li>
+      <li>Enter a minigame — the whole playfield should be visible (not cropped).</li>
+      <li>Drag the right-edge zoom slider — purple fill should stick to the yellow circle and grow downward.</li>
+      <li>Zoom out to the bottom (min) — fill shrinks to the bottom with the thumb.</li>
     </ol>
-
-    <h2>Verification</h2>
-    <p><strong>Verified:</strong> TypeScript check (<code>tsc --noEmit</code>).</p>
-    <p class="muted">
-      <strong>Worth a manual pass:</strong> pinch vs joystick on portrait, slider vs [ Decorate ] / [ Pet ] hit targets,
-      Paper Toss aim drag while zoomed, fishing meters readability at 1.55×+.
-    </p>
-
-    <h2>PR</h2>
-    <p><a href="https://github.com/kimchankwon/pet-village/pull/46">github.com/kimchankwon/pet-village/pull/46</a></p>
   </main>
 </body>
 </html>
