@@ -246,6 +246,16 @@ export class SkipRopeScene extends Phaser.Scene {
       this.onJumpRelease();
     });
 
+    // Blur / tab-hide can drop the matching keyup/pointerup — clear the latch
+    // so jumps aren't blocked for the rest of the scene.
+    const clearHeldLatch = () => this.clearHeldJumpLatch();
+    this.game.events.on(Phaser.Core.Events.BLUR, clearHeldLatch);
+    document.addEventListener('visibilitychange', clearHeldLatch);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off(Phaser.Core.Events.BLUR, clearHeldLatch);
+      document.removeEventListener('visibilitychange', clearHeldLatch);
+    });
+
     this.ropeStartsAt = this.time.now + READY_MS;
     this.feedbackText.setText('Get ready…').setColor('#c8c8dc').setAlpha(1);
     this.hintText.setText('Get ready…');
@@ -584,6 +594,17 @@ export class SkipRopeScene extends Phaser.Scene {
     if (this.pendingEarlyFail) return false;
     if (this.time.now < this.groundedSince + GROUND_RECOVER_MS) return false;
     return true;
+  }
+
+  /** Drop held-input latch + in-progress hold (focus loss / tab hide). */
+  private clearHeldJumpLatch() {
+    this.ignoreHeldJumpUntilRelease = false;
+    if (this.holdingJump && this.airborne && !this.pendingEarlyFail) {
+      // Treat blur like a release so we don't hang mid-air forever.
+      this.onJumpRelease();
+      return;
+    }
+    this.holdingJump = false;
   }
 
   private onJumpPress() {
