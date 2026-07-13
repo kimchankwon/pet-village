@@ -597,7 +597,12 @@ export class SkipRopeScene extends Phaser.Scene {
     if (!this.holdingJump) return;
     this.holdingJump = false;
     // Letting go cuts the jump immediately — fall from wherever we are.
-    if (this.airborne && !this.pendingEarlyFail && this.mode === 'playing') {
+    // Allow this after the final clear (`won`) so a held apex still lands.
+    if (
+      this.airborne &&
+      !this.pendingEarlyFail &&
+      (this.mode === 'playing' || this.mode === 'won')
+    ) {
       this.jumpRising = false;
       this.tweens.killTweensOf(this.petSprite);
       this.tweenFallToGround();
@@ -937,8 +942,10 @@ export class SkipRopeScene extends Phaser.Scene {
       return;
     }
 
-    if (this.mode === 'playing') {
-      if (Phaser.Input.Keyboard.JustDown(this.keySpace)) this.onJumpPress();
+    if (this.mode === 'playing' || this.mode === 'won') {
+      if (this.mode === 'playing' && Phaser.Input.Keyboard.JustDown(this.keySpace)) {
+        this.onJumpPress();
+      }
       if (Phaser.Input.Keyboard.JustUp(this.keySpace)) this.onJumpRelease();
       this.syncHoldHeight();
     }
