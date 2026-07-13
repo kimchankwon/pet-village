@@ -7,6 +7,7 @@ import { ClickMove } from '../systems/ClickMove';
 import { characterDepth, propDepth } from '../systems/depth';
 import { isInteractSuppressed, isUiBlocked, requestLeave } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
+import { attachCameraZoom, type CameraZoom } from '../systems/cameraZoom';
 import { BongbongeeNpc } from '../systems/BongbongeeNpc';
 import { MiniteenRoster } from '../systems/MiniteenRoster';
 import type { WandererNpc } from '../systems/WandererNpc';
@@ -63,6 +64,7 @@ export class TownScene extends Phaser.Scene {
   private facing: 'up' | 'down' | 'side' = 'down';
   private clickMove!: ClickMove;
   private joystick!: Joystick;
+  private cameraZoom!: CameraZoom;
   // Hold-to-move: while the walk pointer stays down, keep steering at it.
   private pointerHeld = false;
   private houseImg!: Phaser.GameObjects.Image;
@@ -173,10 +175,21 @@ export class TownScene extends Phaser.Scene {
       },
     );
 
+    this.cameraZoom = attachCameraZoom(this, {
+      kind: 'hub',
+      isBlocked: () => this.menuOpen || isUiBlocked(),
+      joystick: this.joystick,
+      onPinchStart: () => {
+        this.pointerHeld = false;
+        this.clickMove.clear();
+      },
+    });
+
     // Club Penguin-style: click ground to walk; click a nearby interactable to use it.
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
-      if (this.joystick.owns(pointer)) return; // joystick captured this touch
+      if (this.joystick.owns(pointer) || this.cameraZoom.ownsPointer(pointer)) return;
+      if (this.cameraZoom.isPinching()) return;
       // Clicking anywhere on the house enters it when near; otherwise walk
       // to the door instead of into the walls.
       if (this.houseImg.getBounds().contains(pointer.worldX, pointer.worldY)) {

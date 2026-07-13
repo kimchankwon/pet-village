@@ -10,6 +10,7 @@ import { feetDepth } from '../systems/depth';
 import { placeDoorMat } from '../systems/doorMat';
 import { isInteractSuppressed, isUiBlocked } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
+import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { CinnamorollNpc } from '../systems/CinnamorollNpc';
 
 const TILE = 48;
@@ -37,6 +38,7 @@ export class ClothesShopScene extends Phaser.Scene {
   private prompt!: Prompt;
   private clickMove!: ClickMove;
   private joystick!: Joystick;
+  private cameraZoom!: CameraZoom;
   private pointerHeld = false;
   private menuOpen = false;
   private facing: 'up' | 'down' | 'side' = 'up';
@@ -101,14 +103,16 @@ export class ClothesShopScene extends Phaser.Scene {
       img.setDepth(tex === 'item-flower' ? feetDepth(img) : img.y);
     }
 
-    this.add
+    const cafeHint = this.add
       .text(this.cameras.main.width / 2, 40, 'Cafe Cinnamon — E / Space / tap Cinna to browse · ESC / door to leave', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#ffe6f2',
       })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1000);
+    markAsUi(this, cafeHint);
 
     const px = door.centerX;
     const py = door.centerY; // ON the mat
@@ -164,6 +168,16 @@ export class ClothesShopScene extends Phaser.Scene {
       },
     );
 
+    this.cameraZoom = attachCameraZoom(this, {
+      kind: 'hub',
+      isBlocked: () => this.menuOpen || isUiBlocked(),
+      joystick: this.joystick,
+      onPinchStart: () => {
+        this.pointerHeld = false;
+        this.clickMove.clear();
+      },
+    });
+
     this.time.addEvent({
       delay: 60_000,
       loop: true,
@@ -178,7 +192,8 @@ export class ClothesShopScene extends Phaser.Scene {
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
-      if (this.joystick.owns(pointer)) return;
+      if (this.joystick.owns(pointer) || this.cameraZoom.ownsPointer(pointer)) return;
+      if (this.cameraZoom.isPinching()) return;
       const near = this.nearestInteractable();
       if (near) {
         const clickDist = Phaser.Math.Distance.Between(pointer.worldX, pointer.worldY, near.x, near.y);

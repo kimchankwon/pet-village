@@ -3,6 +3,7 @@ import { generateTextures } from '../sprites/pixelart';
 import { State, PAPER_TOSS_ENERGY_PER_THROW, PAPER_TOSS_HAPPINESS_PER_STAGE, PAPER_TOSS_PARTICIPATION_COINS } from '../systems/GameState';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
+import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { petAnimKey, petTextureKey } from '../systems/pets';
 
 const GROUND_Y = 480;
@@ -53,6 +54,7 @@ export class PaperTossScene extends Phaser.Scene {
   private binX = 560;
   private mode: Mode = 'aiming';
   private backBtn!: Phaser.GameObjects.Text;
+  private cameraZoom!: CameraZoom;
   private vx = 0;
   private vy = 0;
   private wind = 0; // horizontal acceleration px/s^2
@@ -134,15 +136,19 @@ export class PaperTossScene extends Phaser.Scene {
     this.ball.setTint((this.registry.get(BALL_TINT_KEY) as number | undefined) ?? BALL_TINTS[0]);
     this.bin = this.add.image(this.binX, GROUND_Y - 36, 'bin').setScale(1.9).setDepth(5);
 
-    this.buildSwatches();
-
     this.aimGfx = this.add.graphics().setDepth(20);
-    this.windArrow = this.add.graphics().setDepth(20);
+    this.windArrow = this.add.graphics().setScrollFactor(0).setDepth(20);
 
-    this.add.text(140, 16, 'PAPER TOSS', { ...FONT, fontSize: '18px', color: '#ffe066' });
-    this.statusText = this.add.text(20, 44, '', FONT);
+    const title = this.add
+      .text(140, 16, 'PAPER TOSS', { ...FONT, fontSize: '18px', color: '#ffe066' })
+      .setScrollFactor(0);
+    this.statusText = this.add.text(20, 44, '', FONT).setScrollFactor(0);
     // Wind readout lives at the bottom, over the floor.
-    this.windText = this.add.text(cx, 496, '', { ...FONT, fontSize: '16px' }).setOrigin(0.5, 0).setDepth(21);
+    this.windText = this.add
+      .text(cx, 496, '', { ...FONT, fontSize: '16px' })
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(21);
 
     // Drifting streaks across the play area animate which way (and how
     // hard) the wind is blowing.
@@ -155,15 +161,17 @@ export class PaperTossScene extends Phaser.Scene {
       this.windStreaks.push({ rect, baseY, seed: i * 0.9 });
     }
     this.bestText = this.add
-      .text(viewW - 20, 16, `Best: ${State.data.bestPaperToss}`, { ...FONT, color: '#c8c8dc' })
-      .setOrigin(1, 0);
-    this.add
+      .text(viewW - 52, 16, `Best: ${State.data.bestPaperToss}`, { ...FONT, color: '#c8c8dc' })
+      .setOrigin(1, 0)
+      .setScrollFactor(0);
+    const rules = this.add
       .text(cx, 574, `Sink ${BASKETS_TO_CLEAR}/${THROWS_PER_STAGE} throws to clear the stage · Swish +1 · Bank +2 · Streak +2`, {
         ...FONT,
         fontSize: '12px',
         color: '#c8c8dc',
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
 
     this.keyE = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.keySpace = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
@@ -186,6 +194,7 @@ export class PaperTossScene extends Phaser.Scene {
     this.backBtn = this.add
       .text(14, 10, '[ Back ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', padding: { x: 8, y: 8 } })
       .setOrigin(0, 0)
+      .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     this.backBtn.on('pointerdown', () => {
@@ -193,15 +202,44 @@ export class PaperTossScene extends Phaser.Scene {
       this.requestLeave();
     });
 
+    this.buildSwatches();
+    markAsUi(
+      this,
+      title,
+      this.statusText,
+      this.windText,
+      this.windArrow,
+      this.bestText,
+      rules,
+      this.backBtn,
+      ...this.swatches,
+    );
+
+    this.cameraZoom = attachCameraZoom(this, {
+      kind: 'game',
+      isBlocked: () => this.menuOpen || isUiBlocked(),
+      onPinchStart: () => {
+        this.dragStart = null;
+        this.aimGfx.clear();
+        this.ignoreClicksUntil = this.time.now + 200;
+      },
+    });
+
     this.newThrow(true);
 
     // Start the drag anywhere on screen — both halves work.
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (this.mode !== 'aiming' || this.menuOpen || this.time.now < this.ignoreClicksUntil) return;
+      if (this.cameraZoom.ownsPointer(p) || this.cameraZoom.isPinching()) return;
       this.dragStart = { x: p.x, y: p.y };
     });
     const release = (p: Phaser.Input.Pointer) => {
       if (this.mode !== 'aiming' || !this.dragStart) return;
+      if (this.cameraZoom.isPinching()) {
+        this.dragStart = null;
+        this.aimGfx.clear();
+        return;
+      }
       const dx = this.dragStart.x - p.x;
       const dy = this.dragStart.y - p.y;
       this.dragStart = null;
@@ -235,11 +273,15 @@ export class PaperTossScene extends Phaser.Scene {
 
   // Small colour swatches: tint the paper ball; choice persists via registry.
   private buildSwatches() {
-    this.add.text(20, 72, 'Ball:', { ...FONT, fontSize: '13px', color: '#c8c8dc' });
+    const label = this.add
+      .text(20, 72, 'Ball:', { ...FONT, fontSize: '13px', color: '#c8c8dc' })
+      .setScrollFactor(0);
+    markAsUi(this, label);
     const current = (this.registry.get(BALL_TINT_KEY) as number | undefined) ?? BALL_TINTS[0];
     BALL_TINTS.forEach((tint, i) => {
       const s = this.add
         .rectangle(82 + i * 36, 80, 28, 28, tint)
+        .setScrollFactor(0)
         .setDepth(30)
         .setInteractive({ useHandCursor: true });
       s.setStrokeStyle(2, tint === current ? 0xffffff : 0x1a1a2e);
@@ -577,40 +619,47 @@ export class PaperTossScene extends Phaser.Scene {
     const cy = this.cameras.main.height / 2;
     // Depth above toasts (1500) so lingering "+SWISH!" text can't overlap
     // the buttons; interactive so clicks don't leak to the scene.
-    this.add
+    const panel = this.add
       .rectangle(cx, cy, 460, 236, 0x2a2440, 0.97)
       // Pink panel border to match every other modal (Menu, confirm-card);
       // yellow stays reserved for selection/highlight accents.
       .setStrokeStyle(3, 0xffb3d1)
+      .setScrollFactor(0)
       .setDepth(1600)
       .setInteractive();
-    this.add
+    const heading = this.add
       .text(cx, cy - 68, title, { ...FONT, fontSize: '22px', color: titleColor })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601);
-    this.add
+    const summary = this.add
       .text(cx, cy - 22, `${this.baskets} basket${this.baskets === 1 ? '' : 's'} this run · +${this.roundCoins} coins`, {
         ...FONT,
         fontSize: '16px',
       })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601);
-    this.add
+    const best = this.add
       .text(cx, cy + 6, `Best: ${State.data.bestPaperToss}`, { ...FONT, color: '#c8c8dc' })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601);
     const again = this.add
       .text(cx - 120, cy + 68, `[ ${primaryLabel} ]`, { ...FONT, fontSize: '18px', color: '#a8e6cf', padding: { x: 10, y: 8 } })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     again.on('pointerdown', () => this.scene.restart(restartData));
     const leave = this.add
       .text(cx + 135, cy + 68, '[ Back to town ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', padding: { x: 10, y: 8 } })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     leave.on('pointerdown', () => this.scene.start('Town', { spawn: 'arcade' }));
+    markAsUi(this, panel, heading, summary, best, again, leave);
   }
 
   // Out of throws — no participation coins on fail (stops identical-seed farming).

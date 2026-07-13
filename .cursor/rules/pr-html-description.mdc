@@ -1,0 +1,35 @@
+---
+description: Every PR gets an HTML explain page deployed to Netlify
+alwaysApply: true
+---
+
+# PR explain pages on Netlify
+
+Every pull request needs a **player-facing HTML description** deployed to Netlify — not just Markdown/HTML in the GitHub PR body.
+
+## Pattern (matches existing sites)
+
+1. Write / update `netlify-site/index.html` in the PR-38 explain style (Press Start 2P + VT323, pill, TL;DR card, What changed, How to try it, Verification, PR link).
+2. Create a Netlify site named `pet-village-pr-{N}-explain` (e.g. `pet-village-pr-46-explain`).
+3. Deploy the folder:
+   ```sh
+   npx netlify deploy --prod --dir=netlify-site --site=<site-id>
+   ```
+4. Put the live URL in the GitHub PR body (short summary + link is enough).
+
+Examples already live:
+- https://pet-village-pr-38-explain.netlify.app
+- Sibling repos use the same `*-pr-{N}-explain` naming
+
+## GitHub PR body
+
+Keep the GitHub description short. Prefer linking the Netlify explain page:
+
+```markdown
+Explain: https://pet-village-pr-46-explain.netlify.app
+
+## Summary
+- …
+```
+
+Do **not** treat the GitHub body as the primary HTML artifact — that lives on Netlify.

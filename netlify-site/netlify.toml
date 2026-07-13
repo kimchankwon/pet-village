@@ -1,0 +1,4 @@
+# Static PR explain page — no app build.
+[build]
+  publish = "."
+  command = "echo 'static explain page'"

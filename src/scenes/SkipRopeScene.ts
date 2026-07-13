@@ -9,6 +9,7 @@ import {
 } from '../systems/GameState';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
+import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { petAnimKey, petTextureKey } from '../systems/pets';
 import { MINITEEN, miniteenTexPrefix } from '../systems/miniteen';
 
@@ -82,6 +83,7 @@ type AudienceMember = {
 export class SkipRopeScene extends Phaser.Scene {
   private mode: Mode = 'playing';
   private backBtn!: Phaser.GameObjects.Text;
+  private cameraZoom!: CameraZoom;
   private countText!: Phaser.GameObjects.Text;
   private bestText!: Phaser.GameObjects.Text;
   private hintText!: Phaser.GameObjects.Text;
@@ -174,18 +176,24 @@ export class SkipRopeScene extends Phaser.Scene {
     this.ropeGfx = this.add.graphics();
     this.drawRope();
 
-    this.add.text(140, 16, 'SKIP ROPE', { ...FONT, fontSize: '18px', color: '#ffe066' });
-    this.countText = this.add.text(20, 44, `Jumps: 0 / ${SKIP_ROPE_TARGET}`, {
-      ...FONT,
-      fontSize: '16px',
-      color: '#a8e6cf',
-    });
+    const title = this.add
+      .text(140, 16, 'SKIP ROPE', { ...FONT, fontSize: '18px', color: '#ffe066' })
+      .setScrollFactor(0);
+    this.countText = this.add
+      .text(20, 44, `Jumps: 0 / ${SKIP_ROPE_TARGET}`, {
+        ...FONT,
+        fontSize: '16px',
+        color: '#a8e6cf',
+      })
+      .setScrollFactor(0);
     this.bestText = this.add
-      .text(viewW - 20, 16, `Best: ${State.data.bestSkipRope || 0}`, { ...FONT, color: '#c8c8dc' })
-      .setOrigin(1, 0);
+      .text(viewW - 52, 16, `Best: ${State.data.bestSkipRope || 0}`, { ...FONT, color: '#c8c8dc' })
+      .setOrigin(1, 0)
+      .setScrollFactor(0);
     this.feedbackText = this.add
       .text(cx, 110, '', { ...FONT, fontSize: '20px', color: '#ffe066' })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(30);
     const hint =
       `Click / Space / tap to jump · be off the ground when the rope passes · ${SKIP_ROPE_TARGET} wins!`;
@@ -195,7 +203,8 @@ export class SkipRopeScene extends Phaser.Scene {
         fontSize: '12px',
         color: '#c8c8dc',
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
 
     this.keySpace = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyEsc = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
@@ -212,16 +221,35 @@ export class SkipRopeScene extends Phaser.Scene {
     this.backBtn = this.add
       .text(14, 10, '[ Back ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', padding: { x: 8, y: 8 } })
       .setOrigin(0, 0)
+      .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     this.backBtn.on('pointerdown', () => {
       this.ignoreClicksUntil = this.time.now + 150;
       this.requestLeave();
     });
+    markAsUi(
+      this,
+      title,
+      this.countText,
+      this.bestText,
+      this.feedbackText,
+      this.hintText,
+      this.backBtn,
+    );
+
+    this.cameraZoom = attachCameraZoom(this, {
+      kind: 'game',
+      isBlocked: () => this.menuOpen || isUiBlocked(),
+      onPinchStart: () => {
+        this.ignoreClicksUntil = this.time.now + 200;
+      },
+    });
 
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || isUiBlocked()) return;
       if (p.button !== 0) return;
+      if (this.cameraZoom.ownsPointer(p) || this.cameraZoom.isPinching()) return;
       if (this.mode === 'playing') this.tryJump();
     });
 
@@ -731,23 +759,26 @@ export class SkipRopeScene extends Phaser.Scene {
     this.petSprite.setTexture(petTextureKey(State.data.petSpecies, cleared ? 'happy' : 'sad'));
 
     // Pink border like every other modal; the title carries the fail colour.
-    this.add
+    const panel = this.add
       .rectangle(cx, cy, 460, 250, 0x2a2440, 0.97)
       .setStrokeStyle(3, 0xffb3d1)
+      .setScrollFactor(0)
       .setDepth(1600)
       .setInteractive();
-    this.add
+    const title = this.add
       .text(cx, cy - 78, cleared ? 'Skip Rope cleared!' : 'Skip Rope failed!', {
         ...FONT,
         fontSize: '22px',
         color: cleared ? '#ffe066' : '#ff6b6b',
       })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601);
 
     // A little portrait of the (proud or defeated) pet on the panel.
     const face = this.add
       .image(cx, cy - 36, petTextureKey(State.data.petSpecies, cleared ? 'happy' : 'sad'))
+      .setScrollFactor(0)
       .setDepth(1601);
     face.setScale(Math.min(3, 52 / Math.max(face.width, face.height)));
 
@@ -755,13 +786,15 @@ export class SkipRopeScene extends Phaser.Scene {
       reward.coins > 0 || reward.happiness > 0
         ? `${this.jumps} jumps · +${reward.coins} coins · +${reward.happiness} happy`
         : `${this.jumps} jumps — clear ${SKIP_ROPE_MILESTONE_JUMPS}+ for a reward`;
-    this.add
+    const rewardText = this.add
       .text(cx, cy + 8, rewardLine, { ...FONT, fontSize: '15px' })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601);
-    this.add
+    const bestLine = this.add
       .text(cx, cy + 36, `Best: ${State.data.bestSkipRope}`, { ...FONT, color: '#c8c8dc' })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601);
 
     const again = this.add
@@ -772,6 +805,7 @@ export class SkipRopeScene extends Phaser.Scene {
         padding: { x: 10, y: 8 },
       })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     again.on('pointerdown', () => this.scene.restart());
@@ -783,9 +817,11 @@ export class SkipRopeScene extends Phaser.Scene {
         padding: { x: 10, y: 8 },
       })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     leave.on('pointerdown', () => this.scene.start('Town', { spawn: 'skiprope' }));
+    markAsUi(this, panel, title, face, rewardText, bestLine, again, leave);
   }
 
   private requestLeave() {

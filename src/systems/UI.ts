@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { State } from './GameState';
 import { blockUi, unblockUi } from './nav';
 import { isPortraitDesign, joystickAnchor } from '../game/viewport';
+import { markAsUi } from './cameraZoom';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 const FONT_SM = { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff' };
@@ -52,6 +53,8 @@ export class HUD {
       this.bars.push({ key: d.key, fill });
     });
 
+    markAsUi(scene, this.root);
+
     this.place();
     scene.scale.on('resize', this.place);
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -89,6 +92,8 @@ export class HUD {
 }
 
 export function toast(scene: Phaser.Scene, x: number, y: number, msg: string, color = '#ffffff') {
+  // World-space: callers pass sprite / pointer world positions so the toast
+  // stays over the action when the camera scrolls or zooms.
   const t = scene.add
     .text(x, y, msg, { ...FONT, color, stroke: '#1a1a2e', strokeThickness: 4 })
     .setOrigin(0.5)
@@ -306,6 +311,7 @@ export class Menu {
       .setScrollFactor(0)
       .setDepth(2002);
     this.objects.push(hint);
+    markAsUi(scene, ...this.objects);
 
     blockUi();
     // Stay on the option the caller asked for (e.g. clothes toggle rebuild),
@@ -442,6 +448,7 @@ export function bottomButtons(
     nodes.push(b);
     x -= b.width + 12;
   }
+  markAsUi(scene, ...nodes);
 
   const relayout = () => {
     const c = scene.cameras.main;
@@ -473,6 +480,7 @@ export class Prompt {
       .setScrollFactor(0)
       .setDepth(1200)
       .setVisible(false);
+    markAsUi(scene, this.text);
   }
 
   show(msg: string) {

@@ -1,301 +1,165 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pet Village — Controls</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap"
-      rel="stylesheet"
-    />
-    <style>
-      :root {
-        --bg-deep: #12101a;
-        --bg: #1a1626;
-        --bg-panel: #241f35;
-        --line: #3a3352;
-        --text: #efe8ff;
-        --muted: #a89bc4;
-        --accent: #7ed6a8;
-        --key: #f0c674;
-        --warm: #e8a0b8;
-      }
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PR #46 — Pet Village camera zoom</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-deep: #12101a;
+      --bg: #1a1626;
+      --panel: #241f35;
+      --line: #3a3352;
+      --text: #efe8ff;
+      --muted: #a89bc4;
+      --accent: #7ed6a8;
+      --warm: #ffb3d1;
+      --gold: #ffe066;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100%;
+      color: var(--text);
+      background:
+        radial-gradient(ellipse at top, #2a2440 0%, var(--bg-deep) 55%),
+        var(--bg-deep);
+      font-family: "VT323", monospace;
+      font-size: 1.35rem;
+      line-height: 1.4;
+    }
+    main { max-width: 760px; margin: 0 auto; padding: 28px 18px 72px; }
+    .pill {
+      display: inline-block;
+      background: var(--warm);
+      color: #1a1626;
+      padding: 8px 12px;
+      font-family: "Press Start 2P", monospace;
+      font-size: 0.55rem;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-family: "Press Start 2P", monospace;
+      font-size: 1.05rem;
+      line-height: 1.55;
+      color: var(--gold);
+      margin: 0 0 12px;
+    }
+    h2 {
+      font-family: "Press Start 2P", monospace;
+      font-size: 0.7rem;
+      color: var(--accent);
+      margin: 32px 0 12px;
+    }
+    p, li { color: var(--text); }
+    .muted { color: var(--muted); }
+    a { color: var(--warm); }
+    .card {
+      background: var(--panel);
+      border: 3px solid var(--line);
+      padding: 16px 18px;
+      margin: 14px 0;
+    }
+    ul, ol { padding-left: 1.25rem; }
+    code {
+      background: #161225;
+      border: 1px solid var(--line);
+      padding: 0 4px;
+      color: var(--gold);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .grid .card {
+      margin: 0;
+    }
+    .label {
+      display: block;
+      color: var(--muted);
+      font-size: 1.1rem;
+      margin-bottom: 4px;
+    }
+    .value {
+      color: var(--gold);
+      font-size: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="pill">PET VILLAGE · PR #46</div>
+    <h1>Camera zoom: scroll, pinch, and a right-side slider</h1>
+    <p class="muted">
+      Zoom into the village and minigames — closer by default, especially in games —
+      without losing readable HUD chrome.
+    </p>
 
-      * {
-        box-sizing: border-box;
-      }
+    <div class="card">
+      <p><strong>TL;DR</strong></p>
+      <ul>
+        <li><strong>Web:</strong> mouse wheel / trackpad scrolls to zoom.</li>
+        <li><strong>Mobile:</strong> two-finger pinch zooms (joystick and walk stay separate).</li>
+        <li><strong>Slider:</strong> vertical control on the right edge (+ / −).</li>
+        <li>Hub opens at <strong>1.25×</strong>; Skip Rope / Paper Toss / Fishing at <strong>1.55×</strong>.</li>
+        <li>Range clamped <code>0.9×–2.0×</code>. App version → <strong>1.1.0</strong>.</li>
+      </ul>
+    </div>
 
-      html,
-      body {
-        margin: 0;
-        min-height: 100%;
-      }
+    <h2>Defaults</h2>
+    <div class="grid">
+      <div class="card">
+        <span class="label">Minimum</span>
+        <span class="value">0.9×</span>
+      </div>
+      <div class="card">
+        <span class="label">Hub default</span>
+        <span class="value">1.25×</span>
+      </div>
+      <div class="card">
+        <span class="label">Game default</span>
+        <span class="value">1.55×</span>
+      </div>
+      <div class="card">
+        <span class="label">Maximum</span>
+        <span class="value">2.0×</span>
+      </div>
+    </div>
 
-      body {
-        color: var(--text);
-        font-family: "VT323", monospace;
-        font-size: 1.35rem;
-        line-height: 1.35;
-        background:
-          radial-gradient(ellipse 80% 50% at 50% -10%, #2d2644 0%, transparent 55%),
-          radial-gradient(ellipse 60% 40% at 100% 100%, #1e3a32 0%, transparent 45%),
-          linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
-      }
+    <h2>What changed</h2>
+    <ul>
+      <li><strong>Shared zoom:</strong> <code>src/systems/cameraZoom.ts</code> wires wheel, pinch, and the slider.</li>
+      <li><strong>Scenes:</strong> Town, Shore, House, Shop, Cafe, Skip Rope, Paper Toss, Fishing.</li>
+      <li><strong>UI camera:</strong> HUD, menus, joystick, Back, and the slider stay sharp while the world zooms.</li>
+      <li><strong>Touch:</strong> up to 4 active pointers so joystick + pinch can coexist.</li>
+      <li><strong>Gesture safety:</strong> pinch cancels walk / aim drag so zoom doesn’t start a throw or jump.</li>
+      <li><strong>Memory:</strong> last hub zoom and last game zoom are remembered for the session.</li>
+    </ul>
 
-      .wrap {
-        width: min(720px, calc(100% - 2rem));
-        margin: 0 auto;
-        padding: 2.5rem 0 3.5rem;
-      }
+    <h2>How to try it</h2>
+    <ol>
+      <li>Check out <code>feat/camera-zoom</code> and run <code>npm run dev</code> → <code>/pet-village/</code>.</li>
+      <li>In <strong>Town</strong>, scroll the wheel or drag the right-edge slider — the plaza should zoom around you.</li>
+      <li>On a phone, pinch with two fingers away from the joystick.</li>
+      <li>Enter <strong>Skip Rope</strong> or <strong>Paper Toss</strong> — the view should start more zoomed in than town.</li>
+      <li>Open a menu / check the HUD — labels and buttons should stay crisp, not scaled up with the world.</li>
+      <li>Shell <strong>Menu</strong> should show <code>v1.1.0</code>.</li>
+    </ol>
 
-      header {
-        margin-bottom: 2rem;
-        animation: rise 0.6s ease-out both;
-      }
+    <h2>Verification</h2>
+    <p><strong>Verified:</strong> TypeScript check (<code>tsc --noEmit</code>).</p>
+    <p class="muted">
+      <strong>Worth a manual pass:</strong> pinch vs joystick on portrait, slider vs [ Decorate ] / [ Pet ] hit targets,
+      Paper Toss aim drag while zoomed, fishing meters readability at 1.55×+.
+    </p>
 
-      .brand {
-        margin: 0 0 0.85rem;
-        font-family: "Press Start 2P", monospace;
-        font-size: clamp(1.1rem, 4vw, 1.55rem);
-        letter-spacing: 0.04em;
-        color: var(--accent);
-        text-shadow: 3px 3px 0 #0d3d2a;
-      }
-
-      h1 {
-        margin: 0 0 0.4rem;
-        font-family: "Press Start 2P", monospace;
-        font-size: clamp(0.85rem, 3vw, 1.05rem);
-        line-height: 1.5;
-      }
-
-      .lede {
-        margin: 0;
-        color: var(--muted);
-        font-size: 1.45rem;
-      }
-
-      .play {
-        display: inline-block;
-        margin-top: 1.1rem;
-        padding: 0.55rem 0.9rem;
-        color: var(--bg-deep);
-        background: var(--accent);
-        text-decoration: none;
-        font-family: "Press Start 2P", monospace;
-        font-size: 0.65rem;
-        box-shadow: 3px 3px 0 #0d3d2a;
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
-      }
-
-      .play:hover,
-      .play:focus-visible {
-        transform: translate(-1px, -1px);
-        box-shadow: 4px 4px 0 #0d3d2a;
-        outline: none;
-      }
-
-      section {
-        margin-bottom: 1.5rem;
-        padding: 1.1rem 1.15rem 1.2rem;
-        background: color-mix(in srgb, var(--bg-panel) 88%, transparent);
-        border: 2px solid var(--line);
-        animation: rise 0.7s ease-out both;
-      }
-
-      section:nth-of-type(2) {
-        animation-delay: 0.08s;
-      }
-
-      section:nth-of-type(3) {
-        animation-delay: 0.16s;
-      }
-
-      h2 {
-        margin: 0 0 0.85rem;
-        font-family: "Press Start 2P", monospace;
-        font-size: 0.72rem;
-        color: var(--warm);
-        letter-spacing: 0.03em;
-      }
-
-      table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-
-      th,
-      td {
-        padding: 0.55rem 0.35rem;
-        text-align: left;
-        vertical-align: top;
-        border-bottom: 1px solid var(--line);
-      }
-
-      th {
-        color: var(--muted);
-        font-weight: 400;
-        font-size: 1.15rem;
-      }
-
-      tr:last-child td {
-        border-bottom: none;
-      }
-
-      kbd {
-        display: inline-block;
-        padding: 0.12rem 0.4rem 0.05rem;
-        color: var(--bg-deep);
-        background: var(--key);
-        border: 2px solid #c9a24b;
-        box-shadow: 2px 2px 0 #6b5420;
-        font-family: "Press Start 2P", monospace;
-        font-size: 0.55rem;
-        line-height: 1.6;
-        white-space: nowrap;
-      }
-
-      ul {
-        margin: 0;
-        padding: 0;
-        list-style: none;
-      }
-
-      li {
-        position: relative;
-        padding: 0.45rem 0 0.45rem 1.1rem;
-        border-bottom: 1px solid var(--line);
-        color: var(--text);
-      }
-
-      li:last-child {
-        border-bottom: none;
-      }
-
-      li::before {
-        content: "▸";
-        position: absolute;
-        left: 0;
-        color: var(--accent);
-      }
-
-      strong {
-        color: var(--accent);
-        font-weight: 400;
-      }
-
-      footer {
-        margin-top: 1.75rem;
-        color: var(--muted);
-        font-size: 1.15rem;
-        animation: rise 0.8s ease-out both;
-      }
-
-      @keyframes rise {
-        from {
-          opacity: 0;
-          transform: translateY(10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      @media (max-width: 520px) {
-        body {
-          font-size: 1.2rem;
-        }
-
-        th:first-child,
-        td:first-child {
-          width: 42%;
-        }
-
-        kbd {
-          font-size: 0.48rem;
-          padding: 0.1rem 0.28rem 0.02rem;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <main class="wrap">
-      <header>
-        <p class="brand">Pet Village</p>
-        <h1>Controls</h1>
-        <p class="lede">Walk, care for Mochi, decorate your house, and earn coins.</p>
-        <a class="play" href="https://kimchankwon.github.io/pet-village/">Play the game</a>
-      </header>
-
-      <section aria-labelledby="inputs">
-        <h2 id="inputs">Inputs</h2>
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Input</th>
-              <th scope="col">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> / arrows</td>
-              <td>Walk around</td>
-            </tr>
-            <tr>
-              <td>Click / tap</td>
-              <td>Walk to that spot (Club Penguin style)</td>
-            </tr>
-            <tr>
-              <td><kbd>E</kbd> / click</td>
-              <td>Interact when close (door, shop, arcade, your pet)</td>
-            </tr>
-            <tr>
-              <td><kbd>I</kbd></td>
-              <td>In house: open the decorate menu</td>
-            </tr>
-            <tr>
-              <td>Click furniture</td>
-              <td>In house: pick it up into inventory</td>
-            </tr>
-            <tr>
-              <td>Drag + release</td>
-              <td>Paper toss: slingshot the paper ball</td>
-            </tr>
-            <tr>
-              <td><kbd>ESC</kbd> / click outside</td>
-              <td>Close a menu</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section aria-labelledby="tips">
-        <h2 id="tips">Village tips</h2>
-        <ul>
-          <li>
-            <strong>Mochi</strong> follows you everywhere. Food / Happy / Energy decay in
-            real time — including while the game is closed (capped at 12h). Feed snacks,
-            play, and tuck Mochi into a bed to restore energy.
-          </li>
-          <li>
-            <strong>Bella's Shop</strong> sells food and furniture for coins.
-          </li>
-          <li>
-            <strong>Paper Toss</strong> earns coins: 10 throws per round, 3 coins per
-            basket, +2 streak bonus from 3 in a row. Wind changes every throw and the bin
-            wanders.
-          </li>
-          <li>
-            <strong>Your house</strong> is a decoratable grid: buy furniture, place with
-            <kbd>I</kbd>, click to pick it back up.
-          </li>
-        </ul>
-      </section>
-
-      <footer>Saves live in your browser (localStorage). Clearing site data resets progress.</footer>
-    </main>
-  </body>
+    <h2>PR</h2>
+    <p><a href="https://github.com/kimchankwon/pet-village/pull/46">github.com/kimchankwon/pet-village/pull/46</a></p>
+  </main>
+</body>
 </html>

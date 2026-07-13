@@ -35,9 +35,9 @@ export function startGame(parent: HTMLElement): Phaser.Game {
     },
     pixelArt: true,
     backgroundColor: '#1a1626',
-    // Phaser provisions a single touch pointer by default; the joystick
-    // needs a second one so another finger can tap/interact while moving.
-    input: { activePointers: 3 },
+    // Phaser provisions one pointer by default; joystick + two-finger
+    // pinch + a spare tap need more than that.
+    input: { activePointers: 4 },
     physics: {
       default: 'arcade',
       arcade: { debug: false },
