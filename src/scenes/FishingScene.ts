@@ -46,7 +46,8 @@ const FISH_TIERS: {
 ];
 
 /**
- * Shore fishing minigame — slingshot cast → bite → reel tension.
+ * Shore fishing minigame — slingshot cast → bite → surge reel.
+ * Far casts risk bait theft; hard fish need lull/thrash pumping.
  * Catch = food item only (no coins). Aim/drag mirrors PaperTossScene.
  */
 export class FishingScene extends Phaser.Scene {
@@ -83,6 +84,12 @@ export class FishingScene extends Phaser.Scene {
   private progress = 0;
   private patience = 100;
   private fishFight = 0.7;
+  /** Set when this cast's bait gets stolen instead of biting. */
+  private baitStolen = false;
+  /** Fish surge cycle: hold through a lull, ease off while it thrashes. */
+  private surgeStart = 0;
+  private surgePeriodMs = 2400;
+  private surgeHintShown = false;
   private pendingFish: (typeof FISH_TIERS)[number] | null = null;
   private pendingSize = 0;
   private waterY = 310;
@@ -100,6 +107,9 @@ export class FishingScene extends Phaser.Scene {
     this.ignoreClicksUntil = 0;
     this.holding = false;
     this.reelArmed = false;
+    this.baitStolen = false;
+    this.surgeStart = 0;
+    this.surgeHintShown = false;
     this.dragStart = null;
     this.pendingFish = null;
 
@@ -273,6 +283,8 @@ export class FishingScene extends Phaser.Scene {
     this.mode = 'ready';
     this.holding = false;
     this.reelArmed = false;
+    this.baitStolen = false;
+    this.surgeStart = 0;
     this.dragStart = null;
     this.aimGfx.clear();
     this.lineGfx.clear();
@@ -282,7 +294,7 @@ export class FishingScene extends Phaser.Scene {
     this.tweens.killTweensOf(this.rod);
     this.rod.setAngle(-18);
     this.statusText.setText('Ready to cast');
-    this.hintText.setText('Drag opposite the cast · Tap / Space = short cast · Farther = rarer fish');
+    this.hintText.setText('Drag opposite the cast · Tap / Space = short cast · Farther = rarer (and riskier) fish');
     this.bestText.setText(`Best: ${State.data.biggestCatch || 0}cm`);
   }
 
@@ -380,6 +392,8 @@ export class FishingScene extends Phaser.Scene {
   private cast() {
     if (this.mode !== 'ready') return;
     this.mode = 'casting';
+    this.baitStolen = false;
+    this.surgeStart = 0;
     this.statusText.setText('Casting…');
     this.hintText.setText('');
     const land = this.predictLanding(this.castDir.x, this.castDir.y, this.castPower);
@@ -465,6 +479,9 @@ export class FishingScene extends Phaser.Scene {
     this.biteWindowMs = Math.round(
       Phaser.Math.Clamp(1200 - this.pendingSize * 5 - this.fishFight * 80, 520, 1200),
     );
+    // Long casts risk a decoy nibble that steals bait instead of a real hook-up.
+    const stealChance = 0.04 + this.castPower * 0.16;
+    this.baitStolen = Math.random() < stealChance;
     const delay = Phaser.Math.Between(1400, 4200);
     this.biteAt = this.time.now + delay;
     this.rod.setAngle(-28);
@@ -502,7 +519,7 @@ export class FishingScene extends Phaser.Scene {
     this.tweens.killTweensOf(this.bobber);
     this.bobber.setPosition(this.bobberHome.x, this.bobberHome.y + 14);
     this.biteBang.setPosition(this.bobber.x, this.bobber.y - 36).setVisible(true);
-    this.statusText.setText('A bite! Hook it!');
+    this.statusText.setText(this.baitStolen ? 'A nibble! Hook it!' : 'A bite! Hook it!');
     this.hintText.setText('TAP / SPACE now!');
     this.biteDeadline = this.time.now + this.biteWindowMs;
     this.tweens.add({
@@ -521,11 +538,39 @@ export class FishingScene extends Phaser.Scene {
     });
   }
 
+  /** 0–1 phase in the surge cycle. Thrash window is roughly mid-cycle. */
+  private surgePhase(): number {
+    if (this.surgePeriodMs <= 0) return 0;
+    const elapsed = (this.time.now - this.surgeStart) % this.surgePeriodMs;
+    return elapsed / this.surgePeriodMs;
+  }
+
+  /** True while the fish is thrashing — release during this window. */
+  private isSurging(): boolean {
+    const p = this.surgePhase();
+    return p > 0.38 && p < 0.72;
+  }
+
+  /**
+   * How strongly surge timing matters. Near/easy fish stay mostly hold-through;
+   * far/hard fish force lull/thrash pumping.
+   */
+  private surgeIntensity(): number {
+    return Phaser.Math.Clamp((this.fishFight - 0.32) / 0.7, 0, 1);
+  }
+
   private hook() {
     if (this.mode !== 'bite') return;
     this.biteBang.setVisible(false);
     this.tweens.killTweensOf(this.bobber);
     this.tweens.killTweensOf(this.rod);
+
+    if (this.baitStolen) {
+      this.baitStolen = false;
+      this.failCast('Bait stolen!', '#ffe066', 700);
+      return;
+    }
+
     this.mode = 'reeling';
     this.tension = 8 + this.fishFight * 12;
     this.progress = 0;
@@ -535,12 +580,22 @@ export class FishingScene extends Phaser.Scene {
     this.reelArmed = !(this.keySpace.isDown || this.input.activePointer.isDown);
     this.meterRoot.setVisible(true);
     this.reelPulse = 0;
+    this.surgeStart = this.time.now;
+    // Harder fish cycle faster so thrash windows come more often.
+    this.surgePeriodMs = Math.round(
+      Phaser.Math.Clamp(2700 - this.fishFight * 900, 1500, 2700),
+    );
     this.statusText.setText(
       this.reelArmed
-        ? 'Reeling — hold to pull, release before the red'
+        ? 'Reeling — hold in the calm, ease off when it thrashes'
         : 'Release, then hold to reel',
     );
-    this.hintText.setText('Hold = reel in · Red tension snaps · Near fish are easier');
+    if (!this.surgeHintShown) {
+      this.hintText.setText('Hold in the calm · Release when it fights · Red snaps the line');
+      this.surgeHintShown = true;
+    } else {
+      this.hintText.setText('Hold = reel · Thrash = ease off · Near fish are easier');
+    }
     this.updateMeters();
     // Snap the rod into a fighting stance.
     this.tweens.add({
@@ -592,6 +647,11 @@ export class FishingScene extends Phaser.Scene {
   }
 
   private missBite() {
+    if (this.baitStolen) {
+      this.baitStolen = false;
+      this.failCast('Something stole the bait…', '#ffe066', 600);
+      return;
+    }
     this.failCast('got away…', '#8a8a9e', 500);
   }
 
@@ -816,18 +876,44 @@ export class FishingScene extends Phaser.Scene {
       this.missBite();
     } else if (this.mode === 'reeling') {
       const fight = this.fishFight;
-      // Near/small fish: hold-through is enough. Far/big: pump the line.
+      const surging = this.isSurging();
+      const surge = this.surgeIntensity();
+      // Near/small fish: hold-through still works. Far/big: time holds to the lull.
       const fightPulse = (0.5 + Math.sin(this.time.now / 280) * 0.5) * fight;
+      if (this.reelArmed) {
+        this.statusText.setText(
+          surging && surge > 0.25
+            ? 'Thrashing — ease off!'
+            : surge > 0.25
+              ? 'Calm — hold to reel!'
+              : this.holding
+                ? 'Reeling — ease off before the red'
+                : 'Hold to reel',
+        );
+      }
       if (this.holding) {
         const reelRate = 48 - fight * 16; // ~44 easy → ~31 hard
-        this.progress += Math.max(22, reelRate) * dt * (1.12 - this.tension / 320);
-        // Easy fish climb slowly enough to land on a continuous hold.
-        this.tension += (10 + fight * 36 + fightPulse * 14) * dt;
+        if (surging) {
+          // Holding through a thrash: progress slows, tension spikes with surge.
+          const holdPenalty = 0.35 + surge * 0.55;
+          this.progress += Math.max(8, reelRate * (1 - holdPenalty * 0.75)) * dt * (1.12 - this.tension / 320);
+          this.tension += (10 + fight * 36 + fightPulse * 14) * (1 + surge * 1.35) * dt;
+        } else {
+          // Lull: best time to haul — progress full, tension milder when surge matters.
+          this.progress += Math.max(22, reelRate) * dt * (1.12 - this.tension / 320);
+          this.tension += (10 + fight * 36 + fightPulse * 14) * (1 - surge * 0.45) * dt;
+        }
         this.reelPulse += dt * 14;
         this.rod.setAngle(-48 - Math.sin(this.reelPulse) * 7);
       } else {
-        this.tension = Math.max(0, this.tension - (55 - fight * 12) * dt);
-        this.progress += Math.max(2, 8 - fight * 4) * dt;
+        if (surging) {
+          // Correct: ride out the thrash. Tension drops faster; tiny progress.
+          this.tension = Math.max(0, this.tension - (55 - fight * 12) * (1 + surge * 0.55) * dt);
+          this.progress += Math.max(1, 4 - fight * 2) * dt;
+        } else {
+          this.tension = Math.max(0, this.tension - (55 - fight * 12) * dt);
+          this.progress += Math.max(2, 8 - fight * 4) * dt;
+        }
         this.rod.setAngle(-42 - Math.sin(this.time.now / 400) * 2);
       }
       // Patience always outlasts a competent reel; hard fish are tighter.
@@ -840,9 +926,10 @@ export class FishingScene extends Phaser.Scene {
       const haul = this.progress / 100;
       const baseX = Phaser.Math.Linear(this.bobberHome.x, CAST_ORIGIN.x + 80, haul * 0.55);
       const baseY = Phaser.Math.Linear(this.bobberHome.y, CAST_ORIGIN.y + 20, haul * 0.35);
-      const thrash = 5 + this.tension / 16 + fight * 4;
-      this.bobber.x = baseX + Math.sin(this.time.now / 80) * thrash;
-      this.bobber.y = baseY + 8 + Math.cos(this.time.now / 65) * (3 + fight * 2);
+      const thrashBoost = surging ? 1 + surge * 1.4 : 1;
+      const thrash = (5 + this.tension / 16 + fight * 4) * thrashBoost;
+      this.bobber.x = baseX + Math.sin(this.time.now / (surging ? 55 : 80)) * thrash;
+      this.bobber.y = baseY + 8 + Math.cos(this.time.now / (surging ? 48 : 65)) * (3 + fight * 2) * thrashBoost;
       this.drawLineToBobber();
 
       if (this.tension >= 100) this.snapLine();

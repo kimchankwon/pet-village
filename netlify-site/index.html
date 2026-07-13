@@ -1,138 +1,127 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="PR 48: consistent one-pixel character outlines across Pet Village sprites.">
-  <title>PR 48 · Consistent character outlines</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PR #50 — Pet Village fishing difficulty</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --ink: #28223a;
-      --muted: #6f6683;
-      --paper: #fffaf0;
-      --panel: #fff;
-      --pink: #ff8fb3;
-      --mint: #7bd8bb;
-      --yellow: #ffd85a;
-      --line: #ded5e8;
+      --bg-deep: #12101a;
+      --bg: #1a1626;
+      --panel: #241f35;
+      --line: #3a3352;
+      --text: #efe8ff;
+      --muted: #a89bc4;
+      --accent: #7ed6a8;
+      --warm: #ffb3d1;
+      --gold: #ffe066;
     }
     * { box-sizing: border-box; }
-    html { background: #eee7f5; }
     body {
       margin: 0;
-      color: var(--ink);
+      min-height: 100%;
+      color: var(--text);
       background:
-        linear-gradient(rgba(255,255,255,.55), rgba(255,255,255,.55)),
-        repeating-linear-gradient(0deg, transparent 0 31px, rgba(111,102,131,.07) 31px 32px),
-        var(--paper);
-      font: 17px/1.55 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        radial-gradient(ellipse at top, #1e3a52 0%, var(--bg-deep) 55%),
+        var(--bg-deep);
+      font-family: "VT323", monospace;
+      font-size: 1.35rem;
+      line-height: 1.4;
     }
-    main { width: min(1080px, calc(100% - 32px)); margin: auto; padding: 52px 0 80px; }
-    header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 32px; align-items: end; border-bottom: 4px solid var(--ink); padding-bottom: 28px; }
-    .eyebrow { display: inline-block; padding: 5px 9px; background: var(--pink); color: #271a25; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; }
-    h1 { max-width: 760px; margin: 18px 0 10px; font: 800 clamp(34px, 7vw, 72px)/.98 Georgia, serif; letter-spacing: -.045em; }
-    .lede { max-width: 700px; margin: 0; color: var(--muted); font-size: 18px; }
-    .count { min-width: 150px; text-align: right; }
-    .count strong { display: block; color: var(--pink); font: 800 64px/.8 Georgia, serif; }
-    .count span { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
-    h2 { margin: 48px 0 18px; font: 800 24px/1.15 Georgia, serif; }
-    .gallery { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 2px solid var(--ink); border-left: 2px solid var(--ink); }
-    figure { margin: 0; min-height: 260px; display: grid; place-items: center; align-content: center; gap: 18px; background: var(--panel); border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); }
-    figure:nth-child(3n+2) { background: #f8f3ff; }
-    figure:nth-child(3n) { background: #fff7da; }
-    figure img { width: auto; height: 150px; max-width: 80%; image-rendering: pixelated; image-rendering: crisp-edges; filter: drop-shadow(5px 7px 0 rgba(40,34,58,.12)); }
-    figcaption { font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
-    .details { display: grid; grid-template-columns: 1.1fr .9fr; gap: 22px; margin-top: 22px; }
-    .card { padding: 24px; border: 2px solid var(--ink); background: var(--panel); box-shadow: 7px 7px 0 var(--line); }
-    .card h2 { margin: 0 0 14px; }
-    ul { margin: 0; padding-left: 20px; }
-    li + li { margin-top: 8px; }
-    code { background: #eee8f4; padding: 2px 5px; }
-    .pass { display: inline-block; margin-top: 16px; padding: 6px 10px; background: var(--mint); font-weight: 800; font-size: 13px; }
-    footer { margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
-    @media (max-width: 720px) {
-      header, .details { grid-template-columns: 1fr; }
-      .count { text-align: left; }
-      .gallery { grid-template-columns: repeat(2, 1fr); }
-      figure:nth-child(n) { background: var(--panel); }
-      figure:nth-child(even) { background: #f8f3ff; }
+    main { max-width: 760px; margin: 0 auto; padding: 28px 18px 72px; }
+    .pill {
+      display: inline-block;
+      background: var(--warm);
+      color: #1a1626;
+      padding: 8px 12px;
+      font-family: "Press Start 2P", monospace;
+      font-size: 0.55rem;
+      margin-bottom: 16px;
     }
-    @media (max-width: 460px) { .gallery { grid-template-columns: 1fr; } figure { min-height: 230px; } }
+    h1 {
+      font-family: "Press Start 2P", monospace;
+      font-size: 1.05rem;
+      line-height: 1.55;
+      color: var(--gold);
+      margin: 0 0 12px;
+    }
+    h2 {
+      font-family: "Press Start 2P", monospace;
+      font-size: 0.7rem;
+      color: var(--accent);
+      margin: 32px 0 12px;
+    }
+    p, li { color: var(--text); }
+    .muted { color: var(--muted); }
+    a { color: var(--warm); }
+    .card {
+      background: var(--panel);
+      border: 3px solid var(--line);
+      padding: 16px 18px;
+      margin: 14px 0;
+    }
+    ul, ol { padding-left: 1.25rem; }
+    code {
+      background: #161225;
+      border: 1px solid var(--line);
+      padding: 0 4px;
+      color: var(--gold);
+    }
   </style>
 </head>
 <body>
   <main>
-    <header>
-      <div>
-        <span class="eyebrow">Pet Village · PR #48</span>
-        <h1>Cleaner outlines,<br>same tiny personalities.</h1>
-        <p class="lede">Every generated character now receives a consistent one-pixel external boundary while enclosed eyes, mouths, color, transparency, canvas size, and alignment remain intact.</p>
-      </div>
-      <div class="count"><strong>186</strong><span>sprites regenerated</span></div>
-    </header>
+    <span class="pill">Pet Village · PR #50 · v1.2.1</span>
+    <h1>Fishing got teeth: surge reels &amp; bait thieves</h1>
+    <p class="muted">
+      Shore casting still rewards long throws with rarer fish — but the fight is no longer a
+      hold-forever button mash. Hard fish surge, and deep water sometimes steals your bait.
+    </p>
 
-    <h2>Representative regenerated frames</h2>
-    <section class="gallery" aria-label="Regenerated sprite gallery">
-      <figure><img src="sprites/choitcherry.png" alt="Choitcherry regenerated idle sprite"><figcaption>Choitcherry</figcaption></figure>
-      <figure><img src="sprites/foxdungee.png" alt="Foxdungee regenerated idle sprite"><figcaption>Foxdungee</figcaption></figure>
-      <figure><img src="sprites/tamtam.png" alt="Tamtam regenerated idle sprite"><figcaption>Tamtam</figcaption></figure>
-      <figure><img src="sprites/cinnamoroll.png" alt="Cinnamoroll regenerated neutral sprite"><figcaption>Cinnamoroll</figcaption></figure>
-      <figure><img src="sprites/bongbongee.png" alt="Bongbongee regenerated neutral sprite"><figcaption>Bongbongee</figcaption></figure>
-      <figure><img src="sprites/kirby.png" alt="Kirby checked neutral sprite"><figcaption>Kirby · verified</figcaption></figure>
-      <figure><img src="sprites/puffle-blue.png" alt="Blue Puffle regenerated neutral sprite"><figcaption>Blue Puffle</figcaption></figure>
-      <figure><img src="sprites/puffle-pink.png" alt="Pink Puffle regenerated neutral sprite"><figcaption>Pink Puffle</figcaption></figure>
-      <figure><img src="sprites/puffle-orange.png" alt="Orange Puffle regenerated neutral sprite"><figcaption>Orange Puffle</figcaption></figure>
-    </section>
+    <div class="card">
+      <strong style="color: var(--gold);">TL;DR</strong>
+      <ul>
+        <li><strong>Surge reel</strong> — hold during the calm, ease off while it thrashes. Near/easy fish stay mostly hold-through.</li>
+        <li><strong>Bait steal</strong> — longer casts can fake a bite; hooking (or missing) ends with “Bait stolen!”</li>
+        <li>Status line calls thrash vs calm so you can time the pump.</li>
+      </ul>
+    </div>
 
-    <section class="details">
-      <article class="card">
-        <h2>What changed</h2>
-        <ul>
-          <li>Exterior outline ink is separated from enclosed internal details.</li>
-          <li>Thick edges are replaced with one cardinally connected pixel.</li>
-          <li>All character generators apply the same normalization automatically.</li>
-          <li>A non-destructive CLI repairs an individual existing PNG.</li>
-        </ul>
-      </article>
-      <article class="card">
-        <h2>Verified</h2>
-        <ul>
-          <li><code>npm test</code> — 4/4 passing</li>
-          <li>200 generated frames checked as fixed points</li>
-          <li><code>npm run build</code> — passing</li>
-          <li>Re-running every generator reproduces the committed assets byte-for-byte</li>
-          <li>No accessory assets changed</li>
-        </ul>
-        <span class="pass">REVIEW ADDRESSED</span>
-      </article>
-    </section>
+    <h2>What changed</h2>
+    <div class="card">
+      <ul>
+        <li>Reel update uses a per-hook surge cycle (faster on tougher fish).</li>
+        <li>Holding through a thrash spikes tension; releasing during thrash cools the line.</li>
+        <li>Wait phase rolls a steal chance (~4% short cast → ~20% max cast).</li>
+        <li>Decoy nibbles look like real bites until you set the hook.</li>
+        <li>App version bump to <code>1.2.1</code>.</li>
+      </ul>
+    </div>
 
-    <section class="details">
-      <article class="card">
-        <h2>Review follow-ups</h2>
-        <ul>
-          <li>All five CodeRabbit nitpicks addressed: the repair result is now Buffer-backed
-            (matching <code>PNG.sync.write</code>'s documented contract), and the duplicated
-            <code>save()</code> helper moved to a shared <code>scripts/lib/save-sprite.mjs</code>.</li>
-          <li>Deleted the stale <code>generate-extra-sprites.mts</code>: it redrew the legacy
-            8-colour puffles into the same folders as the current 10-colour generator — running
-            it after the real one silently clobbered 64 committed frames with old art.</li>
-          <li>Merged with <code>main</code> (v1.2.0): Violetchi and the ripped Tamagotchi pets
-            are traced art with clean source outlines, so they intentionally skip repair.</li>
-        </ul>
-      </article>
-      <article class="card">
-        <h2>Where to look</h2>
-        <ul>
-          <li><code>scripts/lib/pixel-outline.mjs</code> — the repair algorithm + tests</li>
-          <li><code>scripts/lib/save-sprite.mjs</code> — shared save/repair plumbing</li>
-          <li><code>npm run sprite:repair</code> — one-off CLI for external PNGs</li>
-        </ul>
-        <span class="pass"><a href="https://github.com/kimchankwon/pet-village/pull/48" style="color:inherit;text-decoration:none">OPEN PR #48 →</a></span>
-      </article>
-    </section>
+    <h2>How to try it</h2>
+    <div class="card">
+      <ol>
+        <li>Open Shore → start Fishing.</li>
+        <li>Short cast near the dock — easy common fish should still land on mostly continuous holds.</li>
+        <li>Max-power cast out deep — watch status flip between <em>Calm — hold</em> and <em>Thrashing — ease off</em>.</li>
+        <li>Keep casting far until you see a nibble that resolves to bait stolen (no inventory fish).</li>
+      </ol>
+    </div>
 
-    <footer>Images are rendered with nearest-neighbor scaling so each source pixel remains visible and unblurred.</footer>
+    <h2>Verification</h2>
+    <div class="card">
+      <ul>
+        <li><code>npx tsc --noEmit</code> clean</li>
+        <li>Playwright smoke: enter Fishing, cast, hook, land / bait-steal paths</li>
+      </ul>
+    </div>
+
+    <p class="muted" style="margin-top: 36px;">
+      PR: <a id="pr-link" href="https://github.com/kimchankwon/pet-village/pull/50">github.com/kimchankwon/pet-village/pull/50</a>
+    </p>
   </main>
 </body>
 </html>
