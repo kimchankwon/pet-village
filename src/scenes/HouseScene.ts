@@ -184,18 +184,18 @@ export class HouseScene extends Phaser.Scene {
       if (this.placing) {
         if (g && this.canPlaceAt(g.gx, g.gy)) {
           State.placeItem(this.placing, g.gx, g.gy);
-          toast(this, pointer.x, pointer.y - 20, 'Placed!', '#a8e6cf');
+          toast(this, pointer.worldX, pointer.worldY - 20, 'Placed!', '#a8e6cf');
           this.stopPlacing();
           this.renderFurniture();
         } else {
-          toast(this, pointer.x, pointer.y - 20, "Can't place there", '#ff6b6b');
+          toast(this, pointer.worldX, pointer.worldY - 20, "Can't place there", '#ff6b6b');
         }
         return;
       }
       if (g) {
         const picked = State.pickUpItem(g.gx, g.gy);
         if (picked) {
-          toast(this, pointer.x, pointer.y - 20, `${ITEMS[picked].name} → inventory`, '#ffe066');
+          toast(this, pointer.worldX, pointer.worldY - 20, `${ITEMS[picked].name} → inventory`, '#ffe066');
           this.renderFurniture();
           this.clickMove.clear();
           return;
@@ -260,8 +260,10 @@ export class HouseScene extends Phaser.Scene {
   }
 
   private pointerToGrid(pointer: Phaser.Input.Pointer): { gx: number; gy: number } | null {
-    const gx = Math.floor((pointer.x - this.roomX) / TILE);
-    const gy = Math.floor((pointer.y - ROOM_Y) / TILE);
+    // Screen → world (accounts for camera zoom).
+    pointer.updateWorldPoint(this.cameras.main);
+    const gx = Math.floor((pointer.worldX - this.roomX) / TILE);
+    const gy = Math.floor((pointer.worldY - ROOM_Y) / TILE);
     if (gx < 0 || gx >= COLS || gy < WALL_ROWS || gy >= ROWS) return null;
     return { gx, gy };
   }

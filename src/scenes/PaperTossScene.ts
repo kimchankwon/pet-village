@@ -137,7 +137,7 @@ export class PaperTossScene extends Phaser.Scene {
     this.bin = this.add.image(this.binX, GROUND_Y - 36, 'bin').setScale(1.9).setDepth(5);
 
     this.aimGfx = this.add.graphics().setDepth(20);
-    this.windArrow = this.add.graphics().setDepth(20);
+    this.windArrow = this.add.graphics().setScrollFactor(0).setDepth(20);
 
     const title = this.add
       .text(140, 16, 'PAPER TOSS', { ...FONT, fontSize: '18px', color: '#ffe066' })
@@ -208,6 +208,7 @@ export class PaperTossScene extends Phaser.Scene {
       title,
       this.statusText,
       this.windText,
+      this.windArrow,
       this.bestText,
       rules,
       this.backBtn,

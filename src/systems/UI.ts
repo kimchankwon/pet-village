@@ -92,12 +92,12 @@ export class HUD {
 }
 
 export function toast(scene: Phaser.Scene, x: number, y: number, msg: string, color = '#ffffff') {
+  // World-space: callers pass sprite / pointer world positions so the toast
+  // stays over the action when the camera scrolls or zooms.
   const t = scene.add
     .text(x, y, msg, { ...FONT, color, stroke: '#1a1a2e', strokeThickness: 4 })
     .setOrigin(0.5)
-    .setScrollFactor(0)
     .setDepth(1500);
-  markAsUi(scene, t);
   scene.tweens.add({ targets: t, y: y - 40, alpha: 0, duration: 1200, onComplete: () => t.destroy() });
 }
 
