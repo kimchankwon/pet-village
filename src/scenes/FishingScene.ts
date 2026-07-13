@@ -3,6 +3,7 @@ import { generateTextures } from '../sprites/pixelart';
 import { ITEMS, State } from '../systems/GameState';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
+import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { petAnimKey, petTextureKey } from '../systems/pets';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
@@ -51,6 +52,7 @@ const FISH_TIERS: {
 export class FishingScene extends Phaser.Scene {
   private mode: Mode = 'ready';
   private backBtn!: Phaser.GameObjects.Text;
+  private cameraZoom!: CameraZoom;
   private statusText!: Phaser.GameObjects.Text;
   private bestText!: Phaser.GameObjects.Text;
   private hintText!: Phaser.GameObjects.Text;
@@ -140,18 +142,22 @@ export class FishingScene extends Phaser.Scene {
 
     this.buildMeters(cx);
 
-    this.add.text(140, 16, 'SHORE FISHING', { ...FONT, fontSize: '18px', color: '#ffe066' });
-    this.statusText = this.add.text(20, 44, '', FONT);
+    const title = this.add
+      .text(140, 16, 'SHORE FISHING', { ...FONT, fontSize: '18px', color: '#ffe066' })
+      .setScrollFactor(0);
+    this.statusText = this.add.text(20, 44, '', FONT).setScrollFactor(0);
     this.bestText = this.add
-      .text(viewW - 20, 16, `Best: ${State.data.biggestCatch || 0}cm`, { ...FONT, color: '#c8c8dc' })
-      .setOrigin(1, 0);
+      .text(viewW - 52, 16, `Best: ${State.data.biggestCatch || 0}cm`, { ...FONT, color: '#c8c8dc' })
+      .setOrigin(1, 0)
+      .setScrollFactor(0);
     this.hintText = this.add
       .text(cx, viewH - 28, 'Drag to aim cast · Tap = short cast · Farther = bigger fish', {
         ...FONT,
         fontSize: '12px',
         color: '#c8c8dc',
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0);
 
     this.keySpace = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyEsc = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
@@ -168,15 +174,38 @@ export class FishingScene extends Phaser.Scene {
     this.backBtn = this.add
       .text(14, 10, '[ Back ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', padding: { x: 8, y: 8 } })
       .setOrigin(0, 0)
+      .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     this.backBtn.on('pointerdown', () => {
       this.ignoreClicksUntil = this.time.now + 150;
       this.requestLeave();
     });
+    this.meterRoot.setScrollFactor(0);
+    markAsUi(
+      this,
+      title,
+      this.statusText,
+      this.bestText,
+      this.hintText,
+      this.backBtn,
+      this.meterRoot,
+    );
+
+    this.cameraZoom = attachCameraZoom(this, {
+      kind: 'game',
+      isBlocked: () => this.menuOpen || isUiBlocked(),
+      onPinchStart: () => {
+        this.dragStart = null;
+        this.holding = false;
+        this.aimGfx.clear();
+        this.ignoreClicksUntil = this.time.now + 200;
+      },
+    });
 
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || isUiBlocked()) return;
+      if (this.cameraZoom.ownsPointer(p) || this.cameraZoom.isPinching()) return;
       if (this.mode === 'ready') {
         this.dragStart = { x: p.x, y: p.y };
       } else if (this.mode === 'waiting') {
@@ -189,6 +218,12 @@ export class FishingScene extends Phaser.Scene {
     });
     const release = (p: Phaser.Input.Pointer) => {
       if (this.menuOpen || isUiBlocked()) return;
+      if (this.cameraZoom.isPinching()) {
+        this.dragStart = null;
+        this.holding = false;
+        this.aimGfx.clear();
+        return;
+      }
       if (this.mode === 'ready' && this.dragStart) {
         const dx = this.dragStart.x - p.x;
         const dy = this.dragStart.y - p.y;
@@ -635,17 +670,23 @@ export class FishingScene extends Phaser.Scene {
     const def = ITEMS[itemId]!;
     const cx = this.cameras.main.width / 2;
     const cy = this.cameras.main.height / 2;
-    this.add.rectangle(cx, cy, 420, 260, 0x2a2440).setStrokeStyle(3, 0xffb3d1).setDepth(1600);
-    this.add
+    const panel = this.add
+      .rectangle(cx, cy, 420, 260, 0x2a2440)
+      .setStrokeStyle(3, 0xffb3d1)
+      .setScrollFactor(0)
+      .setDepth(1600);
+    const heading = this.add
       .text(cx, cy - 90, 'You caught a fish!', { ...FONT, fontSize: '22px', color: '#ffe066' })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601);
-    this.add.image(cx, cy - 28, def.texture).setScale(3.2).setDepth(1601);
-    this.add
+    const fishImg = this.add.image(cx, cy - 28, def.texture).setScale(3.2).setScrollFactor(0).setDepth(1601);
+    const sizeLine = this.add
       .text(cx, cy + 36, `${def.name} — ${size}cm`, { ...FONT, fontSize: '16px' })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601);
-    this.add
+    const bestLine = this.add
       .text(
         cx,
         cy + 62,
@@ -657,14 +698,16 @@ export class FishingScene extends Phaser.Scene {
         },
       )
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601);
-    this.add
+    const tip = this.add
       .text(cx, cy + 88, 'Added to inventory — feed your pet!', {
         ...FONT,
         fontSize: '12px',
         color: '#a8e6cf',
       })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601);
 
     const again = this.add
@@ -675,6 +718,7 @@ export class FishingScene extends Phaser.Scene {
         padding: { x: 8, y: 6 },
       })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     again.on('pointerdown', () => this.scene.restart());
@@ -686,9 +730,11 @@ export class FishingScene extends Phaser.Scene {
         padding: { x: 8, y: 6 },
       })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     leave.on('pointerdown', () => this.scene.start('Shore', { spawn: 'fishing' }));
+    markAsUi(this, panel, heading, fishImg, sizeLine, bestLine, tip, again, leave);
   }
 
   private updateMeters() {

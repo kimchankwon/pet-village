@@ -1,0 +1,30 @@
+---
+description: Write pull request descriptions as HTML (not Markdown)
+alwaysApply: true
+---
+
+# PR descriptions use HTML
+
+When creating or updating a GitHub pull request body, write the description in **HTML**, not Markdown.
+
+## Required shape
+
+```html
+<h2>Summary</h2>
+<ul>
+  <li>Player-facing change in plain language</li>
+  <li>Version bump if applicable (e.g. → <strong>1.1.0</strong>)</li>
+</ul>
+
+<h2>Test plan</h2>
+<ul>
+  <li>[ ] Concrete check someone can perform</li>
+</ul>
+```
+
+## Rules
+
+- Use `<h2>`, `<ul>`, `<li>`, `<p>`, `<strong>`, `<code>` as needed
+- Do **not** use Markdown headings (`##`), bullets (`-`), or `**bold**`
+- Keep the repo PR template (`.github/PULL_REQUEST_TEMPLATE.md`) in sync with this format
+- Fine to leave a short plain “Made with Cursor” line after the HTML if the tooling adds it

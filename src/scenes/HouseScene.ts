@@ -10,6 +10,7 @@ import { feetDepth } from '../systems/depth';
 import { placeDoorMat, isDoorMatCell } from '../systems/doorMat';
 import { blockUi, isInteractSuppressed, isUiBlocked, unblockUi } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
+import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 
 const TILE = 48;
 const COLS = 12;
@@ -33,6 +34,7 @@ export class HouseScene extends Phaser.Scene {
   private furnitureSprites: Phaser.GameObjects.Image[] = [];
   private clickMove!: ClickMove;
   private joystick!: Joystick;
+  private cameraZoom!: CameraZoom;
   private pointerHeld = false;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   // Placement mode: a ghost of the selected item follows the mouse.
@@ -115,13 +117,14 @@ export class HouseScene extends Phaser.Scene {
       },
     );
 
-    this.add
+    const houseHint = this.add
       .text(this.cameras.main.width / 2, 40, 'Your House — click to walk · I: pet · [Decorate] · ESC/E/Space at door: leave', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#c8c8dc',
       })
       .setOrigin(0.5)
+      .setScrollFactor(0)
       .setDepth(1000);
 
     // Clickable Decorate button.
@@ -137,6 +140,7 @@ export class HouseScene extends Phaser.Scene {
         padding: { x: 8, y: 8 },
       })
       .setOrigin(1, 0)
+      .setScrollFactor(0)
       .setDepth(1000)
       .setInteractive({ useHandCursor: true });
     decorateBtn.on('pointerover', () => decorateBtn.setColor('#d3f5e6'));
@@ -145,6 +149,17 @@ export class HouseScene extends Phaser.Scene {
       // Swallow this click so the scene handler doesn't also walk/pick up.
       this.ignoreClicksUntil = this.time.now + 150;
       if (!this.menuOpen && !this.placing) this.openDecorateMenu();
+    });
+    markAsUi(this, houseHint, decorateBtn);
+
+    this.cameraZoom = attachCameraZoom(this, {
+      kind: 'hub',
+      isBlocked: () => this.menuOpen || isUiBlocked() || Boolean(this.placing),
+      joystick: this.joystick,
+      onPinchStart: () => {
+        this.pointerHeld = false;
+        this.clickMove.clear();
+      },
     });
 
     // Same live tamagotchi tick as town (scene-scoped, cleaned up on shutdown)
@@ -163,7 +178,8 @@ export class HouseScene extends Phaser.Scene {
     // Clicks: place / pick up furniture, interact when close, or walk.
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
-      if (this.joystick.owns(pointer)) return; // joystick captured this touch
+      if (this.joystick.owns(pointer) || this.cameraZoom.ownsPointer(pointer)) return; // joystick / zoom slider
+      if (this.cameraZoom.isPinching()) return;
       const g = this.pointerToGrid(pointer);
       if (this.placing) {
         if (g && this.canPlaceAt(g.gx, g.gy)) {

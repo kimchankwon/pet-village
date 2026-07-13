@@ -7,6 +7,7 @@ import { ClickMove } from '../systems/ClickMove';
 import { characterDepth, propDepth } from '../systems/depth';
 import { isUiBlocked, requestLeave } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
+import { attachCameraZoom, type CameraZoom } from '../systems/cameraZoom';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { TILE } from '../systems/townMap';
@@ -77,6 +78,7 @@ export class ShoreScene extends Phaser.Scene {
   private facing: 'up' | 'down' | 'side' = 'down';
   private clickMove!: ClickMove;
   private joystick!: Joystick;
+  private cameraZoom!: CameraZoom;
   private pointerHeld = false;
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   private ignoreClicksUntil = 0;
@@ -177,9 +179,20 @@ export class ShoreScene extends Phaser.Scene {
       },
     );
 
+    this.cameraZoom = attachCameraZoom(this, {
+      kind: 'hub',
+      isBlocked: () => this.menuOpen || isUiBlocked(),
+      joystick: this.joystick,
+      onPinchStart: () => {
+        this.pointerHeld = false;
+        this.clickMove.clear();
+      },
+    });
+
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
-      if (this.joystick.owns(pointer)) return;
+      if (this.joystick.owns(pointer) || this.cameraZoom.ownsPointer(pointer)) return;
+      if (this.cameraZoom.isPinching()) return;
       if (this.dockImg.getBounds().contains(pointer.worldX, pointer.worldY)) {
         const d = Phaser.Math.Distance.Between(
           this.player.x,

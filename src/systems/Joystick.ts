@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { joystickAnchor } from '../game/viewport';
+import { markAsUi } from './cameraZoom';
 
 /**
  * Fixed on-screen joystick for touch play. Captures its own pointer, so a
@@ -38,6 +39,7 @@ export class Joystick {
       .circle(this.cx, this.cy, 26, 0xffffff, 0.4)
       .setScrollFactor(0)
       .setDepth(1401);
+    markAsUi(scene, this.base, this.thumb);
 
     const relayout = () => {
       const c = scene.cameras.main;
