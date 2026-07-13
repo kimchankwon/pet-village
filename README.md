@@ -55,7 +55,8 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 | Hold / drag | Keep walking toward the pointer |
 | Joystick (bottom-left) | Walk — made for touch |
 | E / click | Interact when close (door, shop, arcade) |
-| I / Decorate button | (in house) open the decorate menu |
+| I | open the pet menu (chat · feed · clothes) |
+| Decorate button | (in house) open the decorate menu |
 | Click furniture | (in house) pick it up into inventory |
 | Drag + release | (paper toss) slingshot the paper ball |
 | ESC / click outside | close a menu |

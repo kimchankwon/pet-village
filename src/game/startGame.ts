@@ -35,6 +35,12 @@ export function startGame(parent: HTMLElement): Phaser.Game {
     },
     pixelArt: true,
     backgroundColor: '#1a1626',
+    // Phaser's loader only tops up its download queue from scene UPDATE
+    // ticks, which stop entirely while the tab is hidden/occluded (rAF is
+    // suspended) — boot would stall after the first 32 files until the tab
+    // is foregrounded. Issuing every file up front keeps the browser's own
+    // network queue draining in the background.
+    loader: { maxParallelDownloads: 400 },
     // Phaser provisions one pointer by default; joystick + two-finger
     // pinch + a spare tap need more than that.
     input: { activePointers: 4 },
