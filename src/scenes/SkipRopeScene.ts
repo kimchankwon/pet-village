@@ -835,7 +835,13 @@ export class SkipRopeScene extends Phaser.Scene {
       this.tryJump();
     }
 
-    // Advance the rope (also during 'won' so the last jump visibly clears it).
+    // After the 25th clear, freeze the rope where it stopped.
+    if (this.mode === 'won') {
+      this.drawRope();
+      return;
+    }
+
+    // Advance the rope while playing.
     const prevPhase = this.phase;
     const nextUnwrapped = prevPhase + deltaMs / this.periodMs;
     const groundCrossings =
