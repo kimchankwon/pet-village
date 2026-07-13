@@ -1,30 +1,35 @@
 ---
-description: Write pull request descriptions as HTML (not Markdown)
+description: Every PR gets an HTML explain page deployed to Netlify
 alwaysApply: true
 ---
 
-# PR descriptions use HTML
+# PR explain pages on Netlify
 
-When creating or updating a GitHub pull request body, write the description in **HTML**, not Markdown.
+Every pull request needs a **player-facing HTML description** deployed to Netlify — not just Markdown/HTML in the GitHub PR body.
 
-## Required shape
+## Pattern (matches existing sites)
 
-```html
-<h2>Summary</h2>
-<ul>
-  <li>Player-facing change in plain language</li>
-  <li>Version bump if applicable (e.g. → <strong>1.1.0</strong>)</li>
-</ul>
+1. Write / update `netlify-site/index.html` in the PR-38 explain style (Press Start 2P + VT323, pill, TL;DR card, What changed, How to try it, Verification, PR link).
+2. Create a Netlify site named `pet-village-pr-{N}-explain` (e.g. `pet-village-pr-46-explain`).
+3. Deploy the folder:
+   ```sh
+   npx netlify deploy --prod --dir=netlify-site --site=<site-id>
+   ```
+4. Put the live URL in the GitHub PR body (short summary + link is enough).
 
-<h2>Test plan</h2>
-<ul>
-  <li>[ ] Concrete check someone can perform</li>
-</ul>
+Examples already live:
+- https://pet-village-pr-38-explain.netlify.app
+- Sibling repos use the same `*-pr-{N}-explain` naming
+
+## GitHub PR body
+
+Keep the GitHub description short. Prefer linking the Netlify explain page:
+
+```markdown
+Explain: https://pet-village-pr-46-explain.netlify.app
+
+## Summary
+- …
 ```
 
-## Rules
-
-- Use `<h2>`, `<ul>`, `<li>`, `<p>`, `<strong>`, `<code>` as needed
-- Do **not** use Markdown headings (`##`), bullets (`-`), or `**bold**`
-- Keep the repo PR template (`.github/PULL_REQUEST_TEMPLATE.md`) in sync with this format
-- Fine to leave a short plain “Made with Cursor” line after the HTML if the tooling adds it
+Do **not** treat the GitHub body as the primary HTML artifact — that lives on Netlify.
