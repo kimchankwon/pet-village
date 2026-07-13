@@ -12,6 +12,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { repairExternalOutline } from './lib/pixel-outline.mjs';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
@@ -347,6 +348,6 @@ function drawKirby(pose: Pose) {
 fs.mkdirSync(ROOT, { recursive: true });
 for (const pose of POSES) {
   const png = drawKirby(pose);
-  fs.writeFileSync(path.join(ROOT, `${pose}.png`), PNG.sync.write(png));
+  fs.writeFileSync(path.join(ROOT, `${pose}.png`), PNG.sync.write(repairExternalOutline(png, { outline: OUT })));
 }
 console.log('Wrote Kirby pet frames (GIF-style 8-frame walk)');

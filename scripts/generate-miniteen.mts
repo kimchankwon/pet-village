@@ -12,9 +12,9 @@
  * Chibi build: big head + small body with stubby arms and feet, 32x42.
  * Poses match the other NPCs: idle, walk1, walk2, happy, sad, jump.
  */
-import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { saveSprite } from './lib/save-sprite.mjs';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
@@ -78,8 +78,7 @@ function ellipse(
 }
 
 function save(png: InstanceType<typeof PNG>, file: string) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, PNG.sync.write(png));
+  saveSprite(png, file, { repairOutline: true, outline: OUT });
 }
 
 const OUT: RGBA = [0, 0, 0, 255];

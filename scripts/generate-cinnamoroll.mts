@@ -9,6 +9,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { repairExternalOutline } from './lib/pixel-outline.mjs';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
@@ -483,7 +484,7 @@ const frames = new Map<Pose, InstanceType<typeof PNG>>();
 for (const crop of CROPS) {
   const png = extract(source, crop);
   frames.set(crop.pose, png);
-  fs.writeFileSync(path.join(ROOT, `${crop.pose}.png`), PNG.sync.write(png));
+  fs.writeFileSync(path.join(ROOT, `${crop.pose}.png`), PNG.sync.write(repairExternalOutline(png)));
   console.log(`${crop.pose}: ${png.width}x${png.height}`);
 }
 console.log('Resampled Cinnamoroll to true pixel size');
@@ -504,6 +505,6 @@ const petFrames: Record<string, InstanceType<typeof PNG>> = {
   sleep: padToPet(makeSleep(idle)),
 };
 for (const [name, png] of Object.entries(petFrames)) {
-  fs.writeFileSync(path.join(PET_ROOT, `${name}.png`), PNG.sync.write(png));
+  fs.writeFileSync(path.join(PET_ROOT, `${name}.png`), PNG.sync.write(repairExternalOutline(png)));
 }
 console.log('Wrote Cinnamoroll pet frames (32x32)');

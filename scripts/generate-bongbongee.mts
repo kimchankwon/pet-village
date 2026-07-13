@@ -3,9 +3,9 @@
  * Reference: official plush — pink head cap, white face, "17" cheeks,
  * aqua Carat diamond, mint pom, light-blue "NEW" tee, deco band.
  */
-import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { saveSprite } from './lib/save-sprite.mjs';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
@@ -78,9 +78,8 @@ function circle(png: InstanceType<typeof PNG>, cx: number, cy: number, r: number
   }
 }
 
-function save(png: InstanceType<typeof PNG>, file: string) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, PNG.sync.write(png));
+function save(png: InstanceType<typeof PNG>, file: string, repairOutline = false) {
+  saveSprite(png, file, { repairOutline, outline: OUT });
 }
 
 type Pose = 'neutral1' | 'neutral2' | 'walk1' | 'walk2' | 'sad' | 'happy' | 'sleep' | 'jump';
@@ -314,10 +313,10 @@ const NPC_MAP: Record<string, Pose> = {
 };
 
 for (const pose of PET_POSES) {
-  save(drawBong(pose), path.join(ROOT, 'pet/bongbongee', `${pose}.png`));
+  save(drawBong(pose), path.join(ROOT, 'pet/bongbongee', `${pose}.png`), true);
 }
 for (const [npc, pose] of Object.entries(NPC_MAP)) {
-  save(drawBong(pose), path.join(ROOT, 'npc/bongbongee', `${npc}.png`));
+  save(drawBong(pose), path.join(ROOT, 'npc/bongbongee', `${npc}.png`), true);
 }
 
 save(drawMintPom(), path.join(ROOT, 'accessories/mint-pom.png'));
