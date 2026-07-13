@@ -88,8 +88,8 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   throws), and pick your paper-ball colour with the swatches.
 - Anything you can interact with (house, Daniel, arcade, your pet, the
   door mat) lights up with an outline when you're close enough.
-- **Your house** is decoratable on a grid: buy furniture, place it with
-  `I`, click to pick it back up.
+- **Your house** is decoratable on a grid: buy furniture, place it via
+  the Decorate button, click to pick it back up.
 
 ## Code map
 
