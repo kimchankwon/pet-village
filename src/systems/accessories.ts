@@ -251,6 +251,22 @@ export function isAccessoryId(value: unknown): value is AccessoryId {
   return typeof value === 'string' && value in ACCESSORIES;
 }
 
+/** Per-item draw tweaks when layered on the pet sprite (same 32×32 canvas). */
+export type AccessoryLayout = {
+  /** Extra world pixels after pet scale (positive = down / right). */
+  offsetX?: number;
+  offsetY?: number;
+  /** Multiplier on the pet's scale. */
+  scale?: number;
+};
+
+export const ACCESSORY_LAYOUT: Partial<Record<AccessoryId, AccessoryLayout>> = {
+  // Slim neck wrap — slightly smaller than full pet scale.
+  'cinnamon-scarf': { scale: 0.92, offsetY: 1 },
+  // Bib sits on the lower body; tiny nudge keeps straps under the chin.
+  'cafe-apron': { offsetY: 1 },
+};
+
 export function accessoryTextureKey(id: AccessoryId): string {
   return ACCESSORIES[id].texture;
 }
