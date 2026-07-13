@@ -10,6 +10,7 @@ const LINES = [
   'Want my mint pom? Or the aqua Carat diamond? Dress your pet cute!',
   'My blue NEW tee is soft… like a hug from CARAT LAND.',
   'Bong! Bong! Let’s sparkle together.',
+  'Mingyu drew me for CARATLAND 2018. I’m basically art.',
 ];
 
 /**
