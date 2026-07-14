@@ -193,11 +193,39 @@ export class HouseScene extends Phaser.Scene {
         return;
       }
       if (g) {
-        const picked = State.pickUpItem(g.gx, g.gy);
-        if (picked) {
-          toast(this, pointer.worldX, pointer.worldY - 20, `${ITEMS[picked].name} → inventory`, '#ffe066');
-          this.renderFurniture();
+        const placed = State.data.placed.find((p) => p.gx === g.gx && p.gy === g.gy);
+        if (placed) {
+          const name = ITEMS[placed.id]?.name ?? 'item';
+          this.menuOpen = true;
           this.clickMove.clear();
+          const menu = new Menu(
+            this,
+            'Pick up furniture?',
+            [
+              { label: 'Leave it', onSelect: () => undefined },
+              {
+                label: `Pick up ${name}`,
+                onSelect: () => {
+                  const picked = State.pickUpItem(g.gx, g.gy);
+                  if (picked) {
+                    toast(
+                      this,
+                      pointer.worldX,
+                      pointer.worldY - 20,
+                      `${ITEMS[picked].name} → inventory`,
+                      '#ffe066',
+                    );
+                    this.renderFurniture();
+                  }
+                },
+              },
+            ],
+            `${name} goes back to your inventory`,
+          );
+          menu.onClose = () => {
+            this.menuOpen = false;
+            this.ignoreClicksUntil = this.time.now + 250;
+          };
           return;
         }
       }

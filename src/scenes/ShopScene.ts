@@ -262,14 +262,7 @@ export class ShopScene extends Phaser.Scene {
         label: `${item.name} — ${item.price}c`,
         icon: item.texture,
         disabled: State.coins < item.price,
-        onSelect: () => {
-          if (State.spendCoins(item.price)) {
-            State.addItem(item.id);
-            toast(this, this.player.x, this.player.y - 50, `Bought ${item.name}!`, '#a8e6cf');
-            this.hud.refresh();
-          }
-          this.closeMenu();
-        },
+        onSelect: () => this.confirmBuy(item.id, item.name, item.price),
       }));
     const menu = new Menu(this, "Daniel's Shop", options, {
       subtitle: `You have ${State.coins} coins`,
@@ -277,6 +270,35 @@ export class ShopScene extends Phaser.Scene {
       face: 'bunny',
       pageSize: 5,
     });
+    menu.onClose = () => this.closeMenu();
+  }
+
+  private confirmBuy(id: string, name: string, price: number) {
+    this.menuOpen = true;
+    const menu = new Menu(
+      this,
+      `Buy ${name}?`,
+      [
+        {
+          label: 'Not now',
+          onSelect: () => {
+            this.openShop();
+          },
+        },
+        {
+          label: `Buy for ${price}c`,
+          onSelect: () => {
+            if (State.spendCoins(price)) {
+              State.addItem(id);
+              toast(this, this.player.x, this.player.y - 50, `Bought ${name}!`, '#a8e6cf');
+              this.hud.refresh();
+            }
+            this.closeMenu();
+          },
+        },
+      ],
+      `You have ${State.coins} coins`,
+    );
     menu.onClose = () => this.closeMenu();
   }
 

@@ -1,6 +1,14 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
-import { MIN_GAME_ENERGY, State, PAPER_TOSS_ENERGY_PER_THROW, PAPER_TOSS_HAPPINESS_PER_STAGE, PAPER_TOSS_PARTICIPATION_COINS } from '../systems/GameState';
+import {
+  MIN_GAME_ENERGY,
+  State,
+  PAPER_TOSS_ENERGY_PER_THROW,
+  PAPER_TOSS_HAPPINESS_PER_STAGE,
+  PAPER_TOSS_PARTICIPATION_COINS,
+  PAPER_TOSS_DIFFICULTY_STAGES,
+  type PaperTossDifficulty,
+} from '../systems/GameState';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
@@ -9,9 +17,13 @@ import { petAnimKey, petTextureKey } from '../systems/pets';
 const GROUND_Y = 480;
 // The ball sits right at the pet thrower's hands.
 const BALL_START = { x: 138, y: 436 };
+/** Throws available per level (best of 5). */
 const THROWS_PER_STAGE = 5;
+/** Baskets needed to clear a level early. */
 const BASKETS_TO_CLEAR = 3;
-const COINS_PER_BASKET = 3;
+/** Fail the level as soon as misses exceed this (more than 2). */
+const MAX_MISSES = 2;
+const COINS_PER_BASKET = 2;
 // Slower, floatier flight so the wind has time to bend the arc.
 const GRAVITY = 1100;
 const BALL_R = 12;
@@ -23,7 +35,13 @@ const WIND_INFLUENCE = 1.0;
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 
-type Mode = 'aiming' | 'flying' | 'settling' | 'done';
+type Mode = 'pick' | 'aiming' | 'flying' | 'settling' | 'done';
+
+const DIFFICULTY_LABEL: Record<PaperTossDifficulty, string> = {
+  easy: 'Easy',
+  medium: 'Medium',
+  hard: 'Hard',
+};
 
 interface ObstacleDef {
   x: number;
@@ -34,9 +52,7 @@ interface ObstacleDef {
   moveY?: { range: number; speed: number };
 }
 
-// Stage-based: sink BASKETS_TO_CLEAR baskets within THROWS_PER_STAGE throws
-// to advance; fail and you can retry the same stage. Wind, obstacles and the
-// bin's wander all scale with the stage.
+// Absolute stage configs (1–4). Each difficulty picks two consecutive ones.
 const STAGES: { windMax: number; binMin: number; binMax: number; obstacles: number }[] = [
   { windMax: 130, binMin: 430, binMax: 600, obstacles: 0 },
   { windMax: 190, binMin: 430, binMax: 650, obstacles: 1 },
@@ -48,23 +64,36 @@ const STAGES: { windMax: number; binMin: number; binMax: number; obstacles: numb
 const BALL_TINTS = [0xffffff, 0xffb3d1, 0xa8e6cf, 0xffe066, 0x87ceeb];
 const BALL_TINT_KEY = 'paperBallTint';
 
+type RestartData = {
+  difficulty?: PaperTossDifficulty;
+  /** 0-based index within the difficulty's two levels. */
+  levelIndex?: number;
+  baskets?: number;
+  roundCoins?: number;
+  seed?: string;
+};
+
 export class PaperTossScene extends Phaser.Scene {
   private ball!: Phaser.GameObjects.Image;
   private bin!: Phaser.GameObjects.Image;
   private binX = 560;
-  private mode: Mode = 'aiming';
+  private mode: Mode = 'pick';
   private backBtn!: Phaser.GameObjects.Text;
   private cameraZoom!: CameraZoom;
   private vx = 0;
   private vy = 0;
   private wind = 0; // horizontal acceleration px/s^2
-  private baskets = 0; // total this run, across stages
+  private baskets = 0; // total this run, across levels
   private streak = 0;
-  private stage = 1; // 1-based
+  /** Absolute 1-based stage (1–4) driving wind/obstacles. */
+  private stage = 1;
+  /** 0 or 1 — which of the two difficulty levels is active. */
+  private levelIndex = 0;
+  private difficulty: PaperTossDifficulty = 'easy';
   private stageThrows = 0;
   private stageBaskets = 0;
-  // Every stage attempt draws wind/bin/obstacles from a seeded RNG, so
-  // failing a stage lets you retry the exact same combination.
+  // Every level attempt draws wind/bin/obstacles from a seeded RNG, so
+  // failing a level lets you retry the exact same combination.
   private stageSeed = '';
   private rng!: Phaser.Math.RandomDataGenerator;
   private obstacles: { rect: Phaser.GameObjects.Rectangle; def: ObstacleDef; phase: number }[] = [];
@@ -88,6 +117,7 @@ export class PaperTossScene extends Phaser.Scene {
   private windArrow!: Phaser.GameObjects.Graphics;
   private statusText!: Phaser.GameObjects.Text;
   private bestText!: Phaser.GameObjects.Text;
+  private rulesText!: Phaser.GameObjects.Text;
   private thrower!: Phaser.GameObjects.Sprite;
   private keyE!: Phaser.Input.Keyboard.Key;
   private keySpace!: Phaser.Input.Keyboard.Key;
@@ -97,22 +127,15 @@ export class PaperTossScene extends Phaser.Scene {
     super('PaperToss');
   }
 
-  create(data?: { stage?: number; baskets?: number; roundCoins?: number; seed?: string }) {
+  create(data?: RestartData) {
     generateTextures(this);
-    this.mode = 'aiming';
-    this.stage = data?.stage ?? 1;
-    this.baskets = data?.baskets ?? 0;
-    this.stageThrows = 0;
-    this.stageBaskets = 0;
-    this.startStage(data?.seed);
-    this.streak = 0;
     this.obstacles = [];
     this.windStreaks = [];
     this.swatches = [];
-    this.roundCoins = data?.roundCoins ?? 0;
     this.menuOpen = false;
     this.ignoreClicksUntil = 0;
     this.dragStart = null;
+    this.streak = 0;
 
     // Backdrop: cozy arcade room
     this.cameras.main.setBackgroundColor('#2a2440');
@@ -164,12 +187,17 @@ export class PaperTossScene extends Phaser.Scene {
       .text(viewW - 52, 16, `Best: ${State.data.bestPaperToss}`, { ...FONT, color: '#c8c8dc' })
       .setOrigin(1, 0)
       .setScrollFactor(0);
-    const rules = this.add
-      .text(cx, 574, `Sink ${BASKETS_TO_CLEAR}/${THROWS_PER_STAGE} throws to clear the stage · Swish +1 · Bank +2 · Streak +2`, {
-        ...FONT,
-        fontSize: '12px',
-        color: '#c8c8dc',
-      })
+    this.rulesText = this.add
+      .text(
+        cx,
+        574,
+        `Sink ${BASKETS_TO_CLEAR} before ${MAX_MISSES + 1} misses · ${THROWS_PER_STAGE} throws max · Swish +1 · Bank +1 · Streak +1`,
+        {
+          ...FONT,
+          fontSize: '12px',
+          color: '#c8c8dc',
+        },
+      )
       .setOrigin(0.5)
       .setScrollFactor(0);
 
@@ -210,7 +238,7 @@ export class PaperTossScene extends Phaser.Scene {
       this.windText,
       this.windArrow,
       this.bestText,
-      rules,
+      this.rulesText,
       this.backBtn,
       ...this.swatches,
     );
@@ -224,8 +252,6 @@ export class PaperTossScene extends Phaser.Scene {
         this.ignoreClicksUntil = this.time.now + 200;
       },
     });
-
-    this.newThrow(true);
 
     // Start the drag anywhere on screen — both halves work.
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -269,6 +295,58 @@ export class PaperTossScene extends Phaser.Scene {
     this.input.on('pointerup', release);
     // Letting go outside the game canvas still counts as the throw.
     this.input.on('pointerupoutside', release);
+
+    if (data?.difficulty) {
+      this.beginRun(data.difficulty, data);
+    } else {
+      this.mode = 'pick';
+      this.ball.setVisible(false);
+      this.statusText.setText('Pick a difficulty');
+      this.openDifficultyMenu();
+    }
+  }
+
+  private openDifficultyMenu() {
+    this.menuOpen = true;
+    const tired = !State.hasEnergy(MIN_GAME_ENERGY);
+    const option = (d: PaperTossDifficulty) => {
+      const [a, b] = PAPER_TOSS_DIFFICULTY_STAGES[d];
+      return {
+        label: `${DIFFICULTY_LABEL[d]} · levels ${a}–${b}${tired ? ' — too tired!' : ''}`,
+        disabled: tired,
+        onSelect: () => this.beginRun(d),
+      };
+    };
+    const menu = new Menu(
+      this,
+      'Paper Toss!',
+      [option('easy'), option('medium'), option('hard')],
+      {
+        subtitle: `Best of ${THROWS_PER_STAGE} per level · clear 2 levels · fail after ${MAX_MISSES + 1} misses`,
+      },
+    );
+    menu.onClose = () => {
+      this.menuOpen = false;
+      this.ignoreClicksUntil = this.time.now + 250;
+      this.time.delayedCall(0, () => {
+        if (this.mode === 'pick') this.scene.start('EastPark', { spawn: 'arcade' });
+      });
+    };
+  }
+
+  private beginRun(difficulty: PaperTossDifficulty, data?: RestartData) {
+    this.difficulty = difficulty;
+    this.levelIndex = data?.levelIndex ?? 0;
+    this.stage = PAPER_TOSS_DIFFICULTY_STAGES[difficulty][this.levelIndex]!;
+    this.baskets = data?.baskets ?? 0;
+    this.roundCoins = data?.roundCoins ?? 0;
+    this.stageThrows = 0;
+    this.stageBaskets = 0;
+    this.streak = 0;
+    this.startStage(data?.seed);
+    this.ball.setVisible(true);
+    this.mode = 'aiming';
+    this.newThrow(true);
   }
 
   // Small colour swatches: tint the paper ball; choice persists via registry.
@@ -394,7 +472,7 @@ export class PaperTossScene extends Phaser.Scene {
   private buildObstacles() {
     this.obstacles.forEach((o) => o.rect.destroy());
     this.obstacles = [];
-    const count = STAGES[this.stage - 1].obstacles;
+    const count = STAGES[this.stage - 1]!.obstacles;
     // Corridor half-width: 58px each side of the mouth (~116px ≈ 26% of the
     // ~450px band planks can cover). Level 4's bin creeps ±40px, so widen
     // the protected strip to cover everywhere the mouth can be.
@@ -438,7 +516,7 @@ export class PaperTossScene extends Phaser.Scene {
   // Round over → leave straight away; mid-round → confirm first, since
   // leaving forfeits the round's remaining throws.
   private requestLeave() {
-    if (this.mode === 'done') {
+    if (this.mode === 'done' || this.mode === 'pick') {
       this.scene.start('EastPark', { spawn: 'arcade' });
       return;
     }
@@ -465,14 +543,14 @@ export class PaperTossScene extends Phaser.Scene {
     this.rng = new Phaser.Math.RandomDataGenerator([this.stageSeed]);
   }
 
-  private newThrow(first = false) {
+  private newThrow(_first = false) {
     this.mode = 'aiming';
     // Reset scale/alpha too — the basket tween shrinks and fades the ball.
     this.ball.setPosition(BALL_START.x, BALL_START.y).setVisible(true).setAlpha(1).setScale(1);
 
     // Fresh wind and a wandering bin every throw; both scale with the stage
     // and come from the stage's seeded RNG so retries replay the combo.
-    const cfg = STAGES[this.stage - 1];
+    const cfg = STAGES[this.stage - 1]!;
     this.wind = this.rng.between(-cfg.windMax, cfg.windMax);
     this.binX = this.rng.between(cfg.binMin, cfg.binMax);
     this.bin.x = this.binX;
@@ -486,7 +564,7 @@ export class PaperTossScene extends Phaser.Scene {
   }
 
   private drawWind() {
-    const windMax = STAGES[this.stage - 1].windMax;
+    const windMax = STAGES[this.stage - 1]!.windMax;
     const strength = Math.abs(this.wind);
     const dir = this.wind >= 0 ? 1 : -1;
     const label = `Wind ${dir > 0 ? '→' : '←'} ${(strength / 100).toFixed(1)}`;
@@ -503,8 +581,9 @@ export class PaperTossScene extends Phaser.Scene {
   }
 
   private updateStatus() {
+    const misses = this.stageThrows - this.stageBaskets;
     this.statusText.setText(
-      `Stage ${this.stage}/${STAGES.length}   Baskets: ${this.stageBaskets}/${BASKETS_TO_CLEAR}   Throws left: ${THROWS_PER_STAGE - this.stageThrows}`,
+      `${DIFFICULTY_LABEL[this.difficulty]} · Level ${this.levelIndex + 1}/2   Baskets: ${this.stageBaskets}/${BASKETS_TO_CLEAR}   Misses: ${misses}/${MAX_MISSES}   Throws left: ${THROWS_PER_STAGE - this.stageThrows}`,
     );
   }
 
@@ -519,11 +598,10 @@ export class PaperTossScene extends Phaser.Scene {
     this.time.delayedCall(900, () => {
       this.thrower.play(petAnimKey(State.data.petSpecies, 'bounce'));
     });
-    // Skill bonuses: a clean swish pays +1, banking it off a plank +2,
-    // and 3+ in a row keeps the +2 streak bonus.
-    const streakBonus = this.streak >= 3 ? 2 : 0;
+    // Skill bonuses toned down with the lower base payout.
+    const streakBonus = this.streak >= 3 ? 1 : 0;
     const swish = !this.rimTouched && !this.banked && this.floorBounces === 0;
-    const earned = COINS_PER_BASKET + streakBonus + (swish ? 1 : 0) + (this.banked ? 2 : 0);
+    const earned = COINS_PER_BASKET + streakBonus + (swish ? 1 : 0) + (this.banked ? 1 : 0);
     const tags = [
       swish ? 'SWISH!' : '',
       this.banked ? 'BANK!' : '',
@@ -555,7 +633,7 @@ export class PaperTossScene extends Phaser.Scene {
     this.mode = 'settling';
     this.stageThrows++;
     // Each throw costs a little energy; harder stages cheer the pet more.
-    // Persist once at stage clear/fail (not every throw).
+    // Persist once at level clear/fail (not every throw).
     State.drainEnergyFromPlay(
       PAPER_TOSS_ENERGY_PER_THROW,
       PAPER_TOSS_HAPPINESS_PER_STAGE * this.stage,
@@ -563,13 +641,14 @@ export class PaperTossScene extends Phaser.Scene {
     );
     this.updateStatus();
     this.time.delayedCall(700, () => {
+      const misses = this.stageThrows - this.stageBaskets;
       if (this.stageBaskets >= BASKETS_TO_CLEAR) this.stageCleared();
-      else if (this.stageThrows >= THROWS_PER_STAGE) this.stageFailed();
+      else if (misses > MAX_MISSES || this.stageThrows >= THROWS_PER_STAGE) this.stageFailed();
       else this.newThrow();
     });
   }
 
-  // Sink BASKETS_TO_CLEAR and the next stage opens; the last one wins the game.
+  // Sink BASKETS_TO_CLEAR to advance; clearing both levels of the difficulty wins.
   private stageCleared() {
     // Flush batched throw energy/happiness, then pay the clear bonus.
     State.save();
@@ -579,22 +658,23 @@ export class PaperTossScene extends Phaser.Scene {
       this,
       this.cameras.main.width / 2,
       150,
-      `+${PAPER_TOSS_PARTICIPATION_COINS} stage clear`,
+      `+${PAPER_TOSS_PARTICIPATION_COINS} level clear`,
       '#a8e6cf',
     );
-    if (this.stage >= STAGES.length) {
+    if (this.levelIndex >= 1) {
       this.gameWon();
       return;
     }
-    this.stage++;
+    this.levelIndex = 1;
+    this.stage = PAPER_TOSS_DIFFICULTY_STAGES[this.difficulty][1]!;
     this.stageThrows = 0;
     this.stageBaskets = 0;
-    this.startStage(); // new stage, new combination
+    this.startStage(); // new level, new combination
     toast(
       this,
       this.cameras.main.width / 2,
       180,
-      this.stage === STAGES.length ? `Stage cleared! Final stage — good luck!` : `Stage cleared! Stage ${this.stage}`,
+      `Level cleared! Level 2/2 — ${DIFFICULTY_LABEL[this.difficulty]}`,
       '#ffe066',
     );
     this.newThrow();
@@ -610,7 +690,7 @@ export class PaperTossScene extends Phaser.Scene {
 
   // Shared end-of-run panel; primary button restarts (same stage on a fail,
   // stage 1 after a win).
-  private endPanel(title: string, titleColor: string, primaryLabel: string, restartData: object) {
+  private endPanel(title: string, titleColor: string, primaryLabel: string, restartData: RestartData) {
     this.mode = 'done';
     // Single back control: the panel has its own [ Back outside ].
     this.backBtn.setVisible(false);
@@ -668,12 +748,13 @@ export class PaperTossScene extends Phaser.Scene {
     markAsUi(this, panel, heading, summary, best, again, leave);
   }
 
-  // Out of throws — no participation coins on fail (stops identical-seed farming).
+  // Out of throws / too many misses — no participation coins on fail.
   private stageFailed() {
     State.save(); // persist energy spent during the attempt
     // The seed rides along so Try again replays the identical combination.
-    this.endPanel(`Stage ${this.stage} failed!`, '#ff6b6b', 'Try again', {
-      stage: this.stage,
+    this.endPanel(`Level ${this.levelIndex + 1} failed!`, '#ff6b6b', 'Try again', {
+      difficulty: this.difficulty,
+      levelIndex: this.levelIndex,
       baskets: this.baskets,
       roundCoins: this.roundCoins,
       seed: this.stageSeed,
@@ -682,7 +763,7 @@ export class PaperTossScene extends Phaser.Scene {
 
   private gameWon() {
     State.save();
-    this.endPanel('You beat Paper Toss!', '#ffe066', 'Play again', {});
+    this.endPanel(`You cleared ${DIFFICULTY_LABEL[this.difficulty]}!`, '#ffe066', 'Play again', {});
   }
 
   update(time: number, deltaMs: number) {

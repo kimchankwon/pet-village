@@ -310,7 +310,7 @@ export class BumpScene extends Phaser.Scene {
     const option = (d: BumpDifficulty) => {
       const tired = !State.hasEnergy(BUMP_ENERGY_COST[d]);
       return {
-        label: `${DIFFICULTY[d].label} · −${BUMP_ENERGY_COST[d]} energy${tired ? ' — too tired!' : ''}`,
+        label: `${DIFFICULTY[d].label}${tired ? ' — too tired!' : ''}`,
         disabled: tired,
         onSelect: () => this.startBout(d),
       };
