@@ -59,6 +59,23 @@ function circle(png: InstanceType<typeof PNG>, cx: number, cy: number, r: number
   }
 }
 
+/** Stroke-only circle — does not punch transparent holes through the fill underneath. */
+function ring(
+  png: InstanceType<typeof PNG>,
+  cx: number,
+  cy: number,
+  r: number,
+  stroke: RGBA,
+  w = 0.95,
+) {
+  for (let y = -r - 2; y <= r + 2; y++) {
+    for (let x = -r - 2; x <= r + 2; x++) {
+      const d = Math.hypot(x, y);
+      if (d >= r - w && d <= r + 0.35) set(png, cx + x, cy + y, stroke);
+    }
+  }
+}
+
 function ellipse(
   png: InstanceType<typeof PNG>,
   cx: number,
@@ -413,43 +430,65 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
   },
 
   // Wonwoo — lilac fox in round glasses, fluffy white-tipped tail.
+  // Face: soft lavender crown / white muzzle (official FOXDUNGEE split).
   foxdungee(pose) {
     const f = frame(pose);
     const { png, pose: p, dy } = f;
     const LILAC: RGBA = [186, 148, 220, 255];
     const DEEP: RGBA = [140, 100, 180, 255];
-    const CREAM: RGBA = [248, 240, 255, 255];
+    const CREAM: RGBA = [255, 255, 255, 255];
+    const PINK: RGBA = [255, 150, 170, 255];
     const lift = p === 'jump' || p === 'happy' ? -2 : 0; // ears perk up
-    // Big pointed ears with pale inner
+    // Big pointed ears — lilac outer, white inner, deeper tip
     for (const s of [-1, 1]) {
       const ex = CX + s * 6;
       set(png, ex, HEAD_Y - 13 + lift + dy, OUT);
       fill(png, ex - 1, HEAD_Y - 12 + lift + dy, ex + 1, HEAD_Y - 10 + lift + dy, DEEP);
       fill(png, ex - 2, HEAD_Y - 9 + lift + dy, ex + 2, HEAD_Y - 7 + lift + dy, LILAC);
-      fill(png, ex - 1, HEAD_Y - 8 + lift + dy, ex + 1, HEAD_Y - 7 + lift + dy, WHITE); // fluffy tuft
+      fill(png, ex - 1, HEAD_Y - 8 + lift + dy, ex + 1, HEAD_Y - 7 + lift + dy, WHITE);
       set(png, ex, HEAD_Y - 9 + lift + dy, WHITE);
     }
-    // Fluffy tail with pale tip
+    // Fluffy tail with white tip
     ellipse(png, CX + 11, BODY_Y + 2 + dy, 3, 4, LILAC, OUT);
     ellipse(png, CX + 11, BODY_Y - 1 + dy, 2, 1.5, CREAM);
     chibiBody(f, LILAC, { belly: CREAM });
+    // Head: lavender crown, then white lower face so glasses sit on the seam
     circle(png, CX, HEAD_Y + dy, HEAD_R, LILAC, OUT);
-    ellipse(png, CX, HEAD_Y + 4 + dy, 4, 3, CREAM); // muzzle
-    // Round glasses — the signature
-    if (p !== 'happy' && p !== 'sad') {
-      for (const s of [-1, 1]) {
-        circle(png, CX + s * 4, HEAD_Y + dy, 2.6, [0, 0, 0, 0], OUT);
-      }
-      set(png, CX - 1, HEAD_Y + dy, OUT); // bridge
-      set(png, CX + 1, HEAD_Y + dy, OUT);
-      // pupils behind the lenses
-      set(png, CX - 4, HEAD_Y + dy, OUT);
-      set(png, CX + 4, HEAD_Y + dy, OUT);
-    } else {
-      eyes(f, 'dot', 4, HEAD_Y);
+    ellipse(png, CX, HEAD_Y + 3.2 + dy, 6.5, 5, CREAM);
+
+    // Round black glasses — stroke-only rings (transparent fill punched black voids)
+    const gY = HEAD_Y + dy;
+    for (const s of [-1, 1]) {
+      ring(png, CX + s * 4, gY, 2.7, OUT, 0.95);
     }
-    set(png, CX, HEAD_Y + 3 + dy, OUT); // nose
-    smile(f, HEAD_Y + 6);
+    set(png, CX - 1, gY, OUT); // bridge
+    set(png, CX + 1, gY, OUT);
+
+    // Bean pupils upper-inner of each lens (happy = closed arcs)
+    const eyeY = gY - 0.4 + (p === 'sad' ? 0.6 : 0);
+    if (p === 'happy') {
+      for (const s of [-1, 1]) {
+        set(png, CX + s * 3, eyeY, OUT);
+        set(png, CX + s * 4, eyeY + 1, OUT);
+        set(png, CX + s * 5, eyeY, OUT);
+      }
+    } else {
+      for (const s of [-1, 1]) {
+        // Bias toward the bridge (inner) and sit near the top rim
+        ellipse(png, CX + s * 3.4, eyeY, 1.15, 1.35, OUT);
+      }
+    }
+
+    // Tiny nose on the purple/white join + open pink mouth
+    ellipse(png, CX, HEAD_Y + 2.6 + dy, 1.1, 0.85, OUT);
+    if (p === 'sad') {
+      smile(f, HEAD_Y + 6);
+    } else {
+      ellipse(png, CX, HEAD_Y + 5.2 + dy, 1.6, 1.1, PINK);
+      set(png, CX - 1, HEAD_Y + 4.6 + dy, OUT);
+      set(png, CX, HEAD_Y + 5.6 + dy, OUT);
+      set(png, CX + 1, HEAD_Y + 4.6 + dy, OUT);
+    }
     return png;
   },
 

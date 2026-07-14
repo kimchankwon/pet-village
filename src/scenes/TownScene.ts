@@ -760,7 +760,7 @@ export class TownScene extends Phaser.Scene {
       else if (!isUiBlocked()) this.openPetMenu();
     }
 
-    if (!this.menuOpen) {
+    if (!uiOpen) {
       const best = this.nearestInteractable();
       this.setHighlight(best?.targets);
       if (best) {

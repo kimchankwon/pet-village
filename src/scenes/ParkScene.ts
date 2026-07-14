@@ -460,7 +460,7 @@ export class ParkScene extends Phaser.Scene {
       }
     }
 
-    if (!this.menuOpen) {
+    if (!uiOpen) {
       const best = this.nearestInteractable();
       this.setHighlight(best?.targets);
       if (best) {

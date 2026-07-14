@@ -326,6 +326,11 @@ export class Menu {
 
     blockUi();
     Menu.openStack.push(this);
+    // If the scene tears down while this menu is open, close it so openStack
+    // and the UI block counter stay balanced (same pattern as HUD SHUTDOWN).
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (!this.closed) this.close();
+    });
     // Stay on the option the caller asked for (e.g. clothes toggle rebuild),
     // instead of always jumping the highlight back to the top row.
     const want = layout.initialSelected ?? 0;

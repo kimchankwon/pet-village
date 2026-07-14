@@ -401,7 +401,7 @@ export class ShopScene extends Phaser.Scene {
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
 
-    if (!this.menuOpen) {
+    if (!uiOpen) {
       const near = this.nearestInteractable();
       this.setHighlight(near?.targets);
       if (near) {
