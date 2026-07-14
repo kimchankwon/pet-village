@@ -32,7 +32,6 @@ export type AccessoryId =
   | 'star-band'
   | 'top-bow'
   | 'kirby-bowtie'
-  | 'heart-glasses'
   | 'mini-crown'
   | 'ribbon-tie';
 
@@ -343,16 +342,6 @@ export const ACCESSORIES: Record<AccessoryId, AccessoryDef> = {
     wearable: 'kirby',
   },
   // Pet Boutique — classic Tamagotchi gear.
-  'heart-glasses': {
-    id: 'heart-glasses',
-    name: 'Heart Shades',
-    blurb: 'Pink heart glasses · look of love',
-    slot: 'headRight',
-    texture: 'acc-heart-glasses',
-    owner: 'pet-boutique',
-    price: 22,
-    wearable: 'classic',
-  },
   'mini-crown': {
     id: 'mini-crown',
     name: 'Mini Crown',
@@ -411,7 +400,6 @@ export const ACCESSORY_ASSET_PATH: Partial<Record<AccessoryId, string>> = {
   'star-band': 'assets/accessories/star-band.png',
   'top-bow': 'assets/accessories/top-bow.png',
   'kirby-bowtie': 'assets/accessories/kirby-bowtie.png',
-  'heart-glasses': 'assets/accessories/heart-glasses.png',
   'mini-crown': 'assets/accessories/mini-crown.png',
   'ribbon-tie': 'assets/accessories/ribbon-tie.png',
 };
@@ -434,6 +422,8 @@ export const ACCESSORY_LAYOUT: Partial<Record<AccessoryId, AccessoryLayout>> = {
   'cinnamon-scarf': { scale: 0.92, offsetY: 1 },
   // Bib sits on the lower body; tiny nudge keeps straps under the chin.
   'cafe-apron': { offsetY: 1 },
+  // Sit the shades a touch lower so they rest on the puffle's eyes.
+  'big-sunglasses': { offsetY: 3 },
 };
 
 /**
@@ -446,10 +436,10 @@ export const ACCESSORY_LAYOUT: Partial<Record<AccessoryId, AccessoryLayout>> = {
 export const SPECIES_ACCESSORY_NUDGE: Partial<
   Record<string, Partial<Record<AccessoryId, { x?: number; y?: number }>>>
 > = {
-  mametchi: { 'heart-glasses': { y: 3 }, 'ribbon-tie': { y: 3 } },
+  mametchi: { 'ribbon-tie': { y: 3 } },
   kuchipatchi: { 'ribbon-tie': { y: 2 } },
-  mimitchi: { 'heart-glasses': { y: 4 }, 'ribbon-tie': { y: 4 } },
-  violetchi: { 'heart-glasses': { y: 4 }, 'ribbon-tie': { y: 2 } },
+  mimitchi: { 'ribbon-tie': { y: 4 } },
+  violetchi: { 'ribbon-tie': { y: 2 } },
 };
 
 export function accessoryTextureKey(id: AccessoryId): string {
