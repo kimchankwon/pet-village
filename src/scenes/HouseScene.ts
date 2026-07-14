@@ -312,6 +312,7 @@ export class HouseScene extends Phaser.Scene {
       const x = this.roomX + p.gx * TILE + TILE / 2;
       const y = ROOM_Y + p.gy * TILE + TILE / 2;
       const img = this.add.image(x, y, def.texture).setScale(1.2);
+      img.setData('gx', p.gx).setData('gy', p.gy);
       img.setDepth(p.id === 'rug' ? -50 : feetDepth(img));
       this.furnitureSprites.push(img);
     }
@@ -421,8 +422,9 @@ export class HouseScene extends Phaser.Scene {
 
     // Draw the sleeping pet above the bed — the bed's y-sort depth can
     // otherwise win at this row and hide the pet behind the mattress.
-    const bedImgY = ROOM_Y + bed.gy * TILE + TILE / 2;
-    const bedImg = this.furnitureSprites.find((s) => s.x === bedX && s.y === bedImgY);
+    const bedImg = this.furnitureSprites.find(
+      (s) => s.getData('gx') === bed.gx && s.getData('gy') === bed.gy,
+    );
     const sleepDepth = (bedImg ? bedImg.depth : feetDepth(this.pet.sprite)) + 5;
 
     this.pet.walkTo(bedX, bedY, () => {

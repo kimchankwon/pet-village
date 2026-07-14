@@ -5,6 +5,16 @@
 
 export type AccessorySlot = 'headLeft' | 'headRight' | 'body' | 'extra';
 
+export const PENGUIN_ACCESSORY_IDS = [
+  'red-scarf',
+  'blue-toque',
+  'miner-helmet',
+  'ninja-mask',
+  'pizza-apron',
+] as const;
+
+export type PenguinAccessoryId = (typeof PENGUIN_ACCESSORY_IDS)[number];
+
 export type AccessoryId =
   | 'mint-pom'
   | 'carat-diamond'
@@ -23,11 +33,7 @@ export type AccessoryId =
   | 'glam-glasses'
   | 'brown-goggles'
   | 'big-sunglasses'
-  | 'red-scarf'
-  | 'blue-toque'
-  | 'miner-helmet'
-  | 'ninja-mask'
-  | 'pizza-apron'
+  | PenguinAccessoryId
   | 'chef-toque'
   | 'star-band'
   | 'top-bow'
@@ -378,7 +384,9 @@ export const PET_BOUTIQUE_ITEMS = ACCESSORY_LIST.filter((a) => a.owner === 'pet-
  * PNG-backed accessory art loaded in Boot. Penguin clothes are absent on
  * purpose — their icons and worn looks are generated in pixelart.ts.
  */
-export const ACCESSORY_ASSET_PATH: Partial<Record<AccessoryId, string>> = {
+type NonPenguinAccessoryId = Exclude<AccessoryId, PenguinAccessoryId>;
+
+export const ACCESSORY_ASSET_PATH: Record<NonPenguinAccessoryId, string> = {
   'mint-pom': 'assets/accessories/mint-pom.png',
   'carat-diamond': 'assets/accessories/carat-diamond.png',
   'blue-tee': 'assets/accessories/blue-tee.png',
@@ -403,6 +411,13 @@ export const ACCESSORY_ASSET_PATH: Partial<Record<AccessoryId, string>> = {
   'mini-crown': 'assets/accessories/mini-crown.png',
   'ribbon-tie': 'assets/accessories/ribbon-tie.png',
 };
+
+/** PNG path for loaded accessories; penguin clothes are generated at runtime. */
+export function accessoryAssetPath(id: AccessoryId): string | undefined {
+  return id in ACCESSORY_ASSET_PATH
+    ? ACCESSORY_ASSET_PATH[id as NonPenguinAccessoryId]
+    : undefined;
+}
 
 export function isAccessoryId(value: unknown): value is AccessoryId {
   return typeof value === 'string' && value in ACCESSORIES;

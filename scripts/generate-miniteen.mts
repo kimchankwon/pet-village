@@ -436,7 +436,7 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
     const { png, pose: p, dy } = f;
     const LILAC: RGBA = [186, 148, 220, 255];
     const DEEP: RGBA = [140, 100, 180, 255];
-    const CREAM: RGBA = [255, 255, 255, 255];
+    const CREAM: RGBA = [248, 240, 255, 255];
     const PINK: RGBA = [255, 150, 170, 255];
     const lift = p === 'jump' || p === 'happy' ? -2 : 0; // ears perk up
     // Big pointed ears — lilac outer, white inner, deeper tip

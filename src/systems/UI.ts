@@ -12,7 +12,7 @@ const ROW_SELECTED = 0x6b63a8;
 const ROW_DISABLED = 0x3d3d5c;
 
 /** Max option rows before the menu paginates (fits a 600px-tall bottom sheet). */
-const DEFAULT_PAGE_SIZE = 6;
+export const DEFAULT_MENU_PAGE_SIZE = 6;
 
 // Heads-up display: pet name, coins + pet need bars. Fixed to camera,
 // anchored bottom-left (clears the touch joystick / bottom-right pet button).
@@ -168,7 +168,7 @@ export class Menu {
     const cam = scene.cameras.main;
     const hasFace = Boolean(layout.face && scene.textures.exists(layout.face));
     const faceSlot = hasFace ? 78 : 0;
-    const pageSize = layout.pageSize ?? DEFAULT_PAGE_SIZE;
+    const pageSize = layout.pageSize ?? DEFAULT_MENU_PAGE_SIZE;
     const page = Math.max(0, layout.page ?? 0);
     const totalPages = Math.max(1, Math.ceil(options.length / pageSize));
     const safePage = Math.min(page, totalPages - 1);

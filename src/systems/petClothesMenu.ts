@@ -1,7 +1,7 @@
 import type Phaser from 'phaser';
 import { ACCESSORIES, ACCESSORY_LIST, accessoryWearable, type AccessoryId } from './accessories';
 import { State } from './GameState';
-import { Menu, type MenuOption } from './UI';
+import { DEFAULT_MENU_PAGE_SIZE, Menu, type MenuOption } from './UI';
 import type { Pet } from './Pet';
 import { refreshPenguin } from '../sprites/pixelart';
 
@@ -89,6 +89,7 @@ export function openClothesMenu(
       onSelect: () => undefined,
     });
   } else {
+    const unequipIndex = options.length;
     options.push({
       label: 'Unequip all',
       onSelect: () => {
@@ -96,7 +97,7 @@ export function openClothesMenu(
         pet.refreshAccessories();
         refreshPenguin(scene);
         keepMenuOpen?.();
-        openClothesMenu(scene, pet, onClose, keepMenuOpen, options.length);
+        openClothesMenu(scene, pet, onClose, keepMenuOpen, unequipIndex);
       },
     });
   }
@@ -112,11 +113,17 @@ export function openClothesMenu(
   if (youNames) parts.push(`You: ${youNames}`);
   const wearingLine = parts.length ? `Wearing — ${parts.join(' · ')}` : 'Wearing: nothing yet';
 
-  // Menu.initialSelected indexes into enabled rows only (skips disabled).
-  const enabledFocus = options.slice(0, focusIndex).filter((option) => !option.disabled).length;
+  const safeFocusIndex = Math.max(0, Math.min(focusIndex, options.length - 1));
+  const page = Math.floor(safeFocusIndex / DEFAULT_MENU_PAGE_SIZE);
+  const pageStart = page * DEFAULT_MENU_PAGE_SIZE;
+  // Menu.initialSelected indexes into enabled rows on the active page only.
+  const enabledFocus = options
+    .slice(pageStart, safeFocusIndex)
+    .filter((option) => !option.disabled).length;
 
   clothesMenu = new Menu(scene, 'Clothes & accessories', options, {
     subtitle: wearingLine,
+    page,
     initialSelected: enabledFocus,
   });
   clothesMenu.onClose = () => {
