@@ -1,35 +1,41 @@
 ---
-description: Every PR gets an HTML explain page deployed to Netlify
+description: Every PR gets an HTML explain page on Netlify — never commit it
 alwaysApply: true
 ---
 
-# PR explain pages on Netlify
+# PR explain pages on Netlify (not in git)
 
 Every pull request needs a **player-facing HTML description** deployed to Netlify — not just Markdown/HTML in the GitHub PR body.
 
-## Pattern (matches existing sites)
+**Do not commit the explain HTML** into this repo (`netlify-site/`, `pr*/`, gh-pages artifacts, etc.). Build it in a temp folder, deploy, then discard locally.
 
-1. Write / update `netlify-site/index.html` in the PR-38 explain style (Press Start 2P + VT323, pill, TL;DR card, What changed, How to try it, Verification, PR link).
-2. Create a Netlify site named `pet-village-pr-{N}-explain` (e.g. `pet-village-pr-46-explain`).
-3. Deploy the folder:
+## Pattern
+
+1. Write the page in a **temp dir** (e.g. `/tmp/pet-village-pr-{N}-explain/index.html`) in the PR-38 explain style:
+   - Fonts: Press Start 2P + VT323
+   - Sections: pill, TL;DR card, What changed, How to try it, Verification, PR link
+2. Create a Netlify site named `pet-village-pr-{N}-explain` (e.g. `pet-village-pr-51-explain`).
+3. Deploy **from the temp dir only**:
    ```sh
-   npx netlify deploy --prod --dir=netlify-site --site=<site-id>
+   npx netlify deploy --prod --dir=/tmp/pet-village-pr-{N}-explain --site=<site-id>
    ```
 4. Put the live URL in the GitHub PR body (short summary + link is enough).
-
-Examples already live:
-- https://pet-village-pr-38-explain.netlify.app
-- Sibling repos use the same `*-pr-{N}-explain` naming
+5. Leave the working tree clean of explain-page files — never `git add` them.
 
 ## GitHub PR body
 
 Keep the GitHub description short. Prefer linking the Netlify explain page:
 
 ```markdown
-Explain: https://pet-village-pr-46-explain.netlify.app
+Explain: https://pet-village-pr-51-explain.netlify.app
 
 ## Summary
 - …
 ```
 
-Do **not** treat the GitHub body as the primary HTML artifact — that lives on Netlify.
+Do **not** treat the GitHub body as the primary HTML artifact — that lives on Netlify only.
+
+## Examples already live
+
+- https://pet-village-pr-38-explain.netlify.app
+- Sibling repos use the same `*-pr-{N}-explain` naming

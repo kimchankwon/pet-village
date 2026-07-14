@@ -414,6 +414,10 @@ export class TownScene extends Phaser.Scene {
     }
 
     this.scatterTownDecor();
+    // Solids after scatterTownDecor — it resets decoSolids.
+    for (const g of gateSigns) {
+      this.decoSolids.push({ x: g.tx * TILE, y: 7 * TILE + 10, w: 18, h: 12 });
+    }
   }
 
   /**
