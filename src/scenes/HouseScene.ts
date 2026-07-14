@@ -214,7 +214,7 @@ export class HouseScene extends Phaser.Scene {
                       this,
                       pointer.worldX,
                       pointer.worldY - 20,
-                      `${ITEMS[picked].name} → inventory`,
+                      `${ITEMS[picked]?.name ?? name} → inventory`,
                       '#ffe066',
                     );
                     this.renderFurniture();

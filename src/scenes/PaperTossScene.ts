@@ -583,7 +583,7 @@ export class PaperTossScene extends Phaser.Scene {
   private updateStatus() {
     const misses = this.stageThrows - this.stageBaskets;
     this.statusText.setText(
-      `${DIFFICULTY_LABEL[this.difficulty]} · Level ${this.levelIndex + 1}/2   Baskets: ${this.stageBaskets}/${BASKETS_TO_CLEAR}   Misses: ${misses}/${MAX_MISSES}   Throws left: ${THROWS_PER_STAGE - this.stageThrows}`,
+      `${DIFFICULTY_LABEL[this.difficulty]} · Level ${this.levelIndex + 1}/2   Baskets: ${this.stageBaskets}/${BASKETS_TO_CLEAR}   Misses: ${misses}/${MAX_MISSES + 1}   Throws left: ${THROWS_PER_STAGE - this.stageThrows}`,
     );
   }
 
@@ -755,7 +755,8 @@ export class PaperTossScene extends Phaser.Scene {
     this.endPanel(`Level ${this.levelIndex + 1} failed!`, '#ff6b6b', 'Try again', {
       difficulty: this.difficulty,
       levelIndex: this.levelIndex,
-      baskets: this.baskets,
+      // Drop baskets from this failed level so retries don't inflate best/run totals.
+      baskets: this.baskets - this.stageBaskets,
       roundCoins: this.roundCoins,
       seed: this.stageSeed,
     });
