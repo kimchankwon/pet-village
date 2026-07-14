@@ -239,29 +239,39 @@ type PenguinOverlay = { down: Grid; up: Grid; side: Grid };
 
 const DOTS = '..................'; // 18 transparent pixels
 
+// Wraps the neck (snug under the chin), with a knit tail that dangles and
+// curls off the penguin's left — Cinnamoroll-style, not a flat chest band.
 const RED_SCARF_OVERLAY: PenguinOverlay = {
   down: [
-    DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS,
+    DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS,
+    '.....rrrrrrrr.....',
     '..rrrrrrrrrrrrrr..',
-    '....rrR...........',
-    '....rRr...........',
-    '.....rR...........',
-    '.....R............',
+    '..rRr........rRr..',
+    '..rrrR............',
+    '..RrrrR...........',
+    '...RrrrR..........',
+    '...RrrrR..........',
+    '....RrrR..........',
+    '....R.rR..........',
   ],
   up: [
     DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS,
     '..rrrrrrrrrrrrrr..',
-    '.......rRr........',
-    '......rR.rR.......',
-    '......rR.rR.......',
-    '......R...R.......',
+    '..rRr.........rr..',
+    '..rrrR............',
+    '..RrrrR...........',
+    '...RrrR...........',
+    '...R..R...........',
   ],
   side: [
-    DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS,
+    DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS,
+    '.....rrrrrrrr.....',
     '..rrrrrrrrrrrr....',
-    '..rrR.............',
-    '..rR..............',
-    '..R...............',
+    '..rrrR............',
+    '..RrrrR...........',
+    '..RrrR............',
+    '...RrrR...........',
+    '...R.rR...........',
   ],
 };
 
