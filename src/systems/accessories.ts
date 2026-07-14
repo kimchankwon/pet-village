@@ -1,4 +1,7 @@
-/** Equippable pet clothes — Bongbongee gifts, Cinnamoroll cafe + puffle dig finds. */
+/**
+ * Equippable clothes — Bongbongee gifts, Cinnamoroll cafe + puffle dig finds,
+ * plus Club Penguin-style gear only the player's penguin can wear.
+ */
 
 export type AccessorySlot = 'headLeft' | 'headRight' | 'body' | 'extra';
 
@@ -19,15 +22,21 @@ export type AccessoryId =
   | 'snorkel'
   | 'glam-glasses'
   | 'brown-goggles'
-  | 'big-sunglasses';
+  | 'big-sunglasses'
+  | 'red-scarf'
+  | 'blue-toque'
+  | 'miner-helmet'
+  | 'ninja-mask'
+  | 'pizza-apron';
 
-export type AccessorySource = 'bongbongee' | 'cinnamoroll' | 'puffle-dig';
+export type AccessorySource = 'bongbongee' | 'cinnamoroll' | 'puffle-dig' | 'penguin-shop';
 
 /**
  * Who may wear this item. Defaults from `owner` when omitted
- * (`puffle-dig` → puffles; otherwise the owner mascot).
+ * (`puffle-dig` → puffles; `penguin-shop` → the player's penguin;
+ * otherwise the owner mascot).
  */
-export type AccessoryWearable = 'bongbongee' | 'cinnamoroll' | 'puffle';
+export type AccessoryWearable = 'bongbongee' | 'cinnamoroll' | 'puffle' | 'penguin';
 
 export interface AccessoryDef {
   id: AccessoryId;
@@ -48,6 +57,7 @@ export interface AccessoryDef {
 export function accessoryWearable(def: AccessoryDef): AccessoryWearable {
   if (def.wearable) return def.wearable;
   if (def.owner === 'puffle-dig') return 'puffle';
+  if (def.owner === 'penguin-shop') return 'penguin';
   return def.owner;
 }
 
@@ -219,6 +229,57 @@ export const ACCESSORIES: Record<AccessoryId, AccessoryDef> = {
     price: 18,
     wearable: 'puffle',
   },
+  // Gift Shop classics — worn by the player's penguin, never the pets.
+  'red-scarf': {
+    id: 'red-scarf',
+    name: 'Red Scarf',
+    blurb: 'Gift Shop classic · warm waddle wrap',
+    slot: 'extra',
+    texture: 'acc-red-scarf',
+    owner: 'penguin-shop',
+    price: 25,
+    wearable: 'penguin',
+  },
+  'blue-toque': {
+    id: 'blue-toque',
+    name: 'Blue Toque',
+    blurb: 'Knit beanie with a pom · ski-hill staple',
+    slot: 'headLeft',
+    texture: 'acc-blue-toque',
+    owner: 'penguin-shop',
+    price: 20,
+    wearable: 'penguin',
+  },
+  'miner-helmet': {
+    id: 'miner-helmet',
+    name: 'Miner Helmet',
+    blurb: 'Mine Shack hard hat · lamp included',
+    slot: 'headLeft',
+    texture: 'acc-miner-helmet',
+    owner: 'penguin-shop',
+    price: 30,
+    wearable: 'penguin',
+  },
+  'ninja-mask': {
+    id: 'ninja-mask',
+    name: 'Ninja Mask',
+    blurb: 'Dojo secret · card-jitsu ready',
+    slot: 'headRight',
+    texture: 'acc-ninja-mask',
+    owner: 'penguin-shop',
+    price: 35,
+    wearable: 'penguin',
+  },
+  'pizza-apron': {
+    id: 'pizza-apron',
+    name: 'Pizza Apron',
+    blurb: 'Pizza Parlor shift wear · extra cheese',
+    slot: 'body',
+    texture: 'acc-pizza-apron',
+    owner: 'penguin-shop',
+    price: 28,
+    wearable: 'penguin',
+  },
 };
 
 export const ACCESSORY_LIST = Object.values(ACCESSORIES);
@@ -227,7 +288,13 @@ export const CINNA_SHOP_ITEMS = ACCESSORY_LIST.filter((a) => a.owner === 'cinnam
 
 export const PUFFLE_SHOP_ITEMS = ACCESSORY_LIST.filter((a) => a.owner === 'puffle-dig');
 
-export const ACCESSORY_ASSET_PATH: Record<AccessoryId, string> = {
+export const PENGUIN_SHOP_ITEMS = ACCESSORY_LIST.filter((a) => a.owner === 'penguin-shop');
+
+/**
+ * PNG-backed accessory art loaded in Boot. Penguin clothes are absent on
+ * purpose — their icons and worn looks are generated in pixelart.ts.
+ */
+export const ACCESSORY_ASSET_PATH: Partial<Record<AccessoryId, string>> = {
   'mint-pom': 'assets/accessories/mint-pom.png',
   'carat-diamond': 'assets/accessories/carat-diamond.png',
   'blue-tee': 'assets/accessories/blue-tee.png',

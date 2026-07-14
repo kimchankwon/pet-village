@@ -1,3 +1,5 @@
+import Phaser from 'phaser';
+import { ACCESSORIES, type AccessoryId, type AccessorySlot } from '../systems/accessories';
 import { State } from '../systems/GameState';
 
 // Pixel-art textures generated at runtime from character grids.
@@ -228,6 +230,246 @@ const PENGUIN_SIDE_1: Grid = [
   '...koo...ook......',
   '..kOoo...ooOk.....',
 ];
+
+// ---- Penguin clothes (Club Penguin gift-shop classics) ----
+// Each overlay is an 18x20 grid aligned to the penguin frames above;
+// non-'.' pixels replace the base pixel. Feet rows are never touched, so
+// the same overlay works for both walk frames of a facing.
+type PenguinOverlay = { down: Grid; up: Grid; side: Grid };
+
+const DOTS = '..................'; // 18 transparent pixels
+
+const RED_SCARF_OVERLAY: PenguinOverlay = {
+  down: [
+    DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS,
+    '..rrrrrrrrrrrrrr..',
+    '....rrR...........',
+    '....rRr...........',
+    '.....rR...........',
+    '.....R............',
+  ],
+  up: [
+    DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS,
+    '..rrrrrrrrrrrrrr..',
+    '.......rRr........',
+    '......rR.rR.......',
+    '......rR.rR.......',
+    '......R...R.......',
+  ],
+  side: [
+    DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS,
+    '..rrrrrrrrrrrr....',
+    '..rrR.............',
+    '..rR..............',
+    '..R...............',
+  ],
+};
+
+const BLUE_TOQUE_OVERLAY: PenguinOverlay = {
+  down: [
+    '.......kwwk.......',
+    '.....kbbbbbbk.....',
+    '....kbbbbbbbbk....',
+    '...kbBbBbBbBbBk...',
+  ],
+  up: [
+    '.......kwwk.......',
+    '.....kbbbbbbk.....',
+    '....kbbbbbbbbk....',
+    '...kbBbBbBbBbBk...',
+  ],
+  side: [
+    '......kwwk........',
+    '....kbbbbbbk......',
+    '...kbbbbbbbbk.....',
+    '...kbBbBbBbBbk....',
+  ],
+};
+
+const MINER_HELMET_OVERLAY: PenguinOverlay = {
+  down: [
+    '.......kyyk.......',
+    '.....kyyyyyyk.....',
+    '....kyyywwyyyk....',
+    '...kYyyyyyyyyYk...',
+  ],
+  up: [
+    '.......kyyk.......',
+    '.....kyyyyyyk.....',
+    '....kyyyyyyyyk....',
+    '...kYyyyyyyyyYk...',
+  ],
+  side: [
+    '......kyyk........',
+    '....kyyyyyyk......',
+    '...kyyyyyywwk.....',
+    '...kYyyyyyyYk.....',
+  ],
+};
+
+const NINJA_MASK_OVERLAY: PenguinOverlay = {
+  down: [
+    DOTS, DOTS, DOTS,
+    '...kxxxxxxxxxxk...',
+    '...kxWWWxxWWWxk...',
+    '...kxWkWxxWkWxk...',
+  ],
+  up: [
+    DOTS, DOTS, DOTS,
+    '...kxxxxxxxxxxk...',
+    '...kxxxxxxxxxxk...',
+    '...kxxxxxxxxxxk...',
+    '........xx........',
+    '.......x..x.......',
+  ],
+  side: [
+    DOTS, DOTS, DOTS,
+    '...kxxxxxxxxxk....',
+    '..kxxxxxkWWWxk....',
+    '..kxxxxxkWkWxk....',
+  ],
+};
+
+const PIZZA_APRON_OVERLAY: PenguinOverlay = {
+  down: [
+    DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS,
+    '....r........r....',
+    '....rrrrrrrrrr....',
+    '....rrryyyrrrr....',
+    '....rrrryyrrrr....',
+    '....rrrrryrrrr....',
+    '....RrrrrrrrrR....',
+    '.....RrrrrrrR.....',
+    '......RRRRRR......',
+  ],
+  up: [
+    DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS,
+    '....r........r....',
+    '....r........r....',
+    '....rrrrrrrrrr....',
+    '.......R..R.......',
+  ],
+  side: [
+    DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS, DOTS,
+    '........rrrr......',
+    '.......rrryyr.....',
+    '.......rrryyr.....',
+    '.......rrrryr.....',
+    '.......rrrrrr.....',
+    '.......RrrrR......',
+    '.......RRRR.......',
+  ],
+};
+
+const PENGUIN_CLOTHES: Partial<Record<AccessoryId, PenguinOverlay>> = {
+  'red-scarf': RED_SCARF_OVERLAY,
+  'blue-toque': BLUE_TOQUE_OVERLAY,
+  'miner-helmet': MINER_HELMET_OVERLAY,
+  'ninja-mask': NINJA_MASK_OVERLAY,
+  'pizza-apron': PIZZA_APRON_OVERLAY,
+};
+
+// 12x12 shop/menu icons for the penguin clothes (pet items use PNGs).
+const PENGUIN_CLOTHES_ICONS: Partial<Record<AccessoryId, Grid>> = {
+  'red-scarf': [
+    '............',
+    '..kkkkkkkk..',
+    '.krrrrrrrrk.',
+    '.krRrRrRrrk.',
+    '..kkkrrkkk..',
+    '....krrk....',
+    '....krRk....',
+    '....krrk....',
+    '....krRk....',
+    '....kRRk....',
+    '.....kk.....',
+    '............',
+  ],
+  'blue-toque': [
+    '............',
+    '....kwwk....',
+    '....kwwk....',
+    '...kbbbbk...',
+    '..kbbbbbbk..',
+    '.kbbbbbbbbk.',
+    '.kbbbbbbbbk.',
+    '.kbBbBbBbBk.',
+    '.kBbBbBbBbk.',
+    '..kkkkkkkk..',
+    '............',
+    '............',
+  ],
+  'miner-helmet': [
+    '............',
+    '....kyyk....',
+    '...kyyyyk...',
+    '..kyyyyyyk..',
+    '..kyywwyyk..',
+    '..kyywwyyk..',
+    '..kyyyyyyk..',
+    '.kYyyyyyyYk.',
+    '.kYYYYYYYYk.',
+    '..kkkkkkkk..',
+    '............',
+    '............',
+  ],
+  'ninja-mask': [
+    '............',
+    '...kkkkkk...',
+    '..kxxxxxxk..',
+    '.kxxxxxxxxk.',
+    '.kxwwxxwwxk.',
+    '.kxwkxxkwxk.',
+    '.kxxxxxxxxk.',
+    '..kxxxxxxk..',
+    '...kkkkkk...',
+    '......kxx...',
+    '.......kxx..',
+    '............',
+  ],
+  'pizza-apron': [
+    '............',
+    '...kr..rk...',
+    '...kr..rk...',
+    '..krrrrrrk..',
+    '.krrrrrrrrk.',
+    '.krryyyrrrk.',
+    '.krrryyrrrk.',
+    '.krrrryrrrk.',
+    '.kRrrrrrrRk.',
+    '..kRRRRRRk..',
+    '............',
+    '............',
+  ],
+};
+
+/** Merge an overlay onto a base grid — non-'.' overlay pixels win. */
+function overlayGrid(base: Grid, over: Grid): Grid {
+  return base.map((row, y) => {
+    const orow = over[y];
+    if (!orow) return row;
+    let out = '';
+    for (let x = 0; x < row.length; x++) {
+      const ch = orow[x];
+      out += ch && ch !== '.' ? ch : row[x];
+    }
+    return out;
+  });
+}
+
+/** Apply the equipped penguin clothes to a facing's walk frames. */
+function dressPenguin(grids: Grid[], facing: keyof PenguinOverlay): Grid[] {
+  const fit = State.data.equippedPenguinAccessories ?? {};
+  // Draw order: body, then neck wrap, then headwear on top.
+  const order: AccessorySlot[] = ['body', 'extra', 'headLeft', 'headRight'];
+  let out = grids;
+  for (const slot of order) {
+    const id = fit[slot];
+    const overlay = id ? PENGUIN_CLOTHES[id] : undefined;
+    if (overlay) out = out.map((g) => overlayGrid(g, overlay[facing]));
+  }
+  return out;
+}
 
 // ---- Shopkeeper NPC: cute white bunny with bow (16x16) ----
 const BUNNY: Grid = [
@@ -1054,9 +1296,9 @@ function makeCobbleTile(scene: Phaser.Scene, key: string, size = 16) {
 }
 
 function makePenguin(scene: Phaser.Scene) {
-  makeTexture(scene, 'penguin-down', [PENGUIN_DOWN_0, PENGUIN_DOWN_1]);
-  makeTexture(scene, 'penguin-up', [PENGUIN_UP_0, PENGUIN_UP_1]);
-  makeTexture(scene, 'penguin-side', [PENGUIN_SIDE_0, PENGUIN_SIDE_1]);
+  makeTexture(scene, 'penguin-down', dressPenguin([PENGUIN_DOWN_0, PENGUIN_DOWN_1], 'down'));
+  makeTexture(scene, 'penguin-up', dressPenguin([PENGUIN_UP_0, PENGUIN_UP_1], 'up'));
+  makeTexture(scene, 'penguin-side', dressPenguin([PENGUIN_SIDE_0, PENGUIN_SIDE_1], 'side'));
   const anims = scene.anims;
   if (!anims.exists('walk-down')) {
     anims.create({ key: 'walk-down', frames: anims.generateFrameNumbers('penguin-down', { start: 0, end: 1 }), frameRate: 6, repeat: -1 });
@@ -1065,22 +1307,44 @@ function makePenguin(scene: Phaser.Scene) {
   }
 }
 
-/** Swap the penguin's colourway and rebuild its textures + walk anims. */
-export function applyPenguinColor(scene: Phaser.Scene, color: string) {
-  setPenguinPalette(color);
-  for (const key of ['penguin-down', 'penguin-up', 'penguin-side']) {
+const PENGUIN_TEXTURE_KEYS = ['penguin-down', 'penguin-up', 'penguin-side'];
+
+/**
+ * Rebuild the penguin textures + walk anims (after a colourway or outfit
+ * change) and re-point any live sprites at the fresh textures.
+ */
+export function refreshPenguin(scene: Phaser.Scene) {
+  // Live sprites keep a reference to the destroyed texture — remember them
+  // before the rebuild so they can be re-pointed at the fresh one.
+  const wearers: [Phaser.GameObjects.Sprite, string][] = [];
+  for (const obj of scene.children.list) {
+    if (obj instanceof Phaser.GameObjects.Sprite && PENGUIN_TEXTURE_KEYS.includes(obj.texture?.key)) {
+      wearers.push([obj, obj.texture.key]);
+    }
+  }
+  for (const key of PENGUIN_TEXTURE_KEYS) {
     if (scene.textures.exists(key)) scene.textures.remove(key);
   }
   for (const key of ['walk-down', 'walk-up', 'walk-side']) {
     if (scene.anims.exists(key)) scene.anims.remove(key);
   }
   makePenguin(scene);
+  for (const [sprite, key] of wearers) sprite.setTexture(key, 0);
+}
+
+/** Swap the penguin's colourway and rebuild its textures + walk anims. */
+export function applyPenguinColor(scene: Phaser.Scene, color: string) {
+  setPenguinPalette(color);
+  refreshPenguin(scene);
 }
 
 export function generateTextures(scene: Phaser.Scene) {
   if (!scene.textures.exists('penguin-down')) {
     setPenguinPalette(State.data.penguinColor ?? 'blue');
     makePenguin(scene);
+    for (const [id, grid] of Object.entries(PENGUIN_CLOTHES_ICONS)) {
+      makeTexture(scene, ACCESSORIES[id as AccessoryId].texture, [grid as Grid]);
+    }
     makeTexture(scene, 'bunny', [BUNNY]);
     makeTexture(scene, 'tree', [TREE]);
     makeTexture(scene, 'house', [HOUSE]);
