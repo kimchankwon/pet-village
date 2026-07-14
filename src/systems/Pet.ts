@@ -4,7 +4,7 @@ import { toast } from './UI';
 import { characterDepth } from './depth';
 import { petAnimKey, petTextureKey, type PetPose } from './pets';
 import { petLine } from './petDialog';
-import { ACCESSORIES, ACCESSORY_LAYOUT, type AccessoryId } from './accessories';
+import { ACCESSORIES, ACCESSORY_LAYOUT, SPECIES_ACCESSORY_NUDGE, type AccessoryId } from './accessories';
 
 /**
  * Companion that stays a short distance *behind* the player along their
@@ -74,12 +74,17 @@ export class Pet {
 
   private syncAccessories() {
     const depth = characterDepth(this.sprite) + 1;
+    const nudges = SPECIES_ACCESSORY_NUDGE[this.species()];
     for (let i = 0; i < this.accessorySprites.length; i++) {
       const img = this.accessorySprites[i]!;
       const id = this.accessoryIds[i]!;
       const layout = ACCESSORY_LAYOUT[id];
-      const ox = (layout?.offsetX ?? 0) * (this.facingLeft ? -1 : 1);
-      const oy = layout?.offsetY ?? 0;
+      // Per-species nudge is authored in native px; scale it to world px.
+      const nudge = nudges?.[id];
+      const nx = (nudge?.x ?? 0) * this.sprite.scaleX;
+      const ny = (nudge?.y ?? 0) * this.sprite.scaleX;
+      const ox = ((layout?.offsetX ?? 0) + nx) * (this.facingLeft ? -1 : 1);
+      const oy = (layout?.offsetY ?? 0) + ny;
       const scale = this.sprite.scaleX * (layout?.scale ?? 1);
       img.setPosition(this.sprite.x + ox, this.sprite.y + oy);
       img.setScale(scale);

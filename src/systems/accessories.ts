@@ -436,6 +436,22 @@ export const ACCESSORY_LAYOUT: Partial<Record<AccessoryId, AccessoryLayout>> = {
   'cafe-apron': { offsetY: 1 },
 };
 
+/**
+ * Per-species position nudges in native sprite pixels (multiplied by the pet's
+ * scale at render time). The classic Tamagotchi faces put their eyes and mouths
+ * at different heights, so a single centred accessory can't fit them all —
+ * e.g. the ribbon lands on Mimitchi's mouth and rides into Mametchi's eyes
+ * without these offsets.
+ */
+export const SPECIES_ACCESSORY_NUDGE: Partial<
+  Record<string, Partial<Record<AccessoryId, { x?: number; y?: number }>>>
+> = {
+  mametchi: { 'heart-glasses': { y: 3 }, 'ribbon-tie': { y: 3 } },
+  kuchipatchi: { 'ribbon-tie': { y: 2 } },
+  mimitchi: { 'heart-glasses': { y: 4 }, 'ribbon-tie': { y: 4 } },
+  violetchi: { 'heart-glasses': { y: 4 }, 'ribbon-tie': { y: 2 } },
+};
+
 export function accessoryTextureKey(id: AccessoryId): string {
   return ACCESSORIES[id].texture;
 }
