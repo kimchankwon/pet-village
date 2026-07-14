@@ -10,7 +10,7 @@ import {
   type AccessoryId,
   type AccessorySlot,
 } from './accessories';
-import { isPetSpecies, isPuffleSpecies, type PetSpecies } from './pets';
+import { isClassicSpecies, isPetSpecies, isPuffleSpecies, type PetSpecies } from './pets';
 
 export interface PetStats {
   hunger: number; // 0 = starving, 100 = full
@@ -615,6 +615,7 @@ class GameStateStore {
     if (wear === 'penguin') return false;
     const species = this.data.petSpecies;
     if (wear === 'puffle') return isPuffleSpecies(species);
+    if (wear === 'classic') return isClassicSpecies(species);
     return species === wear;
   }
 

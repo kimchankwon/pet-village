@@ -1,7 +1,13 @@
 import Phaser from 'phaser';
 import { Menu, toast, type MenuOption } from './UI';
 import { State } from './GameState';
-import { CINNA_SHOP_ITEMS, PENGUIN_SHOP_ITEMS, PUFFLE_SHOP_ITEMS, type AccessoryDef } from './accessories';
+import {
+  CINNA_SHOP_ITEMS,
+  PENGUIN_SHOP_ITEMS,
+  PET_BOUTIQUE_ITEMS,
+  PUFFLE_SHOP_ITEMS,
+  type AccessoryDef,
+} from './accessories';
 import { WandererNpc, type NpcTalkCallbacks } from './WandererNpc';
 
 /**
@@ -77,6 +83,19 @@ export class CinnamorollNpc extends WandererNpc {
               PENGUIN_SHOP_ITEMS,
               'Penguin Gift Shop',
               'Fits only you · equip from [ Pet ] → Clothes',
+            );
+          },
+        },
+        {
+          label: 'Browse pet outfits (Kirby & Tama)',
+          icon: 'acc-mini-crown',
+          onSelect: () => {
+            cbs.keepMenuOpen();
+            this.openShop(
+              cbs,
+              PET_BOUTIQUE_ITEMS,
+              'Pet Boutique',
+              'Kirby & Tamagotchi pets · equip from [ Pet ] → Clothes',
             );
           },
         },

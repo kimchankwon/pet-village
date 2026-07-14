@@ -193,6 +193,12 @@ export function isPuffleSpecies(value: unknown): value is `puffle-${PuffleColor}
   return typeof value === 'string' && value.startsWith('puffle-') && value in PET_SPECIES;
 }
 
+const CLASSIC_SPECIES = new Set<string>(CLASSIC.map((d) => d.id));
+
+export function isClassicSpecies(value: unknown): value is ClassicSpecies {
+  return typeof value === 'string' && CLASSIC_SPECIES.has(value);
+}
+
 export const petSpeciesValidatorLiterals = [
   'mametchi',
   'kuchipatchi',

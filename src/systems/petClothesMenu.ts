@@ -33,6 +33,8 @@ function wearableLockLabel(a: (typeof ACCESSORY_LIST)[number]): string {
   if (wear === 'puffle') return 'puffles only';
   if (wear === 'bongbongee') return 'Bongbongee only';
   if (wear === 'penguin') return 'your penguin only';
+  if (wear === 'kirby') return 'Kirby only';
+  if (wear === 'classic') return 'Tamagotchi pets only';
   return 'Cinnamoroll only';
 }
 

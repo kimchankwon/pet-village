@@ -27,16 +27,34 @@ export type AccessoryId =
   | 'blue-toque'
   | 'miner-helmet'
   | 'ninja-mask'
-  | 'pizza-apron';
+  | 'pizza-apron'
+  | 'chef-toque'
+  | 'star-band'
+  | 'top-bow'
+  | 'kirby-bowtie'
+  | 'heart-glasses'
+  | 'mini-crown'
+  | 'ribbon-tie';
 
-export type AccessorySource = 'bongbongee' | 'cinnamoroll' | 'puffle-dig' | 'penguin-shop';
+export type AccessorySource =
+  | 'bongbongee'
+  | 'cinnamoroll'
+  | 'puffle-dig'
+  | 'penguin-shop'
+  | 'pet-boutique';
 
 /**
  * Who may wear this item. Defaults from `owner` when omitted
  * (`puffle-dig` → puffles; `penguin-shop` → the player's penguin;
- * otherwise the owner mascot).
+ * otherwise the owner mascot). Boutique items set `wearable` explicitly.
  */
-export type AccessoryWearable = 'bongbongee' | 'cinnamoroll' | 'puffle' | 'penguin';
+export type AccessoryWearable =
+  | 'bongbongee'
+  | 'cinnamoroll'
+  | 'puffle'
+  | 'penguin'
+  | 'kirby'
+  | 'classic';
 
 export interface AccessoryDef {
   id: AccessoryId;
@@ -58,7 +76,10 @@ export function accessoryWearable(def: AccessoryDef): AccessoryWearable {
   if (def.wearable) return def.wearable;
   if (def.owner === 'puffle-dig') return 'puffle';
   if (def.owner === 'penguin-shop') return 'penguin';
-  return def.owner;
+  // 'pet-boutique' items always declare `wearable` explicitly (handled above);
+  // the remaining owners map straight to their mascot family.
+  if (def.owner === 'bongbongee' || def.owner === 'cinnamoroll') return def.owner;
+  return 'classic';
 }
 
 export const ACCESSORIES: Record<AccessoryId, AccessoryDef> = {
@@ -280,6 +301,78 @@ export const ACCESSORIES: Record<AccessoryId, AccessoryDef> = {
     price: 28,
     wearable: 'penguin',
   },
+  // Pet Boutique — Kirby-only gear.
+  'chef-toque': {
+    id: 'chef-toque',
+    name: 'Chef Toque',
+    blurb: 'Puffy cook’s hat · Kirby’s ready to serve',
+    slot: 'headLeft',
+    texture: 'acc-chef-toque',
+    owner: 'pet-boutique',
+    price: 24,
+    wearable: 'kirby',
+  },
+  'star-band': {
+    id: 'star-band',
+    name: 'Star Band',
+    blurb: 'Red sweatband with a gold star · warp ready',
+    slot: 'headRight',
+    texture: 'acc-star-band',
+    owner: 'pet-boutique',
+    price: 20,
+    wearable: 'kirby',
+  },
+  'top-bow': {
+    id: 'top-bow',
+    name: 'Top Bow',
+    blurb: 'Pink bow perched up top · very poyo',
+    slot: 'extra',
+    texture: 'acc-top-bow',
+    owner: 'pet-boutique',
+    price: 16,
+    wearable: 'kirby',
+  },
+  'kirby-bowtie': {
+    id: 'kirby-bowtie',
+    name: 'Dapper Bowtie',
+    blurb: 'Little red bowtie · formal puffball',
+    slot: 'body',
+    texture: 'acc-kirby-bowtie',
+    owner: 'pet-boutique',
+    price: 18,
+    wearable: 'kirby',
+  },
+  // Pet Boutique — classic Tamagotchi gear.
+  'heart-glasses': {
+    id: 'heart-glasses',
+    name: 'Heart Shades',
+    blurb: 'Pink heart glasses · look of love',
+    slot: 'headRight',
+    texture: 'acc-heart-glasses',
+    owner: 'pet-boutique',
+    price: 22,
+    wearable: 'classic',
+  },
+  'mini-crown': {
+    id: 'mini-crown',
+    name: 'Mini Crown',
+    blurb: 'Tiny gold crown · fits between the ears',
+    slot: 'headLeft',
+    texture: 'acc-mini-crown',
+    owner: 'pet-boutique',
+    price: 30,
+    wearable: 'classic',
+  },
+  'ribbon-tie': {
+    id: 'ribbon-tie',
+    name: 'Ribbon Tie',
+    blurb: 'Soft lilac bow · tied under the chin',
+    slot: 'body',
+    texture: 'acc-ribbon-tie',
+    owner: 'pet-boutique',
+    price: 18,
+    wearable: 'classic',
+  },
 };
 
 export const ACCESSORY_LIST = Object.values(ACCESSORIES);
@@ -289,6 +382,8 @@ export const CINNA_SHOP_ITEMS = ACCESSORY_LIST.filter((a) => a.owner === 'cinnam
 export const PUFFLE_SHOP_ITEMS = ACCESSORY_LIST.filter((a) => a.owner === 'puffle-dig');
 
 export const PENGUIN_SHOP_ITEMS = ACCESSORY_LIST.filter((a) => a.owner === 'penguin-shop');
+
+export const PET_BOUTIQUE_ITEMS = ACCESSORY_LIST.filter((a) => a.owner === 'pet-boutique');
 
 /**
  * PNG-backed accessory art loaded in Boot. Penguin clothes are absent on
@@ -312,6 +407,13 @@ export const ACCESSORY_ASSET_PATH: Partial<Record<AccessoryId, string>> = {
   'glam-glasses': 'assets/accessories/glam-glasses.png',
   'brown-goggles': 'assets/accessories/brown-goggles.png',
   'big-sunglasses': 'assets/accessories/big-sunglasses.png',
+  'chef-toque': 'assets/accessories/chef-toque.png',
+  'star-band': 'assets/accessories/star-band.png',
+  'top-bow': 'assets/accessories/top-bow.png',
+  'kirby-bowtie': 'assets/accessories/kirby-bowtie.png',
+  'heart-glasses': 'assets/accessories/heart-glasses.png',
+  'mini-crown': 'assets/accessories/mini-crown.png',
+  'ribbon-tie': 'assets/accessories/ribbon-tie.png',
 };
 
 export function isAccessoryId(value: unknown): value is AccessoryId {
