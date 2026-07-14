@@ -5,6 +5,7 @@ import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { feedPetMenuOption } from '../systems/petFeedMenu';
+import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
 import { placeDoorMat } from '../systems/doorMat';
@@ -28,6 +29,7 @@ export class ShopScene extends Phaser.Scene {
   private keyE!: Phaser.Input.Keyboard.Key;
   private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
+  private keyP!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
   private prompt!: Prompt;
@@ -144,6 +146,7 @@ export class ShopScene extends Phaser.Scene {
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
+    this.keyP = kb.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.hud = new HUD(this);
@@ -151,10 +154,13 @@ export class ShopScene extends Phaser.Scene {
     this.clickMove = new ClickMove(this);
     this.joystick = new Joystick(this);
 
-    // Pet care only — the game menu lives on the shell's top-bar Menu button.
+    // Player inventory and pet care — the game menu lives in the shell.
     bottomButtons(
       this,
-      [{ label: '[ Pet ]', onTap: () => this.openPetMenu() }],
+      [
+        { label: '[ Inventory · I ]', onTap: () => this.openInventory() },
+        { label: '[ Pet · P ]', onTap: () => this.openPetMenu() },
+      ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;
       },
@@ -237,7 +243,7 @@ export class ShopScene extends Phaser.Scene {
         action: () => this.scene.start('Town', { spawn: 'shop' }),
       };
     }
-    // (Pet care lives on the bottom [ Pet ] button — no proximity interaction.)
+    // Pet care lives on the bottom [ Pet · P ] button — no proximity interaction.
     return null;
   }
 
@@ -280,12 +286,6 @@ export class ShopScene extends Phaser.Scene {
       `Buy ${name}?`,
       [
         {
-          label: 'Not now',
-          onSelect: () => {
-            this.openShop();
-          },
-        },
-        {
           label: `Buy for ${price}c`,
           onSelect: () => {
             if (State.spendCoins(price)) {
@@ -293,11 +293,17 @@ export class ShopScene extends Phaser.Scene {
               toast(this, this.player.x, this.player.y - 50, `Bought ${name}!`, '#a8e6cf');
               this.hud.refresh();
             }
-            this.closeMenu();
+            this.openShop();
           },
         },
       ],
-      `You have ${State.coins} coins`,
+      {
+        subtitle: `You have ${State.coins} coins`,
+        back: {
+          label: "← Back to Daniel's Shop",
+          onSelect: () => this.openShop(),
+        },
+      },
     );
     menu.onClose = () => this.closeMenu();
   }
@@ -327,6 +333,7 @@ export class ShopScene extends Phaser.Scene {
         keepMenuOpen: () => {
           this.menuOpen = true;
         },
+        openParent: () => this.openPetMenu(),
       }),
     ];
     const p = State.data.pet;
@@ -337,6 +344,17 @@ export class ShopScene extends Phaser.Scene {
       `Food ${Math.round(p.hunger)} · Happy ${Math.round(p.happiness)} · Energy ${Math.round(p.energy)}`,
     );
     menu.onClose = () => this.closeMenu();
+  }
+
+  private openInventory() {
+    if (this.menuOpen) return;
+    this.menuOpen = true;
+    showInventoryMenu(this, {
+      closeMenu: () => this.closeMenu(),
+      keepMenuOpen: () => {
+        this.menuOpen = true;
+      },
+    });
   }
 
   update() {
@@ -420,8 +438,12 @@ export class ShopScene extends Phaser.Scene {
       this.setHighlight(undefined);
     }
 
-    // I toggles the pet menu — opens it, or closes the topmost menu if open.
+    // I owns player inventory; P owns pet care.
     if (Phaser.Input.Keyboard.JustDown(this.keyI)) {
+      if (this.menuOpen) Menu.closeTop();
+      else if (!isUiBlocked()) this.openInventory();
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keyP)) {
       if (this.menuOpen) Menu.closeTop();
       else if (!isUiBlocked()) this.openPetMenu();
     }

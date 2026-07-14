@@ -55,13 +55,14 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 | Hold / drag | Keep walking toward the pointer |
 | Joystick (bottom-left) | Walk — made for touch |
 | E / click | Interact when close (door, shop, arcade) |
-| I | open the pet menu (chat · feed · clothes) |
+| I | open your inventory (your clothes · food · furniture) |
+| P | open the pet menu (chat · feed · pet clothes) |
 | Decorate button | (in house) open the decorate menu |
 | Click furniture | (in house) pick it up into inventory |
 | Drag + release | (paper toss) slingshot the paper ball |
-| ESC / click outside | close a menu |
+| ESC / click outside | go back in a nested menu, or close it |
 | ESC (in town) | game menu — resume, penguin colour, change pet, exit |
-| [ Pet ] / [ Menu ] (bottom-right) | pet care · game menu, no walking required |
+| [ Inventory ] / [ Pet ] / [ Menu ] | your items · pet care · game menu, no walking required |
 | Exit / Back / Sign out | asks for confirmation first |
 
 - **Mochi** (your pet) follows you everywhere. Its Food / Happy / Energy

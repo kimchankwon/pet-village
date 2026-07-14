@@ -50,14 +50,14 @@ export class CinnamorollNpc extends WandererNpc {
     this.playBounce();
     const menu = new Menu(
       this.scene,
-      'Cinnamoroll · Clothes',
+      'Cinnamoroll',
       [
         {
-          label: 'Browse cafe clothes',
+          label: 'Browse Cinnamoroll clothes',
           icon: 'acc-cloud-bow',
           onSelect: () => {
             cbs.keepMenuOpen();
-            this.openShop(cbs, CINNA_SHOP_ITEMS, 'Cafe Cinnamon Closet');
+            this.openShop(cbs, CINNA_SHOP_ITEMS, 'Cinnamoroll Clothes');
           },
         },
         {
@@ -69,7 +69,7 @@ export class CinnamorollNpc extends WandererNpc {
               cbs,
               PUFFLE_SHOP_ITEMS,
               'Puffle Dig Finds',
-              'Puffles only · equip from [ Pet ] → Clothes',
+              'Puffles only · equip with P → Pet clothes',
             );
           },
         },
@@ -82,7 +82,7 @@ export class CinnamorollNpc extends WandererNpc {
               cbs,
               PENGUIN_SHOP_ITEMS,
               'Penguin Gift Shop',
-              'Fits only you · equip from [ Pet ] → Clothes',
+              'Fits only you · equip with I → Your clothes',
             );
           },
         },
@@ -95,7 +95,7 @@ export class CinnamorollNpc extends WandererNpc {
               cbs,
               PET_BOUTIQUE_ITEMS,
               'Pet Boutique',
-              'Kirby & Tamagotchi pets · equip from [ Pet ] → Clothes',
+              'Kirby & Tamagotchi pets · equip with P → Pet clothes',
             );
           },
         },
@@ -112,6 +112,13 @@ export class CinnamorollNpc extends WandererNpc {
                 subtitle: 'Warm… swirly… the best smell in the sky. Ehehe~',
                 anchor: 'bottom',
                 face: this.faceKey(),
+                back: {
+                  label: '← Back to Cinnamoroll',
+                  onSelect: () => {
+                    cbs.keepMenuOpen();
+                    this.openTalk(cbs);
+                  },
+                },
               },
             );
             follow.onClose = cbs.onClose;
@@ -120,6 +127,10 @@ export class CinnamorollNpc extends WandererNpc {
         {
           label: 'Ask him to fly (ears flap-flap)',
           onSelect: () => this.hop(28),
+        },
+        {
+          label: 'Say goodbye',
+          onSelect: () => this.emote('happy', 700),
         },
       ],
       { subtitle: line, anchor: 'bottom', face: this.faceKey() },
@@ -131,7 +142,7 @@ export class CinnamorollNpc extends WandererNpc {
     cbs: NpcTalkCallbacks,
     items: AccessoryDef[],
     title: string,
-    note = `You have ${State.coins} coins · equip from [ Pet ] → Clothes`,
+    note = 'Equip with P → Pet clothes',
   ) {
     const options: MenuOption[] = items.map((item) => {
       const owned = State.ownsAccessory(item.id);
@@ -152,13 +163,6 @@ export class CinnamorollNpc extends WandererNpc {
             `Buy ${item.name}?`,
             [
               {
-                label: 'Not now',
-                onSelect: () => {
-                  cbs.keepMenuOpen();
-                  this.openShop(cbs, items, title, note);
-                },
-              },
-              {
                 label: `Buy for ${price}c`,
                 onSelect: () => {
                   if (!State.buyAccessory(item.id)) {
@@ -176,27 +180,38 @@ export class CinnamorollNpc extends WandererNpc {
                     cbs,
                     items,
                     title,
-                    `You have ${State.coins} coins · equip from [ Pet ] → Clothes`,
+                    note,
                   );
                 },
               },
             ],
-            `You have ${State.coins} coins`,
+            {
+              subtitle: `You have ${State.coins} coins`,
+              back: {
+                label: `← Back to ${title}`,
+                onSelect: () => {
+                  cbs.keepMenuOpen();
+                  this.openShop(cbs, items, title, note);
+                },
+              },
+            },
           );
           confirm.onClose = cbs.onClose;
         },
       };
     });
 
-    options.push({
-      label: 'That’s all for now… bye',
-      onSelect: () => this.emote('happy', 700),
-    });
-
     const menu = new Menu(this.scene, title, options, {
-      subtitle: note.includes('coins') ? note : `${note} · ${State.coins}c`,
+      subtitle: `${note} · ${State.coins}c`,
       anchor: 'bottom',
       face: this.faceKey(),
+      back: {
+        label: '← Back to Cinnamoroll',
+        onSelect: () => {
+          cbs.keepMenuOpen();
+          this.openTalk(cbs);
+        },
+      },
     });
     menu.onClose = cbs.onClose;
   }

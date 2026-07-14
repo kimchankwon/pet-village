@@ -93,6 +93,13 @@ export class Pet {
   private syncAccessories() {
     const depth = this.ownDepth() + 1;
     const nudges = SPECIES_ACCESSORY_NUDGE[this.species()];
+    // Pet animation swaps texture frames without moving the Sprite object's y.
+    // Give overlays the same tiny pixel-art bounce so clothes feel attached
+    // during both idle bops and walking (one native pixel every 180ms).
+    const accessoryBob =
+      this.sprite.anims.isPlaying && Math.floor(this.scene.time.now / 180) % 2 === 1
+        ? -this.sprite.scaleY
+        : 0;
     for (let i = 0; i < this.accessorySprites.length; i++) {
       const img = this.accessorySprites[i]!;
       const id = this.accessoryIds[i]!;
@@ -104,7 +111,7 @@ export class Pet {
       const ox = ((layout?.offsetX ?? 0) + nx) * (this.facingLeft ? -1 : 1);
       const oy = (layout?.offsetY ?? 0) + ny;
       const scale = this.sprite.scaleX * (layout?.scale ?? 1);
-      img.setPosition(this.sprite.x + ox, this.sprite.y + oy);
+      img.setPosition(this.sprite.x + ox, this.sprite.y + oy + accessoryBob);
       img.setScale(scale);
       img.setFlipX(this.facingLeft);
       img.setDepth(depth);

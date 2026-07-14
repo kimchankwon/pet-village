@@ -10,6 +10,7 @@ import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, type CameraZoom } from '../systems/cameraZoom';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { feedPetMenuOption } from '../systems/petFeedMenu';
+import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
 import { TILE } from '../systems/townMap';
 import {
   SHORE_DOCK,
@@ -71,6 +72,7 @@ export class ShoreScene extends Phaser.Scene {
   private keyE!: Phaser.Input.Keyboard.Key;
   private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
+  private keyP!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
   private prompt!: Prompt;
@@ -165,6 +167,7 @@ export class ShoreScene extends Phaser.Scene {
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
+    this.keyP = kb.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.hud = new HUD(this);
@@ -175,7 +178,10 @@ export class ShoreScene extends Phaser.Scene {
 
     bottomButtons(
       this,
-      [{ label: '[ Pet ]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } }],
+      [
+        { label: '[ Inventory · I ]', onTap: () => { if (!this.menuOpen) this.openInventory(); } },
+        { label: '[ Pet · P ]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } },
+      ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;
       },
@@ -408,6 +414,7 @@ export class ShoreScene extends Phaser.Scene {
         keepMenuOpen: () => {
           this.menuOpen = true;
         },
+        openParent: () => this.openPetMenu(),
       }),
     ];
     const p = State.data.pet;
@@ -418,6 +425,17 @@ export class ShoreScene extends Phaser.Scene {
       `Food ${Math.round(p.hunger)} · Happy ${Math.round(p.happiness)} · Energy ${Math.round(p.energy)}`,
     );
     menu.onClose = () => this.closeMenu();
+  }
+
+  private openInventory() {
+    if (this.menuOpen) return;
+    this.menuOpen = true;
+    showInventoryMenu(this, {
+      closeMenu: () => this.closeMenu(),
+      keepMenuOpen: () => {
+        this.menuOpen = true;
+      },
+    });
   }
 
   private nearestInteractable(): Interactable | null {
@@ -552,8 +570,12 @@ export class ShoreScene extends Phaser.Scene {
       this.setHighlight(undefined);
     }
 
-    // I toggles the pet menu — opens it, or closes the topmost menu if open.
+    // I owns player inventory; P owns pet care.
     if (Phaser.Input.Keyboard.JustDown(this.keyI)) {
+      if (this.menuOpen) Menu.closeTop();
+      else if (!isUiBlocked()) this.openInventory();
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keyP)) {
       if (this.menuOpen) Menu.closeTop();
       else if (!isUiBlocked()) this.openPetMenu();
     }

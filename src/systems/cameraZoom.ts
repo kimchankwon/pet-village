@@ -365,7 +365,7 @@ class ZoomSlider {
 
   private place = () => {
     const cam = this.scene.cameras.main;
-    // Mid-right, clear of top chrome and the bottom [ Pet ] / Back buttons.
+    // Mid-right, clear of top chrome and the bottom action / Back buttons.
     const x = cam.width - this.padRight - 8;
     const y = cam.height * 0.45;
     this.root.setPosition(x, y);

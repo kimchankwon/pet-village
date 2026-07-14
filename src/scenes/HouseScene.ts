@@ -11,6 +11,7 @@ import { placeDoorMat, isDoorMatCell } from '../systems/doorMat';
 import { blockUi, isInteractSuppressed, isUiBlocked, unblockUi } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
+import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
 
 const TILE = 48;
 const COLS = 12;
@@ -27,6 +28,7 @@ export class HouseScene extends Phaser.Scene {
   private keyE!: Phaser.Input.Keyboard.Key;
   private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
+  private keyP!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
   private prompt!: Prompt;
   private menuOpen = false;
@@ -102,6 +104,7 @@ export class HouseScene extends Phaser.Scene {
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
+    this.keyP = kb.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.hud = new HUD(this);
@@ -110,17 +113,20 @@ export class HouseScene extends Phaser.Scene {
     this.joystick = new Joystick(this);
     this.pointerHeld = false;
 
-    // Pet care only — the game menu lives on the shell's top-bar Menu button.
+    // Player inventory and pet care — the game menu lives in the shell.
     bottomButtons(
       this,
-      [{ label: '[ Pet ]', onTap: () => { if (!this.menuOpen && !this.placing) this.openPetMenuInHouse(); } }],
+      [
+        { label: '[ Inventory · I ]', onTap: () => { if (!this.menuOpen && !this.placing) this.openInventory(); } },
+        { label: '[ Pet · P ]', onTap: () => { if (!this.menuOpen && !this.placing) this.openPetMenuInHouse(); } },
+      ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;
       },
     );
 
     const houseHint = this.add
-      .text(this.cameras.main.width / 2, 40, 'Your House — click to walk · I: pet · [Decorate] · ESC/E/Space at door: leave', {
+      .text(this.cameras.main.width / 2, 40, 'Your House — I: inventory · P: pet · [Decorate] · ESC/E/Space at door: leave', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#c8c8dc',
@@ -135,7 +141,7 @@ export class HouseScene extends Phaser.Scene {
         fontFamily: 'monospace',
         fontSize: '18px',
         color: '#a8e6cf',
-        // Same dark chip as the bottom-right [ Pet ] button so the two
+        // Same dark chip as the bottom action buttons so they
         // in-scene action buttons read as one family (and stay legible on
         // the bright wall band behind them).
         backgroundColor: '#1a1a2ecc',
@@ -276,7 +282,7 @@ export class HouseScene extends Phaser.Scene {
         action: () => this.scene.start('Town', { spawn: 'house' }),
       };
     }
-    // (Pet care lives on the bottom [ Pet ] button — no proximity interaction.)
+    // Pet care lives on the bottom [ Pet · P ] button — no proximity interaction.
     return null;
   }
 
@@ -395,6 +401,7 @@ export class HouseScene extends Phaser.Scene {
         keepMenuOpen: () => {
           this.menuOpen = true;
         },
+        openParent: () => this.openPetMenuInHouse(),
       }),
     ];
     const p = State.data.pet;
@@ -408,6 +415,20 @@ export class HouseScene extends Phaser.Scene {
       this.menuOpen = false;
       this.ignoreClicksUntil = this.time.now + 200;
     };
+  }
+
+  private openInventory() {
+    if (this.menuOpen || this.placing) return;
+    this.menuOpen = true;
+    showInventoryMenu(this, {
+      closeMenu: () => {
+        this.menuOpen = false;
+        this.ignoreClicksUntil = this.time.now + 200;
+      },
+      keepMenuOpen: () => {
+        this.menuOpen = true;
+      },
+    });
   }
 
   /** Walk to the placed bed, sleep (energy up, hunger/happy down), then return. */
@@ -532,8 +553,12 @@ export class HouseScene extends Phaser.Scene {
       this.scene.start('Town', { spawn: 'house' });
     }
 
-    // I toggles the pet menu — opens it, or closes the topmost menu if open.
+    // I owns player inventory; P owns pet care.
     if (!this.placing && Phaser.Input.Keyboard.JustDown(this.keyI)) {
+      if (this.menuOpen) Menu.closeTop();
+      else if (!isUiBlocked()) this.openInventory();
+    }
+    if (!this.placing && Phaser.Input.Keyboard.JustDown(this.keyP)) {
       if (this.menuOpen) Menu.closeTop();
       else if (!isUiBlocked()) this.openPetMenuInHouse();
     }

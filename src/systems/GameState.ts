@@ -703,9 +703,19 @@ class GameStateStore {
   }
 
   unequipAllAccessories() {
-    this.data.equippedAccessories = {};
-    this.data.equippedPenguinAccessories = {};
+    this.unequipAllPetAccessories(false);
+    this.unequipAllPenguinAccessories(false);
     this.save();
+  }
+
+  unequipAllPetAccessories(save = true) {
+    this.data.equippedAccessories = {};
+    if (save) this.save();
+  }
+
+  unequipAllPenguinAccessories(save = true) {
+    this.data.equippedPenguinAccessories = {};
+    if (save) this.save();
   }
 
   equippedAccessoryIds(): AccessoryId[] {

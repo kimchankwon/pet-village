@@ -13,6 +13,7 @@ import { MiniteenRoster } from '../systems/MiniteenRoster';
 import type { WandererNpc } from '../systems/WandererNpc';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { feedPetMenuOption } from '../systems/petFeedMenu';
+import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
 import { TILE, TOWN_MAP_H, TOWN_MAP_W, TOWN_WORLD_H, TOWN_WORLD_W } from '../systems/townMap';
 import { rememberBongbongee, rememberMiniteens, takeBongbongeeSnap } from '../systems/townPresence';
 
@@ -55,6 +56,7 @@ export class TownScene extends Phaser.Scene {
   private keyE!: Phaser.Input.Keyboard.Key;
   private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
+  private keyP!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
   private prompt!: Prompt;
@@ -151,6 +153,7 @@ export class TownScene extends Phaser.Scene {
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
+    this.keyP = kb.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -164,11 +167,14 @@ export class TownScene extends Phaser.Scene {
     this.joystick = new Joystick(this);
     this.pointerHeld = false;
 
-    // Always-reachable pet care. (The game menu lives on the shell's
+    // Always-reachable player inventory and pet care. (The game menu lives on the shell's
     // single top-bar Menu button — no duplicate button here.)
     bottomButtons(
       this,
-      [{ label: '[ Pet ]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } }],
+      [
+        { label: '[ Inventory · I ]', onTap: () => { if (!this.menuOpen) this.openInventory(); } },
+        { label: '[ Pet · P ]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } },
+      ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;
       },
@@ -596,6 +602,7 @@ export class TownScene extends Phaser.Scene {
         keepMenuOpen: () => {
           this.menuOpen = true;
         },
+        openParent: () => this.openPetMenu(),
       }),
     ];
     const p = State.data.pet;
@@ -606,6 +613,17 @@ export class TownScene extends Phaser.Scene {
       `Food ${Math.round(p.hunger)} · Happy ${Math.round(p.happiness)} · Energy ${Math.round(p.energy)}`,
     );
     menu.onClose = () => this.closeMenu();
+  }
+
+  private openInventory() {
+    if (this.menuOpen) return;
+    this.menuOpen = true;
+    showInventoryMenu(this, {
+      closeMenu: () => this.closeMenu(),
+      keepMenuOpen: () => {
+        this.menuOpen = true;
+      },
+    });
   }
 
   private nearestInteractable(): Interactable | null {
@@ -754,8 +772,12 @@ export class TownScene extends Phaser.Scene {
       }
     }
 
-    // I toggles the pet menu — opens it, or closes the topmost menu if open.
+    // I owns player inventory; P owns pet care.
     if (Phaser.Input.Keyboard.JustDown(this.keyI)) {
+      if (this.menuOpen) Menu.closeTop();
+      else if (!isUiBlocked()) this.openInventory();
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keyP)) {
       if (this.menuOpen) Menu.closeTop();
       else if (!isUiBlocked()) this.openPetMenu();
     }
