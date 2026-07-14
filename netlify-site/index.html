@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PR #50 — Pet Village fishing difficulty (v1.3.0)</title>
+  <title>PR #51 — Pet Village parks &amp; Bump mini-game (v1.4.0)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
@@ -70,57 +70,123 @@
       padding: 0 4px;
       color: var(--gold);
     }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0;
+    }
+    th, td {
+      padding: 7px 12px;
+      text-align: left;
+      border: 1px solid var(--line);
+    }
+    th {
+      background: var(--panel);
+      color: var(--gold);
+      font-family: "Press Start 2P", monospace;
+      font-size: 0.45rem;
+    }
+    td { background: #161225; }
+    .badge-easy { color: #7ed6a8; }
+    .badge-med  { color: #ffe066; }
+    .badge-hard { color: #ff8a8a; }
+    .scene-block {
+      background: #161225;
+      border-left: 4px solid var(--accent);
+      padding: 10px 14px;
+      margin: 8px 0;
+      font-size: 1.1rem;
+    }
   </style>
 </head>
 <body>
   <main>
-    <span class="pill">Pet Village · PR #50 · v1.3.0</span>
-    <h1>Fishing got teeth: surge reels &amp; bait thieves</h1>
+    <span class="pill">Pet Village · PR #51 · v1.4.0</span>
+    <h1>Two new park maps &amp; the Bump mini-game</h1>
+
     <p class="muted">
-      Shore casting still rewards long throws with rarer fish — but the fight is no longer a
-      hold-forever button mash. Hard fish surge, and deep water sometimes steals your bait.
+      Mini-games are moved out of the town square into two walkable park maps —
+      West Green and East Green — connected by new east/west paths off the
+      central plaza. A new competitive mini-game, Bump, rounds out the roster.
     </p>
 
+    <h2>What's new</h2>
+
     <div class="card">
-      <strong style="color: var(--gold);">TL;DR</strong>
+      <h2 style="margin-top:0">🗺️ Two new park maps</h2>
       <ul>
-        <li><strong>Surge reel</strong> — hold during the calm, ease off while it thrashes. Near/easy fish stay mostly hold-through.</li>
-        <li><strong>Bait steal</strong> — longer casts can fake a bite; hooking (or missing) ends with “Bait stolen!”</li>
-        <li>Status line calls thrash vs calm so you can time the pump.</li>
+        <li><strong>West Green</strong> — Skip Rope booth + Bump arena</li>
+        <li><strong>East Green</strong> — Paper Toss arcade</li>
+        <li>South path → shore (Fishing) is unchanged</li>
+        <li>Parks are compact tiled maps with grass, paths, and prop depth sorting matching the town style</li>
+        <li>Building the same map twice was deduplicated into <code>src/systems/parkMap.ts</code> — a shared map builder both parks use</li>
       </ul>
     </div>
 
-    <h2>What changed</h2>
     <div class="card">
-      <ul>
-        <li>Reel update uses a per-hook surge cycle (faster on tougher fish).</li>
-        <li>Holding through a thrash spikes tension; releasing during thrash cools the line.</li>
-        <li>Wait phase rolls a steal chance (~6% short/tap cast → ~20% max cast).</li>
-        <li>Decoy nibbles look like real bites until you set the hook.</li>
-        <li>App version bump to <code>1.3.0</code>.</li>
-      </ul>
-    </div>
-
-    <h2>How to try it</h2>
-    <div class="card">
+      <h2 style="margin-top:0">🎮 Bump mini-game</h2>
+      <p>Walk into the West Green arena and talk to the Bump booth to start. Pick your difficulty:</p>
+      <table>
+        <thead>
+          <tr><th>Difficulty</th><th>Taps/sec to win</th><th>Energy cost</th><th>Coins on win</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="badge-easy">Easy</td>
+            <td>~4 taps/sec</td>
+            <td>5 energy</td>
+            <td>8 coins</td>
+          </tr>
+          <tr>
+            <td class="badge-med">Medium</td>
+            <td>~6 taps/sec</td>
+            <td>8 energy</td>
+            <td>18 coins</td>
+          </tr>
+          <tr>
+            <td class="badge-hard">Hard</td>
+            <td>~8 taps/sec</td>
+            <td>12 energy</td>
+            <td>32 coins</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:10px"><strong>How it works:</strong></p>
       <ol>
-        <li>Open Shore → start Fishing.</li>
-        <li>Short cast near the dock — easy common fish should still land on mostly continuous holds.</li>
-        <li>Max-power cast out deep — watch status flip between <em>Calm — hold</em> and <em>Thrashing — ease off</em>.</li>
-        <li>Keep casting far until you see a nibble that resolves to bait stolen (no inventory fish).</li>
+        <li>Pick your difficulty and pay the energy upfront</li>
+        <li>A random villager (MINITEEN or NPC) is chosen as your opponent</li>
+        <li><strong>Stare-down phase</strong> — hold still; tapping now costs energy with no effect</li>
+        <li><strong>Mash phase</strong> — tap / click / mash as fast as you can to fill your meter; the bottom tug bar shows who's winning in real time</li>
+        <li>When your meter fills, you shove the opponent — if they're below the threshold, they topple off and you win</li>
+        <li>Win → coins awarded. Lose → no coins, energy already spent</li>
       </ol>
     </div>
 
-    <h2>Verification</h2>
     <div class="card">
-      <ul>
-        <li><code>npx tsc --noEmit</code> clean</li>
-        <li>Playwright smoke: enter Fishing, cast, hook, land / bait-steal paths</li>
-      </ul>
+      <h2 style="margin-top:0">🔋 Energy gates on all mini-games</h2>
+      <p>
+        Every mini-game — Bump, Skip Rope, Paper Toss, Fishing — now checks
+        <code>State.data.pet.energy &lt; 5</code> before starting. If energy is too low,
+        the booth / dock / replay button shows a short message and refuses to launch.
+        No more soft-locking the pet in an exhausted state.
+      </p>
     </div>
 
-    <p class="muted" style="margin-top: 36px;">
-      PR: <a id="pr-link" href="https://github.com/kimchankwon/pet-village/pull/50">github.com/kimchankwon/pet-village/pull/50</a>
+    <h2>Files changed</h2>
+    <div class="scene-block">
+      src/scenes/BumpScene.ts &nbsp;·&nbsp; src/scenes/ParkScene.ts &nbsp;·&nbsp; src/scenes/TownScene.ts<br/>
+      src/systems/GameState.ts &nbsp;·&nbsp; src/systems/parkMap.ts &nbsp;·&nbsp; src/sprites/pixelart.ts<br/>
+      src/appVersion.ts → 1.4.0
+    </div>
+
+    <h2>Try it</h2>
+    <p>
+      <a href="https://kimchankwon.github.io/pet-village/">Pet Village (GitHub Pages)</a>
+      &nbsp;— deploys from <code>main</code> after the PR merges.
+    </p>
+    <p class="muted">
+      PR:
+      <a href="https://github.com/kimchankwon/pet-village/pull/51">#51 — feat: west/east game parks + Bump mini-game (1.4.0)</a>
     </p>
   </main>
 </body>
