@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
 import {
+  MIN_GAME_ENERGY,
   SKIP_ROPE_MILESTONE_JUMPS,
   SKIP_ROPE_TARGET,
   SKIP_ROPE_WIN_COINS,
@@ -808,9 +809,15 @@ export class SkipRopeScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
-    again.on('pointerdown', () => this.scene.restart());
+    again.on('pointerdown', () => {
+      if (!State.hasEnergy(MIN_GAME_ENERGY)) {
+        toast(this, cx, cy - 130, 'Too tired to play — needs a nap!', '#ffb3d1');
+        return;
+      }
+      this.scene.restart();
+    });
     const leave = this.add
-      .text(cx + 135, cy + 84, '[ Back to town ]', {
+      .text(cx + 135, cy + 84, '[ Back outside ]', {
         ...FONT,
         fontSize: '18px',
         color: '#ffb3d1',
@@ -820,13 +827,13 @@ export class SkipRopeScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
-    leave.on('pointerdown', () => this.scene.start('Town', { spawn: 'skiprope' }));
+    leave.on('pointerdown', () => this.scene.start('WestPark', { spawn: 'skiprope' }));
     markAsUi(this, panel, title, face, rewardText, bestLine, again, leave);
   }
 
   private requestLeave() {
     if (this.mode !== 'playing' && this.mode !== 'ready') {
-      this.scene.start('Town', { spawn: 'skiprope' });
+      this.scene.start('WestPark', { spawn: 'skiprope' });
       return;
     }
     this.menuOpen = true;
@@ -836,8 +843,8 @@ export class SkipRopeScene extends Phaser.Scene {
       [
         { label: 'Keep jumping', onSelect: () => undefined },
         {
-          label: 'Back to town',
-          onSelect: () => this.scene.start('Town', { spawn: 'skiprope' }),
+          label: 'Back outside',
+          onSelect: () => this.scene.start('WestPark', { spawn: 'skiprope' }),
         },
       ],
       'Progress this run is lost — your best streak is saved',

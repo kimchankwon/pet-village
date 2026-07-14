@@ -875,6 +875,26 @@ const SKIPROPE_BOOTH: Grid = [
   '................',
 ];
 
+/** Bump arena — red canopy over a tan platform, two sparring blobs. */
+const BUMP_ARENA: Grid = [
+  '................',
+  '...krrrrrrrrk...',
+  '..krryyyyyyrrk..',
+  '.krryyRRRRyyrrk.',
+  '.krryyRRRRyyrrk.',
+  '..krryyyyyyrrk..',
+  '...kkkkkkkkkk...',
+  '................',
+  '.....bb..LL.....',
+  '....kbbkkLLk....',
+  '....kbbkkLLk....',
+  '..kCCCCCCCCCCk..',
+  '..kCCCCCCCCCCk..',
+  '...kNN....NNk...',
+  '................',
+  '................',
+];
+
 // ---- Minigame + misc ----
 const PAPERBALL: Grid = [
   '........',
@@ -1138,6 +1158,7 @@ export function generateTextures(scene: Phaser.Scene) {
     ['oceanfish-uncommon', OCEAN_FISH_UNCOMMON],
     ['oceanfish-rare', OCEAN_FISH_RARE],
     ['clothes-rack', CLOTHES_RACK],
+    ['bump-arena', BUMP_ARENA],
   ];
   for (const [key, grid] of outdoor) {
     if (!scene.textures.exists(key)) makeTexture(scene, key, [grid]);

@@ -5,22 +5,13 @@ import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
 import { characterDepth, propDepth } from '../systems/depth';
-import { isUiBlocked, requestLeave } from '../systems/nav';
+import { isInteractSuppressed, isUiBlocked, requestLeave } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, type CameraZoom } from '../systems/cameraZoom';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { TILE } from '../systems/townMap';
-import {
-  SHORE_DOCK,
-  SHORE_MAP_H,
-  SHORE_MAP_W,
-  SHORE_OCEAN_ROW,
-  SHORE_WORLD_H,
-  SHORE_WORLD_W,
-} from '../systems/shoreMap';
-import { WandererNpc, type NpcTalkCallbacks } from '../systems/WandererNpc';
-import { miniteenTexPrefix } from '../systems/miniteen';
+import { PARK_MAP_H, PARK_MAP_W, PARK_PATH_TY, PARK_WORLD_H, PARK_WORLD_W } from '../systems/parkMap';
 
 interface Interactable {
   x: number;
@@ -31,44 +22,54 @@ interface Interactable {
   targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[];
 }
 
-/** Sparse shore villager — same roam/talk pattern as town NPCs. */
-class ShoreVillager extends WandererNpc {
-  private lines: string[];
+/** A playable attraction standing in the park. */
+interface ParkBooth {
+  /** Texture key for the booth/building art. */
+  texture: string;
+  /** Name shown on the floating sign. */
+  label: string;
+  /** Interact prompt. */
+  prompt: string;
+  /** Mini-game scene started on interact. */
+  sceneKey: string;
+  /** `spawn` id this park receives when that game exits back here. */
+  spawnId: string;
+  tx: number;
+  ty: number;
+  scale: number;
+  radius: number;
+  /** Collider [w, h, yOffset]. */
+  solid: [number, number, number?];
+}
 
-  constructor(
-    scene: Phaser.Scene,
-    name: string,
-    texPrefix: string,
-    waypoints: { x: number; y: number }[],
-    lines: string[],
-  ) {
-    super(scene, { name, texPrefix, waypoints, scale: 1.5, speed: 40 });
-    this.lines = lines;
-  }
+type Spot = { tex: string; tx: number; ty: number; scale?: number; solid?: [number, number, number?] };
 
-  protected override openTalk(cbs: NpcTalkCallbacks) {
-    const line = this.pickLine(this.lines);
-    this.playBounce();
-    const menu = new Menu(this.scene, this.name, [{ label: 'Wave goodbye', onSelect: () => this.hop() }], {
-      subtitle: line,
-      anchor: 'bottom',
-      face: this.faceKey(),
-    });
-    menu.onClose = cbs.onClose;
-  }
+interface ParkConfig {
+  /** Phaser scene key. */
+  key: string;
+  /** Shown in the arrival toast. */
+  displayName: string;
+  /** Which park edge walks back to town. */
+  exitEdge: 'east' | 'west';
+  /** Town `spawn` id used on return. */
+  townSpawn: 'west' | 'east';
+  booths: ParkBooth[];
+  decor: Spot[];
 }
 
 /**
- * Outdoor coastal overworld — larger/scrollable, ocean along the south edge.
- * Reached from Town's south path; fishing spot on the dock starts FishingScene.
+ * A small game park flanking town — Club Penguin-style hub like the shore,
+ * but hosting the mini-game booths that used to crowd the town square.
+ * Walk off the connecting path edge to return to town.
  */
-export class ShoreScene extends Phaser.Scene {
+export class ParkScene extends Phaser.Scene {
+  private cfg: ParkConfig;
   private player!: Phaser.Physics.Arcade.Sprite;
   private pet!: Pet;
-  private npcs: WandererNpc[] = [];
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private keyE!: Phaser.Input.Keyboard.Key;
+  private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
@@ -83,37 +84,39 @@ export class ShoreScene extends Phaser.Scene {
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   private ignoreClicksUntil = 0;
   private decoSolids: { x: number; y: number; w: number; h: number }[] = [];
-  private oceanTiles: Phaser.GameObjects.Image[] = [];
-  private dockImg!: Phaser.GameObjects.Image;
+  private boothImgs: { img: Phaser.GameObjects.Image; booth: ParkBooth }[] = [];
 
-  constructor() {
-    super('Shore');
+  constructor(cfg: ParkConfig) {
+    super(cfg.key);
+    this.cfg = cfg;
   }
 
-  create(data: { spawn?: 'town' | 'fishing' }) {
+  create(data: { spawn?: string }) {
     generateTextures(this);
     this.interactables = [];
     this.menuOpen = false;
     this.ignoreClicksUntil = 0;
-    this.oceanTiles = [];
-    this.npcs = [];
+    this.boothImgs = [];
 
-    this.physics.world.setBounds(0, 0, SHORE_WORLD_W, SHORE_WORLD_H);
-    this.cameras.main.setBounds(0, 0, SHORE_WORLD_W, SHORE_WORLD_H);
+    this.physics.world.setBounds(0, 0, PARK_WORLD_W, PARK_WORLD_H);
+    this.cameras.main.setBounds(0, 0, PARK_WORLD_W, PARK_WORLD_H);
 
     this.buildMap();
 
-    // From town → top path; from fishing → near the dock.
-    let sx = 9 * TILE;
-    let sy = 2.2 * TILE;
-    if (data?.spawn === 'fishing') {
-      sx = SHORE_DOCK.tx * TILE;
-      sy = (SHORE_DOCK.ty - 1.1) * TILE;
+    // From town → just inside the connecting edge; from a game → by its booth.
+    const entryX = this.cfg.exitEdge === 'east' ? (PARK_MAP_W - 1.6) * TILE : 1.6 * TILE;
+    let sx = entryX;
+    let sy = 6 * TILE;
+    const fromBooth = this.cfg.booths.find((b) => b.spawnId === data?.spawn);
+    if (fromBooth) {
+      sx = fromBooth.tx * TILE;
+      sy = (fromBooth.ty + 1.6) * TILE;
     }
 
     this.player = this.physics.add.sprite(sx, sy, 'penguin-down', 0);
     this.player.setCollideWorldBounds(true);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
+    this.facing = 'down';
 
     this.pet = new Pet(this, sx - 30, sy + 10);
     this.pet.sprite.setInteractive({ useHandCursor: true });
@@ -122,39 +125,6 @@ export class ShoreScene extends Phaser.Scene {
       if (!this.menuOpen && !isUiBlocked()) this.pet.speak();
     });
 
-    this.npcs = [
-      new ShoreVillager(
-        this,
-        'THEpalee',
-        miniteenTexPrefix('thepalee'),
-        [
-          { x: 4 * TILE, y: 4.5 * TILE },
-          { x: 6 * TILE, y: 6 * TILE },
-          { x: 3.5 * TILE, y: 5.5 * TILE },
-        ],
-        [
-          'The tide sounds nicer when nobody is shouting.',
-          'Tea first. Then maybe a cast.',
-          'Frogs prefer quiet ponds. This ocean is… loud. In a good way.',
-        ],
-      ),
-      new ShoreVillager(
-        this,
-        'CHANDALEE',
-        miniteenTexPrefix('chandalee'),
-        [
-          { x: 13 * TILE, y: 4.2 * TILE },
-          { x: 15 * TILE, y: 5.8 * TILE },
-          { x: 14 * TILE, y: 6.2 * TILE },
-        ],
-        [
-          'One day every otter will know this shoreline! Ha!',
-          'I practised my splash. Ten out of ten.',
-          'Catch anything good? Show me later!',
-        ],
-      ),
-    ];
-
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.buildColliders();
 
@@ -162,6 +132,7 @@ export class ShoreScene extends Phaser.Scene {
     this.cursors = kb.createCursorKeys();
     this.wasd = kb.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
@@ -193,18 +164,20 @@ export class ShoreScene extends Phaser.Scene {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
       if (this.joystick.owns(pointer) || this.cameraZoom.ownsPointer(pointer)) return;
       if (this.cameraZoom.isPinching()) return;
-      if (this.dockImg.getBounds().contains(pointer.worldX, pointer.worldY)) {
+      // Clicking a booth enters its game when near; otherwise walk to it.
+      for (const { img, booth } of this.boothImgs) {
+        if (!img.getBounds().contains(pointer.worldX, pointer.worldY)) continue;
         const d = Phaser.Math.Distance.Between(
           this.player.x,
           this.player.y,
-          SHORE_DOCK.tx * TILE,
-          SHORE_DOCK.ty * TILE,
+          booth.tx * TILE,
+          booth.ty * TILE,
         );
-        if (d < 140) {
+        if (d < booth.radius + 40) {
           this.clickMove.clear();
-          this.goFishing();
+          this.enterGame(booth.sceneKey);
         } else {
-          this.clickMove.setTarget(SHORE_DOCK.tx * TILE, (SHORE_DOCK.ty - 0.8) * TILE);
+          this.clickMove.setTarget(booth.tx * TILE, (booth.ty + 1.4) * TILE);
         }
         return;
       }
@@ -238,90 +211,79 @@ export class ShoreScene extends Phaser.Scene {
     });
     this.time.addEvent({ delay: 500, loop: true, callback: () => this.hud.refresh() });
 
-    // Gentle ocean shimmer — swap between two water tiles.
-    this.time.addEvent({
-      delay: 700,
-      loop: true,
-      callback: () => {
-        for (const img of this.oceanTiles) {
-          img.setTexture(img.texture.key === 'tile-ocean' ? 'tile-ocean2' : 'tile-ocean');
-        }
-      },
-    });
-
-    if (data?.spawn !== 'fishing') {
-      toast(this, sx, sy - 50, 'The shore!', '#a8e6cf');
+    if (!fromBooth) {
+      toast(this, sx, sy - 50, this.cfg.displayName + '!', '#a8e6cf');
     }
   }
 
   private buildMap() {
-    for (let ty = 0; ty < SHORE_MAP_H; ty++) {
-      for (let tx = 0; tx < SHORE_MAP_W; tx++) {
-        let key = 'tile-grass';
-        if (ty >= SHORE_OCEAN_ROW) key = 'tile-ocean';
-        else if (ty >= SHORE_OCEAN_ROW - 2) key = 'tile-sand';
-        const img = this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, key).setDepth(-100);
-        if (key === 'tile-ocean') this.oceanTiles.push(img);
+    for (let ty = 0; ty < PARK_MAP_H; ty++) {
+      for (let tx = 0; tx < PARK_MAP_W; tx++) {
+        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-grass').setDepth(-100);
       }
     }
 
-    // Path from town (north) down to the dock.
-    for (let ty = 0; ty <= SHORE_OCEAN_ROW - 2; ty++) {
-      this.add.image(8 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
-      this.add.image(9 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+    // Connecting path across the park to the town edge.
+    for (const ty of PARK_PATH_TY) {
+      for (let tx = 0; tx < PARK_MAP_W; tx++) {
+        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      }
     }
-    for (let tx = 7; tx <= 11; tx++) {
-      this.add.image(tx * TILE + TILE / 2, (SHORE_OCEAN_ROW - 2) * TILE + TILE / 2, 'tile-path').setDepth(-99);
+    // Short stubs from the path up to each booth front.
+    for (const booth of this.cfg.booths) {
+      const tx = Math.round(booth.tx - 0.5);
+      for (let ty = Math.round(booth.ty + 1); ty < PARK_PATH_TY[0]; ty++) {
+        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      }
     }
 
-    this.dockImg = this.add.image(SHORE_DOCK.tx * TILE, SHORE_DOCK.ty * TILE, 'dock').setScale(1.45);
-    this.dockImg.setDepth(propDepth(this.dockImg, SHORE_DOCK.ty * TILE + 6));
+    for (const booth of this.cfg.booths) {
+      const img = this.add.image(booth.tx * TILE, booth.ty * TILE, booth.texture).setScale(booth.scale);
+      img.setDepth(propDepth(img, booth.ty * TILE));
+      this.boothImgs.push({ img, booth });
+      this.add
+        .text(booth.tx * TILE, booth.ty * TILE - img.displayHeight / 2 - 12, booth.label, {
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          color: '#ffffff',
+          stroke: '#1a1a2e',
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5)
+        .setDepth(900);
+      this.interactables.push({
+        x: booth.tx * TILE,
+        y: booth.ty * TILE,
+        radius: booth.radius,
+        label: booth.prompt,
+        action: () => this.enterGame(booth.sceneKey),
+        targets: [img],
+      });
+    }
+
+    // Signpost at the town-side edge so the way home is obvious.
+    const signTx = this.cfg.exitEdge === 'east' ? PARK_MAP_W - 1.2 : 1.2;
+    const sign = this.add.image(signTx * TILE, 4.2 * TILE, 'signpost').setScale(1.3);
+    sign.setDepth(propDepth(sign, 4.2 * TILE + 10));
     this.add
-      .text(SHORE_DOCK.tx * TILE, SHORE_DOCK.ty * TILE - 48, 'Fishing dock', {
+      .text(signTx * TILE, 4.2 * TILE - 34, this.cfg.exitEdge === 'east' ? 'Town →' : '← Town', {
         fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#ffffff',
+        fontSize: '11px',
+        color: '#ffe066',
         stroke: '#1a1a2e',
         strokeThickness: 3,
       })
       .setOrigin(0.5)
       .setDepth(900);
+    this.decoSolids = [{ x: signTx * TILE, y: 4.2 * TILE + 10, w: 18, h: 12 }];
 
-    this.interactables.push({
-      x: SHORE_DOCK.tx * TILE,
-      y: SHORE_DOCK.ty * TILE,
-      radius: 90,
-      label: 'E / click — Go fishing',
-      action: () => this.goFishing(),
-      targets: [this.dockImg],
-    });
-
-    // North edge auto-returns to town (no interactable — walk off the path).
     this.scatterDecor();
   }
 
   private scatterDecor() {
-    type Spot = { tex: string; tx: number; ty: number; scale?: number; solid?: [number, number, number?] };
-    const spots: Spot[] = [
-      { tex: 'tree', tx: 1.5, ty: 2.2, scale: 1.3, solid: [34, 26, 16] },
-      { tex: 'tree', tx: 16.3, ty: 2.4, scale: 1.3, solid: [34, 26, 16] },
-      { tex: 'bush', tx: 5, ty: 3.5, scale: 1.1, solid: [26, 16, 6] },
-      { tex: 'bush', tx: 13, ty: 3.6, scale: 1.1, solid: [26, 16, 6] },
-      { tex: 'wildflower', tx: 3.2, ty: 4.2, scale: 1.15 },
-      { tex: 'wildflower', tx: 14.5, ty: 4.4, scale: 1.15 },
-      { tex: 'rock', tx: 2, ty: 6.6, scale: 1.1, solid: [28, 18, 5] },
-      { tex: 'rock', tx: 15.8, ty: 6.7, scale: 1.1, solid: [28, 18, 5] },
-      { tex: 'bench', tx: 6.5, ty: 5.6, scale: 1.1, solid: [50, 20, 5] },
-      { tex: 'bench', tx: 11.5, ty: 5.6, scale: 1.1, solid: [50, 20, 5] },
-      { tex: 'streetlamp', tx: 7.5, ty: 4.8, scale: 1.25, solid: [16, 14, 18] },
-      { tex: 'streetlamp', tx: 10.5, ty: 4.8, scale: 1.25, solid: [16, 14, 18] },
-      { tex: 'barrel', tx: 7.8, ty: 6.7, scale: 1.1, solid: [26, 22, 4] },
-      { tex: 'crate', tx: 10.3, ty: 6.75, scale: 1.05, solid: [28, 22, 4] },
-    ];
-    this.decoSolids = [];
-    for (const spot of spots) {
+    for (const spot of this.cfg.decor) {
       const img = this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex).setScale(spot.scale ?? 1.3);
-      const footY = spot.solid ? spot.ty * TILE + (spot.solid[2] ?? 0) : undefined;
+      const footY = spot.solid ? spot.ty * TILE + (spot.solid[2] ?? 0) : spot.ty * TILE;
       img.setDepth(propDepth(img, footY));
       if (spot.solid) {
         const [sw, sh, oy = 0] = spot.solid;
@@ -337,16 +299,16 @@ export class ShoreScene extends Phaser.Scene {
       this.physics.add.existing(r, true);
       solids.push(r);
     };
-    // Block walking into the ocean — a wall along the shoreline.
-    addSolid(SHORE_WORLD_W / 2, SHORE_OCEAN_ROW * TILE + 8, SHORE_WORLD_W, 24);
-    // Dock is walkable up to the edge but solid enough to feel planted.
-    addSolid(SHORE_DOCK.tx * TILE, SHORE_DOCK.ty * TILE + 6, 90, 28);
+    for (const booth of this.cfg.booths) {
+      const [sw, sh, oy = 0] = booth.solid;
+      addSolid(booth.tx * TILE, booth.ty * TILE + oy, sw, sh);
+    }
     for (const s of this.decoSolids) addSolid(s.x, s.y, s.w, s.h);
     this.physics.add.collider(this.player, solids);
   }
 
-  /** Start fishing — unless the pet is too tired to play. */
-  private goFishing() {
+  /** Start a mini-game — unless the pet is too tired to play. */
+  private enterGame(sceneKey: string) {
     if (!State.hasEnergy(MIN_GAME_ENERGY)) {
       toast(
         this,
@@ -357,7 +319,7 @@ export class ShoreScene extends Phaser.Scene {
       );
       return;
     }
-    this.scene.start('Fishing');
+    this.scene.start(sceneKey);
   }
 
   private closeMenu() {
@@ -381,7 +343,7 @@ export class ShoreScene extends Phaser.Scene {
         keepMenuOpen: () => {
           this.menuOpen = true;
         },
-        emptyHint: 'no food — try fishing!',
+        emptyHint: 'no food — visit shop!',
         onFed: () => this.hud.refresh(),
       }),
       clothesPetMenuOption(this, this.pet, {
@@ -408,29 +370,6 @@ export class ShoreScene extends Phaser.Scene {
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, it.x, it.y);
       if (d < it.radius && d < bestDist) {
         best = it;
-        bestDist = d;
-      }
-    }
-    for (const npc of this.npcs) {
-      if (!npc.canInteract()) continue;
-      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, npc.sprite.x, npc.sprite.y);
-      if (d < 55 && d < bestDist) {
-        best = {
-          x: npc.sprite.x,
-          y: npc.sprite.y,
-          radius: 55,
-          label: `E / click — Talk to ${npc.name}`,
-          action: () => {
-            this.menuOpen = true;
-            npc.talk({
-              onClose: () => this.closeMenu(),
-              keepMenuOpen: () => {
-                this.menuOpen = true;
-              },
-            });
-          },
-          targets: [npc.sprite],
-        };
         bestDist = d;
       }
     }
@@ -505,12 +444,20 @@ export class ShoreScene extends Phaser.Scene {
     this.player.setDepth(characterDepth(this.player));
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
-    for (const npc of this.npcs) npc.update();
 
-    // Auto-return near the north path edge.
-    if (!uiOpen && this.player.y < 36 && Math.abs(this.player.x - 9 * TILE) < 70) {
-      this.scene.start('Town', { spawn: 'shore' });
-      return;
+    // Walk off the connecting-path edge → back to town.
+    const onPathBand =
+      this.player.y > (PARK_PATH_TY[0] - 0.4) * TILE &&
+      this.player.y < (PARK_PATH_TY[1] + 1.4) * TILE;
+    if (!uiOpen && onPathBand) {
+      if (this.cfg.exitEdge === 'east' && this.player.x > PARK_WORLD_W - 36) {
+        this.scene.start('Town', { spawn: this.cfg.townSpawn });
+        return;
+      }
+      if (this.cfg.exitEdge === 'west' && this.player.x < 36) {
+        this.scene.start('Town', { spawn: this.cfg.townSpawn });
+        return;
+      }
     }
 
     if (!this.menuOpen) {
@@ -518,7 +465,13 @@ export class ShoreScene extends Phaser.Scene {
       this.setHighlight(best?.targets);
       if (best) {
         this.prompt.show(best.label);
-        if (Phaser.Input.Keyboard.JustDown(this.keyE)) best.action();
+        if (
+          !isInteractSuppressed() &&
+          (Phaser.Input.Keyboard.JustDown(this.keyE) ||
+            Phaser.Input.Keyboard.JustDown(this.keySpace))
+        ) {
+          best.action();
+        }
       } else {
         this.prompt.hide();
       }
@@ -533,5 +486,99 @@ export class ShoreScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !this.menuOpen && !isUiBlocked()) {
       requestLeave();
     }
+  }
+}
+
+/** West Green — left of town: Skip Rope booth + the Bump arena. */
+export class WestParkScene extends ParkScene {
+  constructor() {
+    super({
+      key: 'WestPark',
+      displayName: 'The West Green',
+      exitEdge: 'east',
+      townSpawn: 'west',
+      booths: [
+        {
+          texture: 'skiprope-booth',
+          label: 'Skip Rope',
+          prompt: 'E / Space / click — Skip Rope',
+          sceneKey: 'SkipRope',
+          spawnId: 'skiprope',
+          tx: 4.4,
+          ty: 3.1,
+          scale: 1.55,
+          radius: 72,
+          solid: [52, 40, 0],
+        },
+        {
+          texture: 'bump-arena',
+          label: 'Bump!',
+          prompt: 'E / Space / click — Play Bump',
+          sceneKey: 'Bump',
+          spawnId: 'bump',
+          tx: 10.6,
+          ty: 3.1,
+          scale: 1.6,
+          radius: 72,
+          solid: [58, 38, 4],
+        },
+      ],
+      decor: [
+        { tex: 'tree', tx: 1.4, ty: 1.6, scale: 1.3, solid: [34, 26, 16] },
+        { tex: 'tree', tx: 13.8, ty: 9.8, scale: 1.3, solid: [34, 26, 16] },
+        { tex: 'tree', tx: 1.6, ty: 9.6, scale: 1.25, solid: [34, 26, 16] },
+        { tex: 'bush', tx: 7.6, ty: 1.6, scale: 1.1, solid: [26, 16, 6] },
+        { tex: 'bush', tx: 12.8, ty: 1.8, scale: 1.1, solid: [26, 16, 6] },
+        { tex: 'wildflower', tx: 2.6, ty: 4.1, scale: 1.15 },
+        { tex: 'wildflower', tx: 8.2, ty: 8.4, scale: 1.15 },
+        { tex: 'wildflower', tx: 13.2, ty: 4.2, scale: 1.15 },
+        { tex: 'bench', tx: 5.4, ty: 8, scale: 1.1, solid: [50, 20, 5] },
+        { tex: 'bench', tx: 10.6, ty: 8, scale: 1.1, solid: [50, 20, 5] },
+        { tex: 'streetlamp', tx: 7.9, ty: 4.3, scale: 1.25, solid: [16, 14, 18] },
+        { tex: 'mushroom', tx: 3.4, ty: 10.6, scale: 1.15 },
+        { tex: 'stump', tx: 11.8, ty: 10.4, scale: 1.15, solid: [26, 14, 2] },
+      ],
+    });
+  }
+}
+
+/** East Green — right of town: the Paper Toss arcade. */
+export class EastParkScene extends ParkScene {
+  constructor() {
+    super({
+      key: 'EastPark',
+      displayName: 'The East Green',
+      exitEdge: 'west',
+      townSpawn: 'east',
+      booths: [
+        {
+          texture: 'arcade',
+          label: 'Paper Toss',
+          prompt: 'E / Space / click — Play Paper Toss',
+          sceneKey: 'PaperToss',
+          spawnId: 'arcade',
+          tx: 8,
+          ty: 3.1,
+          scale: 1.5,
+          radius: 72,
+          solid: [58, 38, 2],
+        },
+      ],
+      decor: [
+        { tex: 'tree', tx: 14.4, ty: 1.6, scale: 1.3, solid: [34, 26, 16] },
+        { tex: 'tree', tx: 2.2, ty: 9.8, scale: 1.3, solid: [34, 26, 16] },
+        { tex: 'tree', tx: 14.2, ty: 9.6, scale: 1.25, solid: [34, 26, 16] },
+        { tex: 'bush', tx: 4.4, ty: 1.7, scale: 1.1, solid: [26, 16, 6] },
+        { tex: 'bush', tx: 11.6, ty: 1.6, scale: 1.1, solid: [26, 16, 6] },
+        { tex: 'wildflower', tx: 3, ty: 4.2, scale: 1.15 },
+        { tex: 'wildflower', tx: 12.8, ty: 4.1, scale: 1.15 },
+        { tex: 'wildflower', tx: 7.4, ty: 8.5, scale: 1.15 },
+        { tex: 'bench', tx: 5.6, ty: 8, scale: 1.1, solid: [50, 20, 5] },
+        { tex: 'bench', tx: 10.4, ty: 8, scale: 1.1, solid: [50, 20, 5] },
+        { tex: 'streetlamp', tx: 5.4, ty: 4.3, scale: 1.25, solid: [16, 14, 18] },
+        { tex: 'barrel', tx: 10.4, ty: 4.4, scale: 1.1, solid: [26, 22, 4] },
+        { tex: 'rock', tx: 12.6, ty: 10.4, scale: 1.1, solid: [28, 18, 5] },
+      ],
+    });
   }
 }

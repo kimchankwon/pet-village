@@ -91,6 +91,24 @@ export const SKIP_ROPE_MILESTONE_JUMPS = 5;
 export const SKIP_ROPE_MILESTONE_COINS = 3;
 export const SKIP_ROPE_MILESTONE_HAPPINESS = 2;
 
+/** Bump difficulty tiers — tougher opponents pay out more. */
+export type BumpDifficulty = 'easy' | 'medium' | 'hard';
+export const BUMP_REWARDS: Record<BumpDifficulty, { coins: number; happiness: number }> = {
+  easy: { coins: 8, happiness: 6 },
+  medium: { coins: 18, happiness: 10 },
+  hard: { coins: 32, happiness: 16 },
+};
+/** Energy a Bump bout costs (paid up front), win or lose. */
+export const BUMP_ENERGY_COST: Record<BumpDifficulty, number> = {
+  easy: 5,
+  medium: 8,
+  hard: 12,
+};
+/** Small cheer-up for a lost bout (it was still playtime). */
+export const BUMP_LOSS_HAPPINESS = 2;
+/** Minimum energy the pet needs to start any mini-game. */
+export const MIN_GAME_ENERGY = 5;
+
 export const ITEMS: Record<string, ItemDef> = {
   fish: { id: 'fish', name: 'Fishy Snack', texture: 'fish', kind: 'food', price: 5, hunger: 25, happiness: 5 },
   cookie: { id: 'cookie', name: 'Choco Cookie', texture: 'cookie', kind: 'food', price: 8, hunger: 15, happiness: 15 },
@@ -418,6 +436,32 @@ class GameStateStore {
       this.save();
     }
     return { coins, happiness };
+  }
+
+  /** Whether the pet has at least this much energy left. */
+  hasEnergy(cost: number): boolean {
+    return this.data.pet.energy >= cost;
+  }
+
+  /** Pay a mini-game's energy cost up front (e.g. starting a Bump bout). */
+  spendEnergy(cost: number) {
+    this.data.pet.energy = clamp(this.data.pet.energy - cost);
+    this.save();
+  }
+
+  /** Win rewards for toppling a Bump opponent (energy was paid at bout start). */
+  rewardBumpWin(difficulty: BumpDifficulty): { coins: number; happiness: number } {
+    const reward = BUMP_REWARDS[difficulty];
+    this.data.coins += reward.coins;
+    this.data.pet.happiness = clamp(this.data.pet.happiness + reward.happiness);
+    this.save();
+    return reward;
+  }
+
+  /** A lost Bump bout still cheers the pet a little — it was playtime. */
+  settleBumpLoss() {
+    this.data.pet.happiness = clamp(this.data.pet.happiness + BUMP_LOSS_HAPPINESS);
+    this.save();
   }
 
   removeItem(id: string): boolean {
