@@ -5,7 +5,7 @@ import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
 import { characterDepth, propDepth } from '../systems/depth';
-import { isUiBlocked, requestLeave } from '../systems/nav';
+import { isInteractSuppressed, isUiBlocked, requestLeave } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, type CameraZoom } from '../systems/cameraZoom';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
@@ -69,6 +69,7 @@ export class ShoreScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private keyE!: Phaser.Input.Keyboard.Key;
+  private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
@@ -162,6 +163,7 @@ export class ShoreScene extends Phaser.Scene {
     this.cursors = kb.createCursorKeys();
     this.wasd = kb.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
@@ -436,7 +438,7 @@ export class ShoreScene extends Phaser.Scene {
           x: npc.sprite.x,
           y: npc.sprite.y,
           radius: 55,
-          label: `E / click — Talk to ${npc.name}`,
+          label: `E / Space / click — Talk to ${npc.name}`,
           action: () => {
             this.menuOpen = true;
             npc.talk({
@@ -535,16 +537,25 @@ export class ShoreScene extends Phaser.Scene {
       this.setHighlight(best?.targets);
       if (best) {
         this.prompt.show(best.label);
-        if (Phaser.Input.Keyboard.JustDown(this.keyE)) best.action();
+        if (
+          !isInteractSuppressed() &&
+          (Phaser.Input.Keyboard.JustDown(this.keyE) ||
+            Phaser.Input.Keyboard.JustDown(this.keySpace))
+        ) {
+          best.action();
+        }
       } else {
         this.prompt.hide();
-      }
-      if (Phaser.Input.Keyboard.JustDown(this.keyI) && !isUiBlocked()) {
-        this.openPetMenu();
       }
     } else {
       this.prompt.hide();
       this.setHighlight(undefined);
+    }
+
+    // I toggles the pet menu — opens it, or closes the topmost menu if open.
+    if (Phaser.Input.Keyboard.JustDown(this.keyI)) {
+      if (this.menuOpen) Menu.closeTop();
+      else if (!isUiBlocked()) this.openPetMenu();
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !this.menuOpen && !isUiBlocked()) {

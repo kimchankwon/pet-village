@@ -137,6 +137,17 @@ type MenuRow = {
  * Navigate with arrows/WASD; confirm with Space/E; ESC closes.
  */
 export class Menu {
+  /** Open menus, oldest first — lets callers close the topmost (e.g. an I keypress). */
+  private static openStack: Menu[] = [];
+
+  /** Close the topmost open menu. Returns true if one was closed. */
+  static closeTop(): boolean {
+    const top = Menu.openStack[Menu.openStack.length - 1];
+    if (!top) return false;
+    top.close();
+    return true;
+  }
+
   private objects: Phaser.GameObjects.GameObject[] = [];
   private scene: Phaser.Scene;
   private rows: MenuRow[] = [];
@@ -314,6 +325,7 @@ export class Menu {
     markAsUi(scene, ...this.objects);
 
     blockUi();
+    Menu.openStack.push(this);
     // Stay on the option the caller asked for (e.g. clothes toggle rebuild),
     // instead of always jumping the highlight back to the top row.
     const want = layout.initialSelected ?? 0;
@@ -412,6 +424,8 @@ export class Menu {
     this.objects.forEach((o) => o.destroy());
     this.objects = [];
     this.rows = [];
+    const idx = Menu.openStack.indexOf(this);
+    if (idx >= 0) Menu.openStack.splice(idx, 1);
     unblockUi();
     this.onClose?.();
   }

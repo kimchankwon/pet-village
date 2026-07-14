@@ -415,12 +415,15 @@ export class ShopScene extends Phaser.Scene {
       } else {
         this.prompt.hide();
       }
-      if (Phaser.Input.Keyboard.JustDown(this.keyI) && !isUiBlocked()) {
-        this.openPetMenu();
-      }
     } else {
       this.prompt.hide();
       this.setHighlight(undefined);
+    }
+
+    // I toggles the pet menu — opens it, or closes the topmost menu if open.
+    if (Phaser.Input.Keyboard.JustDown(this.keyI)) {
+      if (this.menuOpen) Menu.closeTop();
+      else if (!isUiBlocked()) this.openPetMenu();
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !this.menuOpen && !isUiBlocked()) {

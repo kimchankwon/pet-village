@@ -27,13 +27,31 @@ export class Pet {
   private accessoryIds: AccessoryId[] = [];
   /** When true, update() skips follow — used for bed tuck / scripted walks. */
   private holdFollow = false;
+  /** Overrides the y-sorted depth while set (e.g. sleeping on top of a bed). */
+  private depthPin: number | null = null;
+
+  /** Force the pet (and its accessories) to a fixed depth until unpinned. */
+  pinDepth(depth: number) {
+    this.depthPin = depth;
+    this.sprite.setDepth(depth);
+    this.syncAccessories();
+  }
+
+  /** Return to normal y-sorted depth. */
+  unpinDepth() {
+    this.depthPin = null;
+  }
+
+  private ownDepth() {
+    return this.depthPin ?? characterDepth(this.sprite);
+  }
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
     this.followX = x;
     this.followY = y;
     this.sprite = scene.add.sprite(x, y, this.tex('idle1')).setScale(1.5);
-    this.sprite.setDepth(characterDepth(this.sprite));
+    this.sprite.setDepth(this.ownDepth());
     this.sprite.play(this.anim('bounce'));
     this.refreshAccessories();
     this.updateMood();
@@ -73,7 +91,7 @@ export class Pet {
   }
 
   private syncAccessories() {
-    const depth = characterDepth(this.sprite) + 1;
+    const depth = this.ownDepth() + 1;
     const nudges = SPECIES_ACCESSORY_NUDGE[this.species()];
     for (let i = 0; i < this.accessorySprites.length; i++) {
       const img = this.accessorySprites[i]!;
@@ -103,7 +121,7 @@ export class Pet {
    */
   update(playerX: number, playerY: number, playerVx: number, playerVy: number) {
     if (this.holdFollow) {
-      this.sprite.setDepth(characterDepth(this.sprite));
+      this.sprite.setDepth(this.ownDepth());
       this.syncAccessories();
       return;
     }
@@ -149,7 +167,7 @@ export class Pet {
       this.sprite.y = this.followY;
     }
 
-    this.sprite.setDepth(characterDepth(this.sprite));
+    this.sprite.setDepth(this.ownDepth());
 
     if (this.scene.time.now < this.emotionUntil) {
       this.syncAccessories();
@@ -244,7 +262,7 @@ export class Pet {
       duration,
       ease: 'Linear',
       onUpdate: () => {
-        this.sprite.setDepth(characterDepth(this.sprite));
+        this.sprite.setDepth(this.ownDepth());
         this.syncAccessories();
       },
       onComplete: () => {
