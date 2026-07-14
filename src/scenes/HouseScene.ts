@@ -46,6 +46,8 @@ export class HouseScene extends Phaser.Scene {
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   // The pointerdown that closes a menu must not also place/pick up furniture.
   private ignoreClicksUntil = 0;
+  /** True while the pet is walking to / sleeping in bed. */
+  private petTucking = false;
 
   constructor() {
     super('House');
@@ -378,13 +380,10 @@ export class HouseScene extends Phaser.Scene {
       {
         label: hasBed ? 'Tuck into bed (full energy!)' : 'Tuck into bed (needs a Dream Bed)',
         icon: 'item-bed',
-        disabled: !hasBed,
+        disabled: !hasBed || this.petTucking,
         onSelect: () => {
-          State.petSleep();
-          toast(this, this.pet.sprite.x, this.pet.sprite.y - 24, 'Zzz... so cozy!', '#ffb3d1');
-          this.pet.showEmotion('sleep', 2500);
-          this.hud.refresh();
           this.menuOpen = false;
+          this.tuckPetIntoBed();
         },
       },
       clothesPetMenuOption(this, this.pet, {
@@ -408,6 +407,37 @@ export class HouseScene extends Phaser.Scene {
       this.menuOpen = false;
       this.ignoreClicksUntil = this.time.now + 200;
     };
+  }
+
+  /** Walk to the placed bed, sleep (energy up, hunger/happy down), then return. */
+  private tuckPetIntoBed() {
+    if (this.petTucking) return;
+    const bed = State.data.placed.find((p) => p.id === 'bed');
+    if (!bed) return;
+    this.petTucking = true;
+    const bedX = this.roomX + bed.gx * TILE + TILE / 2;
+    // Sit on the mattress, slightly above tile centre so feet read on the bed.
+    const bedY = ROOM_Y + bed.gy * TILE + TILE / 2 - 6;
+
+    this.pet.walkTo(bedX, bedY, () => {
+      State.petSleep();
+      this.pet.showEmotion('sleep', 3200);
+      toast(this, bedX, bedY - 28, 'Zzz… so cozy!', '#ffb3d1');
+      this.hud.refresh();
+      this.time.delayedCall(3000, () => {
+        if (!this.pet || !this.player) {
+          this.petTucking = false;
+          return;
+        }
+        const backX = this.player.x - 30;
+        const backY = this.player.y + 10;
+        this.pet.walkTo(backX, backY, () => {
+          this.pet.resumeFollow();
+          this.petTucking = false;
+          this.hud.refresh();
+        });
+      });
+    });
   }
 
   update() {

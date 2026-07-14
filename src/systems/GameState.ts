@@ -196,7 +196,8 @@ export function defaultSave(): SaveData {
     placed: [
       // gy must be >= WALL_ROWS (2) or the item spawns inside the top wall
       // band — unreachable, since floor tiles are the only clickable ones.
-      { id: 'bed', gx: 1, gy: 2 },
+      // Bed sits clearly on the floor (not against the wall); pick up to re-place.
+      { id: 'bed', gx: 2, gy: 5 },
       { id: 'rug', gx: 5, gy: 4 },
     ],
     bestPaperToss: 0,
@@ -509,7 +510,10 @@ class GameStateStore {
   }
 
   petSleep() {
+    // Full rest, but waking up a bit peckish and only slightly less cheerful.
     this.data.pet.energy = 100;
+    this.data.pet.hunger = clamp(this.data.pet.hunger - 25);
+    this.data.pet.happiness = clamp(this.data.pet.happiness - 8);
     this.save();
   }
 
