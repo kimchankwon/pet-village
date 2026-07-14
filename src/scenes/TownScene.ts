@@ -393,16 +393,17 @@ export class TownScene extends Phaser.Scene {
       targets: [cafe],
     });
 
-    // Gate signs — the games moved out to the parks; point the way.
-    const gateSigns: { tx: number; label: string }[] = [
-      { tx: 1.4, label: '← West Green · games' },
-      { tx: 20.6, label: 'East Green · games →' },
+    // Gate signs — parks east/west, shore south.
+    const gateSigns: { tx: number; ty: number; label: string }[] = [
+      { tx: 1.4, ty: 7, label: '← West Green' },
+      { tx: 20.6, ty: 7, label: 'East Green →' },
+      { tx: 12.6, ty: 13.2, label: 'The Shore ↓' },
     ];
     for (const g of gateSigns) {
-      const sign = this.add.image(g.tx * TILE, 7 * TILE, 'signpost').setScale(1.3);
-      sign.setDepth(propDepth(sign, 7 * TILE + 10));
+      const sign = this.add.image(g.tx * TILE, g.ty * TILE, 'signpost').setScale(1.3);
+      sign.setDepth(propDepth(sign, g.ty * TILE + 10));
       this.add
-        .text(g.tx * TILE, 7 * TILE - 34, g.label, {
+        .text(g.tx * TILE, g.ty * TILE - 34, g.label, {
           fontFamily: 'monospace',
           fontSize: '11px',
           color: '#ffe066',
@@ -416,7 +417,7 @@ export class TownScene extends Phaser.Scene {
     this.scatterTownDecor();
     // Solids after scatterTownDecor — it resets decoSolids.
     for (const g of gateSigns) {
-      this.decoSolids.push({ x: g.tx * TILE, y: 7 * TILE + 10, w: 18, h: 12 });
+      this.decoSolids.push({ x: g.tx * TILE, y: g.ty * TILE + 10, w: 18, h: 12 });
     }
   }
 

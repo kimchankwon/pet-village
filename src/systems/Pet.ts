@@ -25,6 +25,8 @@ export class Pet {
   private emotionUntil = 0;
   private accessorySprites: Phaser.GameObjects.Image[] = [];
   private accessoryIds: AccessoryId[] = [];
+  /** When true, update() skips follow — used for bed tuck / scripted walks. */
+  private holdFollow = false;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
@@ -95,6 +97,11 @@ export class Pet {
    * @param playerVy player velocity y (px/s)
    */
   update(playerX: number, playerY: number, playerVx: number, playerVy: number) {
+    if (this.holdFollow) {
+      this.sprite.setDepth(characterDepth(this.sprite));
+      this.syncAccessories();
+      return;
+    }
     const dt = Math.min(this.scene.game.loop.delta / 1000, 0.05);
     const prevX = this.sprite.x;
     const speed = Math.hypot(playerVx, playerVy);
@@ -201,6 +208,48 @@ export class Pet {
     this.sprite.stop();
     this.sprite.setTexture(this.tex(pose));
     this.syncAccessories();
+  }
+
+  /** Pause player-follow so the scene can script a walk / sleep. */
+  pauseFollow() {
+    this.holdFollow = true;
+    this.emotionUntil = 0;
+  }
+
+  /** Resume following; snaps the follow slot to the current sprite. */
+  resumeFollow() {
+    this.holdFollow = false;
+    this.followX = this.sprite.x;
+    this.followY = this.sprite.y;
+    this.emotionUntil = 0;
+  }
+
+  /** Walk to a world point while follow is paused. Plays walk, then idle/bounce. */
+  walkTo(x: number, y: number, onArrive: () => void) {
+    this.pauseFollow();
+    const dist = Math.hypot(x - this.sprite.x, y - this.sprite.y);
+    const duration = Phaser.Math.Clamp(dist * 6, 280, 1200);
+    this.facingLeft = x < this.sprite.x;
+    this.sprite.setFlipX(this.facingLeft);
+    this.sprite.play(this.anim('walk'), true);
+    this.scene.tweens.add({
+      targets: this.sprite,
+      x,
+      y,
+      duration,
+      ease: 'Linear',
+      onUpdate: () => {
+        this.sprite.setDepth(characterDepth(this.sprite));
+        this.syncAccessories();
+      },
+      onComplete: () => {
+        this.sprite.stop();
+        this.followX = x;
+        this.followY = y;
+        onArrive();
+        this.syncAccessories();
+      },
+    });
   }
 
   emitHearts() {

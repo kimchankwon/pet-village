@@ -297,7 +297,24 @@ export class ShoreScene extends Phaser.Scene {
     });
 
     // North edge auto-returns to town (no interactable — walk off the path).
+    // Signpost at the path so the way home is obvious.
+    const townSignTx = 10.4;
+    const townSignTy = 1.6;
+    const townSign = this.add.image(townSignTx * TILE, townSignTy * TILE, 'signpost').setScale(1.3);
+    townSign.setDepth(propDepth(townSign, townSignTy * TILE + 10));
+    this.add
+      .text(townSignTx * TILE, townSignTy * TILE - 34, '↑ Town', {
+        fontFamily: 'monospace',
+        fontSize: '11px',
+        color: '#ffe066',
+        stroke: '#1a1a2e',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(900);
+
     this.scatterDecor();
+    this.decoSolids.push({ x: townSignTx * TILE, y: townSignTy * TILE + 10, w: 18, h: 12 });
   }
 
   private scatterDecor() {

@@ -111,16 +111,45 @@ export class CinnamorollNpc extends WandererNpc {
         disabled: owned || tooPoor,
         onSelect: () => {
           if (owned) return;
-          if (!State.buyAccessory(item.id)) {
-            this.emote('sad', 900);
-            toast(this.scene, this.sprite.x, this.sprite.y - 28, '…not enough coins…', '#ffb3d1');
-            return;
-          }
-          this.emote('happy', 1200);
-          toast(this.scene, this.sprite.x, this.sprite.y - 28, `Soft… enjoy the ${item.name}!`, '#a8e6cf');
-          cbs.onAccessoriesChanged?.();
+          // Confirm before spending — Menu closes this list first, then opens buy prompt.
           cbs.keepMenuOpen();
-          this.openShop(cbs, items, title, `You have ${State.coins} coins · equip from [ Pet ] → Clothes`);
+          const confirm = new Menu(
+            this.scene,
+            `Buy ${item.name}?`,
+            [
+              {
+                label: 'Not now',
+                onSelect: () => {
+                  cbs.keepMenuOpen();
+                  this.openShop(cbs, items, title, note);
+                },
+              },
+              {
+                label: `Buy for ${price}c`,
+                onSelect: () => {
+                  if (!State.buyAccessory(item.id)) {
+                    this.emote('sad', 900);
+                    toast(this.scene, this.sprite.x, this.sprite.y - 28, '…not enough coins…', '#ffb3d1');
+                    cbs.keepMenuOpen();
+                    this.openShop(cbs, items, title, note);
+                    return;
+                  }
+                  this.emote('happy', 1200);
+                  toast(this.scene, this.sprite.x, this.sprite.y - 28, `Soft… enjoy the ${item.name}!`, '#a8e6cf');
+                  cbs.onAccessoriesChanged?.();
+                  cbs.keepMenuOpen();
+                  this.openShop(
+                    cbs,
+                    items,
+                    title,
+                    `You have ${State.coins} coins · equip from [ Pet ] → Clothes`,
+                  );
+                },
+              },
+            ],
+            `You have ${State.coins} coins`,
+          );
+          confirm.onClose = cbs.onClose;
         },
       };
     });

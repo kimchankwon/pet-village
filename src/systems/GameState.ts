@@ -74,29 +74,29 @@ export interface ItemDef {
 
 /** Coins earned each time you feed your pet. */
 export const FEED_COIN_REWARD = 3;
-/** Flat tip for clearing a Paper Toss stage. */
-export const PAPER_TOSS_PARTICIPATION_COINS = 5;
+/** Flat tip for clearing a Paper Toss level. */
+export const PAPER_TOSS_PARTICIPATION_COINS = 4;
 /** Energy the pet loses per completed Paper Toss throw. */
 export const PAPER_TOSS_ENERGY_PER_THROW = 3;
-/** Happiness gained per throw on stage 1; multiplies by stage number. */
+/** Happiness gained per throw on absolute stage 1; multiplies by stage number. */
 export const PAPER_TOSS_HAPPINESS_PER_STAGE = 2;
 /** Coins for clearing Skip Rope (25 consecutive jumps). */
-export const SKIP_ROPE_WIN_COINS = 25;
+export const SKIP_ROPE_WIN_COINS = 20;
 /** Happiness bump on a Skip Rope clear — no energy cost. */
-export const SKIP_ROPE_WIN_HAPPINESS = 18;
+export const SKIP_ROPE_WIN_HAPPINESS = 16;
 /** Consecutive jumps needed to clear Skip Rope. */
 export const SKIP_ROPE_TARGET = 25;
 /** A failed Skip Rope run still banks a reward per this many cleared jumps. */
 export const SKIP_ROPE_MILESTONE_JUMPS = 5;
-export const SKIP_ROPE_MILESTONE_COINS = 3;
+export const SKIP_ROPE_MILESTONE_COINS = 2;
 export const SKIP_ROPE_MILESTONE_HAPPINESS = 2;
 
 /** Bump difficulty tiers — tougher opponents pay out more. */
 export type BumpDifficulty = 'easy' | 'medium' | 'hard';
 export const BUMP_REWARDS: Record<BumpDifficulty, { coins: number; happiness: number }> = {
-  easy: { coins: 8, happiness: 6 },
-  medium: { coins: 18, happiness: 10 },
-  hard: { coins: 32, happiness: 16 },
+  easy: { coins: 6, happiness: 5 },
+  medium: { coins: 14, happiness: 9 },
+  hard: { coins: 26, happiness: 14 },
 };
 /** Energy a Bump bout costs (paid up front), win or lose. */
 export const BUMP_ENERGY_COST: Record<BumpDifficulty, number> = {
@@ -108,6 +108,15 @@ export const BUMP_ENERGY_COST: Record<BumpDifficulty, number> = {
 export const BUMP_LOSS_HAPPINESS = 2;
 /** Minimum energy the pet needs to start any mini-game. */
 export const MIN_GAME_ENERGY = 5;
+
+/** Paper Toss difficulty — each run is two absolute stages from the table below. */
+export type PaperTossDifficulty = 'easy' | 'medium' | 'hard';
+/** Absolute 1-based stages played for each Paper Toss difficulty (two levels each). */
+export const PAPER_TOSS_DIFFICULTY_STAGES: Record<PaperTossDifficulty, readonly [number, number]> = {
+  easy: [1, 2],
+  medium: [2, 3],
+  hard: [3, 4],
+};
 
 export const ITEMS: Record<string, ItemDef> = {
   fish: { id: 'fish', name: 'Fishy Snack', texture: 'fish', kind: 'food', price: 5, hunger: 25, happiness: 5 },
@@ -187,7 +196,8 @@ export function defaultSave(): SaveData {
     placed: [
       // gy must be >= WALL_ROWS (2) or the item spawns inside the top wall
       // band — unreachable, since floor tiles are the only clickable ones.
-      { id: 'bed', gx: 1, gy: 2 },
+      // Bed sits clearly on the floor (not against the wall); pick up to re-place.
+      { id: 'bed', gx: 2, gy: 5 },
       { id: 'rug', gx: 5, gy: 4 },
     ],
     bestPaperToss: 0,
@@ -500,7 +510,10 @@ class GameStateStore {
   }
 
   petSleep() {
+    // Full rest, but waking up a bit peckish and only slightly less cheerful.
     this.data.pet.energy = 100;
+    this.data.pet.hunger = clamp(this.data.pet.hunger - 25);
+    this.data.pet.happiness = clamp(this.data.pet.happiness - 8);
     this.save();
   }
 

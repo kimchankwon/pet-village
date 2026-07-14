@@ -96,6 +96,7 @@ export class BumpScene extends Phaser.Scene {
   private tugMarker!: Phaser.GameObjects.Rectangle;
   private tugFillRight!: Phaser.GameObjects.Rectangle;
   private tugFillLeft!: Phaser.GameObjects.Rectangle;
+  private spectators: { sprite: Phaser.GameObjects.Sprite; prefix: string; baseY: number }[] = [];
 
   constructor() {
     super('Bump');
@@ -143,6 +144,7 @@ export class BumpScene extends Phaser.Scene {
     this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
 
     this.spawnOpponent();
+    this.spawnSpectators();
 
     const title = this.add
       .text(140, 16, 'BUMP!', { ...FONT, fontSize: '18px', color: '#ffe066' })
@@ -235,6 +237,88 @@ export class BumpScene extends Phaser.Scene {
     if (this.anims.exists(bounce)) this.oppSprite.play(bounce);
   }
 
+  /** Crowd along both ends of the platform — hops on big shoves / outcome. */
+  private spawnSpectators() {
+    this.spectators = [];
+    const cx = this.cameras.main.width / 2;
+    const available = NPC_PREFIXES.filter(
+      (prefix) =>
+        prefix !== this.oppPrefix &&
+        this.textures.exists(`${prefix}-idle`) &&
+        this.textures.exists(`${prefix}-happy`),
+    );
+    if (available.length === 0) return;
+    Phaser.Utils.Array.Shuffle(available);
+    const slots: { x: number; y: number; flip: boolean; scale: number }[] = [
+      { x: cx - PLATFORM_HALF - 52, y: PLATFORM_Y + 8, flip: false, scale: 1.45 },
+      { x: cx + PLATFORM_HALF + 52, y: PLATFORM_Y + 8, flip: true, scale: 1.45 },
+      { x: cx - PLATFORM_HALF - 98, y: PLATFORM_Y - 18, flip: false, scale: 1.2 },
+      { x: cx + PLATFORM_HALF + 98, y: PLATFORM_Y - 16, flip: true, scale: 1.2 },
+      { x: cx - PLATFORM_HALF - 28, y: PLATFORM_Y - 36, flip: false, scale: 1.1 },
+      { x: cx + PLATFORM_HALF + 28, y: PLATFORM_Y - 34, flip: true, scale: 1.1 },
+    ];
+    const count = Math.min(slots.length, available.length, Phaser.Math.Between(4, 6));
+    for (let i = 0; i < count; i++) {
+      const prefix = available[i]!;
+      const slot = slots[i]!;
+      const sprite = this.add
+        .sprite(slot.x, slot.y, `${prefix}-idle`)
+        .setOrigin(0.5, 1)
+        .setScale(prefix === 'cinna' ? slot.scale * 0.85 : slot.scale)
+        .setFlipX(slot.flip)
+        .setDepth(4);
+      const bounce = `${prefix}-bounce`;
+      if (this.anims.exists(bounce)) sprite.play(bounce);
+      this.spectators.push({ sprite, prefix, baseY: slot.y });
+    }
+  }
+
+  private spectatorsCheer(big = false) {
+    for (const s of this.spectators) {
+      const happy = `${s.prefix}-happy`;
+      if (this.textures.exists(happy)) {
+        s.sprite.stop();
+        s.sprite.setTexture(happy);
+      }
+      this.tweens.add({
+        targets: s.sprite,
+        y: s.baseY - Phaser.Math.Between(big ? 14 : 8, big ? 22 : 14),
+        duration: Phaser.Math.Between(160, 240),
+        yoyo: true,
+        repeat: big ? Phaser.Math.Between(2, 3) : 1,
+        ease: 'Sine.easeOut',
+        onComplete: () => {
+          s.sprite.setY(s.baseY);
+          const bounce = `${s.prefix}-bounce`;
+          if (this.anims.exists(bounce)) s.sprite.play(bounce);
+          else if (this.textures.exists(`${s.prefix}-idle`)) s.sprite.setTexture(`${s.prefix}-idle`);
+        },
+      });
+    }
+  }
+
+  private spectatorsBoo() {
+    for (const s of this.spectators) {
+      const sad = `${s.prefix}-sad`;
+      if (this.textures.exists(sad)) {
+        s.sprite.stop();
+        s.sprite.setTexture(sad);
+      }
+      this.tweens.add({
+        targets: s.sprite,
+        angle: Phaser.Math.Between(-8, 8),
+        duration: 280,
+        yoyo: true,
+        onComplete: () => {
+          s.sprite.setAngle(0);
+          const bounce = `${s.prefix}-bounce`;
+          if (this.anims.exists(bounce)) s.sprite.play(bounce);
+          else if (this.textures.exists(`${s.prefix}-idle`)) s.sprite.setTexture(`${s.prefix}-idle`);
+        },
+      });
+    }
+  }
+
   /** "MASH" meter — fills with taps, drains fast; boosts every shove. */
   private buildMashBar(cx: number) {
     const y = 196;
@@ -310,7 +394,7 @@ export class BumpScene extends Phaser.Scene {
     const option = (d: BumpDifficulty) => {
       const tired = !State.hasEnergy(BUMP_ENERGY_COST[d]);
       return {
-        label: `${DIFFICULTY[d].label} · −${BUMP_ENERGY_COST[d]} energy${tired ? ' — too tired!' : ''}`,
+        label: `${DIFFICULTY[d].label}${tired ? ' — too tired!' : ''}`,
         disabled: tired,
         onSelect: () => this.startBout(d),
       };
@@ -365,6 +449,7 @@ export class BumpScene extends Phaser.Scene {
       this.tweens.add({ targets: this.feedbackText, scale: 1, duration: 260, ease: 'Back.easeOut' });
       this.tweens.add({ targets: this.feedbackText, alpha: 0.35, duration: 380, delay: 900, yoyo: true, repeat: -1 });
       this.hintText.setText('MASH tap / click / Space — fill the bar, shove them off!');
+      this.spectatorsCheer(false);
     });
   }
 
@@ -475,6 +560,7 @@ export class BumpScene extends Phaser.Scene {
       ease: 'Quad.easeOut',
     });
     toast(this, cx, 180, `+${reward.coins} coins!`, '#a8e6cf');
+    this.spectatorsCheer(true);
     this.time.delayedCall(1100, () => this.showResultPanel(true, reward));
   }
 
@@ -520,6 +606,7 @@ export class BumpScene extends Phaser.Scene {
       repeat: 2,
       ease: 'Quad.easeOut',
     });
+    this.spectatorsBoo();
     this.time.delayedCall(1100, () => this.showResultPanel(false, { coins: 0, happiness: 0 }));
   }
 
