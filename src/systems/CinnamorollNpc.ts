@@ -1,7 +1,13 @@
 import Phaser from 'phaser';
 import { Menu, toast, type MenuOption } from './UI';
 import { State } from './GameState';
-import { CINNA_SHOP_ITEMS, PUFFLE_SHOP_ITEMS, type AccessoryDef } from './accessories';
+import {
+  CINNA_SHOP_ITEMS,
+  PENGUIN_SHOP_ITEMS,
+  PET_BOUTIQUE_ITEMS,
+  PUFFLE_SHOP_ITEMS,
+  type AccessoryDef,
+} from './accessories';
 import { WandererNpc, type NpcTalkCallbacks } from './WandererNpc';
 
 /**
@@ -17,11 +23,13 @@ const LINES = [
   'I floated here on a cloud… then I opened this little shop. Is that okay…?',
   'My ears go flap-flap when I’m happy. Oh — shopping counts as happy.',
   'Puffle dig finds? I keep those on a soft shelf… puffles only, please.',
+  'Um… I stock penguin things too. Scarves, toques… they only fit you, though.',
 ];
 
 /**
- * Cinnamoroll — Cafe Cinnamon shopkeeper. Sells soft Cinna outfits
- * and Mine Shack–style puffle dig clothes (puffles only).
+ * Cinnamoroll — Cafe Cinnamon shopkeeper. Sells soft Cinna outfits,
+ * Mine Shack–style puffle dig clothes (puffles only), and Club Penguin
+ * gift-shop gear that only the player's penguin can wear.
  */
 export class CinnamorollNpc extends WandererNpc {
   constructor(scene: Phaser.Scene, waypoints: { x: number; y: number }[]) {
@@ -62,6 +70,32 @@ export class CinnamorollNpc extends WandererNpc {
               PUFFLE_SHOP_ITEMS,
               'Puffle Dig Finds',
               'Puffles only · equip from [ Pet ] → Clothes',
+            );
+          },
+        },
+        {
+          label: 'Browse penguin clothes (for you!)',
+          icon: 'acc-red-scarf',
+          onSelect: () => {
+            cbs.keepMenuOpen();
+            this.openShop(
+              cbs,
+              PENGUIN_SHOP_ITEMS,
+              'Penguin Gift Shop',
+              'Fits only you · equip from [ Pet ] → Clothes',
+            );
+          },
+        },
+        {
+          label: 'Browse pet outfits (Kirby & Tama)',
+          icon: 'acc-mini-crown',
+          onSelect: () => {
+            cbs.keepMenuOpen();
+            this.openShop(
+              cbs,
+              PET_BOUTIQUE_ITEMS,
+              'Pet Boutique',
+              'Kirby & Tamagotchi pets · equip from [ Pet ] → Clothes',
             );
           },
         },

@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
 import {
-  ACCESSORY_ASSET_PATH,
   ACCESSORY_LIST,
+  accessoryAssetPath,
 } from '../systems/accessories';
 import {
   KIRBY_WALK_FILES,
@@ -45,7 +45,9 @@ export class BootScene extends Phaser.Scene {
       }
     }
     for (const acc of ACCESSORY_LIST) {
-      this.load.image(acc.texture, ACCESSORY_ASSET_PATH[acc.id]);
+      // Penguin clothes have no PNG — pixelart.ts generates their textures.
+      const path = accessoryAssetPath(acc.id);
+      if (path) this.load.image(acc.texture, path);
     }
     // The Skip Rope booth PNG placeholder lives under public/assets/misc/ —
     // pixelart generates the matching key until it's replaced with final art

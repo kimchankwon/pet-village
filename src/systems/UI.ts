@@ -12,7 +12,7 @@ const ROW_SELECTED = 0x6b63a8;
 const ROW_DISABLED = 0x3d3d5c;
 
 /** Max option rows before the menu paginates (fits a 600px-tall bottom sheet). */
-const DEFAULT_PAGE_SIZE = 6;
+export const DEFAULT_MENU_PAGE_SIZE = 6;
 
 // Heads-up display: pet name, coins + pet need bars. Fixed to camera,
 // anchored bottom-left (clears the touch joystick / bottom-right pet button).
@@ -137,6 +137,17 @@ type MenuRow = {
  * Navigate with arrows/WASD; confirm with Space/E; ESC closes.
  */
 export class Menu {
+  /** Open menus, oldest first — lets callers close the topmost (e.g. an I keypress). */
+  private static openStack: Menu[] = [];
+
+  /** Close the topmost open menu. Returns true if one was closed. */
+  static closeTop(): boolean {
+    const top = Menu.openStack[Menu.openStack.length - 1];
+    if (!top) return false;
+    top.close();
+    return true;
+  }
+
   private objects: Phaser.GameObjects.GameObject[] = [];
   private scene: Phaser.Scene;
   private rows: MenuRow[] = [];
@@ -157,7 +168,7 @@ export class Menu {
     const cam = scene.cameras.main;
     const hasFace = Boolean(layout.face && scene.textures.exists(layout.face));
     const faceSlot = hasFace ? 78 : 0;
-    const pageSize = layout.pageSize ?? DEFAULT_PAGE_SIZE;
+    const pageSize = layout.pageSize ?? DEFAULT_MENU_PAGE_SIZE;
     const page = Math.max(0, layout.page ?? 0);
     const totalPages = Math.max(1, Math.ceil(options.length / pageSize));
     const safePage = Math.min(page, totalPages - 1);
@@ -314,6 +325,12 @@ export class Menu {
     markAsUi(scene, ...this.objects);
 
     blockUi();
+    Menu.openStack.push(this);
+    // If the scene tears down while this menu is open, close it so openStack
+    // and the UI block counter stay balanced (same pattern as HUD SHUTDOWN).
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (!this.closed) this.close();
+    });
     // Stay on the option the caller asked for (e.g. clothes toggle rebuild),
     // instead of always jumping the highlight back to the top row.
     const want = layout.initialSelected ?? 0;
@@ -412,6 +429,8 @@ export class Menu {
     this.objects.forEach((o) => o.destroy());
     this.objects = [];
     this.rows = [];
+    const idx = Menu.openStack.indexOf(this);
+    if (idx >= 0) Menu.openStack.splice(idx, 1);
     unblockUi();
     this.onClose?.();
   }

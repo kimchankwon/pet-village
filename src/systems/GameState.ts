@@ -10,7 +10,7 @@ import {
   type AccessoryId,
   type AccessorySlot,
 } from './accessories';
-import { isPetSpecies, isPuffleSpecies, type PetSpecies } from './pets';
+import { isClassicSpecies, isPetSpecies, isPuffleSpecies, type PetSpecies } from './pets';
 
 export interface PetStats {
   hunger: number; // 0 = starving, 100 = full
@@ -52,6 +52,11 @@ export interface SaveData {
    * along until the server schema gains it.
    */
   penguinColor?: string;
+  /**
+   * Clothes worn by the player's penguin (wearable: 'penguin' items only).
+   * Device-local like penguinColor: NOT in snapshot().
+   */
+  equippedPenguinAccessories?: EquippedAccessories;
   /**
    * Day stamp (Date#toDateString) of each villager's last claimed daily
    * gift. Device-local like penguinColor: NOT in snapshot().
@@ -206,6 +211,7 @@ export function defaultSave(): SaveData {
     ownedAccessories: [],
     equippedAccessories: {},
     penguinColor: 'blue',
+    equippedPenguinAccessories: {},
     npcGiftDays: {},
   };
 }
@@ -219,14 +225,15 @@ function normalizeOwned(raw: unknown): AccessoryId[] {
   return out;
 }
 
-function normalizeEquipped(raw: unknown): EquippedAccessories {
+function normalizeEquipped(raw: unknown, forPenguin = false): EquippedAccessories {
   if (!raw || typeof raw !== 'object') return {};
   const out: EquippedAccessories = {};
   for (const [slot, id] of Object.entries(raw as Record<string, unknown>)) {
     if (
       (slot === 'headLeft' || slot === 'headRight' || slot === 'body' || slot === 'extra') &&
       isAccessoryId(id) &&
-      ACCESSORIES[id].slot === slot
+      ACCESSORIES[id].slot === slot &&
+      (accessoryWearable(ACCESSORIES[id]) === 'penguin') === forPenguin
     ) {
       out[slot] = id;
     }
@@ -250,6 +257,7 @@ function mergeSave(parsed: Partial<SaveData> & { petSpecies?: unknown }): SaveDa
     placed: parsed.placed ?? base.placed,
     ownedAccessories: normalizeOwned(parsed.ownedAccessories),
     equippedAccessories: normalizeEquipped(parsed.equippedAccessories),
+    equippedPenguinAccessories: normalizeEquipped(parsed.equippedPenguinAccessories, true),
   };
 }
 
@@ -282,9 +290,11 @@ class GameStateStore {
     // Cloud saves don't carry the device-local fields — keep them.
     const localColor = this.data.penguinColor;
     const localGiftDays = this.data.npcGiftDays;
+    const localPenguinFit = this.data.equippedPenguinAccessories;
     this.data = mergeSave(raw);
     this.data.penguinColor = raw.penguinColor ?? localColor;
     this.data.npcGiftDays = raw.npcGiftDays ?? localGiftDays;
+    if (!raw.equippedPenguinAccessories) this.data.equippedPenguinAccessories = localPenguinFit;
     // Decay before strip — strip may persist and would clobber lastSeen.
     this.applyOfflineDecay();
     this.stripUnwearableAccessories();
@@ -601,9 +611,40 @@ class GameStateStore {
     const def = ACCESSORIES[id];
     if (!def) return false;
     const wear = accessoryWearable(def);
+    // Penguin gear belongs to the player — no pet may wear it.
+    if (wear === 'penguin') return false;
     const species = this.data.petSpecies;
     if (wear === 'puffle') return isPuffleSpecies(species);
+    if (wear === 'classic') return isClassicSpecies(species);
     return species === wear;
+  }
+
+  /** Whether this item goes on the player's penguin (vs a pet). */
+  isPenguinAccessory(id: AccessoryId): boolean {
+    const def = ACCESSORIES[id];
+    return !!def && accessoryWearable(def) === 'penguin';
+  }
+
+  isPenguinAccessoryEquipped(id: AccessoryId): boolean {
+    const slot = ACCESSORIES[id].slot;
+    return (this.data.equippedPenguinAccessories ?? {})[slot] === id;
+  }
+
+  togglePenguinAccessory(id: AccessoryId) {
+    if (!this.ownsAccessory(id) || !this.isPenguinAccessory(id)) return;
+    const slot = ACCESSORIES[id].slot;
+    const fit = (this.data.equippedPenguinAccessories ??= {});
+    if (fit[slot] === id) delete fit[slot];
+    else fit[slot] = id;
+    this.save();
+  }
+
+  equippedPenguinAccessoryIds(): AccessoryId[] {
+    const ids: AccessoryId[] = [];
+    for (const id of Object.values(this.data.equippedPenguinAccessories ?? {})) {
+      if (id && this.isPenguinAccessory(id)) ids.push(id);
+    }
+    return ids;
   }
 
   /** Remove equipped items the active pet is not allowed to wear. */
@@ -663,6 +704,7 @@ class GameStateStore {
 
   unequipAllAccessories() {
     this.data.equippedAccessories = {};
+    this.data.equippedPenguinAccessories = {};
     this.save();
   }
 

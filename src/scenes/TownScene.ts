@@ -754,7 +754,13 @@ export class TownScene extends Phaser.Scene {
       }
     }
 
-    if (!this.menuOpen) {
+    // I toggles the pet menu — opens it, or closes the topmost menu if open.
+    if (Phaser.Input.Keyboard.JustDown(this.keyI)) {
+      if (this.menuOpen) Menu.closeTop();
+      else if (!isUiBlocked()) this.openPetMenu();
+    }
+
+    if (!uiOpen) {
       const best = this.nearestInteractable();
       this.setHighlight(best?.targets);
       if (best) {
@@ -768,9 +774,6 @@ export class TownScene extends Phaser.Scene {
         }
       } else {
         this.prompt.hide();
-      }
-      if (Phaser.Input.Keyboard.JustDown(this.keyI) && !isUiBlocked()) {
-        this.openPetMenu();
       }
     } else {
       this.prompt.hide();

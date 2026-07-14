@@ -4,7 +4,7 @@ import { toast } from './UI';
 import { characterDepth } from './depth';
 import { petAnimKey, petTextureKey, type PetPose } from './pets';
 import { petLine } from './petDialog';
-import { ACCESSORIES, ACCESSORY_LAYOUT, type AccessoryId } from './accessories';
+import { ACCESSORIES, ACCESSORY_LAYOUT, SPECIES_ACCESSORY_NUDGE, type AccessoryId } from './accessories';
 
 /**
  * Companion that stays a short distance *behind* the player along their
@@ -27,13 +27,31 @@ export class Pet {
   private accessoryIds: AccessoryId[] = [];
   /** When true, update() skips follow — used for bed tuck / scripted walks. */
   private holdFollow = false;
+  /** Overrides the y-sorted depth while set (e.g. sleeping on top of a bed). */
+  private depthPin: number | null = null;
+
+  /** Force the pet (and its accessories) to a fixed depth until unpinned. */
+  pinDepth(depth: number) {
+    this.depthPin = depth;
+    this.sprite.setDepth(depth);
+    this.syncAccessories();
+  }
+
+  /** Return to normal y-sorted depth. */
+  unpinDepth() {
+    this.depthPin = null;
+  }
+
+  private ownDepth() {
+    return this.depthPin ?? characterDepth(this.sprite);
+  }
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
     this.followX = x;
     this.followY = y;
     this.sprite = scene.add.sprite(x, y, this.tex('idle1')).setScale(1.5);
-    this.sprite.setDepth(characterDepth(this.sprite));
+    this.sprite.setDepth(this.ownDepth());
     this.sprite.play(this.anim('bounce'));
     this.refreshAccessories();
     this.updateMood();
@@ -73,13 +91,18 @@ export class Pet {
   }
 
   private syncAccessories() {
-    const depth = characterDepth(this.sprite) + 1;
+    const depth = this.ownDepth() + 1;
+    const nudges = SPECIES_ACCESSORY_NUDGE[this.species()];
     for (let i = 0; i < this.accessorySprites.length; i++) {
       const img = this.accessorySprites[i]!;
       const id = this.accessoryIds[i]!;
       const layout = ACCESSORY_LAYOUT[id];
-      const ox = (layout?.offsetX ?? 0) * (this.facingLeft ? -1 : 1);
-      const oy = layout?.offsetY ?? 0;
+      // Per-species nudge is authored in native px; scale it to world px.
+      const nudge = nudges?.[id];
+      const nx = (nudge?.x ?? 0) * this.sprite.scaleX;
+      const ny = (nudge?.y ?? 0) * this.sprite.scaleX;
+      const ox = ((layout?.offsetX ?? 0) + nx) * (this.facingLeft ? -1 : 1);
+      const oy = (layout?.offsetY ?? 0) + ny;
       const scale = this.sprite.scaleX * (layout?.scale ?? 1);
       img.setPosition(this.sprite.x + ox, this.sprite.y + oy);
       img.setScale(scale);
@@ -98,7 +121,7 @@ export class Pet {
    */
   update(playerX: number, playerY: number, playerVx: number, playerVy: number) {
     if (this.holdFollow) {
-      this.sprite.setDepth(characterDepth(this.sprite));
+      this.sprite.setDepth(this.ownDepth());
       this.syncAccessories();
       return;
     }
@@ -144,7 +167,7 @@ export class Pet {
       this.sprite.y = this.followY;
     }
 
-    this.sprite.setDepth(characterDepth(this.sprite));
+    this.sprite.setDepth(this.ownDepth());
 
     if (this.scene.time.now < this.emotionUntil) {
       this.syncAccessories();
@@ -239,7 +262,7 @@ export class Pet {
       duration,
       ease: 'Linear',
       onUpdate: () => {
-        this.sprite.setDepth(characterDepth(this.sprite));
+        this.sprite.setDepth(this.ownDepth());
         this.syncAccessories();
       },
       onComplete: () => {

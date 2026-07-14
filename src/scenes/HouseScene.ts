@@ -312,6 +312,7 @@ export class HouseScene extends Phaser.Scene {
       const x = this.roomX + p.gx * TILE + TILE / 2;
       const y = ROOM_Y + p.gy * TILE + TILE / 2;
       const img = this.add.image(x, y, def.texture).setScale(1.2);
+      img.setData('gx', p.gx).setData('gy', p.gy);
       img.setDepth(p.id === 'rug' ? -50 : feetDepth(img));
       this.furnitureSprites.push(img);
     }
@@ -419,16 +420,26 @@ export class HouseScene extends Phaser.Scene {
     // Sit on the mattress, slightly above tile centre so feet read on the bed.
     const bedY = ROOM_Y + bed.gy * TILE + TILE / 2 - 6;
 
+    // Draw the sleeping pet above the bed — the bed's y-sort depth can
+    // otherwise win at this row and hide the pet behind the mattress.
+    const bedImg = this.furnitureSprites.find(
+      (s) => s.getData('gx') === bed.gx && s.getData('gy') === bed.gy,
+    );
+    const sleepDepth = (bedImg ? bedImg.depth : feetDepth(this.pet.sprite)) + 5;
+
     this.pet.walkTo(bedX, bedY, () => {
       State.petSleep();
       this.pet.showEmotion('sleep', 3200);
+      this.pet.pinDepth(sleepDepth);
       toast(this, bedX, bedY - 28, 'Zzz… so cozy!', '#ffb3d1');
       this.hud.refresh();
       this.time.delayedCall(3000, () => {
         if (!this.pet || !this.player) {
+          this.pet?.unpinDepth();
           this.petTucking = false;
           return;
         }
+        this.pet.unpinDepth();
         const backX = this.player.x - 30;
         const backY = this.player.y + 10;
         this.pet.walkTo(backX, backY, () => {
@@ -521,10 +532,13 @@ export class HouseScene extends Phaser.Scene {
       this.scene.start('Town', { spawn: 'house' });
     }
 
+    // I toggles the pet menu — opens it, or closes the topmost menu if open.
+    if (!this.placing && Phaser.Input.Keyboard.JustDown(this.keyI)) {
+      if (this.menuOpen) Menu.closeTop();
+      else if (!isUiBlocked()) this.openPetMenuInHouse();
+    }
+
     if (!this.menuOpen && !this.placing) {
-      if (Phaser.Input.Keyboard.JustDown(this.keyI) && !isUiBlocked()) {
-        this.openPetMenuInHouse();
-      }
       const near = this.nearestHouseInteractable();
       this.setHighlight(near?.targets);
       if (near) {
