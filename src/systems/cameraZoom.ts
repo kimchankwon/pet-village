@@ -16,15 +16,11 @@ export type ZoomKind = 'hub' | 'game';
 const UI_CAM_NAME = 'ui';
 const UI_FLAG = 'zoomUi';
 
-/** Last zoom per scene so each minigame can keep its own fit default. */
-const remembered: Record<string, number> = {};
+/** Last zoom explicitly chosen by the player, shared across scene changes. */
+let rememberedUserZoom: number | null = null;
 
 function clampZoom(z: number): number {
   return Phaser.Math.Clamp(z, ZOOM_MIN, ZOOM_MAX);
-}
-
-function memoryKey(kind: ZoomKind, sceneKey: string): string {
-  return `${kind}:${sceneKey}`;
 }
 
 /**
@@ -141,9 +137,10 @@ export class CameraZoom {
     this.opts = opts;
     ensureUiCamera(scene);
 
-    const key = memoryKey(opts.kind, scene.scene.key);
     const fallback = opts.kind === 'game' ? ZOOM_DEFAULT_GAME : ZOOM_DEFAULT_HUB;
-    const initial = clampZoom(remembered[key] ?? fallback);
+    // Preserve scene-specific defaults until the player actually uses a zoom
+    // control; after that, their chosen view follows them everywhere.
+    const initial = clampZoom(rememberedUserZoom ?? fallback);
     this.zoom = initial;
     scene.cameras.main.setZoom(initial);
 
@@ -184,7 +181,7 @@ export class CameraZoom {
       return;
     }
     this.zoom = next;
-    remembered[memoryKey(this.opts.kind, this.scene.scene.key)] = next;
+    rememberedUserZoom = next;
     this.scene.cameras.main.setZoom(next);
     this.slider.sync();
   }

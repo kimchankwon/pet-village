@@ -12,6 +12,7 @@ import { blockUi, isInteractSuppressed, isUiBlocked, unblockUi } from '../system
 import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
+import { updateInteractionHighlight } from '../systems/interactionHighlight';
 
 const TILE = 48;
 const COLS = 12;
@@ -286,13 +287,9 @@ export class HouseScene extends Phaser.Scene {
     return null;
   }
 
-  // Outline glow on whatever the player can currently interact with.
+  // Lightweight tint on whatever the player can currently interact with.
   private setHighlight(targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[]) {
-    const next = targets ?? [];
-    if (next[0] === this.glowed[0] && next.length === this.glowed.length) return;
-    for (const o of this.glowed) o.postFX?.clear();
-    this.glowed = next;
-    for (const o of this.glowed) o.postFX?.addGlow(0xffe066, 4);
+    this.glowed = updateInteractionHighlight(this.glowed, targets);
   }
 
   private pointerToGrid(pointer: Phaser.Input.Pointer): { gx: number; gy: number } | null {

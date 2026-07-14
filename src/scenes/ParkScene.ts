@@ -13,6 +13,14 @@ import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
 import { TILE } from '../systems/townMap';
 import { PARK_MAP_H, PARK_MAP_W, PARK_PATH_TY, PARK_WORLD_H, PARK_WORLD_W } from '../systems/parkMap';
+import { updateInteractionHighlight } from '../systems/interactionHighlight';
+import { MiniteenNpc } from '../systems/miniteen';
+import {
+  npcDefsForScene,
+  rememberSceneNpcs,
+  takeSceneNpcSnaps,
+  type NpcSceneLocation,
+} from '../systems/npcScenePresence';
 
 interface Interactable {
   x: number;
@@ -54,6 +62,7 @@ interface ParkConfig {
   exitEdge: 'east' | 'west';
   /** Town `spawn` id used on return. */
   townSpawn: 'west' | 'east';
+  npcLocation: Extract<NpcSceneLocation, 'west-green' | 'east-green'>;
   booths: ParkBooth[];
   decor: Spot[];
 }
@@ -87,6 +96,7 @@ export class ParkScene extends Phaser.Scene {
   private ignoreClicksUntil = 0;
   private decoSolids: { x: number; y: number; w: number; h: number }[] = [];
   private boothImgs: { img: Phaser.GameObjects.Image; booth: ParkBooth }[] = [];
+  private villagers: MiniteenNpc[] = [];
 
   constructor(cfg: ParkConfig) {
     super(cfg.key);
@@ -99,6 +109,7 @@ export class ParkScene extends Phaser.Scene {
     this.menuOpen = false;
     this.ignoreClicksUntil = 0;
     this.boothImgs = [];
+    this.villagers = [];
 
     this.physics.world.setBounds(0, 0, PARK_WORLD_W, PARK_WORLD_H);
     this.cameras.main.setBounds(0, 0, PARK_WORLD_W, PARK_WORLD_H);
@@ -125,6 +136,18 @@ export class ParkScene extends Phaser.Scene {
     this.pet.sprite.on('pointerdown', () => {
       this.ignoreClicksUntil = this.time.now + 200;
       if (!this.menuOpen && !isUiBlocked()) this.pet.speak();
+    });
+
+    const savedNpcs = takeSceneNpcSnaps(this.cfg.npcLocation);
+    this.villagers = npcDefsForScene(this.cfg.npcLocation).map((def, index) => {
+      const waypoints = this.parkNpcWaypoints(index);
+      const npc = new MiniteenNpc(this, def, index, waypoints);
+      const saved = savedNpcs.find((snap) => snap.id === def.id);
+      if (saved) npc.sprite.setPosition(saved.x, saved.y);
+      return npc;
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      rememberSceneNpcs(this.cfg.npcLocation, this.villagers);
     });
 
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
@@ -286,6 +309,16 @@ export class ParkScene extends Phaser.Scene {
     this.scatterDecor();
   }
 
+  private parkNpcWaypoints(index: number) {
+    const shift = index * 0.5;
+    return [
+      { x: (3.2 + shift) * TILE, y: 7.4 * TILE },
+      { x: (6.4 + shift) * TILE, y: 8.7 * TILE },
+      { x: (9.5 - shift) * TILE, y: 6.9 * TILE },
+      { x: (12.5 - shift) * TILE, y: 9.1 * TILE },
+    ];
+  }
+
   private scatterDecor() {
     for (const spot of this.cfg.decor) {
       const img = this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex).setScale(spot.scale ?? 1.3);
@@ -391,19 +424,43 @@ export class ParkScene extends Phaser.Scene {
         bestDist = d;
       }
     }
+    for (const npc of this.villagers) {
+      if (!npc.canInteract()) continue;
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, npc.sprite.x, npc.sprite.y);
+      if (d < 55 && d < bestDist) {
+        best = {
+          x: npc.sprite.x,
+          y: npc.sprite.y,
+          radius: 55,
+          label: `E / Space / click — Talk to ${npc.name}`,
+          action: () => {
+            this.menuOpen = true;
+            npc.talk({
+              onClose: () => {
+                this.hud.refresh();
+                this.closeMenu();
+              },
+              keepMenuOpen: () => {
+                this.menuOpen = true;
+              },
+            });
+          },
+          targets: [npc.sprite],
+        };
+        bestDist = d;
+      }
+    }
     return best;
   }
 
   private setHighlight(targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[]) {
-    const next = targets ?? [];
-    if (next[0] === this.glowed[0] && next.length === this.glowed.length) return;
-    for (const o of this.glowed) o.postFX?.clear();
-    this.glowed = next;
-    for (const o of this.glowed) o.postFX?.addGlow(0xffe066, 4);
+    this.glowed = updateInteractionHighlight(this.glowed, targets);
   }
 
   update() {
     if (!this.player) return;
+
+    for (const npc of this.villagers) npc.update();
 
     const speed = 220;
     const uiOpen = this.menuOpen || isUiBlocked();
@@ -522,6 +579,7 @@ export class WestParkScene extends ParkScene {
       displayName: 'The West Green',
       exitEdge: 'east',
       townSpawn: 'west',
+      npcLocation: 'west-green',
       booths: [
         {
           texture: 'skiprope-booth',
@@ -575,6 +633,7 @@ export class EastParkScene extends ParkScene {
       displayName: 'The East Green',
       exitEdge: 'west',
       townSpawn: 'east',
+      npcLocation: 'east-green',
       booths: [
         {
           texture: 'arcade',

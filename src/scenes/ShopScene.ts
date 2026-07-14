@@ -12,6 +12,7 @@ import { placeDoorMat } from '../systems/doorMat';
 import { isInteractSuppressed, isUiBlocked } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
+import { updateInteractionHighlight } from '../systems/interactionHighlight';
 
 const TILE = 48;
 const COLS = 12;
@@ -248,11 +249,7 @@ export class ShopScene extends Phaser.Scene {
   }
 
   private setHighlight(targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[]) {
-    const next = targets ?? [];
-    if (next[0] === this.glowed[0] && next.length === this.glowed.length) return;
-    for (const o of this.glowed) o.postFX?.clear();
-    this.glowed = next;
-    for (const o of this.glowed) o.postFX?.addGlow(0xffe066, 4);
+    this.glowed = updateInteractionHighlight(this.glowed, targets);
   }
 
   private closeMenu() {

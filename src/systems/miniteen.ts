@@ -243,11 +243,16 @@ export class MiniteenNpc extends WandererNpc {
   readonly defId: string;
   private def: MiniteenDef;
 
-  constructor(scene: Phaser.Scene, def: MiniteenDef, index: number) {
+  constructor(
+    scene: Phaser.Scene,
+    def: MiniteenDef,
+    index: number,
+    waypoints = homeWaypoints(def, index),
+  ) {
     super(scene, {
       name: def.name,
       texPrefix: miniteenTexPrefix(def.id),
-      waypoints: homeWaypoints(def, index),
+      waypoints,
       scale: 1.5,
       speed: 40 + (index % 4) * 6,
     });

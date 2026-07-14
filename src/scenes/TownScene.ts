@@ -16,6 +16,7 @@ import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
 import { TILE, TOWN_MAP_H, TOWN_MAP_W, TOWN_WORLD_H, TOWN_WORLD_W } from '../systems/townMap';
 import { rememberBongbongee, rememberMiniteens, takeBongbongeeSnap } from '../systems/townPresence';
+import { updateInteractionHighlight } from '../systems/interactionHighlight';
 
 /** Compact town — smaller than the old 32×24 crossroads map. */
 const MAP_W = TOWN_MAP_W;
@@ -668,13 +669,9 @@ export class TownScene extends Phaser.Scene {
     return best;
   }
 
-  // Outline glow on whatever the player can currently interact with.
+  // Lightweight tint on whatever the player can currently interact with.
   private setHighlight(targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[]) {
-    const next = targets ?? [];
-    if (next[0] === this.glowed[0] && next.length === this.glowed.length) return;
-    for (const o of this.glowed) o.postFX?.clear();
-    this.glowed = next;
-    for (const o of this.glowed) o.postFX?.addGlow(0xffe066, 4);
+    this.glowed = updateInteractionHighlight(this.glowed, targets);
   }
 
   update() {
