@@ -9,6 +9,8 @@ import { PaperTossScene } from '../scenes/PaperTossScene';
 import { ShoreScene } from '../scenes/ShoreScene';
 import { FishingScene } from '../scenes/FishingScene';
 import { SkipRopeScene } from '../scenes/SkipRopeScene';
+import { EastParkScene, WestParkScene } from '../scenes/ParkScene';
+import { BumpScene } from '../scenes/BumpScene';
 import { State } from '../systems/GameState';
 import { BASE_HEIGHT, BASE_WIDTH, designSizeForHost } from './viewport';
 
@@ -59,6 +61,9 @@ export function startGame(parent: HTMLElement): Phaser.Game {
       ShoreScene,
       FishingScene,
       SkipRopeScene,
+      WestParkScene,
+      EastParkScene,
+      BumpScene,
     ],
   });
 

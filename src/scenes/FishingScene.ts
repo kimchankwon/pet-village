@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
-import { ITEMS, State } from '../systems/GameState';
+import { ITEMS, MIN_GAME_ENERGY, State } from '../systems/GameState';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
@@ -781,7 +781,13 @@ export class FishingScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
-    again.on('pointerdown', () => this.scene.restart());
+    again.on('pointerdown', () => {
+      if (!State.hasEnergy(MIN_GAME_ENERGY)) {
+        toast(this, cx, cy - 130, 'Too tired to play — needs a nap!', '#ffb3d1');
+        return;
+      }
+      this.scene.restart();
+    });
     const leave = this.add
       .text(cx + 120, cy + 118, '[ Back to shore ]', {
         ...FONT,

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
-import { State, PAPER_TOSS_ENERGY_PER_THROW, PAPER_TOSS_HAPPINESS_PER_STAGE, PAPER_TOSS_PARTICIPATION_COINS } from '../systems/GameState';
+import { MIN_GAME_ENERGY, State, PAPER_TOSS_ENERGY_PER_THROW, PAPER_TOSS_HAPPINESS_PER_STAGE, PAPER_TOSS_PARTICIPATION_COINS } from '../systems/GameState';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
@@ -190,7 +190,7 @@ export class PaperTossScene extends Phaser.Scene {
     });
 
     // Leave control — top-left, confirms before leaving mid-round. Hidden
-    // while the end panel shows its own [ Back to town ].
+    // while the end panel shows its own [ Back outside ].
     this.backBtn = this.add
       .text(14, 10, '[ Back ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', padding: { x: 8, y: 8 } })
       .setOrigin(0, 0)
@@ -439,7 +439,7 @@ export class PaperTossScene extends Phaser.Scene {
   // leaving forfeits the round's remaining throws.
   private requestLeave() {
     if (this.mode === 'done') {
-      this.scene.start('Town', { spawn: 'arcade' });
+      this.scene.start('EastPark', { spawn: 'arcade' });
       return;
     }
     this.menuOpen = true;
@@ -448,7 +448,7 @@ export class PaperTossScene extends Phaser.Scene {
       'Leave Paper Toss?',
       [
         { label: 'Keep playing', onSelect: () => {} },
-        { label: 'Back to town', onSelect: () => this.scene.start('Town', { spawn: 'arcade' }) },
+        { label: 'Back outside', onSelect: () => this.scene.start('EastPark', { spawn: 'arcade' }) },
       ],
       'The round ends here — coins earned are yours',
     );
@@ -612,7 +612,7 @@ export class PaperTossScene extends Phaser.Scene {
   // stage 1 after a win).
   private endPanel(title: string, titleColor: string, primaryLabel: string, restartData: object) {
     this.mode = 'done';
-    // Single back control: the panel has its own [ Back to town ].
+    // Single back control: the panel has its own [ Back outside ].
     this.backBtn.setVisible(false);
     this.updateBest();
     const cx = this.cameras.main.width / 2;
@@ -651,14 +651,20 @@ export class PaperTossScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
-    again.on('pointerdown', () => this.scene.restart(restartData));
+    again.on('pointerdown', () => {
+      if (!State.hasEnergy(MIN_GAME_ENERGY)) {
+        toast(this, cx, cy - 130, 'Too tired to play — needs a nap!', '#ffb3d1');
+        return;
+      }
+      this.scene.restart(restartData);
+    });
     const leave = this.add
-      .text(cx + 135, cy + 68, '[ Back to town ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', padding: { x: 10, y: 8 } })
+      .text(cx + 135, cy + 68, '[ Back outside ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', padding: { x: 10, y: 8 } })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
-    leave.on('pointerdown', () => this.scene.start('Town', { spawn: 'arcade' }));
+    leave.on('pointerdown', () => this.scene.start('EastPark', { spawn: 'arcade' }));
     markAsUi(this, panel, heading, summary, best, again, leave);
   }
 
@@ -769,7 +775,7 @@ export class PaperTossScene extends Phaser.Scene {
       this.mode === 'done' &&
       (Phaser.Input.Keyboard.JustDown(this.keyE) || Phaser.Input.Keyboard.JustDown(this.keySpace))
     ) {
-      this.scene.start('Town', { spawn: 'arcade' });
+      this.scene.start('EastPark', { spawn: 'arcade' });
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !this.menuOpen && !isUiBlocked()) {

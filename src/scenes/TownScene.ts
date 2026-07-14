@@ -24,17 +24,16 @@ const WORLD_H = TOWN_WORLD_H;
 
 /** Must stand this close to a building door to enter. */
 const BUILDING_RADIUS = 72;
-const ARCADE_RADIUS = 55;
 const BUILDING_CLICK_NEAR = 90;
 
 /** Building anchors (tile coords) — clustered around the central square. */
 const HOUSE_POS = { tx: 11, ty: 3.15 };
 const SHOP_POS = { tx: 17.2, ty: 3.5 };
 const CAFE_POS = { tx: 4.8, ty: 3.5 };
-const ARCADE_POS = { tx: 16.8, ty: 12.1 };
-/** Skip Rope booth — bottom-left arcade corner. */
-const SKIPROPE_POS = { tx: 4.6, ty: 12.2 };
 const FOUNTAIN_POS = { tx: 11, ty: 8.4 };
+
+/** East/west game-park exits — path rows leading off both map edges. */
+const PARK_GATE_TY = [8, 9] as const;
 
 interface Interactable {
   x: number;
@@ -80,7 +79,7 @@ export class TownScene extends Phaser.Scene {
     super('Town');
   }
 
-  create(data: { spawn?: 'house' | 'arcade' | 'shop' | 'cafe' | 'shore' | 'skiprope' }) {
+  create(data: { spawn?: 'house' | 'shop' | 'cafe' | 'shore' | 'east' | 'west' }) {
     generateTextures(this);
     this.interactables = [];
     this.menuOpen = false;
@@ -97,12 +96,12 @@ export class TownScene extends Phaser.Scene {
     if (data?.spawn === 'house') {
       sx = HOUSE_POS.tx * TILE;
       sy = (HOUSE_POS.ty + 2.4) * TILE;
-    } else if (data?.spawn === 'arcade') {
-      sx = ARCADE_POS.tx * TILE;
-      sy = (ARCADE_POS.ty + 1.2) * TILE;
-    } else if (data?.spawn === 'skiprope') {
-      sx = SKIPROPE_POS.tx * TILE;
-      sy = (SKIPROPE_POS.ty + 1.2) * TILE;
+    } else if (data?.spawn === 'west') {
+      sx = 1.6 * TILE;
+      sy = (PARK_GATE_TY[0] + 1) * TILE;
+    } else if (data?.spawn === 'east') {
+      sx = (MAP_W - 1.6) * TILE;
+      sy = (PARK_GATE_TY[0] + 1) * TILE;
     } else if (data?.spawn === 'shop') {
       sx = SHOP_POS.tx * TILE;
       sy = (SHOP_POS.ty + 2.4) * TILE;
@@ -294,6 +293,15 @@ export class TownScene extends Phaser.Scene {
       this.add.image(10 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
       this.add.image(11 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
     }
+    // East/west paths out to the two game parks.
+    for (const ty of PARK_GATE_TY) {
+      for (let tx = 0; tx < 5; tx++) {
+        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      }
+      for (let tx = 17; tx < MAP_W; tx++) {
+        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      }
+    }
     for (let tx = 4; tx <= 6; tx++) {
       for (let ty = 4; ty <= 5; ty++) {
         this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
@@ -385,53 +393,31 @@ export class TownScene extends Phaser.Scene {
       targets: [cafe],
     });
 
-    // Arcade — SE edge of the square
-    const arcade = this.add.image(ARCADE_POS.tx * TILE, ARCADE_POS.ty * TILE, 'arcade').setScale(1.4);
-    arcade.setDepth(propDepth(arcade, ARCADE_POS.ty * TILE));
-    this.add
-      .text(ARCADE_POS.tx * TILE, ARCADE_POS.ty * TILE - 46, 'Paper Toss', {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#ffffff',
-        stroke: '#1a1a2e',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setDepth(900);
-    this.interactables.push({
-      x: ARCADE_POS.tx * TILE,
-      y: ARCADE_POS.ty * TILE,
-      radius: ARCADE_RADIUS,
-      label: 'E / Space / click — Play Paper Toss',
-      action: () => this.scene.start('PaperToss'),
-      targets: [arcade],
-    });
-
-    // Skip Rope booth — SW arcade corner
-    const skipBooth = this.add
-      .image(SKIPROPE_POS.tx * TILE, SKIPROPE_POS.ty * TILE, 'skiprope-booth')
-      .setScale(1.55);
-    skipBooth.setDepth(propDepth(skipBooth, SKIPROPE_POS.ty * TILE));
-    this.add
-      .text(SKIPROPE_POS.tx * TILE, SKIPROPE_POS.ty * TILE - 48, 'Skip Rope', {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#ffffff',
-        stroke: '#1a1a2e',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setDepth(900);
-    this.interactables.push({
-      x: SKIPROPE_POS.tx * TILE,
-      y: SKIPROPE_POS.ty * TILE,
-      radius: ARCADE_RADIUS,
-      label: 'E / Space / click — Skip Rope',
-      action: () => this.scene.start('SkipRope'),
-      targets: [skipBooth],
-    });
+    // Gate signs — the games moved out to the parks; point the way.
+    const gateSigns: { tx: number; label: string }[] = [
+      { tx: 1.4, label: '← West Green · games' },
+      { tx: 20.6, label: 'East Green · games →' },
+    ];
+    for (const g of gateSigns) {
+      const sign = this.add.image(g.tx * TILE, 7 * TILE, 'signpost').setScale(1.3);
+      sign.setDepth(propDepth(sign, 7 * TILE + 10));
+      this.add
+        .text(g.tx * TILE, 7 * TILE - 34, g.label, {
+          fontFamily: 'monospace',
+          fontSize: '11px',
+          color: '#ffe066',
+          stroke: '#1a1a2e',
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5)
+        .setDepth(900);
+    }
 
     this.scatterTownDecor();
+    // Solids after scatterTownDecor — it resets decoSolids.
+    for (const g of gateSigns) {
+      this.decoSolids.push({ x: g.tx * TILE, y: 7 * TILE + 10, w: 18, h: 12 });
+    }
   }
 
   /**
@@ -574,8 +560,6 @@ export class TownScene extends Phaser.Scene {
     addSolid(HOUSE_POS.tx * TILE, (HOUSE_POS.ty + 0.2) * TILE, 128, 72);
     addSolid(SHOP_POS.tx * TILE, (SHOP_POS.ty + 0.2) * TILE, 128, 72);
     addSolid(CAFE_POS.tx * TILE, (CAFE_POS.ty + 0.2) * TILE, 128, 72);
-    addSolid(ARCADE_POS.tx * TILE, ARCADE_POS.ty * TILE, 56, 36);
-    addSolid(SKIPROPE_POS.tx * TILE, SKIPROPE_POS.ty * TILE, 52, 40);
     for (const s of this.decoSolids) addSolid(s.x, s.y, s.w, s.h);
     this.physics.add.collider(this.player, solids);
   }
@@ -753,6 +737,20 @@ export class TownScene extends Phaser.Scene {
     ) {
       this.scene.start('Shore', { spawn: 'town' });
       return;
+    }
+
+    // Walk off the east/west paths → the game parks.
+    const onGateBand =
+      this.player.y > PARK_GATE_TY[0] * TILE && this.player.y < (PARK_GATE_TY[1] + 1) * TILE;
+    if (!uiOpen && onGateBand) {
+      if (this.player.x < 36) {
+        this.scene.start('WestPark', { spawn: 'town' });
+        return;
+      }
+      if (this.player.x > WORLD_W - 36) {
+        this.scene.start('EastPark', { spawn: 'town' });
+        return;
+      }
     }
 
     if (!this.menuOpen) {
