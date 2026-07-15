@@ -204,11 +204,14 @@ function toSprite(raw: InstanceType<typeof PNG>): InstanceType<typeof PNG> {
 
 function isFaceFeature(c: RGBA): boolean {
   if (c[3] < 20) return false;
-  // white eyes/teeth or black ink
+  // White eyes / teeth
   if (c[0] > 220 && c[1] > 220 && c[2] > 220) return true;
-  if (c[0] + c[1] + c[2] < 120) return true;
-  // light gray eye shading
-  if (Math.abs(c[0] - c[1]) < 20 && Math.abs(c[1] - c[2]) < 20 && c[0] > 160 && c[0] < 230) return true;
+  // Light gray eye shading
+  if (Math.abs(c[0] - c[1]) < 20 && Math.abs(c[1] - c[2]) < 20 && c[0] > 160 && c[0] < 230) {
+    return true;
+  }
+  // True face ink only (pupils/brows/mouth) — not charcoal body fill on black plates
+  if (c[0] + c[1] + c[2] < 80) return true;
   return false;
 }
 
