@@ -4,6 +4,22 @@
  *
  * Source plates: scripts/reference/miniteen/<id>.png
  * Background is exterior flood-fill (so white characters stay solid).
+ *
+ * Usage (repeatable for any villager):
+ *   npm run sprite:miniteen              # all 13 plates
+ *   npm run sprite:miniteen -- doa       # one character
+ *   npm run sprite:miniteen -- doa ocl   # subset
+ *
+ * Workflow for a new / refreshed character:
+ *   1. Drop a clean Imagine plate at scripts/reference/miniteen/<id>.png
+ *      (optional: keep the previous plate as <id>-prev.png)
+ *   2. npm run sprite:miniteen -- <id>
+ *   3. Spot-check public/assets/npc/miniteen/<id>/{idle,walk1,walk2,...}.png
+ *      at native 32×42 and at 3× nearest-neighbour (96×126).
+ *
+ * Body-fit notes: the plate must keep ears, hats, held items, tongues, and
+ * limbs solidly connected to the silhouette — flood-fill keys only exterior
+ * bg, so floating accessories become separate blobs or vanish on downsample.
  */
 import fs from 'fs';
 import path from 'path';
@@ -22,8 +38,24 @@ const IDS = [
   'choitcherry','jjongtoram','shuasumi','ocl','tamtam','foxdungee','ppyopuli',
   'doa','kimja','thepalee','bboogyuli','nonver','chandalee',
 ] as const;
+type MiniteenId = (typeof IDS)[number];
 const ROOT = path.resolve('public/assets/npc/miniteen');
 const REF = path.resolve('scripts/reference/miniteen');
+
+/** CLI: `tsx scripts/imagine-to-miniteen.mts [id ...]` — empty = all. */
+function selectIds(argv: string[]): MiniteenId[] {
+  const args = argv.filter((a) => a && !a.startsWith('-'));
+  if (!args.length) return [...IDS];
+  const unknown = args.filter((a) => !(IDS as readonly string[]).includes(a));
+  if (unknown.length) {
+    console.error(
+      `Unknown MINITEEN id(s): ${unknown.join(', ')}\n` +
+        `Known: ${IDS.join(', ')}`,
+    );
+    process.exit(1);
+  }
+  return args as MiniteenId[];
+}
 
 function blank(w = W, h = H) {
   const png = new PNG({ width: w, height: h });
@@ -110,8 +142,10 @@ function contentBounds(src: InstanceType<typeof PNG>) {
 
 function quantize(c: RGBA): RGBA {
   if (c[3] < 20) return [0, 0, 0, 0];
-  // Dark → pure outline
-  if (c[0] + c[1] + c[2] < 100) return OUT;
+  // Dark → pure outline / eye ink
+  if (c[0] + c[1] + c[2] < 120) return OUT;
+  // Near-white glints stay white (eye highlights, accents)
+  if (c[0] > 230 && c[1] > 230 && c[2] > 230) return [255, 255, 255, 255];
   const step = 16;
   return [
     Math.min(255, Math.round(c[0] / step) * step),
@@ -121,37 +155,146 @@ function quantize(c: RGBA): RGBA {
   ];
 }
 
+/**
+ * Harden soft Imagine anti-alias into flat pixel colours before downsample.
+ * Keeps ears/clothes/accessories glued to the body instead of fraying into holes.
+ */
+function hardenPlate(src: InstanceType<typeof PNG>): InstanceType<typeof PNG> {
+  const out = clone(src);
+  for (let y = 0; y < src.height; y++) {
+    for (let x = 0; x < src.width; x++) {
+      const c = get(src, x, y);
+      if (c[3] < 20) {
+        set(out, x, y, [0, 0, 0, 0]);
+        continue;
+      }
+      set(out, x, y, quantize(c));
+    }
+  }
+  return out;
+}
+
 function majority(src: InstanceType<typeof PNG>, x0: number, y0: number, x1: number, y1: number): RGBA {
   const votes = new Map<string, { c: RGBA; n: number }>();
-  let dark = 0, total = 0, darkR = 0, darkG = 0, darkB = 0;
+  let dark = 0, total = 0, cells = 0;
   for (let y = y0; y < y1; y++) {
     for (let x = x0; x < x1; x++) {
+      cells++;
       const raw = get(src, x, y);
       if (raw[3] < 20) continue;
       total++;
       const lum = (raw[0] + raw[1] + raw[2]) / 3;
-      if (lum < 70) {
-        dark++;
-        darkR += raw[0]; darkG += raw[1]; darkB += raw[2];
-      }
+      if (lum < 80) dark++;
       const c = quantize(raw);
       const k = c.join(',');
       const cur = votes.get(k);
       if (cur) cur.n++; else votes.set(k, { c, n: 1 });
     }
   }
-  // Preserve eyes/mouth/brows: if enough dark ink in the cell, stamp outline
-  if (total > 0 && dark / total >= 0.22) return OUT;
+  // Mostly empty cell → transparent (do not invent body from AA fringe)
+  if (cells > 0 && total / cells < 0.28) return [0, 0, 0, 0];
+  // Preserve eyes/mouth/brows: enough dark ink → solid black
+  if (total > 0 && dark / total >= 0.18) return OUT;
   let best: { c: RGBA; n: number } | null = null;
   for (const v of votes.values()) {
-    const weight = v.n * (v.c[3] > 0 ? 10 : 1) + (v.c[0] + v.c[1] + v.c[2] > 100 ? 0.5 : 0);
+    // Prefer saturated body fills over sparse transparent winners
+    const weight = v.n * (v.c[3] > 0 ? 12 : 1) + (v.c[0] + v.c[1] + v.c[2] > 100 ? 1 : 0);
     if (!best || weight > best.n) best = { c: v.c, n: weight };
   }
   return best?.c ?? [0, 0, 0, 0];
 }
 
+/** Multi-pass interior hole fill so limbs/ears stay solid on the body. */
+function fillInteriorHoles(out: InstanceType<typeof PNG>, passes = 3) {
+  for (let p = 0; p < passes; p++) {
+    const adds: { x: number; y: number; c: RGBA }[] = [];
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        if (get(out, x, y)[3] > 0) continue;
+        let n = 0; let sr = 0, sg = 0, sb = 0;
+        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]] as const) {
+          const c = get(out, x + dx, y + dy);
+          if (c[3] > 0 && c[0] + c[1] + c[2] > 100) {
+            n++; sr += c[0]; sg += c[1]; sb += c[2];
+          }
+        }
+        // 4-connected strict on first pass; looser later for thin ears
+        const need = p === 0 ? 3 : 2;
+        if (n >= need) {
+          adds.push({ x, y, c: [Math.round(sr / n), Math.round(sg / n), Math.round(sb / n), 255] });
+        }
+      }
+    }
+    for (const a of adds) set(out, a.x, a.y, a.c);
+  }
+}
+
+/**
+ * Solidify hollow eye rings (common after majority downsample of glossy eyes).
+ * Fills enclosed dark rings in the upper face with black + a white glint.
+ * Safe for all miniteens: only acts on small dark-ring cavities.
+ */
+function solidifyEyes(out: InstanceType<typeof PNG>) {
+  const b = contentBounds(out);
+  const faceTop = b.y0 + 1;
+  const faceBot = Math.min(b.y1 - 4, b.y0 + Math.floor((b.y1 - b.y0) * 0.55));
+  const visited = new Uint8Array(W * H);
+  const isDark = (c: RGBA) => c[3] > 20 && c[0] + c[1] + c[2] < 90;
+  const isEmpty = (c: RGBA) => c[3] < 20;
+
+  for (let y = faceTop; y <= faceBot; y++) {
+    for (let x = b.x0 + 2; x <= b.x1 - 2; x++) {
+      const i = y * W + x;
+      if (visited[i]) continue;
+      if (!isEmpty(get(out, x, y))) continue;
+      // Flood empty cavity; require it to be small and mostly ringed by dark ink
+      const q = [i];
+      visited[i] = 1;
+      const cells: number[] = [];
+      let darkN = 0, edgeN = 0, openBorder = false;
+      while (q.length) {
+        const ci = q.pop()!;
+        cells.push(ci);
+        const cx = ci % W, cy = Math.floor(ci / W);
+        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
+          const nx = cx + dx, ny = cy + dy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) { openBorder = true; continue; }
+          const ni = ny * W + nx;
+          const c = get(out, nx, ny);
+          if (isEmpty(c)) {
+            if (!visited[ni]) { visited[ni] = 1; q.push(ni); }
+          } else {
+            edgeN++;
+            if (isDark(c)) darkN++;
+          }
+        }
+      }
+      if (openBorder) continue;
+      if (cells.length < 1 || cells.length > 14) continue;
+      if (edgeN === 0 || darkN / edgeN < 0.55) continue;
+      // Fill cavity black
+      for (const ci of cells) {
+        const cx = ci % W, cy = Math.floor(ci / W);
+        set(out, cx, cy, OUT);
+      }
+      // White glint on upper-left of the eye blob
+      const xs = cells.map((ci) => ci % W);
+      const ys = cells.map((ci) => Math.floor(ci / W));
+      const minX = Math.min(...xs), minY = Math.min(...ys);
+      const glintX = minX + (Math.max(...xs) > minX ? 0 : 0);
+      const glintY = minY;
+      if (get(out, glintX, glintY)[3] > 0) set(out, glintX, glintY, [255, 255, 255, 255]);
+    }
+  }
+}
+
+/**
+ * Fit plate content into 32×42 via majority sampling.
+ * Content is bottom-aligned so walk feet stay on the canvas.
+ */
 function toGameSprite(raw: InstanceType<typeof PNG>): InstanceType<typeof PNG> {
-  const src = removeExterior(raw);
+  const keyed = removeExterior(raw);
+  const src = hardenPlate(keyed);
   const b = contentBounds(src);
   const cw = b.x1 - b.x0 + 1;
   const ch = b.y1 - b.y0 + 1;
@@ -172,18 +315,8 @@ function toGameSprite(raw: InstanceType<typeof PNG>): InstanceType<typeof PNG> {
       if (c[3] > 0) set(out, ox + gx, oy + gy, c);
     }
   }
-  // Fill small interior holes
-  for (let y = 1; y < H - 1; y++) {
-    for (let x = 1; x < W - 1; x++) {
-      if (get(out, x, y)[3] > 0) continue;
-      let n = 0; let sr = 0, sg = 0, sb = 0;
-      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
-        const c = get(out, x + dx, y + dy);
-        if (c[3] > 0 && c[0] + c[1] + c[2] > 100) { n++; sr += c[0]; sg += c[1]; sb += c[2]; }
-      }
-      if (n >= 3) set(out, x, y, [Math.round(sr / n), Math.round(sg / n), Math.round(sb / n), 255]);
-    }
-  }
+  fillInteriorHoles(out, 4);
+  solidifyEyes(out);
   return out;
 }
 
@@ -194,6 +327,8 @@ function processOne(id: string, srcPath: string) {
   const poses = npcPosesFromIdle(idle, { ink: OUT, accent: [255, 140, 170, 255] });
   const dir = path.join(ROOT, id);
   for (const [pose, png] of Object.entries(poses)) {
+    // Solidify eyes on every pose — happy/sad can re-open cavities via face paint
+    solidifyEyes(png);
     saveSprite(png, path.join(dir, `${pose}.png`), { repairOutline: true, outline: OUT });
   }
   // opaque pixel count
@@ -202,12 +337,16 @@ function processOne(id: string, srcPath: string) {
   console.log(`  ${id}: ${n} opaque px`);
 }
 
-console.log('MINITEEN Imagine → 32×42');
+const selected = selectIds(process.argv.slice(2));
+console.log(`MINITEEN Imagine → 32×42 (${selected.length}/${IDS.length}: ${selected.join(', ')})`);
 const fallback = '/tmp/pv-imagine/miniteen';
 const plates: { id: string; srcPath: string }[] = [];
 const missing: string[] = [];
-for (const id of IDS) {
+for (const id of selected) {
+  // Prefer a dedicated Imagine plate when present (e.g. doa-imagine.png),
+  // then the canonical <id>.png, then /tmp fallback used during generation.
   const found = [
+    path.join(REF, `${id}-imagine.png`),
     path.join(REF, `${id}.png`),
     path.join(fallback, `${id}.png`),
   ].find((p) => fs.existsSync(p));
@@ -216,10 +355,13 @@ for (const id of IDS) {
 }
 if (missing.length) {
   console.error(
-    `Missing ${missing.length}/${IDS.length} MINITEEN plate(s): ${missing.join(', ')}\n` +
-      `Expected under ${REF}/<id>.png (or ${fallback}/<id>.png)`,
+    `Missing ${missing.length}/${selected.length} MINITEEN plate(s): ${missing.join(', ')}\n` +
+      `Expected under ${REF}/<id>.png or ${REF}/<id>-imagine.png (or ${fallback}/<id>.png)`,
   );
   process.exit(1);
 }
-for (const { id, srcPath } of plates) processOne(id, srcPath);
+for (const { id, srcPath } of plates) {
+  console.log(`  plate ${id} ← ${path.relative(process.cwd(), srcPath)}`);
+  processOne(id, srcPath);
+}
 console.log('Done.');

@@ -109,7 +109,8 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 - `public/assets/npc/` — wandering town NPCs: Cinnamoroll (Sanrio-inspired),
   Bongbongee (SEVENTEEN's CARAT mascot), and the 13 MINITEEN villagers
   (SEVENTEEN's official mini characters — regenerate from Imagine plates with
-  `npm run sprite:miniteen`, plates under `scripts/reference/miniteen/`).
+  `npm run sprite:miniteen` or `npm run sprite:miniteen -- doa` for one id;
+  plates + workflow under `scripts/reference/miniteen/`).
 - Puffle pets: `npm run sprite:puffles` from `scripts/reference/puffle/`.
 - `src/systems/WandererNpc.ts` — shared waypoint-wander base for NPCs;
   `CinnamorollNpc` / `BongbongeeNpc` / `miniteen.ts` build dialogue on top.
