@@ -13,6 +13,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { normalizePoseSize } from './lib/pose-animate.mjs';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
@@ -147,36 +148,6 @@ function toPlateSprite(raw: InstanceType<typeof PNG>): InstanceType<typeof PNG> 
   return out;
 }
 
-function matchContentHeight(src: InstanceType<typeof PNG>, targetH: number) {
-  const b = contentBounds(src);
-  const cw = b.x1 - b.x0 + 1;
-  const ch = b.y1 - b.y0 + 1;
-  if (ch <= 0) return src;
-  const scale = targetH / ch;
-  if (Math.abs(scale - 1) < 0.03) {
-    const out = blank(cw, ch);
-    for (let y = 0; y < ch; y++) {
-      for (let x = 0; x < cw; x++) {
-        const c = get(src, b.x0 + x, b.y0 + y);
-        if (c[3] >= 20) set(out, x, y, c);
-      }
-    }
-    return out;
-  }
-  const tw = Math.max(1, Math.round(cw * scale));
-  const th = Math.max(1, Math.round(ch * scale));
-  const out = blank(tw, th);
-  for (let gy = 0; gy < th; gy++) {
-    for (let gx = 0; gx < tw; gx++) {
-      const sx = b.x0 + Math.min(cw - 1, Math.floor((gx / tw) * cw));
-      const sy = b.y0 + Math.min(ch - 1, Math.floor((gy / th) * ch));
-      const c = get(src, sx, sy);
-      if (c[3] >= 20) set(out, gx, gy, [c[0], c[1], c[2], 255]);
-    }
-  }
-  return out;
-}
-
 function padBottomCenter(src: InstanceType<typeof PNG>, tw: number, th: number) {
   if (src.width === tw && src.height === th) return src;
   const out = blank(tw, th);
@@ -221,14 +192,16 @@ for (const facing of FACINGS) {
 const front0 = rawPlates.get('down-0')!;
 const frontB = contentBounds(front0);
 const targetH = frontB.y1 - frontB.y0 + 1;
+const targetW = frontB.x1 - frontB.x0 + 1;
+const sizeRef = { refH: targetH, refW: targetW };
 
-// Normalize all poses to the same content height, then pad onto one shared canvas
-// so facing swaps don't change on-screen size.
+// Normalize all poses to the same content scale (height + width clamp), then
+// pad onto one shared canvas so facing/walk swaps don't pulse the silhouette.
 const norms = new Map<FrameKey, InstanceType<typeof PNG>>();
 let maxW = 0;
 let maxH = 0;
 for (const [key, plate] of rawPlates) {
-  const n = matchContentHeight(plate, targetH);
+  const n = normalizePoseSize(plate, sizeRef);
   norms.set(key, n);
   if (n.width > maxW) maxW = n.width;
   if (n.height > maxH) maxH = n.height;

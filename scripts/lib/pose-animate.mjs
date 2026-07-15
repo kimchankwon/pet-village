@@ -76,6 +76,91 @@ export function contentBounds(png) {
   return { x0, y0, x1, y1, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 };
 }
 
+/**
+ * Crop opaque content and nearest-neighbour scale so pose silhouettes match an
+ * idle reference. Height is locked first (feet/head line). Width is soft-clamped
+ * so oversized Imagine walk plates do not make the outline “breathe”. Soft width
+ * clamps stay within `maxHeightDrift` of idle height; the hard width ceiling
+ * also floors at that same min scale so extreme plates cannot collapse height.
+ *
+ * @param {import('pngjs').PNG} src
+ * @param {{
+ *   refH: number,
+ *   refW: number,
+ *   maxWidthRatio?: number,
+ *   minWidthRatio?: number,
+ *   maxHeightDrift?: number,
+ *   hardMaxWidthRatio?: number,
+ * }} ref
+ */
+export function normalizePoseSize(src, ref) {
+  const refH = Math.max(1, ref.refH | 0);
+  const refW = Math.max(1, ref.refW | 0);
+  const maxWidthRatio = ref.maxWidthRatio ?? 1.08;
+  const minWidthRatio = ref.minWidthRatio ?? 0.9;
+  const maxHeightDrift = ref.maxHeightDrift ?? 0.04;
+
+  const b = contentBounds(src);
+  const cw = b.x1 - b.x0 + 1;
+  const ch = b.y1 - b.y0 + 1;
+  if (ch <= 0 || cw <= 0) return clonePng(src);
+
+  // 1) Lock content height to idle (primary — stops tall/short walk pulses).
+  let scale = refH / ch;
+  // 2) Soft-clamp width, but keep height within maxHeightDrift of idle.
+  const maxW = refW * maxWidthRatio;
+  const minW = refW * minWidthRatio;
+  // Hard width ceiling for extreme plates (e.g. multi-body stacks with arms out).
+  // Floored by minScaleH so height never drifts beyond maxHeightDrift.
+  const hardMaxW = refW * (ref.hardMaxWidthRatio ?? 1.2);
+  const minScaleH = (refH * (1 - maxHeightDrift)) / ch;
+  const maxScaleH = (refH * (1 + maxHeightDrift)) / ch;
+  let scaledW = cw * scale;
+  if (scaledW > maxW) {
+    scale = Math.max(maxW / cw, minScaleH);
+  } else if (scaledW < minW) {
+    scale = Math.min(minW / cw, maxScaleH);
+  }
+  scaledW = cw * scale;
+  if (scaledW > hardMaxW) {
+    scale = Math.max(hardMaxW / cw, minScaleH);
+  }
+
+  // Micro-noop: already near target. Force opaque alpha to match the resize path
+  // so idle vs walk edges do not pulse from semi-transparent fringe.
+  scaledW = cw * scale;
+  if (
+    Math.abs(scale - 1) < 0.015 &&
+    Math.abs(ch - refH) <= 2 &&
+    scaledW <= maxW * 1.01 &&
+    scaledW >= minW * 0.99
+  ) {
+    const out = new PNG({ width: cw, height: ch });
+    out.data.fill(0);
+    for (let y = 0; y < ch; y++) {
+      for (let x = 0; x < cw; x++) {
+        const c = getPx(src, b.x0 + x, b.y0 + y);
+        if (isOpaque(c)) setPx(out, x, y, [c[0], c[1], c[2], 255]);
+      }
+    }
+    return out;
+  }
+
+  const tw = Math.max(1, Math.round(cw * scale));
+  const th = Math.max(1, Math.round(ch * scale));
+  const out = new PNG({ width: tw, height: th });
+  out.data.fill(0);
+  for (let gy = 0; gy < th; gy++) {
+    for (let gx = 0; gx < tw; gx++) {
+      const sx = b.x0 + Math.min(cw - 1, Math.floor((gx / tw) * cw));
+      const sy = b.y0 + Math.min(ch - 1, Math.floor((gy / th) * ch));
+      const c = getPx(src, sx, sy);
+      if (isOpaque(c)) setPx(out, gx, gy, [c[0], c[1], c[2], 255]);
+    }
+  }
+  return out;
+}
+
 export function sampleBodyColor(png) {
   const b = contentBounds(png);
   const votes = new Map();

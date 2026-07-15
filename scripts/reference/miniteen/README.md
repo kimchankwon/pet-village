@@ -35,14 +35,20 @@ scripts/reference/miniteen/poses/<id>/{idle,walk1,walk2,happy,sad,jump}.png
 ```
 
 **Walk:** always prefer Imagine `walk1`/`walk2` plates (mid-stride, opposite
-feet). Procedural foot-shuffle is a last resort and is nearly invisible on
-large plates — generate real walk poses with Grok Imagine from the idle plate.
+feet). Draw walks in a **slight three-quarter** facing **screen-right** so when
+the game `flipX`s for left movement the character still faces the walk
+direction (like classic DOA/Tamtam walks). Procedural foot-shuffle is a last
+resort and is nearly invisible on large plates. Keep the **same character
+scale** as idle (no “outline grows while walking”).
 
 When a pose file is missing, the converter derives it gently from idle at
-**plate resolution** (still not 32×42). Every pose is **scaled to the idle
-content height**, then padded onto one shared bottom-centered canvas so:
+**plate resolution** (still not 32×42). Every pose is normalized with
+`normalizePoseSize` (height-lock to idle + soft width clamp ±~8–10%, hard max
+~1.2× width, all while staying within a few percent height of idle), then
+padded onto one shared bottom-centered canvas so:
 
-1. Walk frames are the same on-screen size as idle (no “double size while walking”)
+1. Walk frames keep idle **height / on-screen scale**; width may vary slightly
+   for limb pose (soft clamp), never balloon into a tall/wide silhouette pulse
 2. Phaser’s center origin does not make feet slide between walk frames
 
 Set `useSourcePlate: true` on the def for documentation; runtime scaling keys
