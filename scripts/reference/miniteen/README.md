@@ -9,7 +9,7 @@ Repeatable pipeline for the 13 MINITEEN village NPCs.
 | Imagine plate | ~384–1024² | Flat pixel art, solid bg, full-body front |
 | Game frame (default) | **32×42** | Majority-downsample — classic chibi |
 | Game frame (`--plate`) | up to **512px** side | Transparent crop of the plate (looks like Imagine) |
-| In-game draw | ~63 world px tall | Classic: scale 1.5; plate: auto-scale + nearest-neighbour |
+| In-game draw | ~**126** world px tall (2× classic) | `MINITEEN_DETAIL_SCALE=2`; plate: auto-scale + nearest-neighbour |
 | Review zoom | **3×** of 32×42 (96×126) | Nearest-neighbour only — never bilinear |
 
 ### Prefer the plate look? (PR #62 approach)
@@ -25,8 +25,9 @@ npm run sprite:miniteen -- --plate
 npm run sprite:miniteen -- --plate doa
 ```
 
-The game auto-detects frames taller than 64px and scales them to classic
-miniteen height (~63 world px) with **nearest-neighbour** filtering.
+The game auto-detects frames taller than 64px and scales them to
+**2× classic** miniteen height (~126 world px) with **nearest-neighbour**
+filtering so Imagine plate detail stays readable (`MINITEEN_DETAIL_SCALE`).
 
 Optional Grok Imagine **pose plates** (walk/happy/sad/jump) live under:
 

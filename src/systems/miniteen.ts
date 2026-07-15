@@ -28,29 +28,36 @@ export interface MiniteenDef {
 
 /** Native height of classic chibi frames (before Phaser scale). */
 export const MINITEEN_NATIVE_HEIGHT = 42;
-/** Classic miniteen on-screen height at the default town scale (1.5). */
-export const MINITEEN_DISPLAY_HEIGHT = MINITEEN_NATIVE_HEIGHT * 1.5;
+/**
+ * Extra on-screen multiplier so Imagine source plates stay readable.
+ * 1 = old chibi size (~63 world px tall); 2 = twice that (~126 world px).
+ */
+export const MINITEEN_DETAIL_SCALE = 2;
+/** Default town on-screen height for a MINITEEN (native × town scale × detail). */
+export const MINITEEN_DISPLAY_HEIGHT =
+  MINITEEN_NATIVE_HEIGHT * 1.5 * MINITEEN_DETAIL_SCALE;
 
 /**
- * Phaser scale so a villager's idle texture draws at the same on-screen height
- * as a classic 32×42 sprite at `classicScale`.
+ * Phaser scale so a MINITEEN draws at classic chibi height × {@link MINITEEN_DETAIL_SCALE}.
  *
- * Source-plate frames (exported with `--plate`, typically ≫42px tall) are
- * scaled down with nearest-neighbour — same approach as DOA in PR #62.
- * Classic 32×42 assets keep `classicScale` unchanged.
+ * Source-plate frames (exported with `--plate`, typically ≫42px tall) use
+ * height-based scale so on-screen size matches; non-miniteen prefixes (cinna,
+ * bong) pass `classicScale` through unchanged.
  */
 export function miniteenDrawScale(
   scene: Phaser.Scene,
   prefix: string,
   classicScale = 1.5,
 ): number {
+  const isMiniteen = MINITEEN.some((d) => miniteenTexPrefix(d.id) === prefix);
+  const detail = isMiniteen ? MINITEEN_DETAIL_SCALE : 1;
   const key = `${prefix}-idle`;
-  if (!scene.textures.exists(key)) return classicScale;
+  if (!scene.textures.exists(key)) return classicScale * detail;
   const frame = scene.textures.getFrame(key);
   const h = frame?.height ?? 0;
   // Classic game frames are 42px tall; anything larger is a source plate.
-  if (h <= 64) return classicScale;
-  return (MINITEEN_NATIVE_HEIGHT * classicScale) / h;
+  if (h <= 64) return classicScale * detail;
+  return (MINITEEN_NATIVE_HEIGHT * classicScale * detail) / h;
 }
 
 /** True when the loaded idle texture is a hi-res Imagine plate crop. */
