@@ -32,7 +32,7 @@ local verification, and Netlify explanation as required deliverables.
 
 - Keep explain HTML and copied screenshots/sprites in `/tmp`; never add them to the repository.
 - Reuse an existing matching Netlify site when it exists; otherwise create the exact site name.
-- Deploy production output with `npx netlify deploy --prod --dir=<temp-dir> --site=<site-id>`.
+- Deploy production output with `npx --yes netlify-cli@26.2.0 deploy --prod --dir=<temp-dir> --site=<site-id>`.
 - Do not claim deployment success until the live URL responds successfully.
 
 ## Completion report
