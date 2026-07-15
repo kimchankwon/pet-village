@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { generateTextures } from '../sprites/pixelart';
+import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
 import { MIN_GAME_ENERGY, State } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
@@ -131,7 +131,7 @@ export class ParkScene extends Phaser.Scene {
 
     this.player = this.physics.add.sprite(sx, sy, 'penguin-down', 0);
     this.player.setCollideWorldBounds(true);
-    (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
+    configurePlayerPenguin(this.player);
     this.facing = 'down';
 
     this.pet = new Pet(this, sx - 30, sy + 10, worldBounds);
