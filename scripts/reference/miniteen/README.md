@@ -35,11 +35,11 @@ scripts/reference/miniteen/poses/<id>/{idle,walk1,walk2,happy,sad,jump}.png
 ```
 
 **Walk:** always prefer Imagine `walk1`/`walk2` plates (mid-stride, opposite
-feet). Draw walks in a **slight three-quarter** facing **screen-right** so when
-the game `flipX`s for left movement the character still faces the walk
-direction (like classic DOA/Tamtam walks). Procedural foot-shuffle is a last
-resort and is nearly invisible on large plates. Keep the **same character
-scale** as idle (no “outline grows while walking”).
+feet). Walks must stay **upright bipedal on two legs** matching the idle —
+never a four-legged animal trot (that turned Kimja into a DOA-lookalike dog).
+Arms stay arms by the body; only the two feet step. Optional **slight
+three-quarter** lean toward **screen-right** so `flipX` faces the move
+direction. Keep the **same character identity and scale** as idle.
 
 When a pose file is missing, the converter derives it gently from idle at
 **plate resolution** (still not 32×42). Every pose is normalized with
