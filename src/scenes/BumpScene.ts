@@ -228,10 +228,7 @@ export class BumpScene extends Phaser.Scene {
     this.oppName = npcDisplayName(this.oppPrefix);
     const cx = this.cameras.main.width / 2;
     const oppClassic = this.oppPrefix === 'cinna' ? 1.7 : 2;
-    const oppScale =
-      this.oppPrefix === 'cinna'
-        ? oppClassic
-        : miniteenDrawScale(this, this.oppPrefix, oppClassic);
+    const oppScale = miniteenDrawScale(this, this.oppPrefix, oppClassic);
     this.oppSprite = this.add
       .sprite(cx + CHAR_GAP, PLATFORM_Y, `${this.oppPrefix}-idle`)
       .setOrigin(0.5, 1)
@@ -267,8 +264,7 @@ export class BumpScene extends Phaser.Scene {
       const prefix = available[i]!;
       const slot = slots[i]!;
       const classic = prefix === 'cinna' ? slot.scale * 0.85 : slot.scale;
-      const scale =
-        prefix === 'cinna' ? classic : miniteenDrawScale(this, prefix, classic);
+      const scale = miniteenDrawScale(this, prefix, classic);
       const sprite = this.add
         .sprite(slot.x, slot.y, `${prefix}-idle`)
         .setOrigin(0.5, 1)

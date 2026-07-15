@@ -198,14 +198,48 @@ function majority(src: InstanceType<typeof PNG>, x0: number, y0: number, x1: num
   return best?.c ?? [0, 0, 0, 0];
 }
 
-/** Multi-pass interior hole fill so limbs/ears stay solid on the body. */
+/**
+ * Multi-pass interior hole fill so limbs/ears stay solid on the body.
+ * Only fills transparent pixels NOT connected to the canvas edge, so we
+ * never dilate the exterior silhouette or bridge separate features.
+ */
 function fillInteriorHoles(out: InstanceType<typeof PNG>, passes = 3) {
   const ow = out.width, oh = out.height;
+  // Mark exterior (transparent flood from the border)
+  const exterior = new Uint8Array(ow * oh);
+  const queue: number[] = [];
+  const enq = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= ow || y >= oh) return;
+    const i = y * ow + x;
+    if (exterior[i]) return;
+    if (get(out, x, y)[3] >= 20) return;
+    exterior[i] = 1;
+    queue.push(i);
+  };
+  for (let x = 0; x < ow; x++) {
+    enq(x, 0);
+    enq(x, oh - 1);
+  }
+  for (let y = 0; y < oh; y++) {
+    enq(0, y);
+    enq(ow - 1, y);
+  }
+  for (let qi = 0; qi < queue.length; qi++) {
+    const i = queue[qi]!;
+    const x = i % ow;
+    const y = Math.floor(i / ow);
+    enq(x + 1, y);
+    enq(x - 1, y);
+    enq(x, y + 1);
+    enq(x, y - 1);
+  }
+
   for (let p = 0; p < passes; p++) {
     const adds: { x: number; y: number; c: RGBA }[] = [];
     for (let y = 1; y < oh - 1; y++) {
       for (let x = 1; x < ow - 1; x++) {
-        if (get(out, x, y)[3] > 0) continue;
+        const i = y * ow + x;
+        if (exterior[i] || get(out, x, y)[3] > 0) continue;
         let n = 0; let sr = 0, sg = 0, sb = 0;
         for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]] as const) {
           const c = get(out, x + dx, y + dy);
@@ -276,13 +310,15 @@ function solidifyEyes(out: InstanceType<typeof PNG>) {
         const cx = ci % ow, cy = Math.floor(ci / ow);
         set(out, cx, cy, OUT);
       }
-      // White glint on upper-left of the eye blob
-      const xs = cells.map((ci) => ci % ow);
-      const ys = cells.map((ci) => Math.floor(ci / ow));
-      const minX = Math.min(...xs), minY = Math.min(...ys);
-      const glintX = minX;
-      const glintY = minY;
-      if (get(out, glintX, glintY)[3] > 0) set(out, glintX, glintY, [255, 255, 255, 255]);
+      // White glint on the uppermost-leftmost cavity cell (not minX×minY combo)
+      const glint = cells.reduce((best, ci) => {
+        const x = ci % ow;
+        const y = Math.floor(ci / ow);
+        const bx = best % ow;
+        const by = Math.floor(best / ow);
+        return y < by || (y === by && x < bx) ? ci : best;
+      });
+      set(out, glint % ow, Math.floor(glint / ow), [255, 255, 255, 255]);
     }
   }
 }

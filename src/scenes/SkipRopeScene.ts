@@ -295,8 +295,7 @@ export class SkipRopeScene extends Phaser.Scene {
       const baseX = this.petX + (side === 'left' ? -HANDLE_DX : HANDLE_DX);
       const baseY = this.ropeBottomY - 8;
       const classic = prefix === 'cinna' ? 1.45 : 1.7;
-      const scale =
-        prefix === 'cinna' ? classic : miniteenDrawScale(this, prefix, classic);
+      const scale = miniteenDrawScale(this, prefix, classic);
       const sprite = this.add
         .sprite(baseX, baseY, `${prefix}-idle`)
         .setScale(scale)
@@ -379,8 +378,7 @@ export class SkipRopeScene extends Phaser.Scene {
       const prefix = available[i]!;
       const slot = slots[i]!;
       const classic = prefix === 'cinna' ? slot.scale * 0.9 : slot.scale;
-      const scale =
-        prefix === 'cinna' ? classic : miniteenDrawScale(this, prefix, classic);
+      const scale = miniteenDrawScale(this, prefix, classic);
       const sprite = this.add
         .sprite(slot.x, slot.y, `${prefix}-idle`)
         .setScale(scale)
