@@ -97,7 +97,11 @@ function contentBounds(src: InstanceType<typeof PNG>) {
       if (x > x1) x1 = x; if (y > y1) y1 = y;
     }
   }
-  if (!n) return { x0: 0, y0: 0, x1: src.width - 1, y1: src.height - 1 };
+  if (!n) {
+    throw new Error(
+      'No opaque foreground pixels after background removal — plate may be empty or fully keyed as exterior',
+    );
+  }
   return {
     x0: Math.max(0, x0 - 1), y0: Math.max(0, y0 - 1),
     x1: Math.min(src.width - 1, x1 + 1), y1: Math.min(src.height - 1, y1 + 1),
@@ -200,12 +204,22 @@ function processOne(id: string, srcPath: string) {
 
 console.log('MINITEEN Imagine → 32×42');
 const fallback = '/tmp/pv-imagine/miniteen';
+const plates: { id: string; srcPath: string }[] = [];
+const missing: string[] = [];
 for (const id of IDS) {
   const found = [
     path.join(REF, `${id}.png`),
     path.join(fallback, `${id}.png`),
   ].find((p) => fs.existsSync(p));
-  if (!found) { console.warn('skip', id); continue; }
-  processOne(id, found);
+  if (!found) missing.push(id);
+  else plates.push({ id, srcPath: found });
 }
+if (missing.length) {
+  console.error(
+    `Missing ${missing.length}/${IDS.length} MINITEEN plate(s): ${missing.join(', ')}\n` +
+      `Expected under ${REF}/<id>.png (or ${fallback}/<id>.png)`,
+  );
+  process.exit(1);
+}
+for (const { id, srcPath } of plates) processOne(id, srcPath);
 console.log('Done.');

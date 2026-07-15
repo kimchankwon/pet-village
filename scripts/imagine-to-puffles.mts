@@ -111,15 +111,22 @@ function contentBounds(src: InstanceType<typeof PNG>) {
   let x0 = src.width,
     y0 = src.height,
     x1 = 0,
-    y1 = 0;
+    y1 = 0,
+    n = 0;
   for (let y = 0; y < src.height; y++) {
     for (let x = 0; x < src.width; x++) {
       if (get(src, x, y)[3] < 20) continue;
+      n++;
       if (x < x0) x0 = x;
       if (y < y0) y0 = y;
       if (x > x1) x1 = x;
       if (y > y1) y1 = y;
     }
+  }
+  if (!n) {
+    throw new Error(
+      'No opaque foreground pixels after background removal — plate may be empty or fully keyed as exterior',
+    );
   }
   return {
     x0: Math.max(0, x0 - 1),
@@ -290,14 +297,31 @@ function stampCrownHair(
     if (x < 0 || y < 0 || x >= W || y >= H) return;
     set(out, x, y, c);
   };
-  /** Fill a short vertical spike tip, outlined. */
+  /** Fill a short vertical spike tip, outlined. Bridge through old crown outline. */
   const spike = (sx: number, tipY: number, height: number, halfW = 1) => {
+    // Attachment surface: overwrite black outline at the join so spikes don't leave a seam.
+    const surfaceY = tipY + height;
+    for (let dx = -halfW - 1; dx <= halfW + 1; dx++) {
+      const x = sx + dx;
+      if (x < 0 || x >= W) continue;
+      const existing = get(out, x, surfaceY);
+      if (existing[3] >= 20 && existing[0] + existing[1] + existing[2] < 120) {
+        paint(x, surfaceY, body);
+      }
+      // Also fill one pixel above surface if it was outline-only
+      if (surfaceY > 0) {
+        const above = get(out, x, surfaceY - 1);
+        if (above[3] >= 20 && above[0] + above[1] + above[2] < 120) {
+          paint(x, surfaceY - 1, body);
+        }
+      }
+    }
     for (let h = 0; h < height; h++) {
       const y = tipY + h;
       const w = h === 0 ? 0 : halfW; // tip is 1px
       for (let dx = -w; dx <= w; dx++) paint(sx + dx, y, body);
     }
-    // Outline around the spike
+    // Outline around the spike (sides + tip only — not the body attachment row)
     for (let h = 0; h < height; h++) {
       const y = tipY + h;
       const w = h === 0 ? 0 : halfW;
@@ -338,6 +362,11 @@ function stampCrownHair(
   for (const s of [-1, 1] as const) {
     const sx = s < 0 ? x0 : x1;
     const midY = Math.round(y0 + (y1 - y0) * 0.38);
+    // Bridge seam: body color over old outline at the silhouette edge
+    for (let dy = -2; dy <= 2; dy++) {
+      const edge = get(out, sx, midY + dy);
+      if (edge[3] >= 20 && edge[0] + edge[1] + edge[2] < 120) paint(sx, midY + dy, body);
+    }
     for (let k = 0; k < 3; k++) {
       paint(sx + s * (k + 1), midY - 1 + (k % 2), body);
       paint(sx + s * (k + 1), midY + (k % 2), body);
@@ -382,38 +411,23 @@ function posesFromIdle(idle: InstanceType<typeof PNG>): Record<Pose, InstanceTyp
   >;
 }
 
+/** Load a preconverted PNG plate (JPG must be converted to PNG first, e.g. via sips). */
 function loadPlate(name: string): InstanceType<typeof PNG> | null {
   for (const dir of [REF, '/tmp/pv-imagine/puffle']) {
-    for (const ext of ['.png', '.jpg']) {
-      const p = path.join(dir, name + ext);
-      if (fs.existsSync(p)) return PNG.sync.read(fs.readFileSync(p));
-    }
+    const p = path.join(dir, `${name}.png`);
+    if (fs.existsSync(p)) return PNG.sync.read(fs.readFileSync(p));
   }
   return null;
 }
 
 // --- main ---
+// Plates must be PNG under scripts/reference/puffle/ (or /tmp/pv-imagine/puffle/).
+// Convert Imagine JPGs first, e.g.: sips -s format png in.jpg --out scripts/reference/puffle/blue.png
 fs.mkdirSync(REF, { recursive: true });
-// Import Imagine plates from session if not already in REF
-const session = '/Users/xtectra/.grok/sessions/%2FUsers%2Fxtectra/019f6363-27b6-7041-8c41-5c4258f4c66e/images';
-const plateMap: Record<string, string> = {
-  blue: path.join(session, '17.jpg'),
-  orange: path.join(session, '14.jpg'),
-  green: path.join(session, '15.jpg'),
-  black: path.join(session, '16.jpg'),
-};
-for (const [name, src] of Object.entries(plateMap)) {
-  if (!fs.existsSync(src)) continue;
-  const dest = path.join(REF, `${name}.png`);
-  if (!fs.existsSync(dest)) {
-    // convert via sips-equivalent: read not possible for jpg without decoder —
-    // shell converts first
-  }
-}
 
 const bluePlate = loadPlate('blue');
 if (!bluePlate) {
-  console.error('Need scripts/reference/puffle/blue.png (run sips convert first)');
+  console.error('Need scripts/reference/puffle/blue.png (preconverted PNG plate)');
   process.exit(1);
 }
 
@@ -426,23 +440,18 @@ for (const name of ['orange', 'green', 'black'] as const) {
 
 console.log('Puffles Imagine → 32×32');
 for (const [name, color] of Object.entries(COLORS)) {
-  const idle = special[name] ?? recolor(baseBlue, color);
-  // Ensure black puffle face ink is light enough
-  let body = idle;
+  // Consistent silhouette from blue plate; special plates contribute face features only.
+  let body = recolor(baseBlue, color);
   if (name === 'black') {
-    body = clone(idle);
+    // Black body is flat palette color (recolor shading can look muddy on near-black).
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const c = get(body, x, y);
         if (isBody(c)) set(body, x, y, color);
       }
     }
-  } else if (!special[name]) {
-    body = recolor(baseBlue, color);
-  } else if (name !== 'blue') {
-    // Personality plate already has correct body color-ish; snap body to palette
-    body = recolor(special[name]!, color);
-    // Restore face from special plate
+  }
+  if (name !== 'blue' && special[name]) {
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const face = get(special[name]!, x, y);
