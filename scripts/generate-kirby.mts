@@ -1,13 +1,15 @@
 /**
- * Kirby pet frames — GBA Nightmare-in-Dream-Land walk style.
+ * Kirby pet frames — classic pink puffball walk (Tenor kirby-walk GIF ref).
  *
- * Walk cycle mirrors the classic pink-puffball GIF:
+ * Walk cycle mirrors the reference sticker:
  *  - Round body with soft squash / stretch + bob
- *  - Face (eyes + blush + tiny mouth) slides across the sphere each step
- *  - Red feet stay glued to the belly (elliptical stride, no floating gap)
- *  - Dark rose outline, tall eyes with white glints
+ *  - Tall white eyes with black rims + lower pupils, pink blush, open smile
+ *  - Face slides across the sphere each step
+ *  - Red feet glued to the belly (elliptical stride)
+ *  - Stubby side arms
  *
  * Poses: neutral1, neutral2, walk1–walk8, sad, happy, sleep, jump.
+ * Ref: scripts/reference/kirby/ (Tenor GIF frames)
  */
 import fs from 'fs';
 import path from 'path';
@@ -55,17 +57,17 @@ const POSES: Pose[] = [
   'jump',
 ];
 
-// Soft GBA palette — true black outline like the other characters
+// Classic Kirby palette (sampled toward the Tenor walk GIF)
 const OUT: RGBA = [0, 0, 0, 255];
-const PINK: RGBA = [252, 176, 196, 255];
-const SHADE: RGBA = [236, 132, 156, 255];
-const DEEP: RGBA = [212, 96, 124, 255];
-const RED: RGBA = [196, 24, 72, 255];
-const RED_H: RGBA = [236, 72, 108, 255];
+const PINK: RGBA = [255, 170, 200, 255];
+const SHADE: RGBA = [240, 120, 160, 255];
+const DEEP: RGBA = [220, 90, 130, 255];
+const RED: RGBA = [200, 30, 70, 255];
+const RED_H: RGBA = [236, 70, 110, 255];
 const WHITE: RGBA = [255, 255, 255, 255];
-const EYE: RGBA = [24, 24, 40, 255];
-const BLUSH: RGBA = [252, 132, 164, 255];
-const MOUTH: RGBA = [88, 16, 40, 255];
+const EYE: RGBA = [20, 20, 32, 255];
+const BLUSH: RGBA = [255, 120, 160, 255];
+const TONGUE: RGBA = [255, 100, 140, 255];
 
 function blank() {
   const png = new PNG({ width: W, height: H });
@@ -183,10 +185,11 @@ function handNub(
   cy: number,
   extend: number,
 ) {
-  const ax = cx + side * (7.2 + extend);
-  const ay = cy + 0.5;
-  ellipseFill(png, ax, ay, 2.3, 2.5, PINK);
-  fill(png, cx + side * 4, ay - 1, cx + side * (6.5 + extend), ay + 2, PINK);
+  // Stubby classic Kirby arm nubs (GIF)
+  const ax = cx + side * (7.6 + extend);
+  const ay = cy + 1.2;
+  ellipseFill(png, ax, ay, 2.6, 2.8, PINK);
+  fill(png, cx + side * 4.5, ay - 1, cx + side * (6.8 + extend), ay + 2, PINK);
   set(png, ax, ay + 2, SHADE);
 }
 
@@ -199,72 +202,92 @@ function drawFeet(
   leftLift: number,
   rightLift: number,
 ) {
-  // Feet parented to belly — lift pulls into the body, never opens a gap.
-  const spread = 3.5;
+  // Chunkier red shoes glued to the belly (GIF proportions)
+  const spread = 3.8;
   const lfx = cx - spread + leftX;
   const rfx = cx + spread + rightX;
-  const lfy = bodyBottom - 0.4 + leftLift;
-  const rfy = bodyBottom - 0.4 + rightLift;
-  // Planted foot is flatter; lifted foot is rounder
-  const lFlat = leftLift >= -0.2 ? 1.15 : 0.85;
-  const rFlat = rightLift >= -0.2 ? 1.15 : 0.85;
-  ellipseFill(png, lfx, lfy, 3.4 * lFlat, 2.15 / lFlat, RED);
-  ellipseFill(png, rfx, rfy, 3.4 * rFlat, 2.15 / rFlat, RED);
-  fill(png, lfx - 2, lfy - 1, lfx, lfy, RED_H);
-  fill(png, rfx - 2, rfy - 1, rfx, rfy, RED_H);
+  const lfy = bodyBottom - 0.2 + leftLift;
+  const rfy = bodyBottom - 0.2 + rightLift;
+  const lFlat = leftLift >= -0.2 ? 1.2 : 0.9;
+  const rFlat = rightLift >= -0.2 ? 1.2 : 0.9;
+  ellipseFill(png, lfx, lfy, 3.8 * lFlat, 2.4 / lFlat, RED);
+  ellipseFill(png, rfx, rfy, 3.8 * rFlat, 2.4 / rFlat, RED);
+  fill(png, lfx - 2, lfy - 1, lfx + 1, lfy, RED_H);
+  fill(png, rfx - 2, rfy - 1, rfx + 1, rfy, RED_H);
 }
 
+/**
+ * Classic Kirby face from the Tenor walk GIF:
+ * tall white eyes + black rim/pupil, bright blush, small open smile + tongue.
+ */
 function drawFace(
   png: InstanceType<typeof PNG>,
   fx: number,
   fy: number,
   pose: Pose,
 ) {
-  const eyeTop = fy - 3;
-  const lx = fx - 2.4;
-  const rx = fx + 2.4;
+  const eyeCy = fy - 1.5;
+  const lx = fx - 2.6;
+  const rx = fx + 2.6;
 
   if (pose === 'sleep') {
     for (const ex of [lx, rx]) {
-      set(png, ex - 1, eyeTop + 3, EYE);
-      set(png, ex, eyeTop + 4, EYE);
-      set(png, ex + 1, eyeTop + 4, EYE);
+      set(png, ex - 1, eyeCy + 1, EYE);
+      set(png, ex, eyeCy + 2, EYE);
+      set(png, ex + 1, eyeCy + 2, EYE);
     }
   } else if (pose === 'happy') {
+    // Happy squints >
     for (const ex of [lx, rx]) {
-      set(png, ex - 1, eyeTop + 2, EYE);
-      set(png, ex, eyeTop + 1, EYE);
-      set(png, ex + 1, eyeTop + 2, EYE);
+      set(png, ex - 1, eyeCy + 1, EYE);
+      set(png, ex, eyeCy, EYE);
+      set(png, ex + 1, eyeCy + 1, EYE);
     }
   } else if (pose === 'sad') {
     for (const ex of [lx, rx]) {
-      fill(png, ex - 1, eyeTop + 2, ex, eyeTop + 4, EYE);
-      set(png, ex + (ex === lx ? -1 : 1), eyeTop + 1, EYE);
+      fill(png, ex - 1, eyeCy, ex, eyeCy + 2, EYE);
+      set(png, ex + (ex === lx ? -1 : 1), eyeCy - 1, EYE);
     }
   } else {
-    // Tall oval eyes + white glint (GIF)
+    // Tall white ovals + black rim + small lower pupil (Tenor GIF)
     for (const ex of [lx, rx]) {
-      ellipseFill(png, ex, eyeTop + 2, 1.15, 2.35, EYE);
-      set(png, ex, eyeTop + 1, WHITE);
-      set(png, ex - 0.3, eyeTop, WHITE);
+      // Black outline oval
+      ellipseFill(png, ex, eyeCy, 1.65, 2.85, EYE);
+      // Large white fill (most of the eye stays white)
+      ellipseFill(png, ex, eyeCy - 0.2, 1.15, 2.25, WHITE);
+      // Compact lower pupil (not the whole bottom half)
+      fill(png, ex - 0.55, eyeCy + 0.85, ex + 0.55, eyeCy + 1.85, EYE);
+      // Top glint
+      set(png, ex, eyeCy - 1.6, WHITE);
+      set(png, ex - 0.5, eyeCy - 1.2, WHITE);
     }
   }
 
-  // Blush — rides with the face
-  fill(png, lx - 3, fy + 1.5, lx - 1, fy + 2.5, BLUSH);
-  fill(png, rx + 1, fy + 1.5, rx + 3, fy + 2.5, BLUSH);
+  // Bright cheek blush under the eyes (GIF)
+  ellipseFill(png, lx - 2.6, fy + 1.8, 1.7, 1.15, BLUSH);
+  ellipseFill(png, rx + 2.6, fy + 1.8, 1.7, 1.15, BLUSH);
 
-  // Tiny mouth (GIF is subtle; skip when asleep)
+  // Mouth
   if (pose === 'happy') {
-    fill(png, fx - 1, fy + 3, fx + 1, fy + 4, BLUSH);
+    // Wide open smile + tongue
     set(png, fx - 2, fy + 3, EYE);
+    fill(png, fx - 1, fy + 3.5, fx + 1, fy + 4.5, EYE);
     set(png, fx + 2, fy + 3, EYE);
+    fill(png, fx - 1, fy + 3.5, fx + 1, fy + 4, TONGUE);
   } else if (pose === 'sad') {
     set(png, fx - 1, fy + 5, EYE);
     set(png, fx, fy + 4, EYE);
     set(png, fx + 1, fy + 5, EYE);
   } else if (pose !== 'sleep') {
-    ellipseFill(png, fx, fy + 3.6, 1.3, 0.9, MOUTH);
+    // Small open smile with pink tongue (walk / idle GIF look)
+    set(png, fx - 2, fy + 3.2, EYE);
+    set(png, fx - 1, fy + 4, EYE);
+    set(png, fx, fy + 4.2, EYE);
+    set(png, fx + 1, fy + 4, EYE);
+    set(png, fx + 2, fy + 3.2, EYE);
+    // Tongue tip
+    set(png, fx, fy + 3.4, TONGUE);
+    set(png, fx, fy + 3.8, TONGUE);
   }
 }
 
@@ -279,15 +302,16 @@ function drawKirby(pose: Pose) {
   const cx = 16 + lean;
 
   const squash = wp?.squash ?? (pose === 'neutral2' ? 0.25 : 0);
-  const rx = 8.4 + squash * 0.55;
-  const ry = 8.0 - squash * 0.7;
+  // Slightly plumper sphere (GIF)
+  const rx = 8.8 + squash * 0.55;
+  const ry = 8.3 - squash * 0.7;
 
   const bob = wp?.bob ?? (pose === 'jump' ? -3.5 : pose === 'neutral2' ? 0.8 : 0);
-  let cy = 15 + bob;
+  let cy = 14.5 + bob;
   // Keep belly over the planted foot line so bob never opens a gap
-  const ground = pose === 'jump' ? 24 : 25.2;
+  const ground = pose === 'jump' ? 24 : 25.4;
   if (pose !== 'jump') {
-    cy = Math.max(cy, ground - ry + 1.35);
+    cy = Math.max(cy, ground - ry + 1.2);
   }
   const bodyBottom = cy + ry;
 
@@ -305,24 +329,24 @@ function drawKirby(pose: Pose) {
   // Body
   ellipseFill(png, cx, cy, rx, ry, PINK);
 
-  // Soft lower shading
+  // Soft lower / side shading (GIF volume)
   for (let y = -Math.ceil(ry); y <= Math.ceil(ry); y++) {
     for (let x = -Math.ceil(rx); x <= Math.ceil(rx); x++) {
       const d = Math.hypot(x / rx, y / ry);
-      if (d > 1 || d < 0.55) continue;
-      if (d > 0.78 && y > 1) set(png, cx + x, cy + y, x < 0 ? DEEP : SHADE);
+      if (d > 1 || d < 0.5) continue;
+      if (d > 0.76 && y > 0.5) set(png, cx + x, cy + y, x < -1 ? DEEP : SHADE);
     }
   }
   // Re-fill core so shading stays on the rim
-  ellipseFill(png, cx, cy - 0.4, rx * 0.82, ry * 0.78, PINK);
+  ellipseFill(png, cx, cy - 0.5, rx * 0.84, ry * 0.8, PINK);
 
   // Hands
   if (raised) {
     for (const side of [-1, 1] as const) {
-      const ax = cx + side * 6.8;
-      const ay = cy - 5.2;
-      ellipseFill(png, ax, ay, 2.2, 2.4, PINK);
-      fill(png, cx + side * 3.5, ay, cx + side * 6.5, ay + 3, PINK);
+      const ax = cx + side * 7.0;
+      const ay = cy - 5.0;
+      ellipseFill(png, ax, ay, 2.4, 2.5, PINK);
+      fill(png, cx + side * 3.5, ay, cx + side * 6.8, ay + 3, PINK);
     }
   } else if (wp) {
     handNub(png, -1, cx, cy, wp.armL);
@@ -334,13 +358,13 @@ function drawKirby(pose: Pose) {
 
   outlineSilhouette(png);
 
-  // Shine (opposite the face slide so volume still reads)
-  const shineX = cx - 4.5 + Math.min(1, faceShift * 0.25);
-  fill(png, shineX, cy - 5, shineX + 1.2, cy - 3.8, WHITE);
-  set(png, shineX - 1, cy - 4, WHITE);
+  // Soft top-left shine (GIF)
+  const shineX = cx - 4.2 + Math.min(1, faceShift * 0.25);
+  fill(png, shineX, cy - 5.2, shineX + 1.4, cy - 3.6, WHITE);
+  set(png, shineX - 1, cy - 4.2, WHITE);
 
   // Face slides with the walk; idle stays centered
-  drawFace(png, cx + faceShift, cy, pose);
+  drawFace(png, cx + faceShift, cy + 0.4, pose);
 
   return png;
 }
@@ -350,4 +374,4 @@ for (const pose of POSES) {
   const png = drawKirby(pose);
   fs.writeFileSync(path.join(ROOT, `${pose}.png`), PNG.sync.write(repairExternalOutline(png, { outline: OUT })));
 }
-console.log('Wrote Kirby pet frames (GIF-style 8-frame walk)');
+console.log('Wrote Kirby pet frames (Tenor walk GIF style)');
