@@ -340,9 +340,12 @@ export function walkPose(idle, phase) {
     // Never drop pixels off the canvas
     nx = Math.max(0, Math.min(out.width - 1, nx));
     ny = Math.max(0, Math.min(out.height - 1, ny));
-    // Prefer empty target; if occupied by body, keep original x
-    if (isOpaque(getPx(out, nx, ny)) && !isOpaque(getPx(out, p.x, ny))) {
+
+    // Prefer empty target; never overwrite remaining body pixels.
+    // Fall back: same x (possibly lifted), then original (x,y).
+    if (isOpaque(getPx(out, nx, ny))) {
       nx = p.x;
+      if (isOpaque(getPx(out, nx, ny))) ny = p.y;
     }
     setPx(out, nx, ny, p.c);
   }

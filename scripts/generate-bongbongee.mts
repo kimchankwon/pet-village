@@ -314,31 +314,41 @@ const NPC_MAP: Record<string, Pose> = {
   jump: 'jump',
 };
 
-// Prefer Imagine plate conversion when available (scripts/imagine-to-bongbongee.mts).
-const plate = path.resolve('scripts/reference/bongbongee/idle-plate.png');
-if (fs.existsSync(plate)) {
-  console.log('Imagine plate found — converting body frames via imagine-to-bongbongee.mts');
-  const npx = spawnSync('npx', ['tsx', 'scripts/imagine-to-bongbongee.mts'], {
-    stdio: 'inherit',
-    cwd: path.resolve('.'),
-    shell: process.platform === 'win32',
-  });
-  if (npx.status !== 0) {
-    console.warn('Plate conversion failed — falling back to procedural body frames');
-    for (const pose of PET_POSES) {
-      save(drawBong(pose), path.join(ROOT, 'pet/bongbongee', `${pose}.png`), true);
-    }
-    for (const [npc, pose] of Object.entries(NPC_MAP)) {
-      save(drawBong(pose), path.join(ROOT, 'npc/bongbongee', `${npc}.png`), true);
-    }
-  }
-} else {
+// Prefer Imagine plate conversion when a supported plate is available
+// (idle-plate.png or idle.png — same inputs as imagine-to-bongbongee.mts).
+const plateCandidates = [
+  path.resolve('scripts/reference/bongbongee/idle-plate.png'),
+  path.resolve('scripts/reference/bongbongee/idle.png'),
+];
+const plate = plateCandidates.find((p) => fs.existsSync(p));
+let usedImagineBody = false;
+
+function writeProceduralBodies() {
   for (const pose of PET_POSES) {
     save(drawBong(pose), path.join(ROOT, 'pet/bongbongee', `${pose}.png`), true);
   }
   for (const [npc, pose] of Object.entries(NPC_MAP)) {
     save(drawBong(pose), path.join(ROOT, 'npc/bongbongee', `${npc}.png`), true);
   }
+}
+
+if (plate) {
+  console.log(
+    `Imagine plate found (${path.relative(process.cwd(), plate)}) — converting via imagine-to-bongbongee.mts`,
+  );
+  const npx = spawnSync('npx', ['tsx', 'scripts/imagine-to-bongbongee.mts'], {
+    stdio: 'inherit',
+    cwd: path.resolve('.'),
+    shell: process.platform === 'win32',
+  });
+  if (npx.status === 0) {
+    usedImagineBody = true;
+  } else {
+    console.warn('Plate conversion failed — falling back to procedural body frames');
+    writeProceduralBodies();
+  }
+} else {
+  writeProceduralBodies();
 }
 
 save(drawMintPom(), path.join(ROOT, 'accessories/mint-pom.png'));
@@ -348,5 +358,5 @@ save(drawDecoBand(), path.join(ROOT, 'accessories/deco-band.png'));
 
 console.log(
   'Generated Bongbongee accessories' +
-    (fs.existsSync(plate) ? ' (body via Imagine plate)' : ' + procedural body frames'),
+    (usedImagineBody ? ' (body via Imagine plate)' : ' + procedural body frames'),
 );
