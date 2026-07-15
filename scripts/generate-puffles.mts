@@ -1,7 +1,11 @@
 /**
  * Club Penguin–style Puffle pets (10 colors) + puffle-only dig-list clothes.
- * Faces match official art: round fuzzy body, joined white eyes, per-color
- * personality (orange buck teeth + curls, black scowl, green toothy grin, etc.).
+ *
+ * Preferred pet sprite pipeline (Grok Imagine → 32×32):
+ *   npx tsx scripts/imagine-to-puffles.mts
+ *   plates: scripts/reference/puffle/{blue,orange,green,black}.png
+ *
+ * This script is the procedural fallback and still owns dig-list clothes.
  */
 import path from 'path';
 import { createRequire } from 'module';

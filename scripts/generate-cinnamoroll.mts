@@ -377,19 +377,20 @@ const FACES: Record<Pose, Face> = {
       [16, 11],
     ],
   },
-  // win pose: the tilted head puts the one open blue eye far left; the
-  // dark wink on the right comes through naturally
+  // WIN/POSE on the reference sheet: open left eye, closed right wink,
+  // small open smile with pink tongue (not a solid black bar).
   happy: {
     eyes: [{ x: 4, y: 6, w: 2, h: 3 }],
     blush: { y: 9, lx: 6, rx: 19, w: 2 },
-    // Wider smile — connected curve (was two floating dots)
+    // Compact open smile (reference WIN/POSE): 3-wide floor, pink tongue above.
     mouth: [
-      [11, 10],
       [12, 10],
-      [13, 10],
       [14, 10],
-      [12, 11],
-      [13, 11],
+      [11, 11],
+      [15, 11],
+      [12, 12],
+      [13, 12],
+      [14, 12],
     ],
   },
 };
@@ -407,6 +408,24 @@ function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
     if (x < 0 || y < 0 || x >= output.width || y >= output.height) return false;
     const i = (y * output.width + x) * 4;
     return isOutlinePixel(output.data, i, dark);
+  };
+  const isInterior = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= output.width || y >= output.height) return false;
+    const i = (y * output.width + x) * 4;
+    if (output.data[i + 3] === 0) return false;
+    // Interior if all 4-neighbours are opaque (not on the silhouette rim).
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ]) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= output.width || ny >= output.height) return false;
+      if (output.data[(ny * output.width + nx) * 4 + 3] === 0) return false;
+    }
+    return true;
   };
 
   for (const eye of face.eyes ?? []) {
@@ -439,6 +458,46 @@ function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
       if (edge) put(x, y, fur);
     }
   }
+
+  // Happy WIN/POSE: clear a face-mouth band of interior dark noise (sheet
+  // compression leaves broken bars / blue crumbs), then stamp a clean open smile.
+  if (pose === 'happy') {
+    for (let y = 9; y <= 13; y++) {
+      for (let x = 9; x <= 17; x++) {
+        if (!isInterior(x, y)) continue;
+        if (isDark(x, y)) put(x, y, fur);
+        // Also clear cyan shading crumbs that read as a broken mouth
+        const i = (y * output.width + x) * 4;
+        const r = output.data[i]!;
+        const g = output.data[i + 1]!;
+        const b = output.data[i + 2]!;
+        if (b > r + 20 && g > r + 10 && b < 250) put(x, y, fur);
+      }
+    }
+    // Right-eye wink arc (closed lid) — two-row soft curve, no blue leftover.
+    for (const [x, y] of [
+      [12, 7],
+      [13, 7],
+      [14, 7],
+      [11, 8],
+      [15, 8],
+    ] as [number, number][]) {
+      if (isInterior(x, y) || output.data[(y * output.width + x) * 4 + 3] !== 0) put(x, y, dark);
+    }
+    // Pink tongue inside the open smile.
+    for (const [x, y] of [
+      [12, 11],
+      [13, 11],
+      [14, 11],
+    ] as [number, number][]) {
+      put(x, y, PALETTE[4]!); // pink tongue
+    }
+    // Clear any leftover dark crumbs just above the smile
+    for (const [x, y] of [[12, 9], [13, 9], [14, 9]] as [number, number][]) {
+      if (isInterior(x, y)) put(x, y, fur);
+    }
+  }
+
   for (const [x, y] of face.mouth ?? []) put(x, y, dark);
 }
 

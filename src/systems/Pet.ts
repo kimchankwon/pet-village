@@ -105,16 +105,24 @@ export class Pet {
     this.syncAccessories();
   }
 
+  /**
+   * Vertical offset so clothes track the pet's bounce/walk frame art.
+   * Bounce and walk swap textures (idle2 / walk2 content sits 1 native px
+   * lower) without moving sprite.y — wall-clock bobbing was out of phase.
+   */
+  private accessoryBobPx(): number {
+    const key = this.sprite.anims.currentAnim?.key ?? '';
+    if (!key.endsWith('-bounce') && !key.endsWith('-walk')) return 0;
+    if (!this.sprite.anims.isPlaying) return 0;
+    const frameIndex = this.sprite.anims.currentFrame?.index ?? 0;
+    // Frame 1 (idle2 / walk2) is the “down” art; match one native pixel in world space.
+    return frameIndex % 2 === 1 ? this.sprite.scaleY : 0;
+  }
+
   private syncAccessories() {
     const depth = this.ownDepth() + 1;
     const nudges = SPECIES_ACCESSORY_NUDGE[this.species()];
-    // Pet animation swaps texture frames without moving the Sprite object's y.
-    // Give overlays the same tiny pixel-art bounce so clothes feel attached
-    // during both idle bops and walking (one native pixel every 180ms).
-    const accessoryBob =
-      this.sprite.anims.isPlaying && Math.floor(this.scene.time.now / 180) % 2 === 1
-        ? -this.sprite.scaleY
-        : 0;
+    const accessoryBob = this.accessoryBobPx();
     for (let i = 0; i < this.accessorySprites.length; i++) {
       const img = this.accessorySprites[i]!;
       const id = this.accessoryIds[i]!;

@@ -1,16 +1,13 @@
 /**
- * Generates the 13 MINITEEN villager NPC sprites (SEVENTEEN's official
- * mini characters) as original low-res pixel interpretations, drawn from
- * their documented traits:
- *   CHOITCHERRY sleepy white rabbit (red inner ears, tongue, cherry tail) ·
- *   JJONGTORAM child in a pink bunny suit · SHUASUMI fawn deer (antlers +
- *   round ears) · O.C.L a stack of three cats (white/gray/black) · TAMTAM
- *   yellow tiger · FOXDUNGEE lilac fox with round glasses · PPYOPULI fluffy
- *   white rice puff · DOA fluffy cream puppy · KIMJA sprouting potato ·
- *   THEpalee bright-eyed frog · BBOOGYULI tangerine (leaf + swirl) ·
- *   NONVER kid in a gray animal hood · CHANDALEE otter (white muzzle band).
- * Chibi build: big head + small body with stubby arms and feet, 32x42.
- * Poses match the other NPCs: idle, walk1, walk2, happy, sad, jump.
+ * Procedural fallback for the 13 MINITEEN villager NPC sprites.
+ *
+ * Preferred pipeline (Grok Imagine plates → game sprites):
+ *   npx tsx scripts/imagine-to-miniteen.mts
+ *   plates: scripts/reference/miniteen/<id>.png
+ *
+ * This script draws original low-res pixel interpretations from documented
+ * traits when Imagine plates are unavailable. Chibi build 32×42; poses:
+ * idle, walk1, walk2, happy, sad, jump.
  */
 import path from 'path';
 import { createRequire } from 'module';
