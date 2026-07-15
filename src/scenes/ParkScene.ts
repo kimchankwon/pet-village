@@ -10,8 +10,17 @@ import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, type CameraZoom } from '../systems/cameraZoom';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { feedPetMenuOption } from '../systems/petFeedMenu';
+import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
 import { TILE } from '../systems/townMap';
 import { PARK_MAP_H, PARK_MAP_W, PARK_PATH_TY, PARK_WORLD_H, PARK_WORLD_W } from '../systems/parkMap';
+import { updateInteractionHighlight } from '../systems/interactionHighlight';
+import { MiniteenNpc } from '../systems/miniteen';
+import {
+  npcDefsForScene,
+  rememberSceneNpcs,
+  takeSceneNpcSnaps,
+  type NpcSceneLocation,
+} from '../systems/npcScenePresence';
 
 interface Interactable {
   x: number;
@@ -53,6 +62,7 @@ interface ParkConfig {
   exitEdge: 'east' | 'west';
   /** Town `spawn` id used on return. */
   townSpawn: 'west' | 'east';
+  npcLocation: Extract<NpcSceneLocation, 'west-green' | 'east-green'>;
   booths: ParkBooth[];
   decor: Spot[];
 }
@@ -71,6 +81,7 @@ export class ParkScene extends Phaser.Scene {
   private keyE!: Phaser.Input.Keyboard.Key;
   private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
+  private keyP!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
   private prompt!: Prompt;
@@ -85,6 +96,7 @@ export class ParkScene extends Phaser.Scene {
   private ignoreClicksUntil = 0;
   private decoSolids: { x: number; y: number; w: number; h: number }[] = [];
   private boothImgs: { img: Phaser.GameObjects.Image; booth: ParkBooth }[] = [];
+  private villagers: MiniteenNpc[] = [];
 
   constructor(cfg: ParkConfig) {
     super(cfg.key);
@@ -97,6 +109,7 @@ export class ParkScene extends Phaser.Scene {
     this.menuOpen = false;
     this.ignoreClicksUntil = 0;
     this.boothImgs = [];
+    this.villagers = [];
 
     this.physics.world.setBounds(0, 0, PARK_WORLD_W, PARK_WORLD_H);
     this.cameras.main.setBounds(0, 0, PARK_WORLD_W, PARK_WORLD_H);
@@ -125,6 +138,18 @@ export class ParkScene extends Phaser.Scene {
       if (!this.menuOpen && !isUiBlocked()) this.pet.speak();
     });
 
+    const savedNpcs = takeSceneNpcSnaps(this.cfg.npcLocation);
+    this.villagers = npcDefsForScene(this.cfg.npcLocation).map((def, index) => {
+      const waypoints = this.parkNpcWaypoints(index);
+      const npc = new MiniteenNpc(this, def, index, waypoints);
+      const saved = savedNpcs.find((snap) => snap.id === def.id);
+      if (saved) npc.sprite.setPosition(saved.x, saved.y);
+      return npc;
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      rememberSceneNpcs(this.cfg.npcLocation, this.villagers);
+    });
+
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.buildColliders();
 
@@ -134,6 +159,7 @@ export class ParkScene extends Phaser.Scene {
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
+    this.keyP = kb.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.hud = new HUD(this);
@@ -144,7 +170,10 @@ export class ParkScene extends Phaser.Scene {
 
     bottomButtons(
       this,
-      [{ label: '[ Pet ]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } }],
+      [
+        { label: '[ Inventory · I ]', onTap: () => { if (!this.menuOpen) this.openInventory(); } },
+        { label: '[ Pet · P ]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } },
+      ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;
       },
@@ -280,6 +309,16 @@ export class ParkScene extends Phaser.Scene {
     this.scatterDecor();
   }
 
+  private parkNpcWaypoints(index: number) {
+    const shift = index * 0.5;
+    return [
+      { x: (3.2 + shift) * TILE, y: 7.4 * TILE },
+      { x: (6.4 + shift) * TILE, y: 8.7 * TILE },
+      { x: (9.5 - shift) * TILE, y: 6.9 * TILE },
+      { x: (12.5 - shift) * TILE, y: 9.1 * TILE },
+    ];
+  }
+
   private scatterDecor() {
     for (const spot of this.cfg.decor) {
       const img = this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex).setScale(spot.scale ?? 1.3);
@@ -351,6 +390,7 @@ export class ParkScene extends Phaser.Scene {
         keepMenuOpen: () => {
           this.menuOpen = true;
         },
+        openParent: () => this.openPetMenu(),
       }),
     ];
     const p = State.data.pet;
@@ -363,6 +403,17 @@ export class ParkScene extends Phaser.Scene {
     menu.onClose = () => this.closeMenu();
   }
 
+  private openInventory() {
+    if (this.menuOpen) return;
+    this.menuOpen = true;
+    showInventoryMenu(this, {
+      closeMenu: () => this.closeMenu(),
+      keepMenuOpen: () => {
+        this.menuOpen = true;
+      },
+    });
+  }
+
   private nearestInteractable(): Interactable | null {
     let best: Interactable | null = null;
     let bestDist = Infinity;
@@ -373,19 +424,43 @@ export class ParkScene extends Phaser.Scene {
         bestDist = d;
       }
     }
+    for (const npc of this.villagers) {
+      if (!npc.canInteract()) continue;
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, npc.sprite.x, npc.sprite.y);
+      if (d < 55 && d < bestDist) {
+        best = {
+          x: npc.sprite.x,
+          y: npc.sprite.y,
+          radius: 55,
+          label: `E / Space / click — Talk to ${npc.name}`,
+          action: () => {
+            this.menuOpen = true;
+            npc.talk({
+              onClose: () => {
+                this.hud.refresh();
+                this.closeMenu();
+              },
+              keepMenuOpen: () => {
+                this.menuOpen = true;
+              },
+            });
+          },
+          targets: [npc.sprite],
+        };
+        bestDist = d;
+      }
+    }
     return best;
   }
 
   private setHighlight(targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[]) {
-    const next = targets ?? [];
-    if (next[0] === this.glowed[0] && next.length === this.glowed.length) return;
-    for (const o of this.glowed) o.postFX?.clear();
-    this.glowed = next;
-    for (const o of this.glowed) o.postFX?.addGlow(0xffe066, 4);
+    this.glowed = updateInteractionHighlight(this.glowed, targets);
   }
 
   update() {
     if (!this.player) return;
+
+    for (const npc of this.villagers) npc.update();
 
     const speed = 220;
     const uiOpen = this.menuOpen || isUiBlocked();
@@ -480,8 +555,12 @@ export class ParkScene extends Phaser.Scene {
       this.setHighlight(undefined);
     }
 
-    // I toggles the pet menu — opens it, or closes the topmost menu if open.
+    // I owns player inventory; P owns pet care.
     if (Phaser.Input.Keyboard.JustDown(this.keyI)) {
+      if (this.menuOpen) Menu.closeTop();
+      else if (!isUiBlocked()) this.openInventory();
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keyP)) {
       if (this.menuOpen) Menu.closeTop();
       else if (!isUiBlocked()) this.openPetMenu();
     }
@@ -500,6 +579,7 @@ export class WestParkScene extends ParkScene {
       displayName: 'The West Green',
       exitEdge: 'east',
       townSpawn: 'west',
+      npcLocation: 'west-green',
       booths: [
         {
           texture: 'skiprope-booth',
@@ -553,6 +633,7 @@ export class EastParkScene extends ParkScene {
       displayName: 'The East Green',
       exitEdge: 'west',
       townSpawn: 'east',
+      npcLocation: 'east-green',
       booths: [
         {
           texture: 'arcade',

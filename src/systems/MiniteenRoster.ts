@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { MINITEEN, MiniteenNpc, type MiniteenDef } from './miniteen';
 import { TILE, TOWN_WORLD_H, TOWN_WORLD_W } from './townMap';
 import { takeMiniteenSnaps, type TownNpcSnap } from './townPresence';
+import { npcIdsOutsideTown } from './npcScenePresence';
 
 const WORLD_W = TOWN_WORLD_W;
 const WORLD_H = TOWN_WORLD_H;
@@ -40,13 +41,18 @@ export class MiniteenRoster {
   private nextSwapAt = 0;
   private swapping = false;
 
+  private eligibleDefs() {
+    const reserved = npcIdsOutsideTown();
+    return MINITEEN.filter((def) => !reserved.has(def.id));
+  }
+
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
     const saved = takeMiniteenSnaps();
     if (saved && saved.length > 0) {
       this.restore(saved);
     } else {
-      const start = Phaser.Utils.Array.Shuffle([...MINITEEN]).slice(0, ACTIVE_COUNT);
+      const start = Phaser.Utils.Array.Shuffle(this.eligibleDefs()).slice(0, ACTIVE_COUNT);
       start.forEach((def, i) => this.spawnAtHome(def, i));
     }
     this.scheduleNext();
@@ -55,7 +61,7 @@ export class MiniteenRoster {
   private restore(snaps: TownNpcSnap[]) {
     for (let i = 0; i < snaps.length; i++) {
       const snap = snaps[i]!;
-      const def = MINITEEN.find((d) => d.id === snap.id);
+      const def = this.eligibleDefs().find((d) => d.id === snap.id);
       if (!def) continue;
       const npc = new MiniteenNpc(this.scene, def, i);
       npc.sprite.setPosition(snap.x, snap.y);
@@ -63,7 +69,7 @@ export class MiniteenRoster {
     }
     // If a save was incomplete, top up to ACTIVE_COUNT near home.
     if (this.active.size < ACTIVE_COUNT) {
-      const extras = MINITEEN.filter((d) => !this.active.has(d.id));
+      const extras = this.eligibleDefs().filter((d) => !this.active.has(d.id));
       let i = this.active.size;
       for (const def of extras) {
         if (this.active.size >= ACTIVE_COUNT) break;
@@ -99,7 +105,7 @@ export class MiniteenRoster {
     if (present.length === 0) return;
 
     const [leaveId, leaving] = present[Phaser.Math.Between(0, present.length - 1)]!;
-    const offDuty = MINITEEN.filter((d) => !this.active.has(d.id));
+    const offDuty = this.eligibleDefs().filter((d) => !this.active.has(d.id));
     if (offDuty.length === 0) {
       this.scheduleNext();
       return;

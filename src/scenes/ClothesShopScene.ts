@@ -12,6 +12,8 @@ import { isInteractSuppressed, isUiBlocked } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { CinnamorollNpc } from '../systems/CinnamorollNpc';
+import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
+import { updateInteractionHighlight } from '../systems/interactionHighlight';
 
 const TILE = 48;
 const COLS = 12;
@@ -33,6 +35,7 @@ export class ClothesShopScene extends Phaser.Scene {
   private keyE!: Phaser.Input.Keyboard.Key;
   private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
+  private keyP!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
   private prompt!: Prompt;
@@ -153,6 +156,7 @@ export class ClothesShopScene extends Phaser.Scene {
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
+    this.keyP = kb.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.hud = new HUD(this);
@@ -162,7 +166,10 @@ export class ClothesShopScene extends Phaser.Scene {
 
     bottomButtons(
       this,
-      [{ label: '[ Pet ]', onTap: () => this.openPetMenu() }],
+      [
+        { label: '[ Inventory · I ]', onTap: () => this.openInventory() },
+        { label: '[ Pet · P ]', onTap: () => this.openPetMenu() },
+      ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;
       },
@@ -257,11 +264,7 @@ export class ClothesShopScene extends Phaser.Scene {
   }
 
   private setHighlight(targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[]) {
-    const next = targets ?? [];
-    if (next[0] === this.glowed[0] && next.length === this.glowed.length) return;
-    for (const o of this.glowed) o.postFX?.clear();
-    this.glowed = next;
-    for (const o of this.glowed) o.postFX?.addGlow(0xffe066, 4);
+    this.glowed = updateInteractionHighlight(this.glowed, targets);
   }
 
   private closeMenu() {
@@ -294,6 +297,7 @@ export class ClothesShopScene extends Phaser.Scene {
         keepMenuOpen: () => {
           this.menuOpen = true;
         },
+        openParent: () => this.openPetMenu(),
       }),
     ];
     const p = State.data.pet;
@@ -304,6 +308,17 @@ export class ClothesShopScene extends Phaser.Scene {
       `Food ${Math.round(p.hunger)} · Happy ${Math.round(p.happiness)} · Energy ${Math.round(p.energy)}`,
     );
     menu.onClose = () => this.closeMenu();
+  }
+
+  private openInventory() {
+    if (this.menuOpen) return;
+    this.menuOpen = true;
+    showInventoryMenu(this, {
+      closeMenu: () => this.closeMenu(),
+      keepMenuOpen: () => {
+        this.menuOpen = true;
+      },
+    });
   }
 
   update() {
@@ -388,8 +403,12 @@ export class ClothesShopScene extends Phaser.Scene {
       this.setHighlight(undefined);
     }
 
-    // I toggles the pet menu — opens it, or closes the topmost menu if open.
+    // I owns player inventory; P owns pet care.
     if (Phaser.Input.Keyboard.JustDown(this.keyI)) {
+      if (this.menuOpen) Menu.closeTop();
+      else if (!isUiBlocked()) this.openInventory();
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keyP)) {
       if (this.menuOpen) Menu.closeTop();
       else if (!isUiBlocked()) this.openPetMenu();
     }

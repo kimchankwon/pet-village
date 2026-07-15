@@ -10,9 +10,11 @@ const FONT_SM = { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff' };
 const ROW_IDLE = 0x4a4370;
 const ROW_SELECTED = 0x6b63a8;
 const ROW_DISABLED = 0x3d3d5c;
+const ROW_NAVIGATION = 0x3c5578;
+const ROW_BACK = 0x59415f;
 
 /** Max option rows before the menu paginates (fits a 600px-tall bottom sheet). */
-export const DEFAULT_MENU_PAGE_SIZE = 6;
+export const DEFAULT_MENU_PAGE_SIZE = 5;
 
 // Heads-up display: pet name, coins + pet need bars. Fixed to camera,
 // anchored bottom-left (clears the touch joystick / bottom-right pet button).
@@ -107,6 +109,8 @@ export interface MenuOption {
   disabled?: boolean;
   /** If true, selecting does not close the menu (used for page turns). */
   keepOpen?: boolean;
+  /** Gives navigation rows a distinct visual treatment. */
+  tone?: 'normal' | 'navigation' | 'back';
   onSelect: () => void;
 }
 
@@ -119,6 +123,26 @@ export interface MenuLayout {
   pageSize?: number;
   /** Keep highlight on this enabled-row index after open/rebuild. */
   initialSelected?: number;
+  /** Nested menus use this for a visible Back row, dim-click, and Escape. */
+  back?: {
+    label?: string;
+    onSelect: () => void;
+  };
+}
+
+/** Resolve a global option index to its page and enabled-row highlight. */
+export function menuFocusForIndex(
+  options: MenuOption[],
+  focusIndex: number,
+  pageSize = DEFAULT_MENU_PAGE_SIZE,
+) {
+  const safeIndex = Math.max(0, Math.min(focusIndex, Math.max(0, options.length - 1)));
+  const page = Math.floor(safeIndex / pageSize);
+  const pageStart = page * pageSize;
+  const initialSelected = options
+    .slice(pageStart, safeIndex)
+    .filter((option) => !option.disabled).length;
+  return { page, initialSelected };
 }
 
 function resolveLayout(subtitleOrLayout?: string | MenuLayout): MenuLayout {
@@ -130,6 +154,7 @@ function resolveLayout(subtitleOrLayout?: string | MenuLayout): MenuLayout {
 type MenuRow = {
   opt: MenuOption;
   row: Phaser.GameObjects.Rectangle;
+  label: Phaser.GameObjects.Text;
 };
 
 /**
@@ -155,6 +180,7 @@ export class Menu {
   private selected = 0;
   private keys: Phaser.Input.Keyboard.Key[] = [];
   private closed = false;
+  private layout: MenuLayout = {};
   onClose?: () => void;
 
   constructor(
@@ -165,6 +191,7 @@ export class Menu {
   ) {
     this.scene = scene;
     const layout = resolveLayout(subtitleOrLayout);
+    this.layout = layout;
     const cam = scene.cameras.main;
     const hasFace = Boolean(layout.face && scene.textures.exists(layout.face));
     const faceSlot = hasFace ? 78 : 0;
@@ -177,19 +204,30 @@ export class Menu {
     const navOptions: MenuOption[] = [];
     if (safePage > 0) {
       navOptions.push({
-        label: `← Previous (page ${safePage}/${totalPages})`,
+        label: '‹ Previous page',
         keepOpen: true,
+        tone: 'navigation',
         onSelect: () => this.turnPage(title, options, layout, safePage - 1),
       });
     }
     if (safePage < totalPages - 1) {
       navOptions.push({
-        label: `Next → (page ${safePage + 2}/${totalPages})`,
+        label: 'Next page ›',
         keepOpen: true,
+        tone: 'navigation',
         onSelect: () => this.turnPage(title, options, layout, safePage + 1),
       });
     }
-    const visibleOptions = [...pageOptions, ...navOptions];
+    const backOptions: MenuOption[] = layout.back
+      ? [
+          {
+            label: layout.back.label ?? '← Back',
+            tone: 'back',
+            onSelect: layout.back.onSelect,
+          },
+        ]
+      : [];
+    const visibleOptions = [...pageOptions, ...navOptions, ...backOptions];
 
     const maxChars = visibleOptions.reduce(
       (m, o) => Math.max(m, o.label.length),
@@ -229,7 +267,7 @@ export class Menu {
       .setScrollFactor(0)
       .setDepth(2000)
       .setInteractive();
-    dim.on('pointerdown', () => this.close());
+    dim.on('pointerdown', () => this.goBackOrClose(layout));
 
     const panel = scene.add
       .rectangle(cx, cy, w, panelH, 0x2a2440, 0.97)
@@ -264,6 +302,21 @@ export class Menu {
       .setDepth(2002);
     this.objects.push(dim, panel, titleText);
 
+    if (totalPages > 1) {
+      const badge = scene.add
+        .text(cx + w / 2 - 18, titleY, `${safePage + 1} / ${totalPages}`, {
+          ...FONT_SM,
+          fontSize: '10px',
+          color: '#ffe066',
+          backgroundColor: '#171326',
+          padding: { x: 6, y: 3 },
+        })
+        .setOrigin(1, 0.5)
+        .setScrollFactor(0)
+        .setDepth(2003);
+      this.objects.push(badge);
+    }
+
     let top = cy - panelH / 2 + (hasFace ? 58 : 42);
     if (layout.subtitle && subtitlePreview) {
       subtitlePreview
@@ -281,8 +334,10 @@ export class Menu {
 
     visibleOptions.forEach((opt, i) => {
       const y = top + i * rowH + rowH / 2;
+      const idleColor =
+        opt.tone === 'back' ? ROW_BACK : opt.tone === 'navigation' ? ROW_NAVIGATION : ROW_IDLE;
       const row = scene.add
-        .rectangle(cx, y, w - 24, rowH - 6, opt.disabled ? ROW_DISABLED : ROW_IDLE)
+        .rectangle(cx, y, w - 24, rowH - 6, opt.disabled ? ROW_DISABLED : idleColor)
         .setScrollFactor(0)
         .setDepth(2002);
       if (!opt.disabled) {
@@ -307,17 +362,20 @@ export class Menu {
         .setScrollFactor(0)
         .setDepth(2003);
       this.objects.push(row, label);
-      this.rows.push({ opt, row });
+      this.rows.push({ opt, row, label });
     });
 
-    const pageHint =
-      totalPages > 1 ? `  ·  page ${safePage + 1}/${totalPages}` : '';
     const hint = scene.add
-      .text(cx, cy + panelH / 2 - 14, `↑↓ / WASD  ·  Space / E  ·  ESC${pageHint}`, {
-        ...FONT_SM,
-        fontSize: '10px',
-        color: '#8a8a9e',
-      })
+      .text(
+        cx,
+        cy + panelH / 2 - 14,
+        `↑↓ / WASD  ·  Space / E select  ·  ESC ${layout.back ? 'back' : 'close'}`,
+        {
+          ...FONT_SM,
+          fontSize: '10px',
+          color: '#8a8a9e',
+        },
+      )
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(2002);
@@ -352,20 +410,34 @@ export class Menu {
     const preserveOnClose = this.onClose;
     this.onClose = undefined;
     this.close();
-    const next = new Menu(this.scene, title, options, { ...layout, page });
+    const next = new Menu(this.scene, title, options, { ...layout, page, initialSelected: 0 });
     next.onClose = preserveOnClose;
+  }
+
+  private goBackOrClose(layout: MenuLayout) {
+    if (!layout.back) {
+      this.close();
+      return;
+    }
+    const goBack = layout.back.onSelect;
+    this.close();
+    goBack();
   }
 
   private paintSelection() {
     for (let i = 0; i < this.rows.length; i++) {
-      const { opt, row } = this.rows[i]!;
+      const { opt, row, label } = this.rows[i]!;
       if (opt.disabled) {
         row.setFillStyle(ROW_DISABLED);
+        label.setColor('#8a8a9e');
         continue;
       }
       const on = this.enabledIndexes[this.selected] === i;
-      row.setFillStyle(on ? ROW_SELECTED : ROW_IDLE);
+      const idleColor =
+        opt.tone === 'back' ? ROW_BACK : opt.tone === 'navigation' ? ROW_NAVIGATION : ROW_IDLE;
+      row.setFillStyle(on ? ROW_SELECTED : idleColor);
       row.setStrokeStyle(on ? 2 : 0, 0xffe066);
+      label.setColor(on ? '#ffe066' : '#ffffff');
     }
   }
 
@@ -412,7 +484,7 @@ export class Menu {
     bind(Codes.SPACE, () => this.confirm());
     bind(Codes.ENTER, () => this.confirm());
     bind(Codes.E, () => this.confirm());
-    bind(Codes.ESC, () => this.close());
+    bind(Codes.ESC, () => this.goBackOrClose(this.layout));
   }
 
   close() {

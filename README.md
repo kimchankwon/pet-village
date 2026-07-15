@@ -54,14 +54,16 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 | Click / tap | Walk to that spot |
 | Hold / drag | Keep walking toward the pointer |
 | Joystick (bottom-left) | Walk — made for touch |
+| Mouse wheel / pinch / zoom slider | Zoom the world; your chosen level follows you between scenes |
 | E / click | Interact when close (door, shop, arcade) |
-| I | open the pet menu (chat · feed · clothes) |
+| I | open your inventory (your clothes · food · furniture) |
+| P | open the pet menu (chat · feed · pet clothes) |
 | Decorate button | (in house) open the decorate menu |
 | Click furniture | (in house) pick it up into inventory |
 | Drag + release | (paper toss) slingshot the paper ball |
-| ESC / click outside | close a menu |
+| ESC / click outside | go back in a nested menu, or close it |
 | ESC (in town) | game menu — resume, penguin colour, change pet, exit |
-| [ Pet ] / [ Menu ] (bottom-right) | pet care · game menu, no walking required |
+| [ Inventory ] / [ Pet ] / [ Menu ] | your items · pet care · game menu, no walking required |
 | Exit / Back / Sign out | asks for confirmation first |
 
 - **Mochi** (your pet) follows you everywhere. Its Food / Happy / Energy
@@ -87,7 +89,10 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   anywhere on screen to slingshot (releasing outside the game still
   throws), and pick your paper-ball colour with the swatches.
 - Anything you can interact with (house, Daniel, arcade, your pet, the
-  door mat) lights up with an outline when you're close enough.
+  door mat) lights up when you're close enough.
+- MINITEEN residents roam Town, Shore, West Green, and East Green. Their
+  scene assignments and positions persist while you travel, with no resident
+  duplicated across locations; every resident supports the full dialogue menu.
 - **Your house** is decoratable on a grid: buy furniture, place it via
   the Decorate button, click to pick it back up.
 

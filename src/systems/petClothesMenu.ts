@@ -1,9 +1,8 @@
 import type Phaser from 'phaser';
 import { ACCESSORIES, ACCESSORY_LIST, accessoryWearable, type AccessoryId } from './accessories';
 import { State } from './GameState';
-import { DEFAULT_MENU_PAGE_SIZE, Menu, type MenuOption } from './UI';
+import { Menu, menuFocusForIndex, type MenuOption } from './UI';
 import type { Pet } from './Pet';
-import { refreshPenguin } from '../sprites/pixelart';
 
 /** Shared “Clothes / accessories” entry for pet menus across scenes. */
 export function clothesPetMenuOption(
@@ -12,16 +11,17 @@ export function clothesPetMenuOption(
   opts: {
     closeMenu: () => void;
     keepMenuOpen: () => void;
+    openParent: () => void;
   },
 ): MenuOption {
-  const owned = State.ownedAccessoryIds().length;
+  const owned = State.ownedAccessoryIds().filter((id) => !State.isPenguinAccessory(id)).length;
   return {
-    label: owned === 0 ? 'Clothes (Cinnamoroll or Bongbongee!)' : 'Clothes & accessories',
+    label: owned === 0 ? 'Pet clothes (visit Cinnamoroll!)' : `Pet clothes · ${owned} owned`,
     icon: 'acc-cloud-bow',
     disabled: owned === 0,
     onSelect: () => {
       opts.keepMenuOpen();
-      openClothesMenu(scene, pet, opts.closeMenu, opts.keepMenuOpen);
+      openClothesMenu(scene, pet, opts);
     },
   };
 }
@@ -41,11 +41,14 @@ function wearableLockLabel(a: (typeof ACCESSORY_LIST)[number]): string {
 export function openClothesMenu(
   scene: Phaser.Scene,
   pet: Pet,
-  onClose: () => void,
-  keepMenuOpen?: () => void,
+  opts: {
+    closeMenu: () => void;
+    keepMenuOpen: () => void;
+    openParent: () => void;
+  },
   focusIndex = 0,
 ) {
-  keepMenuOpen?.();
+  opts.keepMenuOpen();
   // Replace any previous clothes menu so “Wearing: …” isn’t buried under stacks.
   if (clothesMenu) {
     const prev = clothesMenu;
@@ -54,30 +57,24 @@ export function openClothesMenu(
     prev.close();
   }
 
-  const owned = ACCESSORY_LIST.filter((a) => State.ownsAccessory(a.id));
+  const owned = ACCESSORY_LIST.filter(
+    (a) => State.ownsAccessory(a.id) && !State.isPenguinAccessory(a.id),
+  );
   const options: MenuOption[] = owned.map((a, i) => {
-    // Penguin clothes go on the player, everything else on the pet.
-    const forPenguin = State.isPenguinAccessory(a.id);
-    const equipped = forPenguin ? State.isPenguinAccessoryEquipped(a.id) : State.isAccessoryEquipped(a.id);
-    const locked = !forPenguin && !State.canWearAccessory(a.id);
+    const equipped = State.isAccessoryEquipped(a.id);
+    const locked = !State.canWearAccessory(a.id);
     return {
       label: locked
         ? `○ ${a.name} (${wearableLockLabel(a)})`
-        : `${equipped ? '● ' : '○ '}${a.name}${forPenguin ? ' (you)' : ''}`,
+        : `${equipped ? '● ' : '○ '}${a.name}`,
       icon: a.texture,
       disabled: locked,
       onSelect: () => {
         if (locked) return;
-        if (forPenguin) {
-          State.togglePenguinAccessory(a.id);
-          refreshPenguin(scene);
-        } else {
-          State.toggleAccessory(a.id);
-          pet.refreshAccessories();
-        }
-        keepMenuOpen?.();
+        State.toggleAccessory(a.id);
+        pet.refreshAccessories();
         // Stay on the row you toggled instead of jumping to the top.
-        openClothesMenu(scene, pet, onClose, keepMenuOpen, i);
+        openClothesMenu(scene, pet, opts, i);
       },
     };
   });
@@ -93,11 +90,9 @@ export function openClothesMenu(
     options.push({
       label: 'Unequip all',
       onSelect: () => {
-        State.unequipAllAccessories();
+        State.unequipAllPetAccessories();
         pet.refreshAccessories();
-        refreshPenguin(scene);
-        keepMenuOpen?.();
-        openClothesMenu(scene, pet, onClose, keepMenuOpen, unequipIndex);
+        openClothesMenu(scene, pet, opts, unequipIndex);
       },
     });
   }
@@ -105,30 +100,20 @@ export function openClothesMenu(
   const petNames = ACCESSORY_LIST.filter((a) => State.isAccessoryEquipped(a.id) && State.canWearAccessory(a.id))
     .map((a) => a.name)
     .join(', ');
-  const youNames = ACCESSORY_LIST.filter((a) => State.isPenguinAccessory(a.id) && State.isPenguinAccessoryEquipped(a.id))
-    .map((a) => a.name)
-    .join(', ');
-  const parts: string[] = [];
-  if (petNames) parts.push(`Pet: ${petNames}`);
-  if (youNames) parts.push(`You: ${youNames}`);
-  const wearingLine = parts.length ? `Wearing — ${parts.join(' · ')}` : 'Wearing: nothing yet';
+  const wearingLine = petNames ? `Wearing: ${petNames}` : 'Wearing: nothing yet';
+  const focus = menuFocusForIndex(options, focusIndex);
 
-  const safeFocusIndex = Math.max(0, Math.min(focusIndex, options.length - 1));
-  const page = Math.floor(safeFocusIndex / DEFAULT_MENU_PAGE_SIZE);
-  const pageStart = page * DEFAULT_MENU_PAGE_SIZE;
-  // Menu.initialSelected indexes into enabled rows on the active page only.
-  const enabledFocus = options
-    .slice(pageStart, safeFocusIndex)
-    .filter((option) => !option.disabled).length;
-
-  clothesMenu = new Menu(scene, 'Clothes & accessories', options, {
+  clothesMenu = new Menu(scene, `${State.data.petName}'s clothes`, options, {
     subtitle: wearingLine,
-    page,
-    initialSelected: enabledFocus,
+    ...focus,
+    back: {
+      label: `← Back to ${State.data.petName}`,
+      onSelect: opts.openParent,
+    },
   });
   clothesMenu.onClose = () => {
     clothesMenu = null;
-    onClose();
+    opts.closeMenu();
   };
 }
 

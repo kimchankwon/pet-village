@@ -10,6 +10,7 @@ import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, type CameraZoom } from '../systems/cameraZoom';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { feedPetMenuOption } from '../systems/petFeedMenu';
+import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
 import { TILE } from '../systems/townMap';
 import {
   SHORE_DOCK,
@@ -19,8 +20,9 @@ import {
   SHORE_WORLD_H,
   SHORE_WORLD_W,
 } from '../systems/shoreMap';
-import { WandererNpc, type NpcTalkCallbacks } from '../systems/WandererNpc';
-import { miniteenTexPrefix } from '../systems/miniteen';
+import { MiniteenNpc } from '../systems/miniteen';
+import { updateInteractionHighlight } from '../systems/interactionHighlight';
+import { npcDefsForScene, rememberSceneNpcs, takeSceneNpcSnaps } from '../systems/npcScenePresence';
 
 interface Interactable {
   x: number;
@@ -31,33 +33,6 @@ interface Interactable {
   targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[];
 }
 
-/** Sparse shore villager — same roam/talk pattern as town NPCs. */
-class ShoreVillager extends WandererNpc {
-  private lines: string[];
-
-  constructor(
-    scene: Phaser.Scene,
-    name: string,
-    texPrefix: string,
-    waypoints: { x: number; y: number }[],
-    lines: string[],
-  ) {
-    super(scene, { name, texPrefix, waypoints, scale: 1.5, speed: 40 });
-    this.lines = lines;
-  }
-
-  protected override openTalk(cbs: NpcTalkCallbacks) {
-    const line = this.pickLine(this.lines);
-    this.playBounce();
-    const menu = new Menu(this.scene, this.name, [{ label: 'Wave goodbye', onSelect: () => this.hop() }], {
-      subtitle: line,
-      anchor: 'bottom',
-      face: this.faceKey(),
-    });
-    menu.onClose = cbs.onClose;
-  }
-}
-
 /**
  * Outdoor coastal overworld — larger/scrollable, ocean along the south edge.
  * Reached from Town's south path; fishing spot on the dock starts FishingScene.
@@ -65,12 +40,13 @@ class ShoreVillager extends WandererNpc {
 export class ShoreScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private pet!: Pet;
-  private npcs: WandererNpc[] = [];
+  private npcs: MiniteenNpc[] = [];
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private keyE!: Phaser.Input.Keyboard.Key;
   private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
+  private keyP!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
   private prompt!: Prompt;
@@ -123,38 +99,28 @@ export class ShoreScene extends Phaser.Scene {
       if (!this.menuOpen && !isUiBlocked()) this.pet.speak();
     });
 
-    this.npcs = [
-      new ShoreVillager(
-        this,
-        'THEpalee',
-        miniteenTexPrefix('thepalee'),
-        [
-          { x: 4 * TILE, y: 4.5 * TILE },
-          { x: 6 * TILE, y: 6 * TILE },
-          { x: 3.5 * TILE, y: 5.5 * TILE },
-        ],
-        [
-          'The tide sounds nicer when nobody is shouting.',
-          'Tea first. Then maybe a cast.',
-          'Frogs prefer quiet ponds. This ocean is… loud. In a good way.',
-        ],
-      ),
-      new ShoreVillager(
-        this,
-        'CHANDALEE',
-        miniteenTexPrefix('chandalee'),
-        [
-          { x: 13 * TILE, y: 4.2 * TILE },
-          { x: 15 * TILE, y: 5.8 * TILE },
-          { x: 14 * TILE, y: 6.2 * TILE },
-        ],
-        [
-          'One day every otter will know this shoreline! Ha!',
-          'I practised my splash. Ten out of ten.',
-          'Catch anything good? Show me later!',
-        ],
-      ),
+    const shoreWaypoints = [
+      [
+        { x: 4 * TILE, y: 4.5 * TILE },
+        { x: 6 * TILE, y: 6 * TILE },
+        { x: 3.5 * TILE, y: 5.5 * TILE },
+      ],
+      [
+        { x: 13 * TILE, y: 4.2 * TILE },
+        { x: 15 * TILE, y: 5.8 * TILE },
+        { x: 14 * TILE, y: 6.2 * TILE },
+      ],
     ];
+    const savedNpcs = takeSceneNpcSnaps('shore');
+    this.npcs = npcDefsForScene('shore').map((def, index) => {
+      const npc = new MiniteenNpc(this, def, index, shoreWaypoints[index] ?? shoreWaypoints[0]);
+      const saved = savedNpcs.find((snap) => snap.id === def.id);
+      if (saved) npc.sprite.setPosition(saved.x, saved.y);
+      return npc;
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      rememberSceneNpcs('shore', this.npcs);
+    });
 
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.buildColliders();
@@ -165,6 +131,7 @@ export class ShoreScene extends Phaser.Scene {
     this.keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
+    this.keyP = kb.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.hud = new HUD(this);
@@ -175,7 +142,10 @@ export class ShoreScene extends Phaser.Scene {
 
     bottomButtons(
       this,
-      [{ label: '[ Pet ]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } }],
+      [
+        { label: '[ Inventory · I ]', onTap: () => { if (!this.menuOpen) this.openInventory(); } },
+        { label: '[ Pet · P ]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } },
+      ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;
       },
@@ -408,6 +378,7 @@ export class ShoreScene extends Phaser.Scene {
         keepMenuOpen: () => {
           this.menuOpen = true;
         },
+        openParent: () => this.openPetMenu(),
       }),
     ];
     const p = State.data.pet;
@@ -418,6 +389,17 @@ export class ShoreScene extends Phaser.Scene {
       `Food ${Math.round(p.hunger)} · Happy ${Math.round(p.happiness)} · Energy ${Math.round(p.energy)}`,
     );
     menu.onClose = () => this.closeMenu();
+  }
+
+  private openInventory() {
+    if (this.menuOpen) return;
+    this.menuOpen = true;
+    showInventoryMenu(this, {
+      closeMenu: () => this.closeMenu(),
+      keepMenuOpen: () => {
+        this.menuOpen = true;
+      },
+    });
   }
 
   private nearestInteractable(): Interactable | null {
@@ -442,7 +424,10 @@ export class ShoreScene extends Phaser.Scene {
           action: () => {
             this.menuOpen = true;
             npc.talk({
-              onClose: () => this.closeMenu(),
+              onClose: () => {
+                this.hud.refresh();
+                this.closeMenu();
+              },
               keepMenuOpen: () => {
                 this.menuOpen = true;
               },
@@ -457,11 +442,7 @@ export class ShoreScene extends Phaser.Scene {
   }
 
   private setHighlight(targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[]) {
-    const next = targets ?? [];
-    if (next[0] === this.glowed[0] && next.length === this.glowed.length) return;
-    for (const o of this.glowed) o.postFX?.clear();
-    this.glowed = next;
-    for (const o of this.glowed) o.postFX?.addGlow(0xffe066, 4);
+    this.glowed = updateInteractionHighlight(this.glowed, targets);
   }
 
   update() {
@@ -552,8 +533,12 @@ export class ShoreScene extends Phaser.Scene {
       this.setHighlight(undefined);
     }
 
-    // I toggles the pet menu — opens it, or closes the topmost menu if open.
+    // I owns player inventory; P owns pet care.
     if (Phaser.Input.Keyboard.JustDown(this.keyI)) {
+      if (this.menuOpen) Menu.closeTop();
+      else if (!isUiBlocked()) this.openInventory();
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keyP)) {
       if (this.menuOpen) Menu.closeTop();
       else if (!isUiBlocked()) this.openPetMenu();
     }
