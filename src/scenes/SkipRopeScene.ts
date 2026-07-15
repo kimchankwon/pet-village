@@ -12,7 +12,7 @@ import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { petAnimKey, petTextureKey } from '../systems/pets';
-import { MINITEEN, miniteenTexPrefix } from '../systems/miniteen';
+import { MINITEEN, miniteenDrawScale, miniteenTexPrefix } from '../systems/miniteen';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 
@@ -294,9 +294,11 @@ export class SkipRopeScene extends Phaser.Scene {
       const prefix = picks[i]!;
       const baseX = this.petX + (side === 'left' ? -HANDLE_DX : HANDLE_DX);
       const baseY = this.ropeBottomY - 8;
+      const classic = prefix === 'cinna' ? 1.45 : 1.7;
+      const scale = miniteenDrawScale(this, prefix, classic);
       const sprite = this.add
         .sprite(baseX, baseY, `${prefix}-idle`)
-        .setScale(prefix === 'cinna' ? 1.45 : 1.7)
+        .setScale(scale)
         .setFlipX(side === 'right')
         .setOrigin(0.5, 1)
         .setDepth(7);
@@ -375,9 +377,11 @@ export class SkipRopeScene extends Phaser.Scene {
     for (let i = 0; i < count; i++) {
       const prefix = available[i]!;
       const slot = slots[i]!;
+      const classic = prefix === 'cinna' ? slot.scale * 0.9 : slot.scale;
+      const scale = miniteenDrawScale(this, prefix, classic);
       const sprite = this.add
         .sprite(slot.x, slot.y, `${prefix}-idle`)
-        .setScale(prefix === 'cinna' ? slot.scale * 0.9 : slot.scale)
+        .setScale(scale)
         .setFlipX(slot.flip)
         .setOrigin(0.5, 1)
         .setDepth(4);

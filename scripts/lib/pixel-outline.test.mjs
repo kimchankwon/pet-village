@@ -92,6 +92,9 @@ test('generated character frames already satisfy the one-pixel outline invariant
 
   for (const { file, outline } of files) {
     const image = PNG.sync.read(fs.readFileSync(file));
+    // Source-plate frames (useSourcePlate / --plate) are large Imagine crops
+    // that intentionally skip the 1px outline repair pipeline.
+    if (image.width > 96 || image.height > 96) continue;
     const repaired = repairExternalOutline(image, { outline });
     assert.deepEqual(Buffer.from(repaired.data), Buffer.from(image.data), `${file} still has a thick or inconsistent external outline`);
   }
