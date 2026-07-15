@@ -12,17 +12,31 @@ Repeatable pipeline for the 13 MINITEEN village NPCs.
 | In-game draw | ~63 world px tall | Classic: scale 1.5; plate: auto-scale + nearest-neighbour |
 | Review zoom | **3×** of 32×42 (96×126) | Nearest-neighbour only — never bilinear |
 
-### Prefer the plate look?
+### Prefer the plate look? (PR #62 approach)
 
-If the Imagine art looks better than the tiny 32×42 result, keep the plate:
+**Do not majority-downsample soft Imagine art to 32×42** — that muddies eyes and
+fills. Keep the plate:
 
 ```bash
+# All 13 villagers as transparent plate crops (max 512px side)
+npm run sprite:miniteen -- --plate
+
+# Or one character
 npm run sprite:miniteen -- --plate doa
 ```
 
-Then set `useSourcePlate: true` on that villager in `src/systems/miniteen.ts`
-(already on for DOA). The game loads the large frames and scales them down with
-nearest-neighbour so on-screen size matches the other miniteens.
+The game auto-detects frames taller than 64px and scales them to classic
+miniteen height (~63 world px) with **nearest-neighbour** filtering.
+
+Optional Grok Imagine **pose plates** (walk/happy/sad/jump) live under:
+
+```
+scripts/reference/miniteen/poses/<id>/{idle,walk1,walk2,happy,sad,jump}.png
+```
+
+When a pose file is missing, the converter derives it gently from idle at
+**plate resolution** (still not 32×42). Set `useSourcePlate: true` on the def
+for documentation; runtime scaling keys off texture height.
 
 ## Poses
 

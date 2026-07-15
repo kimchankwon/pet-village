@@ -57,11 +57,14 @@ export class BootScene extends Phaser.Scene {
   create() {
     generateTextures(this);
 
-    // High-res Imagine plates scale down in-game — force nearest-neighbour so
-    // they stay crisp (default linear filtering blurs chunky pixel art).
+    // Source-plate frames (≫42px) scale down in-game — force nearest-neighbour
+    // so they stay crisp (default linear filtering blurs chunky pixel art).
     for (const def of MINITEEN) {
-      if (!def.useSourcePlate) continue;
       const prefix = miniteenTexPrefix(def.id);
+      const idleKey = `${prefix}-idle`;
+      if (!this.textures.exists(idleKey)) continue;
+      const h = this.textures.getFrame(idleKey)?.height ?? 0;
+      if (h <= 64) continue;
       for (const pose of NPC_POSES) {
         const key = `${prefix}-${pose}`;
         if (this.textures.exists(key)) {

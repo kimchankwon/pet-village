@@ -393,26 +393,55 @@ function toGameSprite(raw: InstanceType<typeof PNG>): InstanceType<typeof PNG> {
   return out;
 }
 
-function processOne(id: string, srcPath: string, plateMode: boolean) {
-  const src = PNG.sync.read(fs.readFileSync(srcPath));
-  const idle = plateMode ? toPlateSprite(src) : toGameSprite(src);
-  // Real face + body motion (not whole-sprite shifts)
-  const poses = npcPosesFromIdle(idle, { ink: OUT, accent: [255, 140, 170, 255] });
+const NPC_POSE_NAMES = ['idle', 'walk1', 'walk2', 'happy', 'sad', 'jump'] as const;
+
+/** Prefer Grok Imagine pose plates when present (see scripts/reference/miniteen/poses/). */
+function findPosePlate(id: string, pose: string): string | null {
+  const candidates = [
+    path.join(REF, 'poses', id, `${pose}.png`),
+    path.join(REF, `${id}-${pose}.png`),
+    // idle may still live at the top-level plate path
+    pose === 'idle' ? path.join(REF, `${id}-imagine.png`) : '',
+    pose === 'idle' ? path.join(REF, `${id}.png`) : '',
+  ].filter(Boolean);
+  return candidates.find((p) => fs.existsSync(p)) ?? null;
+}
+
+function processOne(id: string, idleSrcPath: string, plateMode: boolean) {
+  const convert = plateMode ? toPlateSprite : toGameSprite;
+  // Prefer poses/<id>/idle.png (Imagine) then the top-level plate path.
+  const idlePath = findPosePlate(id, 'idle') ?? idleSrcPath;
+  const idle = convert(PNG.sync.read(fs.readFileSync(idlePath)));
+  // Prefer per-pose Imagine plates; fall back to gentle pose-animate from idle
+  // (still at plate resolution — never majority-downsample to 32×42 in --plate mode).
+  const procedural = npcPosesFromIdle(idle, { ink: OUT, accent: [255, 140, 170, 255] });
   const dir = path.join(ROOT, id);
-  for (const [pose, png] of Object.entries(poses)) {
+  const sources: string[] = [];
+  for (const pose of NPC_POSE_NAMES) {
+    const posePlate = findPosePlate(id, pose);
+    let png: InstanceType<typeof PNG>;
+    if (posePlate) {
+      png = convert(PNG.sync.read(fs.readFileSync(posePlate)));
+      sources.push(`${pose}←imagine`);
+    } else if (pose === 'idle') {
+      png = idle;
+      sources.push('idle←plate');
+    } else {
+      png = procedural[pose]!;
+      sources.push(`${pose}←animate`);
+    }
     if (!plateMode) {
-      // Solidify eyes on tiny frames — happy/sad can re-open cavities
       solidifyEyes(png);
       saveSprite(png, path.join(dir, `${pose}.png`), { repairOutline: true, outline: OUT });
     } else {
       writePng(png, path.join(dir, `${pose}.png`));
     }
   }
-  // opaque pixel count
   let n = 0;
   for (let i = 3; i < idle.data.length; i += 4) if (idle.data[i]! > 20) n++;
   console.log(
-    `  ${id}: ${idle.width}×${idle.height} · ${n} opaque px${plateMode ? ' (source plate)' : ''}`,
+    `  ${id}: ${idle.width}×${idle.height} · ${n} opaque px` +
+      `${plateMode ? ' (source plate)' : ''} · ${sources.join(' ')}`,
   );
 }
 
@@ -425,9 +454,9 @@ const fallback = '/tmp/pv-imagine/miniteen';
 const plates: { id: string; srcPath: string }[] = [];
 const missing: string[] = [];
 for (const id of selected) {
-  // Prefer a dedicated Imagine plate when present (e.g. doa-imagine.png),
-  // then the canonical <id>.png, then /tmp fallback used during generation.
+  // Prefer poses/<id>/idle.png, then top-level plates, then /tmp fallback.
   const found = [
+    path.join(REF, 'poses', id, 'idle.png'),
     path.join(REF, `${id}-imagine.png`),
     path.join(REF, `${id}.png`),
     path.join(fallback, `${id}.png`),

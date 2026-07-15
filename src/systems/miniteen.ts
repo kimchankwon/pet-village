@@ -31,23 +31,31 @@ export const MINITEEN_DISPLAY_HEIGHT = 42 * 1.5;
 
 /**
  * Phaser scale so a villager's idle texture draws at the same on-screen height
- * as a classic 32×42 sprite at `classicScale`. Source-plate characters use
- * large frames; without this they'd fill half the map.
+ * as a classic 32×42 sprite at `classicScale`.
+ *
+ * Source-plate frames (exported with `--plate`, typically ≫42px tall) are
+ * scaled down with nearest-neighbour — same approach as DOA in PR #62.
+ * Classic 32×42 assets keep `classicScale` unchanged.
  */
 export function miniteenDrawScale(
   scene: Phaser.Scene,
   prefix: string,
   classicScale = 1.5,
 ): number {
-  const def = MINITEEN.find((d) => miniteenTexPrefix(d.id) === prefix);
-  if (!def?.useSourcePlate) return classicScale;
   const key = `${prefix}-idle`;
   if (!scene.textures.exists(key)) return classicScale;
   const frame = scene.textures.getFrame(key);
   const h = frame?.height ?? 0;
-  if (h <= 0) return classicScale;
-  // Classic frames are 42 px tall; match that × classicScale.
+  // Classic game frames are 42px tall; anything larger is a source plate.
+  if (h <= 64) return classicScale;
   return (42 * classicScale) / h;
+}
+
+/** True when the loaded idle texture is a hi-res Imagine plate crop. */
+export function miniteenUsesSourcePlate(scene: Phaser.Scene, prefix: string): boolean {
+  if (!scene.textures.exists(`${prefix}-idle`)) return false;
+  const h = scene.textures.getFrame(`${prefix}-idle`)?.height ?? 0;
+  return h > 64;
 }
 
 export const MINITEEN: MiniteenDef[] = [
@@ -65,6 +73,7 @@ export const MINITEEN: MiniteenDef[] = [
     ],
     gift: 4,
     home: { tx: 3.2, ty: 8.5 },
+    useSourcePlate: true,
   },
   {
     id: 'jjongtoram',
@@ -80,6 +89,7 @@ export const MINITEEN: MiniteenDef[] = [
     ],
     gift: 5,
     home: { tx: 7.2, ty: 10.8 },
+    useSourcePlate: true,
   },
   {
     id: 'shuasumi',
@@ -95,6 +105,7 @@ export const MINITEEN: MiniteenDef[] = [
     ],
     gift: 3,
     home: { tx: 8.8, ty: 6.4 },
+    useSourcePlate: true,
   },
   {
     id: 'ocl',
@@ -110,6 +121,7 @@ export const MINITEEN: MiniteenDef[] = [
     ],
     gift: 4,
     home: { tx: 14.2, ty: 5.8 },
+    useSourcePlate: true,
   },
   {
     id: 'tamtam',
@@ -125,6 +137,7 @@ export const MINITEEN: MiniteenDef[] = [
     ],
     gift: 5,
     home: { tx: 18.5, ty: 8.2 },
+    useSourcePlate: true,
   },
   {
     id: 'foxdungee',
@@ -140,6 +153,7 @@ export const MINITEEN: MiniteenDef[] = [
     ],
     gift: 4,
     home: { tx: 19.2, ty: 11.2 },
+    useSourcePlate: true,
   },
   {
     id: 'ppyopuli',
@@ -155,6 +169,7 @@ export const MINITEEN: MiniteenDef[] = [
     ],
     gift: 4,
     home: { tx: 7.5, ty: 12.2 },
+    useSourcePlate: true,
   },
   {
     id: 'doa',
@@ -187,6 +202,7 @@ export const MINITEEN: MiniteenDef[] = [
     ],
     gift: 5,
     home: { tx: 3.5, ty: 12.5 },
+    useSourcePlate: true,
   },
   {
     id: 'thepalee',
@@ -202,6 +218,7 @@ export const MINITEEN: MiniteenDef[] = [
     ],
     gift: 3,
     home: { tx: 11, ty: 13.6 },
+    useSourcePlate: true,
   },
   {
     id: 'bboogyuli',
@@ -217,6 +234,7 @@ export const MINITEEN: MiniteenDef[] = [
     ],
     gift: 5,
     home: { tx: 15.2, ty: 14 },
+    useSourcePlate: true,
   },
   {
     id: 'nonver',
@@ -232,6 +250,7 @@ export const MINITEEN: MiniteenDef[] = [
     ],
     gift: 4,
     home: { tx: 19.5, ty: 5.6 },
+    useSourcePlate: true,
   },
   {
     id: 'chandalee',
@@ -247,6 +266,7 @@ export const MINITEEN: MiniteenDef[] = [
     ],
     gift: 3,
     home: { tx: 11, ty: 10.2 },
+    useSourcePlate: true,
   },
 ];
 
