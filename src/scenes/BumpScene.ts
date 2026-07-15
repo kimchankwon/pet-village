@@ -5,7 +5,7 @@ import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { petAnimKey, petTextureKey } from '../systems/pets';
-import { MINITEEN, miniteenTexPrefix } from '../systems/miniteen';
+import { MINITEEN, miniteenDrawScale, miniteenTexPrefix } from '../systems/miniteen';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 
@@ -227,10 +227,15 @@ export class BumpScene extends Phaser.Scene {
       : 'bong';
     this.oppName = npcDisplayName(this.oppPrefix);
     const cx = this.cameras.main.width / 2;
+    const oppClassic = this.oppPrefix === 'cinna' ? 1.7 : 2;
+    const oppScale =
+      this.oppPrefix === 'cinna'
+        ? oppClassic
+        : miniteenDrawScale(this, this.oppPrefix, oppClassic);
     this.oppSprite = this.add
       .sprite(cx + CHAR_GAP, PLATFORM_Y, `${this.oppPrefix}-idle`)
       .setOrigin(0.5, 1)
-      .setScale(this.oppPrefix === 'cinna' ? 1.7 : 2)
+      .setScale(oppScale)
       .setFlipX(true)
       .setDepth(9);
     const bounce = `${this.oppPrefix}-bounce`;
@@ -261,10 +266,13 @@ export class BumpScene extends Phaser.Scene {
     for (let i = 0; i < count; i++) {
       const prefix = available[i]!;
       const slot = slots[i]!;
+      const classic = prefix === 'cinna' ? slot.scale * 0.85 : slot.scale;
+      const scale =
+        prefix === 'cinna' ? classic : miniteenDrawScale(this, prefix, classic);
       const sprite = this.add
         .sprite(slot.x, slot.y, `${prefix}-idle`)
         .setOrigin(0.5, 1)
-        .setScale(prefix === 'cinna' ? slot.scale * 0.85 : slot.scale)
+        .setScale(scale)
         .setFlipX(slot.flip)
         .setDepth(4);
       const bounce = `${prefix}-bounce`;

@@ -1,25 +1,18 @@
 /**
- * Convert high-res Grok Imagine MINITEEN pixel-art plates into 32×42 game
- * sprites (idle + walk/happy/sad/jump variants).
+ * Convert high-res Grok Imagine MINITEEN pixel-art plates into game sprites.
+ *
+ * Default: downsample to classic 32×42 chibi frames.
+ * `--plate`: keep the source plate resolution (transparent bg + crop) so the
+ * in-game art matches the Imagine look; Phaser scales it down with nearest
+ * neighbour. Mark the villager `useSourcePlate: true` in miniteen.ts.
  *
  * Source plates: scripts/reference/miniteen/<id>.png
- * Background is exterior flood-fill (so white characters stay solid).
  *
- * Usage (repeatable for any villager):
- *   npm run sprite:miniteen              # all 13 plates
- *   npm run sprite:miniteen -- doa       # one character
- *   npm run sprite:miniteen -- doa ocl   # subset
- *
- * Workflow for a new / refreshed character:
- *   1. Drop a clean Imagine plate at scripts/reference/miniteen/<id>.png
- *      (optional: keep the previous plate as <id>-prev.png)
- *   2. npm run sprite:miniteen -- <id>
- *   3. Spot-check public/assets/npc/miniteen/<id>/{idle,walk1,walk2,...}.png
- *      at native 32×42 and at 3× nearest-neighbour (96×126).
- *
- * Body-fit notes: the plate must keep ears, hats, held items, tongues, and
- * limbs solidly connected to the silhouette — flood-fill keys only exterior
- * bg, so floating accessories become separate blobs or vanish on downsample.
+ * Usage:
+ *   npm run sprite:miniteen                    # all → 32×42
+ *   npm run sprite:miniteen -- doa             # one → 32×42
+ *   npm run sprite:miniteen -- --plate doa     # one → full plate frames
+ *   npm run sprite:miniteen -- doa ocl
  */
 import fs from 'fs';
 import path from 'path';
@@ -42,10 +35,11 @@ type MiniteenId = (typeof IDS)[number];
 const ROOT = path.resolve('public/assets/npc/miniteen');
 const REF = path.resolve('scripts/reference/miniteen');
 
-/** CLI: `tsx scripts/imagine-to-miniteen.mts [id ...]` — empty = all. */
-function selectIds(argv: string[]): MiniteenId[] {
+/** CLI: `tsx scripts/imagine-to-miniteen.mts [--plate] [id ...]` — empty ids = all. */
+function parseCli(argv: string[]): { plateMode: boolean; ids: MiniteenId[] } {
+  const plateMode = argv.includes('--plate') || argv.includes('-p');
   const args = argv.filter((a) => a && !a.startsWith('-'));
-  if (!args.length) return [...IDS];
+  if (!args.length) return { plateMode, ids: [...IDS] };
   const unknown = args.filter((a) => !(IDS as readonly string[]).includes(a));
   if (unknown.length) {
     console.error(
@@ -54,7 +48,7 @@ function selectIds(argv: string[]): MiniteenId[] {
     );
     process.exit(1);
   }
-  return args as MiniteenId[];
+  return { plateMode, ids: args as MiniteenId[] };
 }
 
 function blank(w = W, h = H) {
@@ -206,10 +200,11 @@ function majority(src: InstanceType<typeof PNG>, x0: number, y0: number, x1: num
 
 /** Multi-pass interior hole fill so limbs/ears stay solid on the body. */
 function fillInteriorHoles(out: InstanceType<typeof PNG>, passes = 3) {
+  const ow = out.width, oh = out.height;
   for (let p = 0; p < passes; p++) {
     const adds: { x: number; y: number; c: RGBA }[] = [];
-    for (let y = 1; y < H - 1; y++) {
-      for (let x = 1; x < W - 1; x++) {
+    for (let y = 1; y < oh - 1; y++) {
+      for (let x = 1; x < ow - 1; x++) {
         if (get(out, x, y)[3] > 0) continue;
         let n = 0; let sr = 0, sg = 0, sb = 0;
         for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]] as const) {
@@ -233,18 +228,22 @@ function fillInteriorHoles(out: InstanceType<typeof PNG>, passes = 3) {
  * Solidify hollow eye rings (common after majority downsample of glossy eyes).
  * Fills enclosed dark rings in the upper face with black + a white glint.
  * Safe for all miniteens: only acts on small dark-ring cavities.
+ * (32×42 mode only — plate mode keeps Imagine eyes as-is.)
  */
 function solidifyEyes(out: InstanceType<typeof PNG>) {
+  const ow = out.width, oh = out.height;
+  // Only meaningful on tiny game frames
+  if (ow > 64 || oh > 64) return;
   const b = contentBounds(out);
   const faceTop = b.y0 + 1;
   const faceBot = Math.min(b.y1 - 4, b.y0 + Math.floor((b.y1 - b.y0) * 0.55));
-  const visited = new Uint8Array(W * H);
+  const visited = new Uint8Array(ow * oh);
   const isDark = (c: RGBA) => c[3] > 20 && c[0] + c[1] + c[2] < 90;
   const isEmpty = (c: RGBA) => c[3] < 20;
 
   for (let y = faceTop; y <= faceBot; y++) {
     for (let x = b.x0 + 2; x <= b.x1 - 2; x++) {
-      const i = y * W + x;
+      const i = y * ow + x;
       if (visited[i]) continue;
       if (!isEmpty(get(out, x, y))) continue;
       // Flood empty cavity; require it to be small and mostly ringed by dark ink
@@ -255,11 +254,11 @@ function solidifyEyes(out: InstanceType<typeof PNG>) {
       while (q.length) {
         const ci = q.pop()!;
         cells.push(ci);
-        const cx = ci % W, cy = Math.floor(ci / W);
+        const cx = ci % ow, cy = Math.floor(ci / ow);
         for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as const) {
           const nx = cx + dx, ny = cy + dy;
-          if (nx < 0 || ny < 0 || nx >= W || ny >= H) { openBorder = true; continue; }
-          const ni = ny * W + nx;
+          if (nx < 0 || ny < 0 || nx >= ow || ny >= oh) { openBorder = true; continue; }
+          const ni = ny * ow + nx;
           const c = get(out, nx, ny);
           if (isEmpty(c)) {
             if (!visited[ni]) { visited[ni] = 1; q.push(ni); }
@@ -274,18 +273,56 @@ function solidifyEyes(out: InstanceType<typeof PNG>) {
       if (edgeN === 0 || darkN / edgeN < 0.55) continue;
       // Fill cavity black
       for (const ci of cells) {
-        const cx = ci % W, cy = Math.floor(ci / W);
+        const cx = ci % ow, cy = Math.floor(ci / ow);
         set(out, cx, cy, OUT);
       }
       // White glint on upper-left of the eye blob
-      const xs = cells.map((ci) => ci % W);
-      const ys = cells.map((ci) => Math.floor(ci / W));
+      const xs = cells.map((ci) => ci % ow);
+      const ys = cells.map((ci) => Math.floor(ci / ow));
       const minX = Math.min(...xs), minY = Math.min(...ys);
-      const glintX = minX + (Math.max(...xs) > minX ? 0 : 0);
+      const glintX = minX;
       const glintY = minY;
       if (get(out, glintX, glintY)[3] > 0) set(out, glintX, glintY, [255, 255, 255, 255]);
     }
   }
+}
+
+/**
+ * Keep the Imagine plate almost as-is: key exterior, crop to content.
+ * Optional max side so walk variants stay manageable in git/browser.
+ */
+const PLATE_MAX_SIDE = 512;
+
+function toPlateSprite(raw: InstanceType<typeof PNG>): InstanceType<typeof PNG> {
+  const keyed = removeExterior(raw);
+  const b = contentBounds(keyed);
+  const pad = 6;
+  const x0 = Math.max(0, b.x0 - pad);
+  const y0 = Math.max(0, b.y0 - pad);
+  const x1 = Math.min(keyed.width - 1, b.x1 + pad);
+  const y1 = Math.min(keyed.height - 1, b.y1 + pad);
+  const cw = x1 - x0 + 1;
+  const ch = y1 - y0 + 1;
+  // Nearest-neighbour shrink only if larger than the cap (preserves chunky pixels)
+  const fit = Math.min(1, PLATE_MAX_SIDE / Math.max(cw, ch));
+  const tw = Math.max(8, Math.round(cw * fit));
+  const th = Math.max(10, Math.round(ch * fit));
+  const out = blank(tw, th);
+  for (let gy = 0; gy < th; gy++) {
+    for (let gx = 0; gx < tw; gx++) {
+      const sx = x0 + Math.min(cw - 1, Math.floor((gx / tw) * cw));
+      const sy = y0 + Math.min(ch - 1, Math.floor((gy / th) * ch));
+      const c = get(keyed, sx, sy);
+      if (c[3] > 20) set(out, gx, gy, [c[0], c[1], c[2], 255]);
+    }
+  }
+  return out;
+}
+
+function writePng(png: InstanceType<typeof PNG>, file: string) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  // Plate frames are large — skip outline repair (keeps Imagine edges intact).
+  fs.writeFileSync(file, PNG.sync.write(png));
 }
 
 /**
@@ -320,25 +357,34 @@ function toGameSprite(raw: InstanceType<typeof PNG>): InstanceType<typeof PNG> {
   return out;
 }
 
-function processOne(id: string, srcPath: string) {
+function processOne(id: string, srcPath: string, plateMode: boolean) {
   const src = PNG.sync.read(fs.readFileSync(srcPath));
-  const idle = toGameSprite(src);
+  const idle = plateMode ? toPlateSprite(src) : toGameSprite(src);
   // Real face + body motion (not whole-sprite shifts)
   const poses = npcPosesFromIdle(idle, { ink: OUT, accent: [255, 140, 170, 255] });
   const dir = path.join(ROOT, id);
   for (const [pose, png] of Object.entries(poses)) {
-    // Solidify eyes on every pose — happy/sad can re-open cavities via face paint
-    solidifyEyes(png);
-    saveSprite(png, path.join(dir, `${pose}.png`), { repairOutline: true, outline: OUT });
+    if (!plateMode) {
+      // Solidify eyes on tiny frames — happy/sad can re-open cavities
+      solidifyEyes(png);
+      saveSprite(png, path.join(dir, `${pose}.png`), { repairOutline: true, outline: OUT });
+    } else {
+      writePng(png, path.join(dir, `${pose}.png`));
+    }
   }
   // opaque pixel count
   let n = 0;
   for (let i = 3; i < idle.data.length; i += 4) if (idle.data[i]! > 20) n++;
-  console.log(`  ${id}: ${n} opaque px`);
+  console.log(
+    `  ${id}: ${idle.width}×${idle.height} · ${n} opaque px${plateMode ? ' (source plate)' : ''}`,
+  );
 }
 
-const selected = selectIds(process.argv.slice(2));
-console.log(`MINITEEN Imagine → 32×42 (${selected.length}/${IDS.length}: ${selected.join(', ')})`);
+const { plateMode, ids: selected } = parseCli(process.argv.slice(2));
+console.log(
+  `MINITEEN Imagine → ${plateMode ? `source plate (max ${PLATE_MAX_SIDE}px)` : '32×42'} ` +
+    `(${selected.length}/${IDS.length}: ${selected.join(', ')})`,
+);
 const fallback = '/tmp/pv-imagine/miniteen';
 const plates: { id: string; srcPath: string }[] = [];
 const missing: string[] = [];
@@ -362,6 +408,12 @@ if (missing.length) {
 }
 for (const { id, srcPath } of plates) {
   console.log(`  plate ${id} ← ${path.relative(process.cwd(), srcPath)}`);
-  processOne(id, srcPath);
+  processOne(id, srcPath, plateMode);
+}
+if (plateMode) {
+  console.log(
+    'Note: set useSourcePlate: true on that villager in src/systems/miniteen.ts ' +
+      'so Phaser scales the plate to match other NPCs (nearest-neighbour).',
+  );
 }
 console.log('Done.');

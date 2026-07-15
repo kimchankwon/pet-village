@@ -7,9 +7,22 @@ Repeatable pipeline for the 13 MINITEEN village NPCs.
 | Stage | Size | Notes |
 |-------|------|--------|
 | Imagine plate | ~384–1024² | Flat pixel art, solid bg, full-body front |
-| Game frame | **32×42** | One PNG per pose under `public/assets/npc/miniteen/<id>/` |
-| In-game draw | scale ~1.5 | Phaser `setScale` on the NPC |
-| Review zoom | **3×** (96×126) | Nearest-neighbour only — never bilinear |
+| Game frame (default) | **32×42** | Majority-downsample — classic chibi |
+| Game frame (`--plate`) | up to **512px** side | Transparent crop of the plate (looks like Imagine) |
+| In-game draw | ~63 world px tall | Classic: scale 1.5; plate: auto-scale + nearest-neighbour |
+| Review zoom | **3×** of 32×42 (96×126) | Nearest-neighbour only — never bilinear |
+
+### Prefer the plate look?
+
+If the Imagine art looks better than the tiny 32×42 result, keep the plate:
+
+```bash
+npm run sprite:miniteen -- --plate doa
+```
+
+Then set `useSourcePlate: true` on that villager in `src/systems/miniteen.ts`
+(already on for DOA). The game loads the large frames and scales them down with
+nearest-neighbour so on-screen size matches the other miniteens.
 
 ## Poses
 

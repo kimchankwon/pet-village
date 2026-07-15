@@ -17,6 +17,37 @@ export interface MiniteenDef {
   gift: number; // daily coin gift
   /** Home anchor in tile coords; waypoints spread around it. */
   home: { tx: number; ty: number };
+  /**
+   * Use full-resolution Imagine plate frames (not 32×42).
+   * Phaser scales them to match classic miniteen on-screen height with
+   * nearest-neighbour filtering so the plate stays crisp.
+   * Export with: `npm run sprite:miniteen -- --plate <id>`
+   */
+  useSourcePlate?: boolean;
+}
+
+/** Classic 32×42 miniteen at scale 1.5 → ~63 world px tall. */
+export const MINITEEN_DISPLAY_HEIGHT = 42 * 1.5;
+
+/**
+ * Phaser scale so a villager's idle texture draws at the same on-screen height
+ * as a classic 32×42 sprite at `classicScale`. Source-plate characters use
+ * large frames; without this they'd fill half the map.
+ */
+export function miniteenDrawScale(
+  scene: Phaser.Scene,
+  prefix: string,
+  classicScale = 1.5,
+): number {
+  const def = MINITEEN.find((d) => miniteenTexPrefix(d.id) === prefix);
+  if (!def?.useSourcePlate) return classicScale;
+  const key = `${prefix}-idle`;
+  if (!scene.textures.exists(key)) return classicScale;
+  const frame = scene.textures.getFrame(key);
+  const h = frame?.height ?? 0;
+  if (h <= 0) return classicScale;
+  // Classic frames are 42 px tall; match that × classicScale.
+  return (42 * classicScale) / h;
 }
 
 export const MINITEEN: MiniteenDef[] = [
@@ -139,6 +170,8 @@ export const MINITEEN: MiniteenDef[] = [
     ],
     gift: 3,
     home: { tx: 13.5, ty: 12.4 },
+    // High-res Imagine plate frames (npm run sprite:miniteen -- --plate doa)
+    useSourcePlate: true,
   },
   {
     id: 'kimja',
@@ -249,11 +282,12 @@ export class MiniteenNpc extends WandererNpc {
     index: number,
     waypoints = homeWaypoints(def, index),
   ) {
+    const prefix = miniteenTexPrefix(def.id);
     super(scene, {
       name: def.name,
-      texPrefix: miniteenTexPrefix(def.id),
+      texPrefix: prefix,
       waypoints,
-      scale: 1.5,
+      scale: miniteenDrawScale(scene, prefix, 1.5),
       speed: 40 + (index % 4) * 6,
     });
     this.def = def;
