@@ -58,13 +58,11 @@ export class BootScene extends Phaser.Scene {
     generateTextures(this);
 
     for (const species of PET_SPECIES_LIST) {
+      // Single-frame "bounce" = standing still. Walk still uses a two-frame cycle.
       this.anims.create({
         key: petAnimKey(species.id, 'bounce'),
-        frames: [
-          { key: petTextureKey(species.id, 'idle1') },
-          { key: petTextureKey(species.id, 'idle2') },
-        ],
-        frameRate: 3,
+        frames: [{ key: petTextureKey(species.id, 'idle1') }],
+        frameRate: 1,
         repeat: -1,
       });
       if (species.id === 'kirby') {
@@ -89,13 +87,13 @@ export class BootScene extends Phaser.Scene {
       }
     }
 
-    // Every wandering NPC gets the same two-frame bounce/walk pair.
+    // Standing = static idle texture. Walk keeps a two-frame cycle.
     const npcPrefixes = ['cinna', 'bong', ...MINITEEN.map((def) => miniteenTexPrefix(def.id))];
     for (const prefix of npcPrefixes) {
       this.anims.create({
         key: `${prefix}-bounce`,
-        frames: [{ key: `${prefix}-idle` }, { key: `${prefix}-happy` }],
-        frameRate: 2,
+        frames: [{ key: `${prefix}-idle` }],
+        frameRate: 1,
         repeat: -1,
       });
       this.anims.create({

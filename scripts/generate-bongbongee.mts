@@ -3,8 +3,10 @@
  * Reference: official plush — pink head cap, white face, "17" cheeks,
  * aqua Carat diamond, mint pom, light-blue "NEW" tee, deco band.
  */
+import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { spawnSync } from 'node:child_process';
 import { saveSprite } from './lib/save-sprite.mjs';
 
 const require = createRequire(import.meta.url);
@@ -312,11 +314,41 @@ const NPC_MAP: Record<string, Pose> = {
   jump: 'jump',
 };
 
-for (const pose of PET_POSES) {
-  save(drawBong(pose), path.join(ROOT, 'pet/bongbongee', `${pose}.png`), true);
+// Prefer Imagine plate conversion when a supported plate is available
+// (idle-plate.png or idle.png — same inputs as imagine-to-bongbongee.mts).
+const plateCandidates = [
+  path.resolve('scripts/reference/bongbongee/idle-plate.png'),
+  path.resolve('scripts/reference/bongbongee/idle.png'),
+];
+const plate = plateCandidates.find((p) => fs.existsSync(p));
+let usedImagineBody = false;
+
+function writeProceduralBodies() {
+  for (const pose of PET_POSES) {
+    save(drawBong(pose), path.join(ROOT, 'pet/bongbongee', `${pose}.png`), true);
+  }
+  for (const [npc, pose] of Object.entries(NPC_MAP)) {
+    save(drawBong(pose), path.join(ROOT, 'npc/bongbongee', `${npc}.png`), true);
+  }
 }
-for (const [npc, pose] of Object.entries(NPC_MAP)) {
-  save(drawBong(pose), path.join(ROOT, 'npc/bongbongee', `${npc}.png`), true);
+
+if (plate) {
+  console.log(
+    `Imagine plate found (${path.relative(process.cwd(), plate)}) — converting via imagine-to-bongbongee.mts`,
+  );
+  const npx = spawnSync('npx', ['tsx', 'scripts/imagine-to-bongbongee.mts'], {
+    stdio: 'inherit',
+    cwd: path.resolve('.'),
+    shell: process.platform === 'win32',
+  });
+  if (npx.status === 0) {
+    usedImagineBody = true;
+  } else {
+    console.warn('Plate conversion failed — falling back to procedural body frames');
+    writeProceduralBodies();
+  }
+} else {
+  writeProceduralBodies();
 }
 
 save(drawMintPom(), path.join(ROOT, 'accessories/mint-pom.png'));
@@ -324,4 +356,7 @@ save(drawCaratDiamond(), path.join(ROOT, 'accessories/carat-diamond.png'));
 save(drawBlueTee(), path.join(ROOT, 'accessories/blue-tee.png'));
 save(drawDecoBand(), path.join(ROOT, 'accessories/deco-band.png'));
 
-console.log('Generated Bongbongee pet/NPC frames + accessories');
+console.log(
+  'Generated Bongbongee accessories' +
+    (usedImagineBody ? ' (body via Imagine plate)' : ' + procedural body frames'),
+);

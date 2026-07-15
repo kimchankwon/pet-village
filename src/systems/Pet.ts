@@ -106,16 +106,15 @@ export class Pet {
   }
 
   /**
-   * Vertical offset so clothes track the pet's bounce/walk frame art.
-   * Bounce and walk swap textures (idle2 / walk2 content sits 1 native px
-   * lower) without moving sprite.y — wall-clock bobbing was out of phase.
+   * Vertical offset so clothes track walk-frame art (walk2 sits 1 native px
+   * lower). Idle is a single still frame — no bounce offset.
    */
   private accessoryBobPx(): number {
     const key = this.sprite.anims.currentAnim?.key ?? '';
-    if (!key.endsWith('-bounce') && !key.endsWith('-walk')) return 0;
+    if (!key.endsWith('-walk')) return 0;
     if (!this.sprite.anims.isPlaying) return 0;
     const frameIndex = this.sprite.anims.currentFrame?.index ?? 0;
-    // Frame 1 (idle2 / walk2) is the “down” art; match one native pixel in world space.
+    // Frame 1 (walk2) is the “down” art; match one native pixel in world space.
     return frameIndex % 2 === 1 ? this.sprite.scaleY : 0;
   }
 
@@ -227,7 +226,7 @@ export class Pet {
 
   /**
    * Idle face for the current needs: sad when hungry/unhappy, dozing when
-   * out of energy, bouncing otherwise.
+   * out of energy, standing still otherwise (no idle bounce).
    */
   private applyExpression() {
     const expr = State.petExpression();
@@ -238,6 +237,7 @@ export class Pet {
       if (this.sprite.anims.isPlaying) this.sprite.stop();
       if (this.sprite.texture.key !== this.tex('sleep')) this.sprite.setTexture(this.tex('sleep'));
     } else {
+      // Single-frame idle animation (standing still).
       this.sprite.play(this.anim('bounce'), true);
     }
   }

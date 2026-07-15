@@ -469,7 +469,14 @@ for (const [name, color] of Object.entries(COLORS)) {
   const dir = path.join(ROOT, `puffle-${name}`);
   const frames = posesFromIdle(body);
   for (const pose of POSES) {
-    saveSprite(frames[pose], path.join(dir, `${pose}.png`), { repairOutline: true, outline: OUT });
+    // Black charcoal body is close enough to the near-black outline that the
+    // exterior freckle peeler can eat the silhouette — skip it for black only.
+    saveSprite(frames[pose], path.join(dir, `${pose}.png`), {
+      repairOutline: true,
+      cleanExterior: name !== 'black',
+      outline: OUT,
+      tolerance: name === 'black' ? 20 : 0,
+    });
   }
   console.log(`  puffle-${name}`);
 }

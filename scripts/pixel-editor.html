@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Pet Village — Pixel Sprite Editor</title>
+<style>
+  :root { --bg:#0f1419; --panel:#1a2332; --line:#2a3a52; --text:#e8eef8; --muted:#93a4bd; --accent:#7ec8ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--text); display:grid; grid-template-columns: 280px 1fr; min-height:100vh; }
+  aside { background:var(--panel); border-right:1px solid var(--line); padding:1rem; display:flex; flex-direction:column; gap:.75rem; }
+  main { padding:1rem; display:flex; flex-direction:column; gap:1rem; align-items:flex-start; }
+  h1 { font-size:1.1rem; margin:0; }
+  p, label { color:var(--muted); font-size:.85rem; margin:0; }
+  button, select, input[type=file] { font: inherit; }
+  button { background:#243248; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:.45rem .7rem; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:#1a4d6e; border-color:#2d7aab; }
+  .swatches { display:flex; flex-wrap:wrap; gap:6px; }
+  .swatch { width:28px; height:28px; border-radius:6px; border:2px solid #0000; cursor:pointer; }
+  .swatch.active { border-color:#fff; outline:2px solid var(--accent); }
+  #canvasWrap { background:#111; border:1px solid var(--line); border-radius:12px; padding:8px; image-rendering:pixelated; }
+  canvas { image-rendering:pixelated; cursor:crosshair; background:
+    linear-gradient(45deg,#222 25%,transparent 25%),
+    linear-gradient(-45deg,#222 25%,transparent 25%),
+    linear-gradient(45deg,transparent 75%,#222 75%),
+    linear-gradient(-45deg,transparent 75%,#222 75%);
+    background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; }
+  .row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+  #info { font-family: ui-monospace, monospace; font-size:.8rem; color:var(--muted); }
+  #colorHex { width:6rem; background:#0c121a; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:.3rem; }
+  hr { border:none; border-top:1px solid var(--line); margin:.25rem 0; }
+</style>
+</head>
+<body>
+<aside>
+  <h1>Pixel Sprite Editor</h1>
+  <p>Open a PNG from <code>public/assets/</code>, paint eyes/faces, download the PNG and replace the file in the repo.</p>
+  <hr/>
+  <label>Open sprite PNG</label>
+  <input type="file" id="file" accept="image/png"/>
+  <div class="row">
+    <label>Zoom</label>
+    <input type="range" id="zoom" min="8" max="24" value="14"/>
+    <span id="zoomVal">14×</span>
+  </div>
+  <label>Tool</label>
+  <div class="row">
+    <button id="toolPencil" class="primary">Pencil</button>
+    <button id="toolErase">Erase</button>
+    <button id="toolPick">Eyedropper</button>
+    <button id="toolFill">Fill</button>
+  </div>
+  <label>Color</label>
+  <input type="color" id="color" value="#101018"/>
+  <input type="text" id="colorHex" value="#101018"/>
+  <div class="swatches" id="swatches"></div>
+  <hr/>
+  <div class="row">
+    <button id="undo">Undo</button>
+    <button id="redo">Redo</button>
+    <button id="clearEyes">Clear black in face</button>
+  </div>
+  <button class="primary" id="download">Download PNG</button>
+  <p id="info">No image loaded</p>
+  <hr/>
+  <p><strong>Tips</strong></p>
+  <p>• Bongbongee eyes: big black ovals + white glint top-left<br/>
+     • OCL: top squint &gt;&lt;, mid ^ ^, bottom open dots<br/>
+     • Save as same filename under the character folder</p>
+</aside>
+<main>
+  <div id="canvasWrap"><canvas id="c" width="32" height="32"></canvas></div>
+  <div class="row">
+    <button id="gridToggle">Toggle grid</button>
+    <button id="mirrorX">Mirror X</button>
+  </div>
+</main>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+ctx.imageSmoothingEnabled = false;
+
+let imgW = 32, imgH = 32;
+let zoom = 14;
+let tool = 'pencil';
+let color = [16, 16, 24, 255];
+let showGrid = true;
+let history = [], future = [];
+let drawing = false;
+
+const SWATCHES = [
+  '#000000','#101018','#ffffff','#ff9eb8','#ffaad0','#78a6eb','#58c8c8',
+  '#a8aab6','#484854','#c81e46','#f078a0','#88a0ff','#50d090',
+];
+
+const sw = document.getElementById('swatches');
+SWATCHES.forEach(hex => {
+  const d = document.createElement('div');
+  d.className = 'swatch';
+  d.style.background = hex;
+  d.title = hex;
+  d.onclick = () => setColor(hex);
+  sw.appendChild(d);
+});
+
+function setColor(hex) {
+  document.getElementById('color').value = hex;
+  document.getElementById('colorHex').value = hex;
+  color = hexToRgba(hex);
+  [...sw.children].forEach(el => el.classList.toggle('active', el.title.toLowerCase() === hex.toLowerCase()));
+}
+function hexToRgba(hex) {
+  const h = hex.replace('#','');
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16), 255];
+}
+function rgbaToHex(r,g,b) {
+  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
+function resizeCanvas() {
+  canvas.width = imgW * zoom;
+  canvas.height = imgH * zoom;
+  canvas.style.width = canvas.width + 'px';
+  canvas.style.height = canvas.height + 'px';
+  redraw();
+}
+
+let pixels = null; // Uint8ClampedArray length imgW*imgH*4
+
+function ensurePixels() {
+  if (!pixels) {
+    pixels = new Uint8ClampedArray(imgW * imgH * 4);
+  }
+}
+
+function pushHistory() {
+  ensurePixels();
+  history.push(pixels.slice());
+  if (history.length > 80) history.shift();
+  future = [];
+}
+
+function redraw() {
+  ensurePixels();
+  const off = document.createElement('canvas');
+  off.width = imgW; off.height = imgH;
+  const octx = off.getContext('2d');
+  octx.putImageData(new ImageData(new Uint8ClampedArray(pixels), imgW, imgH), 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
+  if (showGrid && zoom >= 10) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= imgW; x++) {
+      ctx.beginPath(); ctx.moveTo(x*zoom+0.5,0); ctx.lineTo(x*zoom+0.5,canvas.height); ctx.stroke();
+    }
+    for (let y = 0; y <= imgH; y++) {
+      ctx.beginPath(); ctx.moveTo(0,y*zoom+0.5); ctx.lineTo(canvas.width,y*zoom+0.5); ctx.stroke();
+    }
+  }
+}
+
+function pxAt(e) {
+  const r = canvas.getBoundingClientRect();
+  const x = Math.floor((e.clientX - r.left) / zoom);
+  const y = Math.floor((e.clientY - r.top) / zoom);
+  return { x, y };
+}
+
+function setPx(x, y, c) {
+  if (x < 0 || y < 0 || x >= imgW || y >= imgH) return;
+  const i = (y * imgW + x) * 4;
+  pixels[i]=c[0]; pixels[i+1]=c[1]; pixels[i+2]=c[2]; pixels[i+3]=c[3];
+}
+function getPx(x, y) {
+  if (x < 0 || y < 0 || x >= imgW || y >= imgH) return [0,0,0,0];
+  const i = (y * imgW + x) * 4;
+  return [pixels[i], pixels[i+1], pixels[i+2], pixels[i+3]];
+}
+
+function flood(x, y, target, fill) {
+  const key = (r,g,b,a) => `${r},${g},${b},${a}`;
+  const t = key(...target), f = key(...fill);
+  if (t === f) return;
+  if (x < 0 || y < 0 || x >= imgW || y >= imgH) return;
+  const q = [[x,y]];
+  const seen = new Set();
+  while (q.length) {
+    const [cx,cy] = q.pop();
+    // Must bound before getPx: OOB coords look like transparent [0,0,0,0]
+    // and would enqueue forever when filling the background.
+    if (cx < 0 || cy < 0 || cx >= imgW || cy >= imgH) continue;
+    const k = cx+','+cy;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    const p = getPx(cx,cy);
+    if (key(...p) !== t) continue;
+    setPx(cx,cy,fill);
+    q.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+  }
+}
+
+function applyTool(x, y) {
+  if (tool === 'pencil') setPx(x, y, color);
+  else if (tool === 'erase') setPx(x, y, [0,0,0,0]);
+  else if (tool === 'pick') {
+    const p = getPx(x,y);
+    if (p[3] > 0) setColor(rgbaToHex(p[0],p[1],p[2]));
+  } else if (tool === 'fill') flood(x, y, getPx(x,y), color);
+}
+
+canvas.addEventListener('pointerdown', e => {
+  if (!pixels) return;
+  drawing = true;
+  pushHistory();
+  const {x,y} = pxAt(e);
+  applyTool(x,y);
+  redraw();
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e => {
+  if (!drawing || !pixels) return;
+  if (tool === 'pick' || tool === 'fill') return;
+  const {x,y} = pxAt(e);
+  applyTool(x,y);
+  redraw();
+  document.getElementById('info').textContent = `${imgW}×${imgH}  px (${x},${y})  tool=${tool}`;
+});
+canvas.addEventListener('pointerup', () => { drawing = false; });
+canvas.addEventListener('pointerleave', () => { drawing = false; });
+
+document.getElementById('file').onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const bmp = await createImageBitmap(file);
+  imgW = bmp.width; imgH = bmp.height;
+  const off = document.createElement('canvas');
+  off.width = imgW; off.height = imgH;
+  const octx = off.getContext('2d');
+  octx.drawImage(bmp, 0, 0);
+  const data = octx.getImageData(0, 0, imgW, imgH);
+  pixels = new Uint8ClampedArray(data.data);
+  history = []; future = [];
+  pushHistory();
+  resizeCanvas();
+  document.getElementById('info').textContent = `Loaded ${file.name} ${imgW}×${imgH}`;
+};
+
+document.getElementById('zoom').oninput = (e) => {
+  zoom = +e.target.value;
+  document.getElementById('zoomVal').textContent = zoom + '×';
+  resizeCanvas();
+};
+
+document.getElementById('color').oninput = (e) => setColor(e.target.value);
+document.getElementById('colorHex').onchange = (e) => {
+  let v = e.target.value.trim();
+  if (!v.startsWith('#')) v = '#' + v;
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) setColor(v);
+};
+
+[['toolPencil','pencil'],['toolErase','erase'],['toolPick','pick'],['toolFill','fill']].forEach(([id, t]) => {
+  document.getElementById(id).onclick = () => {
+    tool = t;
+    ['toolPencil','toolErase','toolPick','toolFill'].forEach(b => document.getElementById(b).classList.remove('primary'));
+    document.getElementById(id).classList.add('primary');
+  };
+});
+
+document.getElementById('undo').onclick = () => {
+  if (history.length < 2) return;
+  future.push(history.pop());
+  pixels = history[history.length - 1].slice();
+  redraw();
+};
+document.getElementById('redo').onclick = () => {
+  if (!future.length) return;
+  const n = future.pop();
+  history.push(n);
+  pixels = n.slice();
+  redraw();
+};
+
+document.getElementById('clearEyes').onclick = () => {
+  if (!pixels) return;
+  pushHistory();
+  // Replace pure black-ish pixels with nearby average non-black (rough)
+  for (let y = 0; y < imgH; y++) for (let x = 0; x < imgW; x++) {
+    const p = getPx(x,y);
+    if (p[3] < 20) continue;
+    if (p[0]+p[1]+p[2] > 80) continue;
+    // sample neighbors for face fill
+    let r=0,g=0,b=0,n=0;
+    for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[2,0],[-2,0],[0,2],[0,-2]]) {
+      const q = getPx(x+dx,y+dy);
+      if (q[3]>=20 && q[0]+q[1]+q[2] > 100) { r+=q[0];g+=q[1];b+=q[2];n++; }
+    }
+    if (n) setPx(x,y,[Math.round(r/n),Math.round(g/n),Math.round(b/n),255]);
+  }
+  redraw();
+};
+
+document.getElementById('download').onclick = () => {
+  if (!pixels) return;
+  const off = document.createElement('canvas');
+  off.width = imgW; off.height = imgH;
+  off.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(pixels), imgW, imgH), 0, 0);
+  const a = document.createElement('a');
+  a.download = 'sprite.png';
+  a.href = off.toDataURL('image/png');
+  a.click();
+};
+
+document.getElementById('gridToggle').onclick = () => { showGrid = !showGrid; redraw(); };
+document.getElementById('mirrorX').onclick = () => {
+  if (!pixels) return;
+  pushHistory();
+  const next = new Uint8ClampedArray(pixels.length);
+  for (let y = 0; y < imgH; y++) for (let x = 0; x < imgW; x++) {
+    const si = (y * imgW + x) * 4;
+    const di = (y * imgW + (imgW - 1 - x)) * 4;
+    next[di]=pixels[si]; next[di+1]=pixels[si+1]; next[di+2]=pixels[si+2]; next[di+3]=pixels[si+3];
+  }
+  pixels = next;
+  redraw();
+};
+
+// Empty starter
+ensurePixels();
+resizeCanvas();
+setColor('#101018');
+</script>
+</body>
+</html>
