@@ -18,7 +18,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { saveSprite } from './lib/save-sprite.mjs';
-import { npcPosesFromIdle } from './lib/pose-animate.mjs';
+import { npcPosesFromIdle, normalizePoseSize } from './lib/pose-animate.mjs';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
@@ -408,46 +408,6 @@ function findPosePlate(id: string, pose: string): string | null {
 }
 
 /**
- * Crop opaque content and nearest-neighbour scale so content height == targetH.
- * Keeps walk/happy/jump Imagine plates the same on-screen size as idle — raw
- * plates often fill more of the canvas, which made walk frames look ~2× tall.
- */
-function matchContentHeight(
-  src: InstanceType<typeof PNG>,
-  targetH: number,
-): InstanceType<typeof PNG> {
-  const b = contentBounds(src);
-  const cw = b.x1 - b.x0 + 1;
-  const ch = b.y1 - b.y0 + 1;
-  if (ch <= 0) return src;
-  const scale = targetH / ch;
-  // Skip micro-adjustments; only rescale when size drifts >3%.
-  if (Math.abs(scale - 1) < 0.03) {
-    // Still crop tightly so padding is uniform across poses.
-    const out = blank(cw, ch);
-    for (let y = 0; y < ch; y++) {
-      for (let x = 0; x < cw; x++) {
-        const c = get(src, b.x0 + x, b.y0 + y);
-        if (c[3] > 20) set(out, x, y, c);
-      }
-    }
-    return out;
-  }
-  const tw = Math.max(1, Math.round(cw * scale));
-  const th = Math.max(1, Math.round(ch * scale));
-  const out = blank(tw, th);
-  for (let gy = 0; gy < th; gy++) {
-    for (let gx = 0; gx < tw; gx++) {
-      const sx = b.x0 + Math.min(cw - 1, Math.floor((gx / tw) * cw));
-      const sy = b.y0 + Math.min(ch - 1, Math.floor((gy / th) * ch));
-      const c = get(src, sx, sy);
-      if (c[3] > 20) set(out, gx, gy, [c[0], c[1], c[2], 255]);
-    }
-  }
-  return out;
-}
-
-/**
  * Pad every pose of a character onto one shared canvas (max W×H), bottom-center
  * aligned. Walk1/walk2 Imagine crops often differ in size; without this, Phaser's
  * default center origin makes feet slide when the walk cycle advances.
@@ -477,7 +437,10 @@ function processOne(id: string, idleSrcPath: string, plateMode: boolean) {
   const idleRaw = convert(PNG.sync.read(fs.readFileSync(idlePath)));
   const idleB = contentBounds(idleRaw);
   const idleContentH = idleB.y1 - idleB.y0 + 1;
-  const baseIdle = matchContentHeight(idleRaw, idleContentH);
+  const idleContentW = idleB.x1 - idleB.x0 + 1;
+  // Height match + width clamp so walk plates do not “pulse” bigger/smaller.
+  const sizeRef = { refH: idleContentH, refW: idleContentW };
+  const baseIdle = normalizePoseSize(idleRaw, sizeRef);
 
   // Prefer per-pose Imagine plates; fall back to pose-animate from size-matched idle.
   const procedural = npcPosesFromIdle(baseIdle, { ink: OUT, accent: [255, 140, 170, 255] });
@@ -489,15 +452,15 @@ function processOne(id: string, idleSrcPath: string, plateMode: boolean) {
     const posePlate = findPosePlate(id, pose);
     let png: InstanceType<typeof PNG>;
     if (posePlate) {
-      // Imagine plate → crop → scale content height to match idle (no 2× walk).
-      png = matchContentHeight(convert(PNG.sync.read(fs.readFileSync(posePlate))), idleContentH);
+      // Imagine plate → crop → scale to idle (no 2× walk / outline pulse).
+      png = normalizePoseSize(convert(PNG.sync.read(fs.readFileSync(posePlate))), sizeRef);
       sources.push(`${pose}←imagine`);
     } else if (pose === 'idle') {
       png = baseIdle;
       sources.push('idle←plate');
     } else {
       const p = procedural[pose]!;
-      png = matchContentHeight(p, idleContentH);
+      png = normalizePoseSize(p, sizeRef);
       sources.push(`${pose}←animate`);
     }
     frames.push({ pose, png });

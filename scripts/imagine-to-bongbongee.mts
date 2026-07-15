@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { saveSprite } from './lib/save-sprite.mjs';
-import { petPosesFromIdle } from './lib/pose-animate.mjs';
+import { petPosesFromIdle, normalizePoseSize } from './lib/pose-animate.mjs';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
@@ -273,39 +273,6 @@ function padBottomCenter(
   return out;
 }
 
-function matchContentHeight(
-  src: InstanceType<typeof PNG>,
-  targetH: number,
-): InstanceType<typeof PNG> {
-  const b = contentBounds(src);
-  const cw = b.x1 - b.x0 + 1;
-  const ch = b.y1 - b.y0 + 1;
-  if (ch <= 0) return src;
-  const scale = targetH / ch;
-  if (Math.abs(scale - 1) < 0.03) {
-    const out = blank(cw, ch);
-    for (let y = 0; y < ch; y++) {
-      for (let x = 0; x < cw; x++) {
-        const c = get(src, b.x0 + x, b.y0 + y);
-        if (c[3] > 20) set(out, x, y, c);
-      }
-    }
-    return out;
-  }
-  const tw = Math.max(1, Math.round(cw * scale));
-  const th = Math.max(1, Math.round(ch * scale));
-  const out = blank(tw, th);
-  for (let gy = 0; gy < th; gy++) {
-    for (let gx = 0; gx < tw; gx++) {
-      const sx = b.x0 + Math.min(cw - 1, Math.floor((gx / tw) * cw));
-      const sy = b.y0 + Math.min(ch - 1, Math.floor((gy / th) * ch));
-      const c = get(src, sx, sy);
-      if (c[3] > 20) set(out, gx, gy, [c[0], c[1], c[2], 255]);
-    }
-  }
-  return out;
-}
-
 const plateCandidates = [
   path.join(REF, 'poses', 'idle.png'),
   path.join(REF, 'idle-plate.png'),
@@ -328,8 +295,8 @@ if (!platePath) {
  * Prefer Imagine walk1/walk2 plates when present.
  *
  * @param normalizeContent When true (plate mode), scale every pose's content to
- *   idle height then pad to a shared canvas. Classic 32×32 already shares a
- *   fixed canvas from toGameSprite — skip normalize so we keep 32×32.
+ *   idle size (height + width clamp) then pad to a shared canvas. Classic 32×32
+ *   already shares a fixed canvas from toGameSprite — skip normalize so we keep 32×32.
  */
 function buildPoses(
   convert: (raw: InstanceType<typeof PNG>) => InstanceType<typeof PNG>,
@@ -344,7 +311,9 @@ function buildPoses(
   const idleRaw = convert(PNG.sync.read(fs.readFileSync(platePath!)));
   const idleB = contentBounds(idleRaw);
   const contentH = idleB.y1 - idleB.y0 + 1;
-  const idle = opts.normalizeContent ? matchContentHeight(idleRaw, contentH) : idleRaw;
+  const contentW = idleB.x1 - idleB.x0 + 1;
+  const sizeRef = { refH: contentH, refW: contentW };
+  const idle = opts.normalizeContent ? normalizePoseSize(idleRaw, sizeRef) : idleRaw;
   const procedural = petPosesFromIdle(idle, { ink: OUT, accent: [255, 176, 196, 255] });
 
   const POSE_KEYS = [
@@ -368,7 +337,7 @@ function buildPoses(
     if (plate && (pose === 'neutral1' || pose === 'walk1' || pose === 'walk2')) {
       const converted = convert(PNG.sync.read(fs.readFileSync(plate)));
       poses[pose] = opts.normalizeContent
-        ? matchContentHeight(converted, contentH)
+        ? normalizePoseSize(converted, sizeRef)
         : converted;
       sources.push(`${pose}←imagine`);
     } else if (pose === 'neutral1') {
@@ -376,7 +345,7 @@ function buildPoses(
       sources.push('neutral1←plate');
     } else {
       poses[pose] = opts.normalizeContent
-        ? matchContentHeight(procedural[pose]!, contentH)
+        ? normalizePoseSize(procedural[pose]!, sizeRef)
         : procedural[pose]!;
       sources.push(`${pose}←animate`);
     }
