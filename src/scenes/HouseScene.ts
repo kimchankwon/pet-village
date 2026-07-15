@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { generateTextures } from '../sprites/pixelart';
+import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
 import { State, ITEMS } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
@@ -88,7 +88,7 @@ export class HouseScene extends Phaser.Scene {
     const px = door.centerX;
     const py = door.centerY; // ON the mat
     this.player = this.physics.add.sprite(px, py, 'penguin-up', 0);
-    (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
+    configurePlayerPenguin(this.player);
     // Keep the penguin inside the floor area of the room.
     const b = this.player.body as Phaser.Physics.Arcade.Body;
     const playerBounds = new Phaser.Geom.Rectangle(

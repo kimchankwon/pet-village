@@ -64,7 +64,8 @@ function shadeHex(hex: string, f: number): string {
 }
 
 const CP_COLOURS: [string, string, string][] = [
-  ['blue', 'Blue', '#006090'],
+  // Default blue sampled toward the classic CP sticker / Tenor gif look
+  ['blue', 'Blue', '#0090d0'],
   ['green', 'Green', '#009000'],
   ['pink', 'Pink', '#f03090'],
   ['black', 'Black', '#303030'],
@@ -75,7 +76,7 @@ const CP_COLOURS: [string, string, string][] = [
   ['brown', 'Brown', '#906000'],
   ['peach', 'Peach', '#f06060'],
   ['darkgreen', 'Dark Green', '#006000'],
-  ['lightblue', 'Light Blue', '#0090c0'],
+  ['lightblue', 'Light Blue', '#40b0e8'],
 ];
 
 export const PENGUIN_COLORS: Record<string, { label: string; v: string; V: string; u: string }> =
@@ -96,54 +97,55 @@ function setPenguinPalette(color: string) {
 type Grid = string[];
 
 // ---- Penguin player (18x20), 2 walk frames per facing ----
-// Club Penguin (Tenor CP sticker ref): plump pear body, dome head, close-set
-// eyes above a big orange beak, large white belly + soft grey shade, flippers
-// out, orange feet. Landmark rows kept for clothes overlays:
-//   0–3 hat · 4–5 eyes/mask · 6–7 beak · 8–15 body · 18–19 feet.
+// Redesigned from classic Club Penguin sticker/gif ref (cp-user-ref.jpeg +
+// Imagine front/side/back plates): pointed dome, wing flippers, big orange
+// beak, close-set eyes, large white belly with soft grey under the chin,
+// orange feet. Landmark rows kept for clothes overlays:
+//   0–3 hat · 4–5 eyes/mask · 6–8 beak/chin · 9–16 body · 18–19 feet.
 const PENGUIN_DOWN_0: Grid = [
   '.......kkkk.......',
   '.....kkvvvvkk.....',
   '....kuvvvvvvuk....',
   '...kuvvvvvvvvuk...',
-  // CP (Tenor sticker): close bright eyes + big orange beak above white belly
-  '...kvvwwwvwwwvk...',
-  '...kvvwkwvwkwvk...',
-  '..kvvvvoOOoovvvk..',
-  '..kvvvooOOOovvvk..',
-  '.kvvvvwwwwwwvvvvk.',
+  // Close-set CP eyes above a big orange beak
+  '...kvvvwwvwwvvk...',
+  '...kvvvwkwkwvvk...',
+  '..kvvvvoOOOovvvk..',
+  '..kvvvooOOOoovvk..',
+  '..kvvvvzzzzzvvvk..', // soft grey under beak
+  '.kvkvvwwzzzzvvkvk.', // wing flippers + belly
   'kvkvvwwwwwwwwvvkvk',
   'kvkvwwwwwwwwwwvkvk',
   'kvkvwwwwwwwwwwvkvk',
-  'kvkvwwzzzzzzwwvkvk',
-  '.kvvwwzzzzzzwwvvk.',
-  '.kvvvwwzzzzwwvvvk.',
+  '.kvvwwwwwwwwwwvvk.',
+  '.kvvvwwwwwwwwvvvk.',
   '..kvvvvwwwwvvvvk..',
   '...kVvvvvvvvvVk...',
-  '....kVvvvvvvVk....',
-  '...koo......ook...',
-  '..kOoo......ooOk..',
+  '....kVVvvvvVVk....',
+  '....koo....ook....',
+  '...kOoo....ooOk...',
 ];
 const PENGUIN_DOWN_1: Grid = [
   '.......kkkk.......',
   '.....kkvvvvkk.....',
   '....kuvvvvvvuk....',
   '...kuvvvvvvvvuk...',
-  '...kvvwwwvwwwvk...',
-  '...kvvwkwvwkwvk...',
-  '..kvvvvoOOoovvvk..',
-  '..kvvvooOOOovvvk..',
-  '.kvvvvwwwwwwvvvvk.',
+  '...kvvvwwvwwvvk...',
+  '...kvvvwkwkwvvk...',
+  '..kvvvvoOOOovvvk..',
+  '..kvvvooOOOoovvk..',
+  '..kvvvvzzzzzvvvk..',
+  '.kvkvvwwzzzzvvkvk.',
   'kvkvvwwwwwwwwvvkvk',
   'kvkvwwwwwwwwwwvkvk',
   'kvkvwwwwwwwwwwvkvk',
-  'kvkvwwzzzzzzwwvkvk',
-  '.kvvwwzzzzzzwwvvk.',
-  '.kvvvwwzzzzwwvvvk.',
+  '.kvvwwwwwwwwwwvvk.',
+  '.kvvvwwwwwwwwvvvk.',
   '..kvvvvwwwwvvvvk..',
   '...kVvvvvvvvvVk...',
-  '....kVvvvvvvVk....',
-  '..koo........ook..',
-  '.kOoo........ooOk.',
+  '....kVVvvvvVVk....',
+  '...koo......ook...',
+  '..kOoo......ooOk..',
 ];
 const PENGUIN_UP_0: Grid = [
   '.......kkkk.......',
@@ -154,18 +156,18 @@ const PENGUIN_UP_0: Grid = [
   '...kvvvvvvvvvvk...',
   '..kvvvvvvvvvvvvk..',
   '..kvvvvvvvvvvvvk..',
-  '.kvvvvvvvvvvvvvvk.',
-  'kvkvvvvvvvvvvvvkvk',
-  'kvkvvvvvvvvvvvvkvk',
-  'kvkvvvvvvvvvvvvkvk',
-  'kvkvVvvvvvvvvVVkvk',
-  '.kvvVvvvvvvvvVVvk.',
+  '.kvkvvvvvvvvvkvvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvVvvvvvvvvVkvk.',
+  '.kvvVvvvvvvvvVvk..',
   '.kvvvVvvvvvvVvvvk.',
   '..kvvvvVVVVvvvvk..',
   '...kVvvvvvvvvVk...',
-  '....kVvvvvvvVk....',
-  '...koo......ook...',
-  '..kOoo......ooOk..',
+  '....kVVvvvvVVk....',
+  '....koo....ook....',
+  '...kOoo....ooOk...',
 ];
 const PENGUIN_UP_1: Grid = [
   '.......kkkk.......',
@@ -176,18 +178,18 @@ const PENGUIN_UP_1: Grid = [
   '...kvvvvvvvvvvk...',
   '..kvvvvvvvvvvvvk..',
   '..kvvvvvvvvvvvvk..',
-  '.kvvvvvvvvvvvvvvk.',
-  'kvkvvvvvvvvvvvvkvk',
-  'kvkvvvvvvvvvvvvkvk',
-  'kvkvvvvvvvvvvvvkvk',
-  'kvkvVvvvvvvvvVVkvk',
-  '.kvvVvvvvvvvvVVvk.',
+  '.kvkvvvvvvvvvkvvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvVvvvvvvvvVkvk.',
+  '.kvvVvvvvvvvvVvk..',
   '.kvvvVvvvvvvVvvvk.',
   '..kvvvvVVVVvvvvk..',
   '...kVvvvvvvvvVk...',
-  '....kVvvvvvvVk....',
-  '..koo........ook..',
-  '.kOoo........ooOk.',
+  '....kVVvvvvVVk....',
+  '...koo......ook...',
+  '..kOoo......ooOk..',
 ];
 // Side: CP profile — dome head, single eye, long orange beak, white belly
 const PENGUIN_SIDE_0: Grid = [
@@ -195,17 +197,17 @@ const PENGUIN_SIDE_0: Grid = [
   '....kkvvvvkk......',
   '...kuvvvvvvuk.....',
   '...kuvvvvvvvuk....',
-  '..kvvvvvwwwvk.....', // single bright CP eye
+  '..kvvvvvwwwvk.....', // single CP eye
   '..kvvvvvwkwvk.....',
   '..kvvvvvvoOook....', // long orange beak
   '..kvvvvvvooOOok...',
   '.kvvvvvvvvoOook...',
   '.kvvvvvvwwwwvvk...',
   'kvkvvvvwwwwwwvvk..',
-  'kvkvvvvwwzzzzvvk..',
+  'kvkvvvvwwwwwwvvk..',
   'kvkvvvvwwzzzzvvk..',
   '.kvvvvvwwzzzzvvk..',
-  '.kvvvvvwwzzzvvk...',
+  '.kvvvvvwwwwzvvk...',
   '..kvvvvwwwwvVk....',
   '..kvvvvvvvvVk.....',
   '...kVvvvvvVk......',
@@ -224,10 +226,10 @@ const PENGUIN_SIDE_1: Grid = [
   '.kvvvvvvvvoOook...',
   '.kvvvvvvwwwwvvk...',
   'kvkvvvvwwwwwwvvk..',
-  'kvkvvvvwwzzzzvvk..',
+  'kvkvvvvwwwwwwvvk..',
   'kvkvvvvwwzzzzvvk..',
   '.kvvvvvwwzzzzvvk..',
-  '.kvvvvvwwzzzvvk...',
+  '.kvvvvvwwwwzvvk...',
   '..kvvvvwwwwvVk....',
   '..kvvvvvvvvVk.....',
   '...kVvvvvvVk......',
@@ -325,8 +327,8 @@ const NINJA_MASK_OVERLAY: PenguinOverlay = {
   down: [
     DOTS, DOTS, DOTS,
     '...kxxxxxxxxxxk...',
-    '...kxwwwxwwwxxk...', // match closer bright eyes
-    '...kxwkwxwkwxxk...',
+    '...kxxxwwxwwxxk...', // align with PENGUIN_DOWN_0 eye columns
+    '...kxxxwkwkwxxk...',
   ],
   up: [
     DOTS, DOTS, DOTS,
@@ -1309,7 +1311,198 @@ function makeCobbleTile(scene: Phaser.Scene, key: string, size = 16) {
   scene.textures.addCanvas(key, canvas);
 }
 
+/** Classic on-screen height (20 grid rows × SCALE). Plate textures scale to this. */
+export const PENGUIN_DISPLAY_HEIGHT = 20 * SCALE;
+/** Boot loads Imagine plates under this key prefix when present. */
+export const PENGUIN_PLATE_KEY = (facing: 'down' | 'up' | 'side', frame: 0 | 1) =>
+  `penguin-plate-${facing}-${frame}`;
+
+const PENGUIN_FACINGS = ['down', 'up', 'side'] as const;
+
+/** True when Boot preloaded Imagine plate frames for the player penguin. */
+export function hasPenguinPlates(scene: Phaser.Scene): boolean {
+  return PENGUIN_FACINGS.every((facing) => scene.textures.exists(PENGUIN_PLATE_KEY(facing, 0)));
+}
+
+/**
+ * Phaser scale so plate textures draw at classic penguin height.
+ * Classic 18×20×SCALE canvases are already at display size → scale 1.
+ */
+export function penguinDrawScale(scene: Phaser.Scene): number {
+  if (!scene.textures.exists('penguin-down')) return 1;
+  const h = scene.textures.getFrame('penguin-down')?.height ?? 0;
+  if (h <= 64) return 1;
+  return PENGUIN_DISPLAY_HEIGHT / h;
+}
+
+/**
+ * Apply plate-aware scale + foot collider to the player sprite.
+ * Classic textures: 54×60, body (34×16) @ offset (10,42).
+ *
+ * Arcade `setSize`/`setOffset` use **source** (unscaled) frame pixels; Phaser
+ * then scales the body with the sprite. Do not pass displayWidth/displayHeight
+ * or the collider is double-scaled.
+ */
+export function configurePlayerPenguin(
+  sprite: Phaser.Physics.Arcade.Sprite | Phaser.GameObjects.Sprite,
+) {
+  const scale = penguinDrawScale(sprite.scene);
+  sprite.setScale(scale);
+  if (!sprite.body || !(sprite.body instanceof Phaser.Physics.Arcade.Body)) return;
+  const fw = sprite.frame.width;
+  const fh = sprite.frame.height;
+  // Same proportions as classic 34×16 / 54×60, in source pixels.
+  sprite.body
+    .setSize(fw * (34 / 54), fh * (16 / 60))
+    .setOffset(fw * (10 / 54), fh * (42 / 60));
+}
+
+/** Is this pixel part of the recolourable blue body (not outline/belly/beak/feet)? */
+function isPenguinBodyBlue(r: number, g: number, b: number, a: number): boolean {
+  if (a < 20) return false;
+  // Outline / near-black
+  if (r + g + b < 90) return false;
+  // White / grey belly
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  if (max - min < 28 && r > 150) return false;
+  // Orange beak / feet
+  if (r > 160 && g > 70 && g < 210 && b < 110 && r > b + 40) return false;
+  // Body blue / cyan (dominant blue channel)
+  return b > 90 && b >= g - 5 && b > r + 10;
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/** Recolour plate body blues toward the active palette (v / V / u). */
+function recolorPenguinPlateData(
+  data: Uint8ClampedArray,
+  body: [number, number, number],
+  shade: [number, number, number],
+  hi: [number, number, number],
+) {
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i]!;
+    const g = data[i + 1]!;
+    const b = data[i + 2]!;
+    const a = data[i + 3]!;
+    if (!isPenguinBodyBlue(r, g, b, a)) continue;
+    const lum = (r + g + b) / (3 * 255);
+    // Map lightness into body / highlight / shade of the chosen colourway.
+    let dest = body;
+    if (lum > 0.55) dest = hi;
+    else if (lum < 0.32) dest = shade;
+    data[i] = dest[0];
+    data[i + 1] = dest[1];
+    data[i + 2] = dest[2];
+  }
+}
+
+/** Stamp clothes overlays (18×20 grids) onto a plate-sized frame. */
+function stampClothesOnPlate(
+  ctx: CanvasRenderingContext2D,
+  facing: keyof PenguinOverlay,
+  frameW: number,
+  frameH: number,
+) {
+  const fit = State.data.equippedPenguinAccessories ?? {};
+  const order: AccessorySlot[] = ['body', 'extra', 'headLeft', 'headRight'];
+  const cellW = frameW / 18;
+  const cellH = frameH / 20;
+  for (const slot of order) {
+    const id = fit[slot];
+    const overlay = id ? PENGUIN_CLOTHES[id] : undefined;
+    if (!overlay) continue;
+    const grid = overlay[facing];
+    for (let y = 0; y < grid.length; y++) {
+      const row = grid[y]!;
+      for (let x = 0; x < row.length; x++) {
+        const ch = row[x]!;
+        if (ch === '.') continue;
+        const color = PALETTE[ch];
+        if (!color) continue;
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.floor(x * cellW), Math.floor(y * cellH), Math.ceil(cellW), Math.ceil(cellH));
+      }
+    }
+  }
+}
+
+/**
+ * Build penguin-down/up/side spritesheets from Imagine plate textures
+ * (Boot preloads `penguin-plate-*`). Keeps plate resolution; nearest filter.
+ */
+function makePenguinFromPlates(scene: Phaser.Scene) {
+  const body = hexToRgb(PALETTE.v!);
+  const shade = hexToRgb(PALETTE.V!);
+  const hi = hexToRgb(PALETTE.u!);
+
+  for (const facing of PENGUIN_FACINGS) {
+    const key0 = PENGUIN_PLATE_KEY(facing, 0);
+    const src0 = scene.textures.get(key0).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    const fw = (src0 as HTMLImageElement).width || (src0 as HTMLCanvasElement).width;
+    const fh = (src0 as HTMLImageElement).height || (src0 as HTMLCanvasElement).height;
+    const sheet = document.createElement('canvas');
+    sheet.width = fw * 2;
+    sheet.height = fh;
+    const sctx = sheet.getContext('2d')!;
+
+    for (let frame = 0; frame < 2; frame++) {
+      const srcKey = PENGUIN_PLATE_KEY(facing, frame as 0 | 1);
+      const srcImg = scene.textures.get(srcKey).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+      const tmp = document.createElement('canvas');
+      tmp.width = fw;
+      tmp.height = fh;
+      const tctx = tmp.getContext('2d')!;
+      tctx.drawImage(srcImg as CanvasImageSource, 0, 0, fw, fh);
+      const imgData = tctx.getImageData(0, 0, fw, fh);
+      recolorPenguinPlateData(imgData.data, body, shade, hi);
+      tctx.putImageData(imgData, 0, 0);
+      stampClothesOnPlate(tctx, facing, fw, fh);
+      sctx.drawImage(tmp, frame * fw, 0);
+    }
+
+    if (scene.textures.exists(`penguin-${facing}`)) scene.textures.remove(`penguin-${facing}`);
+    scene.textures.addSpriteSheet(`penguin-${facing}`, sheet as unknown as HTMLImageElement, {
+      frameWidth: fw,
+      frameHeight: fh,
+    });
+    scene.textures.get(`penguin-${facing}`).setFilter(Phaser.Textures.FilterMode.NEAREST);
+  }
+
+  const anims = scene.anims;
+  for (const key of ['walk-down', 'walk-up', 'walk-side'] as const) {
+    if (anims.exists(key)) anims.remove(key);
+  }
+  anims.create({
+    key: 'walk-down',
+    frames: anims.generateFrameNumbers('penguin-down', { start: 0, end: 1 }),
+    frameRate: 6,
+    repeat: -1,
+  });
+  anims.create({
+    key: 'walk-up',
+    frames: anims.generateFrameNumbers('penguin-up', { start: 0, end: 1 }),
+    frameRate: 6,
+    repeat: -1,
+  });
+  anims.create({
+    key: 'walk-side',
+    frames: anims.generateFrameNumbers('penguin-side', { start: 0, end: 1 }),
+    frameRate: 6,
+    repeat: -1,
+  });
+}
+
 function makePenguin(scene: Phaser.Scene) {
+  if (hasPenguinPlates(scene)) {
+    makePenguinFromPlates(scene);
+    return;
+  }
+  // Classic 18×20 grid fallback (pre-plate path).
   makeTexture(scene, 'penguin-down', dressPenguin([PENGUIN_DOWN_0, PENGUIN_DOWN_1], 'down'));
   makeTexture(scene, 'penguin-up', dressPenguin([PENGUIN_UP_0, PENGUIN_UP_1], 'up'));
   makeTexture(scene, 'penguin-side', dressPenguin([PENGUIN_SIDE_0, PENGUIN_SIDE_1], 'side'));
@@ -1343,7 +1536,11 @@ export function refreshPenguin(scene: Phaser.Scene) {
     if (scene.anims.exists(key)) scene.anims.remove(key);
   }
   makePenguin(scene);
-  for (const [sprite, key] of wearers) sprite.setTexture(key, 0);
+  for (const [sprite, key] of wearers) {
+    sprite.setTexture(key, 0);
+    if (sprite instanceof Phaser.Physics.Arcade.Sprite) configurePlayerPenguin(sprite);
+    else sprite.setScale(penguinDrawScale(scene));
+  }
 }
 
 /** Swap the penguin's colourway and rebuild its textures + walk anims. */
