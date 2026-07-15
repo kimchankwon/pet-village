@@ -34,9 +34,13 @@ Optional Grok Imagine **pose plates** (walk/happy/sad/jump) live under:
 scripts/reference/miniteen/poses/<id>/{idle,walk1,walk2,happy,sad,jump}.png
 ```
 
-**Walk:** always prefer Imagine `walk1`/`walk2` plates (mid-stride, opposite
-feet). Procedural foot-shuffle is a last resort and is nearly invisible on
-large plates — generate real walk poses with Grok Imagine from the idle plate.
+**Walk:** always prefer Imagine `walk1`/`walk2` plates with **true alternating
+steps** (walk1 = screen-left leg raised / forward, walk2 = screen-right leg
+raised / forward). Keep the same body scale and outline thickness as idle so
+the cycle does not “pulse” bigger/smaller. Same-leg hops (both frames lifting
+one side only) look like a limp in Town. Procedural foot-shuffle is a last
+resort and is nearly invisible on large plates — regenerate walk plates with
+Grok Imagine `image_edit` from the idle plate when a cycle fails review.
 
 When a pose file is missing, the converter derives it gently from idle at
 **plate resolution** (still not 32×42). Every pose is **scaled to the idle
