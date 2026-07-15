@@ -79,11 +79,19 @@ export function contentBounds(png) {
 /**
  * Crop opaque content and nearest-neighbour scale so pose silhouettes match an
  * idle reference. Height is locked first (feet/head line). Width is soft-clamped
- * so oversized Imagine walk plates do not make the outline “breathe”, but never
- * at the cost of more than a few percent height drift (that looks like pulsing too).
+ * so oversized Imagine walk plates do not make the outline “breathe”. Soft width
+ * clamps stay within `maxHeightDrift` of idle height; the hard width ceiling
+ * also floors at that same min scale so extreme plates cannot collapse height.
  *
  * @param {import('pngjs').PNG} src
- * @param {{ refH: number, refW: number, maxWidthRatio?: number, minWidthRatio?: number, maxHeightDrift?: number }} ref
+ * @param {{
+ *   refH: number,
+ *   refW: number,
+ *   maxWidthRatio?: number,
+ *   minWidthRatio?: number,
+ *   maxHeightDrift?: number,
+ *   hardMaxWidthRatio?: number,
+ * }} ref
  */
 export function normalizePoseSize(src, ref) {
   const refH = Math.max(1, ref.refH | 0);
@@ -103,7 +111,7 @@ export function normalizePoseSize(src, ref) {
   const maxW = refW * maxWidthRatio;
   const minW = refW * minWidthRatio;
   // Hard width ceiling for extreme plates (e.g. multi-body stacks with arms out).
-  // Prefer a modest height drift over a huge silhouette “breathe”.
+  // Floored by minScaleH so height never drifts beyond maxHeightDrift.
   const hardMaxW = refW * (ref.hardMaxWidthRatio ?? 1.2);
   const minScaleH = (refH * (1 - maxHeightDrift)) / ch;
   const maxScaleH = (refH * (1 + maxHeightDrift)) / ch;
@@ -115,10 +123,11 @@ export function normalizePoseSize(src, ref) {
   }
   scaledW = cw * scale;
   if (scaledW > hardMaxW) {
-    scale = hardMaxW / cw;
+    scale = Math.max(hardMaxW / cw, minScaleH);
   }
 
-  // Micro-noop: already near target.
+  // Micro-noop: already near target. Force opaque alpha to match the resize path
+  // so idle vs walk edges do not pulse from semi-transparent fringe.
   scaledW = cw * scale;
   if (
     Math.abs(scale - 1) < 0.015 &&
@@ -131,7 +140,7 @@ export function normalizePoseSize(src, ref) {
     for (let y = 0; y < ch; y++) {
       for (let x = 0; x < cw; x++) {
         const c = getPx(src, b.x0 + x, b.y0 + y);
-        if (isOpaque(c)) setPx(out, x, y, c);
+        if (isOpaque(c)) setPx(out, x, y, [c[0], c[1], c[2], 255]);
       }
     }
     return out;

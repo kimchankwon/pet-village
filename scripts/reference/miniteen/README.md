@@ -43,10 +43,12 @@ scale** as idle (no “outline grows while walking”).
 
 When a pose file is missing, the converter derives it gently from idle at
 **plate resolution** (still not 32×42). Every pose is normalized with
-`normalizePoseSize` (height-lock to idle + soft width clamp, hard max ~1.2×
-width), then padded onto one shared bottom-centered canvas so:
+`normalizePoseSize` (height-lock to idle + soft width clamp ±~8–10%, hard max
+~1.2× width, all while staying within a few percent height of idle), then
+padded onto one shared bottom-centered canvas so:
 
-1. Walk frames stay the same on-screen size as idle (no tall/wide silhouette pulse)
+1. Walk frames keep idle **height / on-screen scale**; width may vary slightly
+   for limb pose (soft clamp), never balloon into a tall/wide silhouette pulse
 2. Phaser’s center origin does not make feet slide between walk frames
 
 Set `useSourcePlate: true` on the def for documentation; runtime scaling keys

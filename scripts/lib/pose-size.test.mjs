@@ -41,13 +41,14 @@ test('normalizePoseSize clamps oversized walk width (no outline pulse)', () => {
   const ib = contentBounds(idle);
   const refH = ib.y1 - ib.y0 + 1;
   const refW = ib.x1 - ib.x0 + 1;
-  const out = normalizePoseSize(walkWide, { refH, refW, maxWidthRatio: 1.08 });
+  const out = normalizePoseSize(walkWide, { refH, refW, maxWidthRatio: 1.08, maxHeightDrift: 0.04 });
   const ob = contentBounds(out);
   const outW = ob.x1 - ob.x0 + 1;
-  // Hard width ceiling (~1.2× idle) shrinks extreme plates so the outline
-  // does not breathe — width must not stay near the oversized source.
-  assert.ok(outW <= Math.ceil(refW * 1.2) + 2, `width ${outW} ≤ hard max ~${refW * 1.2}`);
-  assert.ok(outW < 70, `width ${outW} should shrink from 76px-wide source content`);
+  const outH = ob.y1 - ob.y0 + 1;
+  // Height is never sacrificed beyond maxHeightDrift; width is reduced as far
+  // as that allows (not left at the full 2× source width).
+  assert.ok(outW < 76, `width ${outW} should shrink vs ~76px source content`);
+  assert.ok(Math.abs(outH - refH) / refH <= 0.05, `height ${outH} within ~4% of idle ${refH}`);
 });
 
 test('normalizePoseSize pulls undersized poses back toward idle size', () => {
