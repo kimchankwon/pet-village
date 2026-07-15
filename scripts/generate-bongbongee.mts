@@ -3,6 +3,7 @@
  * Reference: official plush — pink head cap, white face, "17" cheeks,
  * aqua Carat diamond, mint pom, light-blue "NEW" tee, deco band.
  */
+import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { saveSprite } from './lib/save-sprite.mjs';
@@ -312,11 +313,18 @@ const NPC_MAP: Record<string, Pose> = {
   jump: 'jump',
 };
 
-for (const pose of PET_POSES) {
-  save(drawBong(pose), path.join(ROOT, 'pet/bongbongee', `${pose}.png`), true);
-}
-for (const [npc, pose] of Object.entries(NPC_MAP)) {
-  save(drawBong(pose), path.join(ROOT, 'npc/bongbongee', `${npc}.png`), true);
+// Prefer Imagine plate conversion when available (see scripts/imagine-to-bongbongee.mts).
+const plate = path.resolve('scripts/reference/bongbongee/idle-plate.png');
+if (fs.existsSync(plate)) {
+  console.log('Imagine plate found — body frames come from imagine-to-bongbongee.mts');
+  console.log(`  (run: npx tsx scripts/imagine-to-bongbongee.mts)`);
+} else {
+  for (const pose of PET_POSES) {
+    save(drawBong(pose), path.join(ROOT, 'pet/bongbongee', `${pose}.png`), true);
+  }
+  for (const [npc, pose] of Object.entries(NPC_MAP)) {
+    save(drawBong(pose), path.join(ROOT, 'npc/bongbongee', `${npc}.png`), true);
+  }
 }
 
 save(drawMintPom(), path.join(ROOT, 'accessories/mint-pom.png'));
@@ -324,4 +332,4 @@ save(drawCaratDiamond(), path.join(ROOT, 'accessories/carat-diamond.png'));
 save(drawBlueTee(), path.join(ROOT, 'accessories/blue-tee.png'));
 save(drawDecoBand(), path.join(ROOT, 'accessories/deco-band.png'));
 
-console.log('Generated Bongbongee pet/NPC frames + accessories');
+console.log('Generated Bongbongee accessories' + (fs.existsSync(plate) ? ' (body via Imagine plate)' : ' + procedural body frames'));

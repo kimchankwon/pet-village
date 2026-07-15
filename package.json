@@ -1,7 +1,7 @@
 {
   "name": "pet-village",
   "private": true,
-  "version": "1.8.1",
+  "version": "1.8.2",
   "type": "module",
   "scripts": {
     "dev": "convex dev --start vite",
@@ -12,6 +12,7 @@
     "sprite:repair": "node scripts/repair-sprite-outline.mjs",
     "sprite:miniteen": "tsx scripts/imagine-to-miniteen.mts",
     "sprite:puffles": "tsx scripts/imagine-to-puffles.mts",
+    "sprite:bongbongee": "tsx scripts/imagine-to-bongbongee.mts",
     "sprite:cinnamoroll": "tsx scripts/generate-cinnamoroll.mts"
   },
   "dependencies": {
