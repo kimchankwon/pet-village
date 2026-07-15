@@ -305,20 +305,30 @@ export function sadPose(idle, opts = {}) {
 }
 
 /**
- * Walk: gentle foot shuffle only.
+ * Walk: foot shuffle scaled to sprite height.
+ *
+ * Prefer authored / Grok Imagine walk plates when available (see
+ * scripts/imagine-to-miniteen.mts). This is the procedural fallback only.
  *
  * Important: do NOT shift the whole sprite — bottom-aligned characters lose
  * feet when dy>0 or when legs are pushed past the canvas edge. Keep every
  * foot pixel on-canvas (clamp destinations).
+ *
+ * On large source plates (≫42px), a 1px stride is invisible — scale the
+ * stride and foot band with character height so the walk still reads.
  */
 export function walkPose(idle, phase) {
   const out = clonePng(idle);
   const b = contentBounds(out);
-  // Only the very bottom tip of the legs (avoid eating the whole lower body)
-  const band = Math.max(2, Math.min(3, Math.round((b.y1 - b.y0) * 0.09)));
+  const bodyH = Math.max(1, b.y1 - b.y0 + 1);
+  // Classic 32×42: band≈2–3, stride≈1. Plates (~300px): proportional motion.
+  // Cap band so tall plates don't lift half the silhouette as "feet".
+  const band = Math.max(2, Math.min(8, Math.round(bodyH * 0.12)));
+  const strideAmt = Math.max(1, Math.min(6, Math.round(bodyH * 0.04)));
+  const liftAmt = Math.max(1, Math.min(4, Math.round(bodyH * 0.03)));
   const footTop = b.y1 - band + 1;
   // phase 1: left forward; phase 2: right forward
-  const stride = phase === 1 ? 1 : -1;
+  const stride = phase === 1 ? strideAmt : -strideAmt;
 
   const feet = [];
   for (let y = footTop; y <= b.y1; y++) {
@@ -336,7 +346,7 @@ export function walkPose(idle, phase) {
     let ny = p.y;
     // Slight lift on the forward foot only
     const forward = (left && stride > 0) || (!left && stride < 0);
-    if (forward) ny = p.y - 1;
+    if (forward) ny = p.y - liftAmt;
     // Never drop pixels off the canvas
     nx = Math.max(0, Math.min(out.width - 1, nx));
     ny = Math.max(0, Math.min(out.height - 1, ny));

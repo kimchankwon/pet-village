@@ -34,9 +34,19 @@ Optional Grok Imagine **pose plates** (walk/happy/sad/jump) live under:
 scripts/reference/miniteen/poses/<id>/{idle,walk1,walk2,happy,sad,jump}.png
 ```
 
+**Walk:** always prefer Imagine `walk1`/`walk2` plates (mid-stride, opposite
+feet). Procedural foot-shuffle is a last resort and is nearly invisible on
+large plates — generate real walk poses with Grok Imagine from the idle plate.
+
 When a pose file is missing, the converter derives it gently from idle at
-**plate resolution** (still not 32×42). Set `useSourcePlate: true` on the def
-for documentation; runtime scaling keys off texture height.
+**plate resolution** (still not 32×42). Every pose is **scaled to the idle
+content height**, then padded onto one shared bottom-centered canvas so:
+
+1. Walk frames are the same on-screen size as idle (no “double size while walking”)
+2. Phaser’s center origin does not make feet slide between walk frames
+
+Set `useSourcePlate: true` on the def for documentation; runtime scaling keys
+off texture height.
 
 ## Poses
 

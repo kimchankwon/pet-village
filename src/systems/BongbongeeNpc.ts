@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { Menu, toast } from './UI';
 import { State } from './GameState';
 import { ACCESSORY_LIST } from './accessories';
+import { miniteenDrawScale } from './miniteen';
 import { WandererNpc, type NpcTalkCallbacks } from './WandererNpc';
 
 const LINES = [
@@ -13,6 +14,9 @@ const LINES = [
   'Mingyu drew me for CARATLAND 2018. I’m basically art.',
 ];
 
+/** Classic on-screen scale for 32×32 Bong frames (shared with plate height math). */
+const BONG_CLASSIC_SCALE = 1.55;
+
 /**
  * SEVENTEEN CARAT mascot NPC. Wanders town and gifts pet accessories.
  */
@@ -22,7 +26,8 @@ export class BongbongeeNpc extends WandererNpc {
       name: 'Bongbongee',
       texPrefix: 'bong',
       waypoints,
-      scale: 1.55,
+      // Reuse shared plate-height scale (native 32 when prefix === 'bong').
+      scale: miniteenDrawScale(scene, 'bong', BONG_CLASSIC_SCALE),
       speed: 48,
     });
   }

@@ -57,16 +57,33 @@ export class BootScene extends Phaser.Scene {
   create() {
     generateTextures(this);
 
-    // Source-plate frames (≫42px) scale down in-game — force nearest-neighbour
+    // Source-plate frames (≫64px) scale down in-game — force nearest-neighbour
     // so they stay crisp (default linear filtering blurs chunky pixel art).
-    for (const def of MINITEEN) {
-      const prefix = miniteenTexPrefix(def.id);
+    // NPC keys: mt-*/bong-idle|walk…  Pet keys: bongbongee-neutral1|… (species id).
+    const plateNpcPrefixes = [
+      ...MINITEEN.map((def) => miniteenTexPrefix(def.id)),
+      'bong',
+    ];
+    for (const prefix of plateNpcPrefixes) {
       const idleKey = `${prefix}-idle`;
       if (!this.textures.exists(idleKey)) continue;
       const h = this.textures.getFrame(idleKey)?.height ?? 0;
       if (h <= 64) continue;
       for (const pose of NPC_POSES) {
         const key = `${prefix}-${pose}`;
+        if (this.textures.exists(key)) {
+          this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+        }
+      }
+    }
+    for (const species of PET_SPECIES_LIST) {
+      // Pet texture keys use pose names (idle1…), not file stems (neutral1…).
+      const probe = petTextureKey(species.id, 'idle1');
+      if (!this.textures.exists(probe)) continue;
+      const h = this.textures.getFrame(probe)?.height ?? 0;
+      if (h <= 64) continue;
+      for (const file of PET_ASSET_FILES) {
+        const key = petTextureKey(species.id, poseFromAssetFile(file));
         if (this.textures.exists(key)) {
           this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
         }
@@ -115,7 +132,8 @@ export class BootScene extends Phaser.Scene {
       this.anims.create({
         key: `${prefix}-walk`,
         frames: [{ key: `${prefix}-walk1` }, { key: `${prefix}-walk2` }],
-        frameRate: 5,
+        // Slightly snappier so Imagine stride poses read clearly while moving.
+        frameRate: 7,
         repeat: -1,
       });
     }

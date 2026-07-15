@@ -407,40 +407,127 @@ function findPosePlate(id: string, pose: string): string | null {
   return candidates.find((p) => fs.existsSync(p)) ?? null;
 }
 
+/**
+ * Crop opaque content and nearest-neighbour scale so content height == targetH.
+ * Keeps walk/happy/jump Imagine plates the same on-screen size as idle — raw
+ * plates often fill more of the canvas, which made walk frames look ~2× tall.
+ */
+function matchContentHeight(
+  src: InstanceType<typeof PNG>,
+  targetH: number,
+): InstanceType<typeof PNG> {
+  const b = contentBounds(src);
+  const cw = b.x1 - b.x0 + 1;
+  const ch = b.y1 - b.y0 + 1;
+  if (ch <= 0) return src;
+  const scale = targetH / ch;
+  // Skip micro-adjustments; only rescale when size drifts >3%.
+  if (Math.abs(scale - 1) < 0.03) {
+    // Still crop tightly so padding is uniform across poses.
+    const out = blank(cw, ch);
+    for (let y = 0; y < ch; y++) {
+      for (let x = 0; x < cw; x++) {
+        const c = get(src, b.x0 + x, b.y0 + y);
+        if (c[3] > 20) set(out, x, y, c);
+      }
+    }
+    return out;
+  }
+  const tw = Math.max(1, Math.round(cw * scale));
+  const th = Math.max(1, Math.round(ch * scale));
+  const out = blank(tw, th);
+  for (let gy = 0; gy < th; gy++) {
+    for (let gx = 0; gx < tw; gx++) {
+      const sx = b.x0 + Math.min(cw - 1, Math.floor((gx / tw) * cw));
+      const sy = b.y0 + Math.min(ch - 1, Math.floor((gy / th) * ch));
+      const c = get(src, sx, sy);
+      if (c[3] > 20) set(out, gx, gy, [c[0], c[1], c[2], 255]);
+    }
+  }
+  return out;
+}
+
+/**
+ * Pad every pose of a character onto one shared canvas (max W×H), bottom-center
+ * aligned. Walk1/walk2 Imagine crops often differ in size; without this, Phaser's
+ * default center origin makes feet slide when the walk cycle advances.
+ */
+function padBottomCenter(
+  src: InstanceType<typeof PNG>,
+  tw: number,
+  th: number,
+): InstanceType<typeof PNG> {
+  if (src.width === tw && src.height === th) return src;
+  const out = blank(tw, th);
+  const ox = Math.floor((tw - src.width) / 2);
+  const oy = th - src.height; // feet on the bottom edge
+  for (let y = 0; y < src.height; y++) {
+    for (let x = 0; x < src.width; x++) {
+      const c = get(src, x, y);
+      if (c[3] > 20) set(out, ox + x, oy + y, c);
+    }
+  }
+  return out;
+}
+
 function processOne(id: string, idleSrcPath: string, plateMode: boolean) {
   const convert = plateMode ? toPlateSprite : toGameSprite;
   // Prefer poses/<id>/idle.png (Imagine) then the top-level plate path.
   const idlePath = findPosePlate(id, 'idle') ?? idleSrcPath;
-  const idle = convert(PNG.sync.read(fs.readFileSync(idlePath)));
-  // Prefer per-pose Imagine plates; fall back to gentle pose-animate from idle
-  // (still at plate resolution — never majority-downsample to 32×42 in --plate mode).
-  const procedural = npcPosesFromIdle(idle, { ink: OUT, accent: [255, 140, 170, 255] });
+  const idleRaw = convert(PNG.sync.read(fs.readFileSync(idlePath)));
+  const idleB = contentBounds(idleRaw);
+  const idleContentH = idleB.y1 - idleB.y0 + 1;
+  const baseIdle = matchContentHeight(idleRaw, idleContentH);
+
+  // Prefer per-pose Imagine plates; fall back to pose-animate from size-matched idle.
+  const procedural = npcPosesFromIdle(baseIdle, { ink: OUT, accent: [255, 140, 170, 255] });
   const dir = path.join(ROOT, id);
   const sources: string[] = [];
+  const frames: { pose: (typeof NPC_POSE_NAMES)[number]; png: InstanceType<typeof PNG> }[] = [];
+
   for (const pose of NPC_POSE_NAMES) {
     const posePlate = findPosePlate(id, pose);
     let png: InstanceType<typeof PNG>;
     if (posePlate) {
-      png = convert(PNG.sync.read(fs.readFileSync(posePlate)));
+      // Imagine plate → crop → scale content height to match idle (no 2× walk).
+      png = matchContentHeight(convert(PNG.sync.read(fs.readFileSync(posePlate))), idleContentH);
       sources.push(`${pose}←imagine`);
     } else if (pose === 'idle') {
-      png = idle;
+      png = baseIdle;
       sources.push('idle←plate');
     } else {
-      png = procedural[pose]!;
+      const p = procedural[pose]!;
+      png = matchContentHeight(p, idleContentH);
       sources.push(`${pose}←animate`);
     }
+    frames.push({ pose, png });
+  }
+
+  // Shared canvas so walk cycle frames share the same origin / feet line.
+  let maxW = 0;
+  let maxH = 0;
+  for (const { png } of frames) {
+    if (png.width > maxW) maxW = png.width;
+    if (png.height > maxH) maxH = png.height;
+  }
+  // Small uniform pad so outlines aren't flush with the canvas edge.
+  const pad = plateMode ? 4 : 0;
+  maxW += pad * 2;
+  maxH += pad * 2;
+
+  for (const { pose, png } of frames) {
+    const padded = padBottomCenter(png, maxW, maxH);
     if (!plateMode) {
-      solidifyEyes(png);
-      saveSprite(png, path.join(dir, `${pose}.png`), { repairOutline: true, outline: OUT });
+      solidifyEyes(padded);
+      saveSprite(padded, path.join(dir, `${pose}.png`), { repairOutline: true, outline: OUT });
     } else {
-      writePng(png, path.join(dir, `${pose}.png`));
+      writePng(padded, path.join(dir, `${pose}.png`));
     }
   }
   let n = 0;
-  for (let i = 3; i < idle.data.length; i += 4) if (idle.data[i]! > 20) n++;
+  for (let i = 3; i < baseIdle.data.length; i += 4) if (baseIdle.data[i]! > 20) n++;
   console.log(
-    `  ${id}: ${idle.width}×${idle.height} · ${n} opaque px` +
+    `  ${id}: ${maxW}×${maxH} canvas · contentH ${idleContentH} · ${n} opaque px` +
       `${plateMode ? ' (source plate)' : ''} · ${sources.join(' ')}`,
   );
 }
