@@ -22,6 +22,7 @@ export function openInventoryMenu(scene: Phaser.Scene, cbs: InventoryMenuCallbac
     (item) => State.isPenguinAccessory(item.id) && State.ownsAccessory(item.id),
   );
   const food = itemTotal('food');
+  const bait = itemTotal('bait');
   const furniture = itemTotal('furniture');
   const menu = new Menu(
     scene,
@@ -36,6 +37,11 @@ export function openInventoryMenu(scene: Phaser.Scene, cbs: InventoryMenuCallbac
         label: `Food & treats · ${food}`,
         icon: 'fish',
         onSelect: () => openItemList(scene, cbs, 'food', 'Food & treats'),
+      },
+      {
+        label: `Fishing bait · ${bait}`,
+        icon: 'bait',
+        onSelect: () => openItemList(scene, cbs, 'bait', 'Fishing bait'),
       },
       {
         label: `Furniture · ${furniture}`,
@@ -120,8 +126,14 @@ function openItemList(
       onSelect: () => undefined,
     }));
   if (options.length === 0) {
+    const emptyLabel =
+      kind === 'food'
+        ? 'No food — shop or go fishing!'
+        : kind === 'bait'
+          ? `No bait — Daniel sells it for ${ITEMS.bait.price} coins!`
+          : 'No furniture — visit Daniel!';
     options.push({
-      label: kind === 'food' ? 'No food — shop or go fishing!' : 'No furniture — visit Daniel!',
+      label: emptyLabel,
       disabled: true,
       onSelect: () => undefined,
     });
@@ -130,6 +142,8 @@ function openItemList(
     subtitle:
       kind === 'food'
         ? 'Feed these to your pet from P → Feed'
+        : kind === 'bait'
+          ? 'One bait is used whenever you cast'
         : 'Place these at home with Decorate',
     back: {
       label: '← Back to Inventory',

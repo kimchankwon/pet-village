@@ -11,6 +11,12 @@ import {
   type AccessorySlot,
 } from './accessories';
 import { isClassicSpecies, isPetSpecies, isPuffleSpecies, type PetSpecies } from './pets';
+import {
+  FISHING_BAIT_PRICE,
+  FISHY_SNACK_HUNGER,
+  applyPetFoodStats,
+  petCanEat,
+} from './petFoodRules';
 
 export interface PetStats {
   hunger: number; // 0 = starving, 100 = full
@@ -35,7 +41,7 @@ export interface SaveData {
   adopted: boolean;
   pet: PetStats;
   lastSeen: number; // epoch ms, for offline decay
-  inventory: Record<string, number>; // itemId -> count (food + unplaced furniture)
+  inventory: Record<string, number>; // itemId -> count (food + bait + unplaced furniture)
   placed: PlacedItem[];
   bestPaperToss: number;
   /** Biggest fish landed while shore-fishing, in centimetres. */
@@ -68,7 +74,7 @@ export interface ItemDef {
   id: string;
   name: string;
   texture: string;
-  kind: 'food' | 'furniture';
+  kind: 'food' | 'furniture' | 'bait';
   price: number;
   // food effects
   hunger?: number;
@@ -77,8 +83,6 @@ export interface ItemDef {
   catchOnly?: boolean;
 }
 
-/** Coins earned each time you feed your pet. */
-export const FEED_COIN_REWARD = 3;
 /** Flat tip for clearing a Paper Toss level. */
 export const PAPER_TOSS_PARTICIPATION_COINS = 4;
 /** Energy the pet loses per completed Paper Toss throw. */
@@ -124,7 +128,22 @@ export const PAPER_TOSS_DIFFICULTY_STAGES: Record<PaperTossDifficulty, readonly 
 };
 
 export const ITEMS: Record<string, ItemDef> = {
-  fish: { id: 'fish', name: 'Fishy Snack', texture: 'fish', kind: 'food', price: 5, hunger: 25, happiness: 5 },
+  bait: {
+    id: 'bait',
+    name: 'Fishing Bait',
+    texture: 'bait',
+    kind: 'bait',
+    price: FISHING_BAIT_PRICE,
+  },
+  fish: {
+    id: 'fish',
+    name: 'Fishy Snack',
+    texture: 'fish',
+    kind: 'food',
+    price: 5,
+    hunger: FISHY_SNACK_HUNGER,
+    happiness: 5,
+  },
   cookie: { id: 'cookie', name: 'Choco Cookie', texture: 'cookie', kind: 'food', price: 8, hunger: 15, happiness: 15 },
   'oceanfish-common': {
     id: 'oceanfish-common',
@@ -495,16 +514,9 @@ class GameStateStore {
 
   feedPet(foodId: string): boolean {
     const def = ITEMS[foodId];
-    if (!def || def.kind !== 'food') return false;
+    if (!petCanEat(def)) return false;
     if (!this.removeItem(foodId)) return false;
-    const p = this.data.pet;
-    p.hunger = clamp(p.hunger + (def.hunger ?? 0));
-    p.happiness = clamp(p.happiness + (def.happiness ?? 0));
-    // Shop food softens the buy cost with a tip; catch-only fish must not
-    // mint coins (free catch → feed → +3c would be an unbounded faucet).
-    if (!def.catchOnly) {
-      this.data.coins += FEED_COIN_REWARD;
-    }
+    applyPetFoodStats(this.data.pet, def);
     this.save();
     return true;
   }
