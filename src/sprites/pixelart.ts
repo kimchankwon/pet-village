@@ -96,19 +96,22 @@ function setPenguinPalette(color: string) {
 type Grid = string[];
 
 // ---- Penguin player (18x20), 2 walk frames per facing ----
-// Club Penguin-style: pear navy body, big white belly with soft shade,
-// high oval eyes + black pupils, bright orange beak + flat feet, side flippers.
+// Club Penguin (Tenor CP sticker ref): plump pear body, dome head, close-set
+// eyes above a big orange beak, large white belly + soft grey shade, flippers
+// out, orange feet. Landmark rows kept for clothes overlays:
+//   0–3 hat · 4–5 eyes/mask · 6–7 beak · 8–15 body · 18–19 feet.
 const PENGUIN_DOWN_0: Grid = [
   '.......kkkk.......',
   '.....kkvvvvkk.....',
   '....kuvvvvvvuk....',
   '...kuvvvvvvvvuk...',
-  '...kvWWWvvWWWvk...',
-  '...kvWkWvvWkWvk...',
+  // CP (Tenor sticker): close bright eyes + big orange beak above white belly
+  '...kvvwwwvwwwvk...',
+  '...kvvwkwvwkwvk...',
   '..kvvvvoOOoovvvk..',
   '..kvvvooOOOovvvk..',
-  '.kvvvwwwwwwwwvvvk.',
-  'kvkvwwwwwwwwwwvkvk',
+  '.kvvvvwwwwwwvvvvk.',
+  'kvkvvwwwwwwwwvvkvk',
   'kvkvwwwwwwwwwwvkvk',
   'kvkvwwwwwwwwwwvkvk',
   'kvkvwwzzzzzzwwvkvk',
@@ -125,12 +128,12 @@ const PENGUIN_DOWN_1: Grid = [
   '.....kkvvvvkk.....',
   '....kuvvvvvvuk....',
   '...kuvvvvvvvvuk...',
-  '...kvWWWvvWWWvk...',
-  '...kvWkWvvWkWvk...',
+  '...kvvwwwvwwwvk...',
+  '...kvvwkwvwkwvk...',
   '..kvvvvoOOoovvvk..',
   '..kvvvooOOOovvvk..',
-  '.kvvvwwwwwwwwvvvk.',
-  'kvkvwwwwwwwwwwvkvk',
+  '.kvvvvwwwwwwvvvvk.',
+  'kvkvvwwwwwwwwvvkvk',
   'kvkvwwwwwwwwwwvkvk',
   'kvkvwwwwwwwwwwvkvk',
   'kvkvwwzzzzzzwwvkvk',
@@ -156,7 +159,7 @@ const PENGUIN_UP_0: Grid = [
   'kvkvvvvvvvvvvvvkvk',
   'kvkvvvvvvvvvvvvkvk',
   'kvkvVvvvvvvvvVVkvk',
-  '.kvvVvvvvvvvvVvk..',
+  '.kvvVvvvvvvvvVVvk.',
   '.kvvvVvvvvvvVvvvk.',
   '..kvvvvVVVVvvvvk..',
   '...kVvvvvvvvvVk...',
@@ -178,7 +181,7 @@ const PENGUIN_UP_1: Grid = [
   'kvkvvvvvvvvvvvvkvk',
   'kvkvvvvvvvvvvvvkvk',
   'kvkvVvvvvvvvvVVkvk',
-  '.kvvVvvvvvvvvVvk..',
+  '.kvvVvvvvvvvvVVvk.',
   '.kvvvVvvvvvvVvvvk.',
   '..kvvvvVVVVvvvvk..',
   '...kVvvvvvvvvVk...',
@@ -186,14 +189,15 @@ const PENGUIN_UP_1: Grid = [
   '..koo........ook..',
   '.kOoo........ooOk.',
 ];
+// Side: CP profile — dome head, single eye, long orange beak, white belly
 const PENGUIN_SIDE_0: Grid = [
   '......kkkk........',
   '....kkvvvvkk......',
   '...kuvvvvvvuk.....',
   '...kuvvvvvvvuk....',
-  '..kvvvvvkWWWvk....',
-  '..kvvvvvkWkWvk....',
-  '..kvvvvvvoOook....',
+  '..kvvvvvwwwvk.....', // single bright CP eye
+  '..kvvvvvwkwvk.....',
+  '..kvvvvvvoOook....', // long orange beak
   '..kvvvvvvooOOok...',
   '.kvvvvvvvvoOook...',
   '.kvvvvvvwwwwvvk...',
@@ -213,8 +217,8 @@ const PENGUIN_SIDE_1: Grid = [
   '....kkvvvvkk......',
   '...kuvvvvvvuk.....',
   '...kuvvvvvvvuk....',
-  '..kvvvvvkWWWvk....',
-  '..kvvvvvkWkWvk....',
+  '..kvvvvvwwwvk.....',
+  '..kvvvvvwkwvk.....',
   '..kvvvvvvoOook....',
   '..kvvvvvvooOOok...',
   '.kvvvvvvvvoOook...',
@@ -321,8 +325,8 @@ const NINJA_MASK_OVERLAY: PenguinOverlay = {
   down: [
     DOTS, DOTS, DOTS,
     '...kxxxxxxxxxxk...',
-    '...kxWWWxxWWWxk...',
-    '...kxWkWxxWkWxk...',
+    '...kxwwwxwwwxxk...', // match closer bright eyes
+    '...kxwkwxwkwxxk...',
   ],
   up: [
     DOTS, DOTS, DOTS,
@@ -335,8 +339,8 @@ const NINJA_MASK_OVERLAY: PenguinOverlay = {
   side: [
     DOTS, DOTS, DOTS,
     '...kxxxxxxxxxk....',
-    '..kxxxxxkWWWxk....',
-    '..kxxxxxkWkWxk....',
+    '..kxxxxxkWWxk.....',
+    '..kxxxxxkWkWvk....',
   ],
 };
 
