@@ -26,8 +26,10 @@ export interface MiniteenDef {
   useSourcePlate?: boolean;
 }
 
-/** Classic 32×42 miniteen at scale 1.5 → ~63 world px tall. */
-export const MINITEEN_DISPLAY_HEIGHT = 42 * 1.5;
+/** Native height of classic chibi frames (before Phaser scale). */
+export const MINITEEN_NATIVE_HEIGHT = 42;
+/** Classic miniteen on-screen height at the default town scale (1.5). */
+export const MINITEEN_DISPLAY_HEIGHT = MINITEEN_NATIVE_HEIGHT * 1.5;
 
 /**
  * Phaser scale so a villager's idle texture draws at the same on-screen height
@@ -48,7 +50,7 @@ export function miniteenDrawScale(
   const h = frame?.height ?? 0;
   // Classic game frames are 42px tall; anything larger is a source plate.
   if (h <= 64) return classicScale;
-  return (42 * classicScale) / h;
+  return (MINITEEN_NATIVE_HEIGHT * classicScale) / h;
 }
 
 /** True when the loaded idle texture is a hi-res Imagine plate crop. */

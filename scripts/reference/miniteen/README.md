@@ -30,7 +30,7 @@ miniteen height (~63 world px) with **nearest-neighbour** filtering.
 
 Optional Grok Imagine **pose plates** (walk/happy/sad/jump) live under:
 
-```
+```text
 scripts/reference/miniteen/poses/<id>/{idle,walk1,walk2,happy,sad,jump}.png
 ```
 
