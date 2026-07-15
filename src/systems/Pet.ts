@@ -5,6 +5,7 @@ import { characterDepth } from './depth';
 import { petAnimKey, petTextureKey, type PetPose } from './pets';
 import { petLine } from './petDialog';
 import { ACCESSORIES, ACCESSORY_LAYOUT, SPECIES_ACCESSORY_NUDGE, type AccessoryId } from './accessories';
+import { clampToMovementBounds, type MovementBounds } from './movementBounds';
 
 /**
  * Companion that stays a short distance *behind* the player along their
@@ -29,6 +30,7 @@ export class Pet {
   private holdFollow = false;
   /** Overrides the y-sorted depth while set (e.g. sleeping on top of a bed). */
   private depthPin: number | null = null;
+  private readonly movementBounds: MovementBounds;
 
   /** Force the pet (and its accessories) to a fixed depth until unpinned. */
   pinDepth(depth: number) {
@@ -46,11 +48,15 @@ export class Pet {
     return this.depthPin ?? characterDepth(this.sprite);
   }
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
+  constructor(scene: Phaser.Scene, x: number, y: number, movementBounds?: MovementBounds) {
     this.scene = scene;
-    this.followX = x;
-    this.followY = y;
     this.sprite = scene.add.sprite(x, y, this.tex('idle1')).setScale(1.5);
+    const world = movementBounds ?? scene.physics.world.bounds;
+    this.movementBounds = { x: world.x, y: world.y, width: world.width, height: world.height };
+    const start = this.confinedPoint(x, y);
+    this.followX = start.x;
+    this.followY = start.y;
+    this.sprite.setPosition(start.x, start.y);
     this.sprite.setDepth(this.ownDepth());
     this.sprite.play(this.anim('bounce'));
     this.refreshAccessories();
@@ -67,6 +73,15 @@ export class Pet {
 
   private anim(kind: 'bounce' | 'walk') {
     return petAnimKey(this.species(), kind);
+  }
+
+  private confinedPoint(x: number, y: number) {
+    return clampToMovementBounds(
+      { x, y },
+      this.movementBounds,
+      this.sprite.displayWidth / 2 + 2,
+      this.sprite.displayHeight / 2 + 2,
+    );
   }
 
   /** Rebuild equipped accessory overlays (call after equip changes). */
@@ -149,8 +164,12 @@ export class Pet {
       this.trailY /= tlen;
     }
 
-    const slotX = playerX + this.trailX * this.FOLLOW_DIST;
-    const slotY = playerY + this.trailY * this.FOLLOW_DIST + 4;
+    const desiredSlot = this.confinedPoint(
+      playerX + this.trailX * this.FOLLOW_DIST,
+      playerY + this.trailY * this.FOLLOW_DIST + 4,
+    );
+    const slotX = desiredSlot.x;
+    const slotY = desiredSlot.y;
 
     const slotRate = moving ? 8 : 3.5;
     const slotT = 1 - Math.exp(-slotRate * dt);
@@ -173,6 +192,8 @@ export class Pet {
       this.sprite.x = this.followX;
       this.sprite.y = this.followY;
     }
+    const safe = this.confinedPoint(this.sprite.x, this.sprite.y);
+    this.sprite.setPosition(safe.x, safe.y);
 
     this.sprite.setDepth(this.ownDepth());
 
@@ -257,6 +278,9 @@ export class Pet {
   /** Walk to a world point while follow is paused. Plays walk, then idle/bounce. */
   walkTo(x: number, y: number, onArrive: () => void) {
     this.pauseFollow();
+    const target = this.confinedPoint(x, y);
+    x = target.x;
+    y = target.y;
     const dist = Math.hypot(x - this.sprite.x, y - this.sprite.y);
     const duration = Phaser.Math.Clamp(dist * 6, 280, 1200);
     this.facingLeft = x < this.sprite.x;

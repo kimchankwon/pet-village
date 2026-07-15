@@ -17,6 +17,7 @@ import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu
 import { TILE, TOWN_MAP_H, TOWN_MAP_W, TOWN_WORLD_H, TOWN_WORLD_W } from '../systems/townMap';
 import { rememberBongbongee, rememberMiniteens, takeBongbongeeSnap } from '../systems/townPresence';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
+import { addWorldBezel } from '../systems/worldBezel';
 
 /** Compact town — smaller than the old 32×24 crossroads map. */
 const MAP_W = TOWN_MAP_W;
@@ -92,6 +93,8 @@ export class TownScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
 
     this.buildMap();
+    const worldBounds = { x: 0, y: 0, width: WORLD_W, height: WORLD_H };
+    addWorldBezel(this, worldBounds);
 
     // Spawn just outside the door, facing away from the building.
     let sx = FOUNTAIN_POS.tx * TILE;
@@ -121,7 +124,7 @@ export class TownScene extends Phaser.Scene {
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
     this.facing = 'down';
 
-    this.pet = new Pet(this, sx - 30, sy + 10);
+    this.pet = new Pet(this, sx - 30, sy + 10, worldBounds);
     // Tap/click your pet to hear what's on its mind.
     this.pet.sprite.setInteractive({ useHandCursor: true });
     this.pet.sprite.on('pointerdown', () => {

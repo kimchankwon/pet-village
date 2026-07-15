@@ -1,5 +1,10 @@
 import Phaser from 'phaser';
 import { characterDepth } from './depth';
+import {
+  clampToMovementBounds,
+  shuffledPatrolOrder,
+  type MovementBounds,
+} from './movementBounds';
 
 export interface NpcTalkCallbacks {
   /** Menu fully closed — the scene should re-enable input. */
@@ -22,6 +27,8 @@ export interface WandererOptions {
   scale?: number;
   speed?: number;
   pauseMs?: [number, number];
+  /** Playable map rectangle. Defaults to the scene's Arcade world bounds. */
+  movementBounds?: MovementBounds;
 }
 
 /**
@@ -35,18 +42,21 @@ export class WandererNpc {
   protected readonly prefix: string;
   private waypoints: { x: number; y: number }[];
   private destIndex = 0;
+  private previousDestIndex: number | null = null;
+  private patrolQueue: number[] = [];
   private pauseUntil = 0;
   /** While set, update() leaves the sprite alone so emotes/hops play out. */
   private emoteUntil = 0;
   private facingLeft = false;
   private readonly speed: number;
   private readonly pauseMs: [number, number];
-  /** Off-map / mid enter-exit — hidden from interact prompts. */
+  private readonly movementBounds: MovementBounds;
+  /** Off-map after transit completes — hidden from interact prompts. */
   private present = true;
   private transit: {
     x: number;
     y: number;
-    /** Arrive = walking on; leave = walking off. Only leave blocks interact. */
+    /** Arrive = walking on; leave = walking off. */
     mode: 'arrive' | 'leave';
     onDone: () => void;
   } | null = null;
@@ -64,6 +74,15 @@ export class WandererNpc {
     this.pauseMs = opts.pauseMs ?? [1400, 3200];
     const start = opts.waypoints[0] ?? { x: 400, y: 400 };
     this.sprite = scene.add.sprite(start.x, start.y, `${this.prefix}-idle`).setScale(opts.scale ?? 1.55);
+    const world = opts.movementBounds ?? scene.physics.world.bounds;
+    this.movementBounds = { x: world.x, y: world.y, width: world.width, height: world.height };
+    const halfWidth = this.sprite.displayWidth / 2 + 2;
+    const halfHeight = this.sprite.displayHeight / 2 + 2;
+    this.waypoints = opts.waypoints.map((point) =>
+      clampToMovementBounds(point, this.movementBounds, halfWidth, halfHeight),
+    );
+    const safeStart = this.waypoints[0] ?? clampToMovementBounds(start, this.movementBounds, halfWidth, halfHeight);
+    this.sprite.setPosition(safeStart.x, safeStart.y);
     this.sprite.setDepth(characterDepth(this.sprite));
     this.playBounce();
     this.pickNext();
@@ -73,9 +92,9 @@ export class WandererNpc {
     return this.present && this.sprite.active;
   }
 
-  /** Talk while idle or walking onto the map; block only while leaving. */
+  /** Talk while visible, including during arrival or departure. */
   canInteract() {
-    return this.isPresent() && this.transit?.mode !== 'leave';
+    return this.isPresent();
   }
 
   /** Fully settled (not mid enter/exit) — safe to send off-map. */
@@ -170,10 +189,16 @@ export class WandererNpc {
 
   private pickNext() {
     if (this.waypoints.length < 2) return;
-    let next = this.destIndex;
-    while (next === this.destIndex) {
-      next = Phaser.Math.Between(0, this.waypoints.length - 1);
+    if (this.patrolQueue.length === 0) {
+      this.patrolQueue = shuffledPatrolOrder(
+        this.waypoints.length,
+        this.destIndex,
+        this.previousDestIndex,
+      );
     }
+    const next = this.patrolQueue.shift();
+    if (next === undefined) return;
+    this.previousDestIndex = this.destIndex;
     this.destIndex = next;
   }
 
@@ -212,7 +237,23 @@ export class WandererNpc {
   update() {
     if (!this.sprite.active) return;
 
-    // Entering / leaving the map — walk straight to transit target.
+    // An emote/hop is playing — leave texture, animation and position be.
+    if (this.scene.time.now < this.emoteUntil) {
+      this.sprite.setDepth(characterDepth(this.sprite));
+      return;
+    }
+
+    // Dialogue pauses every kind of travel, including an in-progress exit.
+    if (this.conversing) {
+      if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) {
+        this.playBounce();
+      }
+      this.sprite.setDepth(characterDepth(this.sprite));
+      return;
+    }
+
+    // Entering / leaving the map — walk straight to transit target. The
+    // world bezel clips the sprite as it crosses the actual map boundary.
     if (this.transit) {
       const dx = this.transit.x - this.sprite.x;
       const dy = this.transit.y - this.sprite.y;
@@ -235,20 +276,13 @@ export class WandererNpc {
       return;
     }
 
-    // An emote/hop is playing — leave texture, animation and position be.
-    if (this.scene.time.now < this.emoteUntil) {
-      this.sprite.setDepth(characterDepth(this.sprite));
-      return;
-    }
-
-    // Dialogue open — idle bounce in place (emotes/hops still work above).
-    if (this.conversing) {
-      if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) {
-        this.playBounce();
-      }
-      this.sprite.setDepth(characterDepth(this.sprite));
-      return;
-    }
+    const safe = clampToMovementBounds(
+      this.sprite,
+      this.movementBounds,
+      this.sprite.displayWidth / 2 + 2,
+      this.sprite.displayHeight / 2 + 2,
+    );
+    this.sprite.setPosition(safe.x, safe.y);
 
     if (this.scene.time.now < this.pauseUntil) {
       if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) {

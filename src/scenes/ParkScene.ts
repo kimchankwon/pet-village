@@ -21,6 +21,7 @@ import {
   takeSceneNpcSnaps,
   type NpcSceneLocation,
 } from '../systems/npcScenePresence';
+import { addWorldBezel } from '../systems/worldBezel';
 
 interface Interactable {
   x: number;
@@ -115,6 +116,8 @@ export class ParkScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, PARK_WORLD_W, PARK_WORLD_H);
 
     this.buildMap();
+    const worldBounds = { x: 0, y: 0, width: PARK_WORLD_W, height: PARK_WORLD_H };
+    addWorldBezel(this, worldBounds);
 
     // From town → just inside the connecting edge; from a game → by its booth.
     const entryX = this.cfg.exitEdge === 'east' ? (PARK_MAP_W - 1.6) * TILE : 1.6 * TILE;
@@ -131,7 +134,7 @@ export class ParkScene extends Phaser.Scene {
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
     this.facing = 'down';
 
-    this.pet = new Pet(this, sx - 30, sy + 10);
+    this.pet = new Pet(this, sx - 30, sy + 10, worldBounds);
     this.pet.sprite.setInteractive({ useHandCursor: true });
     this.pet.sprite.on('pointerdown', () => {
       this.ignoreClicksUntil = this.time.now + 200;

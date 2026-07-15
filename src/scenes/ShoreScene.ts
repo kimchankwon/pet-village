@@ -23,6 +23,7 @@ import {
 import { MiniteenNpc } from '../systems/miniteen';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { npcDefsForScene, rememberSceneNpcs, takeSceneNpcSnaps } from '../systems/npcScenePresence';
+import { addWorldBezel } from '../systems/worldBezel';
 
 interface Interactable {
   x: number;
@@ -79,6 +80,8 @@ export class ShoreScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, SHORE_WORLD_W, SHORE_WORLD_H);
 
     this.buildMap();
+    const worldBounds = { x: 0, y: 0, width: SHORE_WORLD_W, height: SHORE_WORLD_H };
+    addWorldBezel(this, worldBounds);
 
     // From town → top path; from fishing → near the dock.
     let sx = 9 * TILE;
@@ -92,7 +95,7 @@ export class ShoreScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
 
-    this.pet = new Pet(this, sx - 30, sy + 10);
+    this.pet = new Pet(this, sx - 30, sy + 10, worldBounds);
     this.pet.sprite.setInteractive({ useHandCursor: true });
     this.pet.sprite.on('pointerdown', () => {
       this.ignoreClicksUntil = this.time.now + 200;
