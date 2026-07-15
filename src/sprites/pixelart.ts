@@ -327,8 +327,8 @@ const NINJA_MASK_OVERLAY: PenguinOverlay = {
   down: [
     DOTS, DOTS, DOTS,
     '...kxxxxxxxxxxk...',
-    '...kxxwwxwwxxxk...', // match closer CP eyes
-    '...kxxwkwkwxxxk...',
+    '...kxxxwwxwwxxk...', // align with PENGUIN_DOWN_0 eye columns
+    '...kxxxwkwkwxxk...',
   ],
   up: [
     DOTS, DOTS, DOTS,
@@ -1321,7 +1321,7 @@ const PENGUIN_FACINGS = ['down', 'up', 'side'] as const;
 
 /** True when Boot preloaded Imagine plate frames for the player penguin. */
 export function hasPenguinPlates(scene: Phaser.Scene): boolean {
-  return scene.textures.exists(PENGUIN_PLATE_KEY('down', 0));
+  return PENGUIN_FACINGS.every((facing) => scene.textures.exists(PENGUIN_PLATE_KEY(facing, 0)));
 }
 
 /**
@@ -1338,6 +1338,10 @@ export function penguinDrawScale(scene: Phaser.Scene): number {
 /**
  * Apply plate-aware scale + foot collider to the player sprite.
  * Classic textures: 54×60, body (34×16) @ offset (10,42).
+ *
+ * Arcade `setSize`/`setOffset` use **source** (unscaled) frame pixels; Phaser
+ * then scales the body with the sprite. Do not pass displayWidth/displayHeight
+ * or the collider is double-scaled.
  */
 export function configurePlayerPenguin(
   sprite: Phaser.Physics.Arcade.Sprite | Phaser.GameObjects.Sprite,
@@ -1345,10 +1349,12 @@ export function configurePlayerPenguin(
   const scale = penguinDrawScale(sprite.scene);
   sprite.setScale(scale);
   if (!sprite.body || !(sprite.body instanceof Phaser.Physics.Arcade.Body)) return;
-  const dw = sprite.displayWidth;
-  const dh = sprite.displayHeight;
-  // Foot disk — same proportions as the classic 34×16 / 54×60 body box.
-  sprite.body.setSize(dw * (34 / 54), dh * (16 / 60)).setOffset(dw * (10 / 54), dh * (42 / 60));
+  const fw = sprite.frame.width;
+  const fh = sprite.frame.height;
+  // Same proportions as classic 34×16 / 54×60, in source pixels.
+  sprite.body
+    .setSize(fw * (34 / 54), fh * (16 / 60))
+    .setOffset(fw * (10 / 54), fh * (42 / 60));
 }
 
 /** Is this pixel part of the recolourable blue body (not outline/belly/beak/feet)? */

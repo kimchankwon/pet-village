@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { generateTextures } from '../sprites/pixelart';
+import { generateTextures, PENGUIN_PLATE_KEY } from '../sprites/pixelart';
 import {
   ACCESSORY_LIST,
   accessoryAssetPath,
@@ -54,7 +54,7 @@ export class BootScene extends Phaser.Scene {
     for (const facing of ['down', 'up', 'side'] as const) {
       for (const frame of [0, 1] as const) {
         this.load.image(
-          `penguin-plate-${facing}-${frame}`,
+          PENGUIN_PLATE_KEY(facing, frame),
           `assets/player/penguin/${facing}-${frame}.png`,
         );
       }

@@ -141,7 +141,7 @@ function toPlateSprite(raw: InstanceType<typeof PNG>): InstanceType<typeof PNG> 
       const sx = x0 + Math.min(cw - 1, Math.floor((gx / tw) * cw));
       const sy = y0 + Math.min(ch - 1, Math.floor((gy / th) * ch));
       const c = get(keyed, sx, sy);
-      if (c[3] > 20) set(out, gx, gy, [c[0], c[1], c[2], 255]);
+      if (c[3] >= 20) set(out, gx, gy, [c[0], c[1], c[2], 255]);
     }
   }
   return out;
@@ -158,7 +158,7 @@ function matchContentHeight(src: InstanceType<typeof PNG>, targetH: number) {
     for (let y = 0; y < ch; y++) {
       for (let x = 0; x < cw; x++) {
         const c = get(src, b.x0 + x, b.y0 + y);
-        if (c[3] > 20) set(out, x, y, c);
+        if (c[3] >= 20) set(out, x, y, c);
       }
     }
     return out;
@@ -171,7 +171,7 @@ function matchContentHeight(src: InstanceType<typeof PNG>, targetH: number) {
       const sx = b.x0 + Math.min(cw - 1, Math.floor((gx / tw) * cw));
       const sy = b.y0 + Math.min(ch - 1, Math.floor((gy / th) * ch));
       const c = get(src, sx, sy);
-      if (c[3] > 20) set(out, gx, gy, [c[0], c[1], c[2], 255]);
+      if (c[3] >= 20) set(out, gx, gy, [c[0], c[1], c[2], 255]);
     }
   }
   return out;
@@ -185,7 +185,7 @@ function padBottomCenter(src: InstanceType<typeof PNG>, tw: number, th: number) 
   for (let y = 0; y < src.height; y++) {
     for (let x = 0; x < src.width; x++) {
       const c = get(src, x, y);
-      if (c[3] > 20) set(out, ox + x, oy + y, c);
+      if (c[3] >= 20) set(out, ox + x, oy + y, c);
     }
   }
   return out;
