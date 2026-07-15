@@ -184,10 +184,14 @@ function flood(x, y, target, fill) {
   const key = (r,g,b,a) => `${r},${g},${b},${a}`;
   const t = key(...target), f = key(...fill);
   if (t === f) return;
+  if (x < 0 || y < 0 || x >= imgW || y >= imgH) return;
   const q = [[x,y]];
   const seen = new Set();
   while (q.length) {
     const [cx,cy] = q.pop();
+    // Must bound before getPx: OOB coords look like transparent [0,0,0,0]
+    // and would enqueue forever when filling the background.
+    if (cx < 0 || cy < 0 || cx >= imgW || cy >= imgH) continue;
     const k = cx+','+cy;
     if (seen.has(k)) continue;
     seen.add(k);
