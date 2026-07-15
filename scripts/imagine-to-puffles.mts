@@ -240,6 +240,139 @@ function shift(src: InstanceType<typeof PNG>, dx: number, dy: number) {
   return out;
 }
 
+/**
+ * Classic Club Penguin puffle crown: fuzzy spikes all the way across the
+ * top (and a couple of side tufts). Imagine plates often deliver a smooth
+ * ball (green especially) or only one weak tuft — stamp a consistent mane.
+ */
+function stampCrownHair(
+  src: InstanceType<typeof PNG>,
+  color: RGBA,
+  style: 'default' | 'orange' = 'default',
+): InstanceType<typeof PNG> {
+  const out = clone(src);
+
+  // Silhouette bounds (body only — skip tiny isolated face bits)
+  let x0 = W,
+    x1 = 0,
+    y0 = H,
+    y1 = 0,
+    n = 0;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (get(out, x, y)[3] < 20) continue;
+      n++;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
+  }
+  if (n < 20) return out;
+
+  const cx = Math.round((x0 + x1) / 2);
+  // Highest opaque y per column (crown surface)
+  const topAt = new Int16Array(W).fill(H);
+  for (let x = x0; x <= x1; x++) {
+    for (let y = 0; y < H; y++) {
+      if (get(out, x, y)[3] >= 20) {
+        topAt[x] = y;
+        break;
+      }
+    }
+  }
+
+  // Sample a mid-body fill color (prefer the target palette color)
+  const body: RGBA = [color[0], color[1], color[2], 255];
+
+  const paint = (x: number, y: number, c: RGBA) => {
+    if (x < 0 || y < 0 || x >= W || y >= H) return;
+    set(out, x, y, c);
+  };
+  /** Fill a short vertical spike tip, outlined. */
+  const spike = (sx: number, tipY: number, height: number, halfW = 1) => {
+    for (let h = 0; h < height; h++) {
+      const y = tipY + h;
+      const w = h === 0 ? 0 : halfW; // tip is 1px
+      for (let dx = -w; dx <= w; dx++) paint(sx + dx, y, body);
+    }
+    // Outline around the spike
+    for (let h = 0; h < height; h++) {
+      const y = tipY + h;
+      const w = h === 0 ? 0 : halfW;
+      paint(sx - w - 1, y, OUT);
+      paint(sx + w + 1, y, OUT);
+    }
+    paint(sx, tipY - 1, OUT);
+    if (halfW > 0) {
+      paint(sx - 1, tipY, OUT);
+      paint(sx + 1, tipY, OUT);
+    }
+  };
+
+  // Spikes evenly across the crown (left → right). Classic CP mane, not a
+  // single center tuft.
+  const spanL = x0 + 2;
+  const spanR = x1 - 2;
+  const spikeXs: number[] = [];
+  const count = 7;
+  for (let i = 0; i < count; i++) {
+    const t = i / (count - 1);
+    spikeXs.push(Math.round(spanL + t * (spanR - spanL)));
+  }
+
+  for (let i = 0; i < spikeXs.length; i++) {
+    const sx = spikeXs[i]!;
+    // Base the tip on the local crown height so spikes sit on the head.
+    const surface = topAt[sx] === H ? y0 : topAt[sx]!;
+    // Alternating heights read as fluffy; middle ones slightly taller.
+    const mid = Math.abs(i - (count - 1) / 2);
+    const height = mid < 1 ? 4 : mid < 2 ? 3 : 3;
+    const tipY = Math.max(1, surface - height);
+    const halfW = mid < 1.5 ? 1 : 0;
+    spike(sx, tipY, height, halfW);
+  }
+
+  // Side tufts (classic puffle silhouette) — mid-height, outward
+  for (const s of [-1, 1] as const) {
+    const sx = s < 0 ? x0 : x1;
+    const midY = Math.round(y0 + (y1 - y0) * 0.38);
+    for (let k = 0; k < 3; k++) {
+      paint(sx + s * (k + 1), midY - 1 + (k % 2), body);
+      paint(sx + s * (k + 1), midY + (k % 2), body);
+      paint(sx + s * (k + 2), midY - 1 + (k % 2), OUT);
+    }
+    // Extra upper-side fluff
+    paint(sx + s * 2, midY - 3, body);
+    paint(sx + s * 2, midY - 4, OUT);
+    paint(sx + s * 1, midY - 3, body);
+  }
+
+  // Orange: curly tufts on top (personality) in addition to the mane
+  if (style === 'orange') {
+    const top = Math.min(...Array.from(topAt).filter((v) => v < H));
+    const curls: [number, number][] = [
+      [cx - 3, top - 2],
+      [cx - 1, top - 4],
+      [cx + 1, top - 3],
+      [cx + 3, top - 2],
+      [cx + 2, top - 5],
+    ];
+    for (const [x, y] of curls) {
+      for (let dy = 0; dy <= 2; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (Math.hypot(dx, dy - 1) <= 1.2) paint(x + dx, y + dy, body);
+        }
+      }
+      paint(x, y - 1, OUT);
+      paint(x - 2, y + 1, OUT);
+      paint(x + 2, y + 1, OUT);
+    }
+  }
+
+  return out;
+}
+
 function sleepFace(src: InstanceType<typeof PNG>) {
   const out = clone(src);
   // Close eyes: dark horizontal lids over white eye region
@@ -341,6 +474,9 @@ for (const [name, color] of Object.entries(COLORS)) {
       }
     }
   }
+
+  // Classic CP mane across the crown (fixes smooth green plate, thin blue tuft, etc.)
+  body = stampCrownHair(body, color, name === 'orange' ? 'orange' : 'default');
 
   const dir = path.join(ROOT, `puffle-${name}`);
   const frames = posesFromIdle(body);
