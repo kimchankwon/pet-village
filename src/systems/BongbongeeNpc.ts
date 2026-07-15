@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { Menu, toast } from './UI';
 import { State } from './GameState';
 import { ACCESSORY_LIST } from './accessories';
+import { miniteenDrawScale } from './miniteen';
 import { WandererNpc, type NpcTalkCallbacks } from './WandererNpc';
 
 const LINES = [
@@ -13,29 +14,20 @@ const LINES = [
   'Mingyu drew me for CARATLAND 2018. I’m basically art.',
 ];
 
+/** Classic on-screen scale for 32×32 Bong frames (shared with plate height math). */
+const BONG_CLASSIC_SCALE = 1.55;
+
 /**
  * SEVENTEEN CARAT mascot NPC. Wanders town and gifts pet accessories.
  */
-/** Classic chibi height before Phaser scale (matches pet 32×32 frames). */
-const BONG_NATIVE_HEIGHT = 32;
-const BONG_CLASSIC_SCALE = 1.55;
-
-/** Scale so source-plate Bong frames match classic on-screen height. */
-function bongDrawScale(scene: Phaser.Scene): number {
-  const key = 'bong-idle';
-  if (!scene.textures.exists(key)) return BONG_CLASSIC_SCALE;
-  const h = scene.textures.getFrame(key)?.height ?? 0;
-  if (h <= 64) return BONG_CLASSIC_SCALE;
-  return (BONG_NATIVE_HEIGHT * BONG_CLASSIC_SCALE) / h;
-}
-
 export class BongbongeeNpc extends WandererNpc {
   constructor(scene: Phaser.Scene, waypoints: { x: number; y: number }[]) {
     super(scene, {
       name: 'Bongbongee',
       texPrefix: 'bong',
       waypoints,
-      scale: bongDrawScale(scene),
+      // Reuse shared plate-height scale (native 32 when prefix === 'bong').
+      scale: miniteenDrawScale(scene, 'bong', BONG_CLASSIC_SCALE),
       speed: 48,
     });
   }

@@ -322,7 +322,8 @@ export function walkPose(idle, phase) {
   const b = contentBounds(out);
   const bodyH = Math.max(1, b.y1 - b.y0 + 1);
   // Classic 32×42: band≈2–3, stride≈1. Plates (~300px): proportional motion.
-  const band = Math.max(2, Math.min(Math.round(bodyH * 0.12), Math.round(bodyH * 0.18)));
+  // Cap band so tall plates don't lift half the silhouette as "feet".
+  const band = Math.max(2, Math.min(8, Math.round(bodyH * 0.12)));
   const strideAmt = Math.max(1, Math.min(6, Math.round(bodyH * 0.04)));
   const liftAmt = Math.max(1, Math.min(4, Math.round(bodyH * 0.03)));
   const footTop = b.y1 - band + 1;
