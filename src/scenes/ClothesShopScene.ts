@@ -14,6 +14,7 @@ import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZo
 import { CinnamorollNpc } from '../systems/CinnamorollNpc';
 import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
+import { addWorldBezel } from '../systems/worldBezel';
 
 const TILE = 48;
 const COLS = 12;
@@ -73,6 +74,11 @@ export class ClothesShopScene extends Phaser.Scene {
         else img.setTint(0xf0e0c8);
       }
     }
+    addWorldBezel(
+      this,
+      { x: this.roomX, y: ROOM_Y, width: COLS * TILE, height: ROWS * TILE },
+      0x3a2f2a,
+    );
 
     const door = placeDoorMat(this, this.roomX, ROOM_Y, COLS, ROWS, 0xffb3d1);
     this.doorCenterX = door.centerX;
@@ -122,13 +128,17 @@ export class ClothesShopScene extends Phaser.Scene {
     this.player = this.physics.add.sprite(px, py, 'penguin-up', 0);
     (this.player.body as Phaser.Physics.Arcade.Body).setSize(34, 16).setOffset(10, 42);
     const b = this.player.body as Phaser.Physics.Arcade.Body;
-    b.setBoundsRectangle(
-      new Phaser.Geom.Rectangle(this.roomX, ROOM_Y + WALL_ROWS * TILE - 20, COLS * TILE, (ROWS - WALL_ROWS) * TILE + 20),
+    const playerBounds = new Phaser.Geom.Rectangle(
+      this.roomX,
+      ROOM_Y + WALL_ROWS * TILE - 20,
+      COLS * TILE,
+      (ROWS - WALL_ROWS) * TILE + 20,
     );
+    b.setBoundsRectangle(playerBounds);
     this.player.setCollideWorldBounds(true);
     this.facing = 'up';
 
-    this.pet = new Pet(this, px - 30, py + 10);
+    this.pet = new Pet(this, px - 30, py + 10, playerBounds);
     this.pet.sprite.setInteractive({ useHandCursor: true });
     this.pet.sprite.on('pointerdown', () => {
       this.ignoreClicksUntil = this.time.now + 200;

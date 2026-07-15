@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pet Village Feature Release"
+  short_description: "Bump, test, and explain every feature"
+  default_prompt: "Use $pet-village-feature-release to finish this Pet Village feature with a version bump, local verification, and a Netlify explanation."

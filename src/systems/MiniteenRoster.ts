@@ -11,19 +11,21 @@ const WORLD_H = TOWN_WORLD_H;
 const ACTIVE_COUNT = 4;
 /** Delay between one leaving and the next entering. */
 const SWAP_MS: [number, number] = [18_000, 32_000];
+/** Far enough past an edge for a 48px-wide resident to be fully concealed. */
+const EXIT_CLEARANCE = 40;
 
 type Edge = 'left' | 'right' | 'top' | 'bottom';
 
 function edgePoint(edge: Edge): { x: number; y: number } {
   switch (edge) {
     case 'left':
-      return { x: -24, y: Phaser.Math.Between(5, 12) * TILE };
+      return { x: -EXIT_CLEARANCE, y: Phaser.Math.Between(5, 12) * TILE };
     case 'right':
-      return { x: WORLD_W + 24, y: Phaser.Math.Between(5, 12) * TILE };
+      return { x: WORLD_W + EXIT_CLEARANCE, y: Phaser.Math.Between(5, 12) * TILE };
     case 'top':
-      return { x: Phaser.Math.Between(3, 19) * TILE, y: -24 };
+      return { x: Phaser.Math.Between(3, 19) * TILE, y: -EXIT_CLEARANCE };
     case 'bottom':
-      return { x: Phaser.Math.Between(3, 19) * TILE, y: WORLD_H + 24 };
+      return { x: Phaser.Math.Between(3, 19) * TILE, y: WORLD_H + EXIT_CLEARANCE };
   }
 }
 

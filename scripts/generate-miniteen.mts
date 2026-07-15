@@ -464,18 +464,19 @@ const draw: Record<string, (pose: Pose) => InstanceType<typeof PNG>> = {
     set(png, CX - 1, gY, OUT); // bridge
     set(png, CX + 1, gY, OUT);
 
-    // Bean pupils upper-inner of each lens (happy = closed arcs)
-    const eyeY = gY - 0.4 + (p === 'sad' ? 0.6 : 0);
+    // Small centred pupils inside each lens. Keeping them off the bridge and
+    // black rim prevents the native-size sprite from reading as cross-eyed.
+    const eyeY = gY + (p === 'sad' ? 1 : 0);
     if (p === 'happy') {
       for (const s of [-1, 1]) {
-        set(png, CX + s * 3, eyeY, OUT);
+        set(png, CX + s * 3, eyeY + 1, OUT);
         set(png, CX + s * 4, eyeY + 1, OUT);
-        set(png, CX + s * 5, eyeY, OUT);
+        set(png, CX + s * 5, eyeY + 1, OUT);
       }
     } else {
       for (const s of [-1, 1]) {
-        // Bias toward the bridge (inner) and sit near the top rim
-        ellipse(png, CX + s * 3.4, eyeY, 1.15, 1.35, OUT);
+        set(png, CX + s * 4, eyeY, OUT);
+        set(png, CX + s * 4, eyeY + 1, OUT);
       }
     }
 
