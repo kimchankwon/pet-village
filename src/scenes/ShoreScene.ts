@@ -22,6 +22,7 @@ import {
 } from '../systems/shoreMap';
 import { MiniteenNpc } from '../systems/miniteen';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
+import { movementFacing } from '../systems/movementFacing';
 import { npcDefsForScene, rememberSceneNpcs, takeSceneNpcSnaps } from '../systems/npcScenePresence';
 import { addWorldBezel } from '../systems/worldBezel';
 import { fishingBaitCount, hasFishingBait } from '../systems/fishingRules';
@@ -498,15 +499,13 @@ export class ShoreScene extends Phaser.Scene {
 
     const moving = vx !== 0 || vy !== 0;
     if (moving) {
-      if (vx !== 0) {
-        this.facing = 'side';
+      this.facing = movementFacing(vx, vy, this.facing);
+      if (this.facing === 'side') {
         this.player.setFlipX(vx < 0);
         this.player.play('walk-side', true);
-      } else if (vy < 0) {
-        this.facing = 'up';
+      } else if (this.facing === 'up') {
         this.player.play('walk-up', true);
       } else {
-        this.facing = 'down';
         this.player.play('walk-down', true);
       }
     } else {

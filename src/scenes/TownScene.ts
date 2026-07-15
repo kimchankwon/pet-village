@@ -18,6 +18,7 @@ import { TILE, TOWN_MAP_H, TOWN_MAP_W, TOWN_WORLD_H, TOWN_WORLD_W } from '../sys
 import { rememberBongbongee, rememberMiniteens, takeBongbongeeSnap } from '../systems/townPresence';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
+import { movementFacing } from '../systems/movementFacing';
 
 /** Compact town — smaller than the old 32×24 crossroads map. */
 const MAP_W = TOWN_MAP_W;
@@ -723,15 +724,13 @@ export class TownScene extends Phaser.Scene {
 
     const moving = vx !== 0 || vy !== 0;
     if (moving) {
-      if (vx !== 0) {
-        this.facing = 'side';
+      this.facing = movementFacing(vx, vy, this.facing);
+      if (this.facing === 'side') {
         this.player.setFlipX(vx < 0);
         this.player.play('walk-side', true);
-      } else if (vy < 0) {
-        this.facing = 'up';
+      } else if (this.facing === 'up') {
         this.player.play('walk-up', true);
       } else {
-        this.facing = 'down';
         this.player.play('walk-down', true);
       }
     } else {
