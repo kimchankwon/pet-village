@@ -1202,6 +1202,16 @@ const FISH: Grid = [
   '.....k..',
   '........',
 ];
+const BAIT: Grid = [
+  '........',
+  '..kk....',
+  '.kppk...',
+  '..kppk..',
+  '...kppk.',
+  '....kkk.',
+  '.....k..',
+  '........',
+];
 const COOKIE: Grid = [
   '........',
   '..kkkk..',
@@ -1566,6 +1576,7 @@ export function generateTextures(scene: Phaser.Scene) {
     makeTexture(scene, 'bin', [BIN]);
     makeTexture(scene, 'coin', [COIN]);
     makeTexture(scene, 'fish', [FISH]);
+    makeTexture(scene, 'bait', [BAIT]);
     makeTexture(scene, 'cookie', [COOKIE]);
     makeTexture(scene, 'heart', [HEART]);
 

@@ -24,6 +24,7 @@ import { MiniteenNpc } from '../systems/miniteen';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { npcDefsForScene, rememberSceneNpcs, takeSceneNpcSnaps } from '../systems/npcScenePresence';
 import { addWorldBezel } from '../systems/worldBezel';
+import { fishingBaitCount, hasFishingBait } from '../systems/fishingRules';
 
 interface Interactable {
   x: number;
@@ -266,7 +267,7 @@ export class ShoreScene extends Phaser.Scene {
       x: SHORE_DOCK.tx * TILE,
       y: SHORE_DOCK.ty * TILE,
       radius: 90,
-      label: 'E / click — Go fishing',
+      label: `E / click — Go fishing · bait ${fishingBaitCount(State.data.inventory)}`,
       action: () => this.goFishing(),
       targets: [this.dockImg],
     });
@@ -339,6 +340,16 @@ export class ShoreScene extends Phaser.Scene {
 
   /** Start fishing — unless the pet is too tired to play. */
   private goFishing() {
+    if (!hasFishingBait(State.data.inventory)) {
+      toast(
+        this,
+        this.player.x,
+        this.player.y - 56,
+        'You need bait — Daniel sells it for 3 coins!',
+        '#ffe066',
+      );
+      return;
+    }
     if (!State.hasEnergy(MIN_GAME_ENERGY)) {
       toast(
         this,

@@ -1,7 +1,8 @@
 import type Phaser from 'phaser';
-import { FEED_COIN_REWARD, ITEMS, State } from './GameState';
-import { Menu, toast, type MenuOption } from './UI';
+import { ITEMS, State } from './GameState';
+import { Menu, type MenuOption } from './UI';
 import type { Pet } from './Pet';
+import { petCanEat } from './petFoodRules';
 
 /** Shared “Feed pet” entry for pet menus across scenes. */
 export function feedPetMenuOption(
@@ -16,7 +17,7 @@ export function feedPetMenuOption(
     onFed?: () => void;
   },
 ): MenuOption {
-  const foods = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'food');
+  const foods = Object.entries(State.data.inventory).filter(([id]) => petCanEat(ITEMS[id]));
   const hint = opts.emptyHint ? ` (${opts.emptyHint})` : '';
   return {
     label: `Feed ${State.data.petName}${foods.length === 0 ? hint : ''}`,
@@ -37,21 +38,16 @@ export function openFeedMenu(
     onFed?: () => void;
   },
 ) {
-  const foods = Object.entries(State.data.inventory).filter(([id]) => ITEMS[id]?.kind === 'food');
+  const foods = Object.entries(State.data.inventory).filter(([id]) => petCanEat(ITEMS[id]));
   const options: MenuOption[] = foods.map(([id, count]) => {
     const item = ITEMS[id]!;
-    const tip = item.catchOnly
-      ? `+${item.hunger} food`
-      : `+${item.hunger} food, +${FEED_COIN_REWARD}c`;
+    const tip = `+${item.hunger} food`;
     return {
       label: `${item.name} x${count} (${tip})`,
       icon: item.texture,
       onSelect: () => {
         if (State.feedPet(id)) {
           pet.celebrate('Yum!');
-          if (!item.catchOnly) {
-            toast(scene, pet.sprite.x, pet.sprite.y - 28, `+${FEED_COIN_REWARD} coins`, '#ffe066');
-          }
           pet.updateMood();
           opts.onFed?.();
         }

@@ -5,6 +5,13 @@ import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { petAnimKey, petTextureKey } from '../systems/pets';
+import {
+  FISHING_BAIT_ID,
+  fishingBaitCount,
+  fishingBiteWindowMs,
+  fishingFightStrength,
+  hasFishingBait,
+} from '../systems/fishingRules';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 
@@ -157,7 +164,12 @@ export class FishingScene extends Phaser.Scene {
       .setScrollFactor(0);
     this.statusText = this.add.text(20, 44, '', FONT).setScrollFactor(0);
     this.bestText = this.add
-      .text(viewW - 52, 16, `Best: ${State.data.biggestCatch || 0}cm`, { ...FONT, color: '#c8c8dc' })
+      .text(
+        viewW - 52,
+        16,
+        `Best: ${State.data.biggestCatch || 0}cm · Bait: ${fishingBaitCount(State.data.inventory)}`,
+        { ...FONT, color: '#c8c8dc' },
+      )
       .setOrigin(1, 0)
       .setScrollFactor(0);
     this.hintText = this.add
@@ -293,9 +305,14 @@ export class FishingScene extends Phaser.Scene {
     this.meterRoot.setVisible(false);
     this.tweens.killTweensOf(this.rod);
     this.rod.setAngle(-18);
-    this.statusText.setText('Ready to cast');
-    this.hintText.setText('Drag opposite the cast · Tap / Space = short cast · Farther = rarer (and riskier) fish');
-    this.bestText.setText(`Best: ${State.data.biggestCatch || 0}cm`);
+    const bait = fishingBaitCount(State.data.inventory);
+    this.statusText.setText(bait > 0 ? 'Ready to cast' : 'Out of bait');
+    this.hintText.setText(
+      bait > 0
+        ? 'Each cast uses 1 bait · Drag opposite the cast · Farther = rarer (and riskier) fish'
+        : 'Back to shore — Daniel sells bait for 3 coins',
+    );
+    this.bestText.setText(`Best: ${State.data.biggestCatch || 0}cm · Bait: ${bait}`);
   }
 
   /** Slingshot: pull back, fling the other way. Tiny pull = tap short cast. */
@@ -391,10 +408,18 @@ export class FishingScene extends Phaser.Scene {
 
   private cast() {
     if (this.mode !== 'ready') return;
+    if (!State.removeItem(FISHING_BAIT_ID)) {
+      this.statusText.setText('Out of bait');
+      this.hintText.setText('Back to shore — Daniel sells bait for 3 coins');
+      toast(this, this.cameras.main.width / 2, 200, 'No bait left!', '#ffe066');
+      return;
+    }
     this.mode = 'casting';
     this.baitStolen = false;
     this.surgeStart = 0;
-    this.statusText.setText('Casting…');
+    const baitLeft = fishingBaitCount(State.data.inventory);
+    this.statusText.setText(`Casting… · ${baitLeft} bait left`);
+    this.bestText.setText(`Best: ${State.data.biggestCatch || 0}cm · Bait: ${baitLeft}`);
     this.hintText.setText('');
     const land = this.predictLanding(this.castDir.x, this.castDir.y, this.castPower);
     this.bobberHome = { x: land.x, y: land.y };
@@ -468,17 +493,13 @@ export class FishingScene extends Phaser.Scene {
       Phaser.Math.Between(this.pendingFish.sizeMin, this.pendingFish.sizeMax) *
         (0.9 + this.castPower * 0.25),
     );
-    // Near/small = easy; far/big = harder — but always beatable with pumping.
-    const sizeNorm = Phaser.Math.Clamp(this.pendingSize / 78, 0.12, 1);
-    const distEase = 0.55 + this.castPower * 0.5; // short cast ~0.6, max ~1.05
-    this.fishFight = Phaser.Math.Clamp(
-      this.pendingFish.fight * (0.5 + sizeNorm * 0.55) * distEase,
-      0.22,
-      1.05,
+    // Near/small = approachable; far/big = harder and now a little less forgiving.
+    this.fishFight = fishingFightStrength(
+      this.pendingFish.fight,
+      this.pendingSize,
+      this.castPower,
     );
-    this.biteWindowMs = Math.round(
-      Phaser.Math.Clamp(1200 - this.pendingSize * 5 - this.fishFight * 80, 520, 1200),
-    );
+    this.biteWindowMs = fishingBiteWindowMs(this.pendingSize, this.fishFight);
     // Long casts risk a decoy nibble that steals bait instead of a real hook-up.
     const stealChance = 0.04 + this.castPower * 0.16;
     this.baitStolen = Math.random() < stealChance;
@@ -770,24 +791,27 @@ export class FishingScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(1601);
 
+    const canCastAgain = hasFishingBait(State.data.inventory);
     const again = this.add
-      .text(cx - 110, cy + 118, '[ Cast again ]', {
+      .text(cx - 110, cy + 118, canCastAgain ? '[ Cast again ]' : '[ Out of bait ]', {
         ...FONT,
         fontSize: '16px',
-        color: '#a8e6cf',
+        color: canCastAgain ? '#a8e6cf' : '#8a8a9e',
         padding: { x: 8, y: 6 },
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setDepth(1601)
-      .setInteractive({ useHandCursor: true });
-    again.on('pointerdown', () => {
-      if (!State.hasEnergy(MIN_GAME_ENERGY)) {
-        toast(this, cx, cy - 130, 'Too tired to play — needs a nap!', '#ffb3d1');
-        return;
-      }
-      this.scene.restart();
-    });
+      .setDepth(1601);
+    if (canCastAgain) {
+      again.setInteractive({ useHandCursor: true });
+      again.on('pointerdown', () => {
+        if (!State.hasEnergy(MIN_GAME_ENERGY)) {
+          toast(this, cx, cy - 130, 'Too tired to play — needs a nap!', '#ffb3d1');
+          return;
+        }
+        this.scene.restart();
+      });
+    }
     const leave = this.add
       .text(cx + 120, cy + 118, '[ Back to shore ]', {
         ...FONT,
@@ -829,7 +853,7 @@ export class FishingScene extends Phaser.Scene {
           onSelect: () => this.scene.start('Shore', { spawn: 'fishing' }),
         },
       ],
-      'This cast ends here — kept fish stay in your inventory',
+      'This cast ends here — its bait is already used; kept fish stay in your inventory',
     );
     menu.onClose = () => {
       this.menuOpen = false;
@@ -898,7 +922,7 @@ export class FishingScene extends Phaser.Scene {
         );
       }
       if (this.holding) {
-        const reelRate = 48 - fight * 16; // ~44 easy → ~31 hard
+        const reelRate = 46 - fight * 16; // slightly slower than before
         if (surging) {
           // Holding through a thrash: progress slows, tension spikes with surge.
           const holdPenalty = 0.35 + surge * 0.55;
@@ -923,7 +947,7 @@ export class FishingScene extends Phaser.Scene {
         this.rod.setAngle(-42 - Math.sin(this.time.now / 400) * 2);
       }
       // Patience always outlasts a competent reel; hard fish are tighter.
-      this.patience -= (3 + fight * 4.5) * dt;
+      this.patience -= (3.4 + fight * 4.5) * dt;
       this.tension = Phaser.Math.Clamp(this.tension, 0, 100);
       this.progress = Phaser.Math.Clamp(this.progress, 0, 100);
       this.updateMeters();
