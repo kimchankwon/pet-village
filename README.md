@@ -108,8 +108,9 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   Tamagotchi iD and Club Penguin–style Puffle sprites.
 - `public/assets/npc/` — wandering town NPCs: Cinnamoroll (Sanrio-inspired),
   Bongbongee (SEVENTEEN's CARAT mascot), and the 13 MINITEEN villagers
-  (SEVENTEEN's official mini characters — regenerate with
-  `npx tsx scripts/generate-miniteen.mts`).
+  (SEVENTEEN's official mini characters — regenerate from Imagine plates with
+  `npm run sprite:miniteen`, plates under `scripts/reference/miniteen/`).
+- Puffle pets: `npm run sprite:puffles` from `scripts/reference/puffle/`.
 - `src/systems/WandererNpc.ts` — shared waypoint-wander base for NPCs;
   `CinnamorollNpc` / `BongbongeeNpc` / `miniteen.ts` build dialogue on top.
   Each MINITEEN villager hands out a small once-per-day coin gift.
