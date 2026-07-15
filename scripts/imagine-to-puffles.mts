@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { saveSprite } from './lib/save-sprite.mjs';
+import { petPosesFromIdle } from './lib/pose-animate.mjs';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
@@ -373,37 +374,12 @@ function stampCrownHair(
   return out;
 }
 
-function sleepFace(src: InstanceType<typeof PNG>) {
-  const out = clone(src);
-  // Close eyes: dark horizontal lids over white eye region
-  for (let y = 10; y <= 18; y++) {
-    for (let x = 8; x <= 23; x++) {
-      const c = get(src, x, y);
-      if (c[0] > 200 && c[1] > 200 && c[2] > 200) {
-        // replace white eye with body-ish by sampling nearby body
-        set(out, x, y, [0, 0, 0, 0]);
-      }
-    }
-  }
-  // Simple closed lids
-  for (const s of [-1, 1]) {
-    const cx = 16 + s * 3;
-    for (let dx = -2; dx <= 2; dx++) set(out, cx + dx, 14, OUT);
-  }
-  return out;
-}
-
 function posesFromIdle(idle: InstanceType<typeof PNG>): Record<Pose, InstanceType<typeof PNG>> {
-  return {
-    neutral1: idle,
-    neutral2: shift(idle, 0, 1),
-    walk1: shift(idle, -1, 0),
-    walk2: shift(idle, 1, 1),
-    sad: shift(idle, 0, 1),
-    happy: shift(idle, 0, -1),
-    sleep: sleepFace(idle),
-    jump: shift(idle, 0, -3),
-  };
+  // Face morphs + foot shuffle / bob (not mere whole-sprite shifts)
+  return petPosesFromIdle(idle, { ink: OUT, accent: [255, 150, 190, 255] }) as Record<
+    Pose,
+    InstanceType<typeof PNG>
+  >;
 }
 
 function loadPlate(name: string): InstanceType<typeof PNG> | null {

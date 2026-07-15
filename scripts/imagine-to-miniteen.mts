@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { saveSprite } from './lib/save-sprite.mjs';
+import { npcPosesFromIdle } from './lib/pose-animate.mjs';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
@@ -182,48 +183,11 @@ function toGameSprite(raw: InstanceType<typeof PNG>): InstanceType<typeof PNG> {
   return out;
 }
 
-function shift(src: InstanceType<typeof PNG>, dx: number, dy: number) {
-  const out = blank(src.width, src.height);
-  for (let y = 0; y < src.height; y++)
-    for (let x = 0; x < src.width; x++) {
-      const c = get(src, x, y);
-      if (c[3] > 0) set(out, x + dx, y + dy, c);
-    }
-  return out;
-}
-
-function walkVariant(idle: InstanceType<typeof PNG>, phase: 1 | 2) {
-  const out = clone(idle);
-  let yMax = 0;
-  for (let y = 0; y < H; y++)
-    for (let x = 0; x < W; x++)
-      if (get(idle, x, y)[3] > 0) yMax = y;
-  const footTop = yMax - 3;
-  const leg = phase === 1 ? -1 : 1;
-  const feet: { x: number; y: number; c: RGBA }[] = [];
-  for (let y = footTop; y <= yMax; y++)
-    for (let x = 0; x < W; x++) {
-      const c = get(idle, x, y);
-      if (c[3] > 0) { feet.push({ x, y, c }); set(out, x, y, [0, 0, 0, 0]); }
-    }
-  for (const p of feet) {
-    const left = p.x < W / 2;
-    set(out, p.x + (left ? leg : -leg), p.y, p.c);
-  }
-  return phase === 2 ? shift(out, 0, 1) : out;
-}
-
 function processOne(id: string, srcPath: string) {
   const src = PNG.sync.read(fs.readFileSync(srcPath));
   const idle = toGameSprite(src);
-  const poses: Record<string, InstanceType<typeof PNG>> = {
-    idle,
-    walk1: walkVariant(idle, 1),
-    walk2: walkVariant(idle, 2),
-    happy: shift(idle, 0, -1),
-    sad: shift(idle, 0, 1),
-    jump: shift(idle, 0, -3),
-  };
+  // Real face + body motion (not whole-sprite shifts)
+  const poses = npcPosesFromIdle(idle, { ink: OUT, accent: [255, 140, 170, 255] });
   const dir = path.join(ROOT, id);
   for (const [pose, png] of Object.entries(poses)) {
     saveSprite(png, path.join(dir, `${pose}.png`), { repairOutline: true, outline: OUT });
