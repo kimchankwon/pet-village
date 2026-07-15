@@ -217,8 +217,11 @@ function toGameSprite(raw: InstanceType<typeof PNG>): InstanceType<typeof PNG> {
 const plateCandidates = [
   path.join(REF, 'idle-plate.png'),
   path.join(REF, 'idle.png'),
-  '/tmp/pv-imagine/bong-pixel-plate.png',
 ];
+// Optional local Imagine drop folder (not committed)
+const localImagine = path.join('/tmp', 'pv-imagine', 'bong-pixel-plate.png');
+if (fs.existsSync(localImagine)) plateCandidates.push(localImagine);
+
 const platePath = plateCandidates.find((p) => fs.existsSync(p));
 if (!platePath) {
   console.error(
@@ -229,6 +232,7 @@ if (!platePath) {
 
 console.log('Bongbongee Imagine → 32×32 from', path.relative(process.cwd(), platePath));
 const raw = PNG.sync.read(fs.readFileSync(platePath));
+if (!(raw.data instanceof Buffer)) raw.data = Buffer.from(raw.data);
 const idle = toGameSprite(raw);
 const poses = petPosesFromIdle(idle, { ink: OUT, accent: [255, 176, 196, 255] });
 

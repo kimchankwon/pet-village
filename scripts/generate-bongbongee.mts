@@ -6,6 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { spawnSync } from 'node:child_process';
 import { saveSprite } from './lib/save-sprite.mjs';
 
 const require = createRequire(import.meta.url);
@@ -313,11 +314,24 @@ const NPC_MAP: Record<string, Pose> = {
   jump: 'jump',
 };
 
-// Prefer Imagine plate conversion when available (see scripts/imagine-to-bongbongee.mts).
+// Prefer Imagine plate conversion when available (scripts/imagine-to-bongbongee.mts).
 const plate = path.resolve('scripts/reference/bongbongee/idle-plate.png');
 if (fs.existsSync(plate)) {
-  console.log('Imagine plate found — body frames come from imagine-to-bongbongee.mts');
-  console.log(`  (run: npx tsx scripts/imagine-to-bongbongee.mts)`);
+  console.log('Imagine plate found — converting body frames via imagine-to-bongbongee.mts');
+  const npx = spawnSync('npx', ['tsx', 'scripts/imagine-to-bongbongee.mts'], {
+    stdio: 'inherit',
+    cwd: path.resolve('.'),
+    shell: process.platform === 'win32',
+  });
+  if (npx.status !== 0) {
+    console.warn('Plate conversion failed — falling back to procedural body frames');
+    for (const pose of PET_POSES) {
+      save(drawBong(pose), path.join(ROOT, 'pet/bongbongee', `${pose}.png`), true);
+    }
+    for (const [npc, pose] of Object.entries(NPC_MAP)) {
+      save(drawBong(pose), path.join(ROOT, 'npc/bongbongee', `${npc}.png`), true);
+    }
+  }
 } else {
   for (const pose of PET_POSES) {
     save(drawBong(pose), path.join(ROOT, 'pet/bongbongee', `${pose}.png`), true);
@@ -332,4 +346,7 @@ save(drawCaratDiamond(), path.join(ROOT, 'accessories/carat-diamond.png'));
 save(drawBlueTee(), path.join(ROOT, 'accessories/blue-tee.png'));
 save(drawDecoBand(), path.join(ROOT, 'accessories/deco-band.png'));
 
-console.log('Generated Bongbongee accessories' + (fs.existsSync(plate) ? ' (body via Imagine plate)' : ' + procedural body frames'));
+console.log(
+  'Generated Bongbongee accessories' +
+    (fs.existsSync(plate) ? ' (body via Imagine plate)' : ' + procedural body frames'),
+);

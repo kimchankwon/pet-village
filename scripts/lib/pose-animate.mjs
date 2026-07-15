@@ -305,37 +305,63 @@ export function sadPose(idle, opts = {}) {
 }
 
 /**
- * Walk: foot shuffle + alternate bob.
+ * Walk: gentle foot shuffle only.
+ *
+ * Important: do NOT shift the whole sprite — bottom-aligned characters lose
+ * feet when dy>0 or when legs are pushed past the canvas edge. Keep every
+ * foot pixel on-canvas (clamp destinations).
  */
 export function walkPose(idle, phase) {
-  const shifted = shiftSprite(idle, phase === 1 ? -1 : 1, phase === 2 ? 1 : 0);
-  const b = contentBounds(shifted);
-  const band = Math.max(2, Math.round((b.y1 - b.y0) * 0.14));
-  const footTop = b.y1 - band;
-  const leg = phase === 1 ? -1 : 1;
+  const out = clonePng(idle);
+  const b = contentBounds(out);
+  // Only the very bottom tip of the legs (avoid eating the whole lower body)
+  const band = Math.max(2, Math.min(3, Math.round((b.y1 - b.y0) * 0.09)));
+  const footTop = b.y1 - band + 1;
+  // phase 1: left forward; phase 2: right forward
+  const stride = phase === 1 ? 1 : -1;
+
   const feet = [];
   for (let y = footTop; y <= b.y1; y++) {
-    for (let x = 0; x < shifted.width; x++) {
-      const c = getPx(shifted, x, y);
+    for (let x = 0; x < out.width; x++) {
+      const c = getPx(out, x, y);
       if (!isOpaque(c)) continue;
       feet.push({ x, y, c });
-      setPx(shifted, x, y, [0, 0, 0, 0]);
+      setPx(out, x, y, [0, 0, 0, 0]);
     }
   }
+
   for (const p of feet) {
     const left = p.x < b.cx;
-    setPx(shifted, p.x + (left ? leg : -leg), p.y, p.c);
+    let nx = p.x + (left ? stride : -stride);
+    let ny = p.y;
+    // Slight lift on the forward foot only
+    const forward = (left && stride > 0) || (!left && stride < 0);
+    if (forward) ny = p.y - 1;
+    // Never drop pixels off the canvas
+    nx = Math.max(0, Math.min(out.width - 1, nx));
+    ny = Math.max(0, Math.min(out.height - 1, ny));
+    // Prefer empty target; if occupied by body, keep original x
+    if (isOpaque(getPx(out, nx, ny)) && !isOpaque(getPx(out, p.x, ny))) {
+      nx = p.x;
+    }
+    setPx(out, nx, ny, p.c);
   }
-  return shifted;
+  return out;
 }
 
 export function jumpPose(idle, opts = {}) {
-  // Airborne with a happy face
+  // Airborne with a happy face — only shift up if there is headroom
   const happy = happyPose(idle, opts);
-  return shiftSprite(happy, 0, -2);
+  const b = contentBounds(happy);
+  const dy = b.y0 >= 2 ? -2 : b.y0 >= 1 ? -1 : 0;
+  return shiftSprite(happy, 0, dy);
 }
 
 export function bobPose(idle) {
+  // Avoid shifting down when the sprite already sits on the bottom row
+  // (that used to clip feet off bottom-aligned assets).
+  const b = contentBounds(idle);
+  if (b.y1 >= idle.height - 1) return clonePng(idle);
   return shiftSprite(idle, 0, 1);
 }
 
