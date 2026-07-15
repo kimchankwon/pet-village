@@ -130,7 +130,7 @@ function openItemList(
       kind === 'food'
         ? 'No food — shop or go fishing!'
         : kind === 'bait'
-          ? 'No bait — Daniel sells it for 3 coins!'
+          ? `No bait — Daniel sells it for ${ITEMS.bait.price} coins!`
           : 'No furniture — visit Daniel!';
     options.push({
       label: emptyLabel,

@@ -526,8 +526,10 @@ export class HouseScene extends Phaser.Scene {
         this.player.setFlipX(vx < 0);
         this.player.play('walk-side', true);
       } else if (this.facing === 'up') {
+        this.player.setFlipX(false);
         this.player.play('walk-up', true);
       } else {
+        this.player.setFlipX(false);
         this.player.play('walk-down', true);
       }
     } else {

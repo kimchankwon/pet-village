@@ -17,7 +17,9 @@ export function feedPetMenuOption(
     onFed?: () => void;
   },
 ): MenuOption {
-  const foods = Object.entries(State.data.inventory).filter(([id]) => petCanEat(ITEMS[id]));
+  const foods = Object.entries(State.data.inventory).filter(
+    ([id, count]) => count > 0 && petCanEat(ITEMS[id]),
+  );
   const hint = opts.emptyHint ? ` (${opts.emptyHint})` : '';
   return {
     label: `Feed ${State.data.petName}${foods.length === 0 ? hint : ''}`,
@@ -38,7 +40,9 @@ export function openFeedMenu(
     onFed?: () => void;
   },
 ) {
-  const foods = Object.entries(State.data.inventory).filter(([id]) => petCanEat(ITEMS[id]));
+  const foods = Object.entries(State.data.inventory).filter(
+    ([id, count]) => count > 0 && petCanEat(ITEMS[id]),
+  );
   const options: MenuOption[] = foods.map(([id, count]) => {
     const item = ITEMS[id]!;
     const tip = `+${item.hunger} food`;

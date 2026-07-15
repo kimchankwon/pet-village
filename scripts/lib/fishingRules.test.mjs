@@ -25,5 +25,5 @@ test('fishing fight strength rises with fish size and casting distance', () => {
 test('bite windows are slightly tighter and remain playable', () => {
   assert.equal(fishingBiteWindowMs(0, 0), 1100);
   assert.equal(fishingBiteWindowMs(200, 2), 500);
-  assert.ok(fishingBiteWindowMs(30, 0.5) < 1200 - 30 * 5 - 0.5 * 80);
+  assert.equal(fishingBiteWindowMs(30, 0.5), 910);
 });
