@@ -64,7 +64,8 @@ function shadeHex(hex: string, f: number): string {
 }
 
 const CP_COLOURS: [string, string, string][] = [
-  ['blue', 'Blue', '#006090'],
+  // Default blue sampled toward the classic CP sticker / Tenor gif look
+  ['blue', 'Blue', '#0090d0'],
   ['green', 'Green', '#009000'],
   ['pink', 'Pink', '#f03090'],
   ['black', 'Black', '#303030'],
@@ -75,7 +76,7 @@ const CP_COLOURS: [string, string, string][] = [
   ['brown', 'Brown', '#906000'],
   ['peach', 'Peach', '#f06060'],
   ['darkgreen', 'Dark Green', '#006000'],
-  ['lightblue', 'Light Blue', '#0090c0'],
+  ['lightblue', 'Light Blue', '#40b0e8'],
 ];
 
 export const PENGUIN_COLORS: Record<string, { label: string; v: string; V: string; u: string }> =
@@ -96,54 +97,55 @@ function setPenguinPalette(color: string) {
 type Grid = string[];
 
 // ---- Penguin player (18x20), 2 walk frames per facing ----
-// Club Penguin (Tenor CP sticker ref): plump pear body, dome head, close-set
-// eyes above a big orange beak, large white belly + soft grey shade, flippers
-// out, orange feet. Landmark rows kept for clothes overlays:
-//   0–3 hat · 4–5 eyes/mask · 6–7 beak · 8–15 body · 18–19 feet.
+// Redesigned from classic Club Penguin sticker/gif ref (cp-user-ref.jpeg +
+// Imagine front/side/back plates): pointed dome, wing flippers, big orange
+// beak, close-set eyes, large white belly with soft grey under the chin,
+// orange feet. Landmark rows kept for clothes overlays:
+//   0–3 hat · 4–5 eyes/mask · 6–8 beak/chin · 9–16 body · 18–19 feet.
 const PENGUIN_DOWN_0: Grid = [
   '.......kkkk.......',
   '.....kkvvvvkk.....',
   '....kuvvvvvvuk....',
   '...kuvvvvvvvvuk...',
-  // CP (Tenor sticker): close bright eyes + big orange beak above white belly
-  '...kvvwwwvwwwvk...',
-  '...kvvwkwvwkwvk...',
-  '..kvvvvoOOoovvvk..',
-  '..kvvvooOOOovvvk..',
-  '.kvvvvwwwwwwvvvvk.',
+  // Close-set CP eyes above a big orange beak
+  '...kvvvwwvwwvvk...',
+  '...kvvvwkwkwvvk...',
+  '..kvvvvoOOOovvvk..',
+  '..kvvvooOOOoovvk..',
+  '..kvvvvzzzzzvvvk..', // soft grey under beak
+  '.kvkvvwwzzzzvvkvk.', // wing flippers + belly
   'kvkvvwwwwwwwwvvkvk',
   'kvkvwwwwwwwwwwvkvk',
   'kvkvwwwwwwwwwwvkvk',
-  'kvkvwwzzzzzzwwvkvk',
-  '.kvvwwzzzzzzwwvvk.',
-  '.kvvvwwzzzzwwvvvk.',
+  '.kvvwwwwwwwwwwvvk.',
+  '.kvvvwwwwwwwwvvvk.',
   '..kvvvvwwwwvvvvk..',
   '...kVvvvvvvvvVk...',
-  '....kVvvvvvvVk....',
-  '...koo......ook...',
-  '..kOoo......ooOk..',
+  '....kVVvvvvVVk....',
+  '....koo....ook....',
+  '...kOoo....ooOk...',
 ];
 const PENGUIN_DOWN_1: Grid = [
   '.......kkkk.......',
   '.....kkvvvvkk.....',
   '....kuvvvvvvuk....',
   '...kuvvvvvvvvuk...',
-  '...kvvwwwvwwwvk...',
-  '...kvvwkwvwkwvk...',
-  '..kvvvvoOOoovvvk..',
-  '..kvvvooOOOovvvk..',
-  '.kvvvvwwwwwwvvvvk.',
+  '...kvvvwwvwwvvk...',
+  '...kvvvwkwkwvvk...',
+  '..kvvvvoOOOovvvk..',
+  '..kvvvooOOOoovvk..',
+  '..kvvvvzzzzzvvvk..',
+  '.kvkvvwwzzzzvvkvk.',
   'kvkvvwwwwwwwwvvkvk',
   'kvkvwwwwwwwwwwvkvk',
   'kvkvwwwwwwwwwwvkvk',
-  'kvkvwwzzzzzzwwvkvk',
-  '.kvvwwzzzzzzwwvvk.',
-  '.kvvvwwzzzzwwvvvk.',
+  '.kvvwwwwwwwwwwvvk.',
+  '.kvvvwwwwwwwwvvvk.',
   '..kvvvvwwwwvvvvk..',
   '...kVvvvvvvvvVk...',
-  '....kVvvvvvvVk....',
-  '..koo........ook..',
-  '.kOoo........ooOk.',
+  '....kVVvvvvVVk....',
+  '...koo......ook...',
+  '..kOoo......ooOk..',
 ];
 const PENGUIN_UP_0: Grid = [
   '.......kkkk.......',
@@ -154,18 +156,18 @@ const PENGUIN_UP_0: Grid = [
   '...kvvvvvvvvvvk...',
   '..kvvvvvvvvvvvvk..',
   '..kvvvvvvvvvvvvk..',
-  '.kvvvvvvvvvvvvvvk.',
-  'kvkvvvvvvvvvvvvkvk',
-  'kvkvvvvvvvvvvvvkvk',
-  'kvkvvvvvvvvvvvvkvk',
-  'kvkvVvvvvvvvvVVkvk',
-  '.kvvVvvvvvvvvVVvk.',
+  '.kvkvvvvvvvvvkvvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvVvvvvvvvvVkvk.',
+  '.kvvVvvvvvvvvVvk..',
   '.kvvvVvvvvvvVvvvk.',
   '..kvvvvVVVVvvvvk..',
   '...kVvvvvvvvvVk...',
-  '....kVvvvvvvVk....',
-  '...koo......ook...',
-  '..kOoo......ooOk..',
+  '....kVVvvvvVVk....',
+  '....koo....ook....',
+  '...kOoo....ooOk...',
 ];
 const PENGUIN_UP_1: Grid = [
   '.......kkkk.......',
@@ -176,18 +178,18 @@ const PENGUIN_UP_1: Grid = [
   '...kvvvvvvvvvvk...',
   '..kvvvvvvvvvvvvk..',
   '..kvvvvvvvvvvvvk..',
-  '.kvvvvvvvvvvvvvvk.',
-  'kvkvvvvvvvvvvvvkvk',
-  'kvkvvvvvvvvvvvvkvk',
-  'kvkvvvvvvvvvvvvkvk',
-  'kvkvVvvvvvvvvVVkvk',
-  '.kvvVvvvvvvvvVVvk.',
+  '.kvkvvvvvvvvvkvvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvVvvvvvvvvVkvk.',
+  '.kvvVvvvvvvvvVvk..',
   '.kvvvVvvvvvvVvvvk.',
   '..kvvvvVVVVvvvvk..',
   '...kVvvvvvvvvVk...',
-  '....kVvvvvvvVk....',
-  '..koo........ook..',
-  '.kOoo........ooOk.',
+  '....kVVvvvvVVk....',
+  '...koo......ook...',
+  '..kOoo......ooOk..',
 ];
 // Side: CP profile — dome head, single eye, long orange beak, white belly
 const PENGUIN_SIDE_0: Grid = [
@@ -195,17 +197,17 @@ const PENGUIN_SIDE_0: Grid = [
   '....kkvvvvkk......',
   '...kuvvvvvvuk.....',
   '...kuvvvvvvvuk....',
-  '..kvvvvvwwwvk.....', // single bright CP eye
+  '..kvvvvvwwwvk.....', // single CP eye
   '..kvvvvvwkwvk.....',
   '..kvvvvvvoOook....', // long orange beak
   '..kvvvvvvooOOok...',
   '.kvvvvvvvvoOook...',
   '.kvvvvvvwwwwvvk...',
   'kvkvvvvwwwwwwvvk..',
-  'kvkvvvvwwzzzzvvk..',
+  'kvkvvvvwwwwwwvvk..',
   'kvkvvvvwwzzzzvvk..',
   '.kvvvvvwwzzzzvvk..',
-  '.kvvvvvwwzzzvvk...',
+  '.kvvvvvwwwwzvvk...',
   '..kvvvvwwwwvVk....',
   '..kvvvvvvvvVk.....',
   '...kVvvvvvVk......',
@@ -224,10 +226,10 @@ const PENGUIN_SIDE_1: Grid = [
   '.kvvvvvvvvoOook...',
   '.kvvvvvvwwwwvvk...',
   'kvkvvvvwwwwwwvvk..',
-  'kvkvvvvwwzzzzvvk..',
+  'kvkvvvvwwwwwwvvk..',
   'kvkvvvvwwzzzzvvk..',
   '.kvvvvvwwzzzzvvk..',
-  '.kvvvvvwwzzzvvk...',
+  '.kvvvvvwwwwzvvk...',
   '..kvvvvwwwwvVk....',
   '..kvvvvvvvvVk.....',
   '...kVvvvvvVk......',
@@ -325,8 +327,8 @@ const NINJA_MASK_OVERLAY: PenguinOverlay = {
   down: [
     DOTS, DOTS, DOTS,
     '...kxxxxxxxxxxk...',
-    '...kxwwwxwwwxxk...', // match closer bright eyes
-    '...kxwkwxwkwxxk...',
+    '...kxxwwxwwxxxk...', // match closer CP eyes
+    '...kxxwkwkwxxxk...',
   ],
   up: [
     DOTS, DOTS, DOTS,
