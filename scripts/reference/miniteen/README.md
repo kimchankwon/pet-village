@@ -35,9 +35,11 @@ scripts/reference/miniteen/poses/<id>/{idle,walk1,walk2,happy,sad,jump}.png
 ```
 
 **Walk:** always prefer Imagine `walk1`/`walk2` plates (mid-stride, opposite
-feet). Procedural foot-shuffle is a last resort and is nearly invisible on
-large plates — generate real walk poses with Grok Imagine from the idle plate.
-Keep the **same character scale** as idle (no “outline grows while walking”).
+feet). Draw walks in a **slight three-quarter** facing **screen-right** so when
+the game `flipX`s for left movement the character still faces the walk
+direction (like classic DOA/Tamtam walks). Procedural foot-shuffle is a last
+resort and is nearly invisible on large plates. Keep the **same character
+scale** as idle (no “outline grows while walking”).
 
 When a pose file is missing, the converter derives it gently from idle at
 **plate resolution** (still not 32×42). Every pose is normalized with
