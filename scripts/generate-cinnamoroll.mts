@@ -483,7 +483,7 @@ function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
       [11, 8],
       [15, 8],
     ] as [number, number][]) {
-      if (isInterior(x, y) || output.data[(y * output.width + x) * 4 + 3] !== 0) put(x, y, dark);
+      put(x, y, dark);
     }
     // Pink tongue — same horizontal middle as idle mouth (pet x 16–19).
     for (const [x, y] of [
