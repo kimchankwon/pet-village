@@ -48,9 +48,11 @@ export function miniteenDrawScale(
   if (!scene.textures.exists(key)) return classicScale;
   const frame = scene.textures.getFrame(key);
   const h = frame?.height ?? 0;
-  // Classic game frames are 42px tall; anything larger is a source plate.
+  // Classic game frames are ≤64px tall; anything larger is a source plate.
   if (h <= 64) return classicScale;
-  return (MINITEEN_NATIVE_HEIGHT * classicScale) / h;
+  // Bongbongee classic frames are 32×32; MINITEEN are 32×42.
+  const native = prefix === 'bong' ? 32 : MINITEEN_NATIVE_HEIGHT;
+  return (native * classicScale) / h;
 }
 
 /** True when the loaded idle texture is a hi-res Imagine plate crop. */

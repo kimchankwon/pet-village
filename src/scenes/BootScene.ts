@@ -59,13 +59,21 @@ export class BootScene extends Phaser.Scene {
 
     // Source-plate frames (≫42px) scale down in-game — force nearest-neighbour
     // so they stay crisp (default linear filtering blurs chunky pixel art).
-    for (const def of MINITEEN) {
-      const prefix = miniteenTexPrefix(def.id);
+    const platePrefixes = [
+      ...MINITEEN.map((def) => miniteenTexPrefix(def.id)),
+      'bong',
+    ];
+    for (const prefix of platePrefixes) {
       const idleKey = `${prefix}-idle`;
       if (!this.textures.exists(idleKey)) continue;
       const h = this.textures.getFrame(idleKey)?.height ?? 0;
       if (h <= 64) continue;
-      for (const pose of NPC_POSES) {
+      // Bong also has neutral/sleep frames used by the pet path.
+      const poses =
+        prefix === 'bong'
+          ? [...NPC_POSES, 'neutral1', 'neutral2', 'sleep']
+          : NPC_POSES;
+      for (const pose of poses) {
         const key = `${prefix}-${pose}`;
         if (this.textures.exists(key)) {
           this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
@@ -115,7 +123,8 @@ export class BootScene extends Phaser.Scene {
       this.anims.create({
         key: `${prefix}-walk`,
         frames: [{ key: `${prefix}-walk1` }, { key: `${prefix}-walk2` }],
-        frameRate: 5,
+        // Slightly snappier so Imagine stride poses read clearly while moving.
+        frameRate: 7,
         repeat: -1,
       });
     }
