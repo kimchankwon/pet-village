@@ -1,33 +1,53 @@
 ---
-description: Every PR gets an HTML explain page on Netlify — never commit it
+description: Every PR gets a playable Netlify app and HTML explain page — never commit them
 alwaysApply: true
 ---
 
-# PR explain pages on Netlify (not in git)
+# PR Netlify deploys (not in git)
 
-Every pull request needs a **player-facing HTML description** deployed to Netlify — not just Markdown/HTML in the GitHub PR body.
+Every pull request needs both:
 
-**Do not commit the explain HTML** into this repo (`netlify-site/`, `pr*/`, gh-pages artifacts, etc.). Build it in a temp folder, deploy, then discard locally.
+1. A **playable app** at `https://pet-village-pr-{N}.netlify.app`
+2. A **player-facing HTML explanation** at `https://pet-village-pr-{N}-explain.netlify.app`
 
-## Pattern
+Not just Markdown/HTML in the GitHub PR body.
+
+**Do not commit** explain HTML, PR app builds, or Netlify state into this repo (`netlify-site/`, `pr*/`, `dist/` for PR previews, gh-pages artifacts, etc.). Build in temp folders, deploy, then discard locally.
+
+For the full release ritual (version bump, tests, both deploys), follow `.agents/skills/pet-village-feature-release/SKILL.md`.
+
+## Playable app
+
+1. Build a **root-hosted** preview (do **not** deploy normal `dist/` — its `/pet-village/` base breaks Netlify):
+   ```sh
+   npm run build -- --base=/ --outDir=/tmp/pet-village-pr-{N}-app --emptyOutDir
+   ```
+2. Create or reuse a Netlify site named exactly `pet-village-pr-{N}` (e.g. PR 53 → `pet-village-pr-53`).
+3. Deploy:
+   ```sh
+   npx --yes netlify-cli@26.2.0 deploy --prod --no-build --dir=/tmp/pet-village-pr-{N}-app --site=<app-site-id>
+   ```
+4. Load `https://pet-village-pr-{N}.netlify.app` and confirm `/` plus every browser-requested script, stylesheet, module chunk, font, and image required by the page returns HTTP 200. One representative asset is not sufficient.
+
+## Explain page
 
 1. Write the page in a **temp dir** (e.g. `/tmp/pet-village-pr-{N}-explain/index.html`) in the PR-38 explain style:
    - Fonts: Press Start 2P + VT323
    - Sections: pill, TL;DR card, What changed, How to try it, Verification, PR link
-2. Create a Netlify site named `pet-village-pr-{N}-explain` (e.g. `pet-village-pr-51-explain`).
+2. Create or reuse a Netlify site named `pet-village-pr-{N}-explain` (e.g. `pet-village-pr-51-explain`).
 3. Deploy **from the temp dir only**:
    ```sh
-   npx netlify deploy --prod --dir=/tmp/pet-village-pr-{N}-explain --site=<site-id>
+   npx --yes netlify-cli@26.2.0 deploy --prod --no-build --dir=/tmp/pet-village-pr-{N}-explain --site=<explain-site-id>
    ```
-4. Put the live URL in the GitHub PR body (short summary + link is enough).
-5. Leave the working tree clean of explain-page files — never `git add` them.
+4. Leave the working tree clean of explain-page files — never `git add` them.
 
 ## GitHub PR body
 
-Keep the GitHub description short. Prefer linking the Netlify explain page:
+Keep the GitHub description short. Prefer linking both Netlify URLs:
 
 ```markdown
-Explain: https://pet-village-pr-51-explain.netlify.app
+**Playable app:** https://pet-village-pr-53.netlify.app
+**Explain:** https://pet-village-pr-53-explain.netlify.app
 
 ## Summary
 - …
@@ -38,4 +58,4 @@ Do **not** treat the GitHub body as the primary HTML artifact — that lives on 
 ## Examples already live
 
 - https://pet-village-pr-38-explain.netlify.app
-- Sibling repos use the same `*-pr-{N}-explain` naming
+- Sibling repos use the same `*-pr-{N}-explain` naming for explain pages

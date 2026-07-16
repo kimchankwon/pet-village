@@ -88,6 +88,9 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   for banking it off a plank, +2 streak bonus from 3 in a row. Drag
   anywhere on screen to slingshot (releasing outside the game still
   throws), and pick your paper-ball colour with the swatches.
+- **Get** sits beside Paper Toss in the East Green: move your pet's bowl with
+  arrows, A/D, or either side of the touchscreen to catch notes and dodge poop
+  across Easy, Normal, and Hard tracks.
 - Anything you can interact with (house, Daniel, arcade, your pet, the
   door mat) lights up when you're close enough.
 - MINITEEN residents roam Town, Shore, West Green, and East Green. Their

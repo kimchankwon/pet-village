@@ -17,6 +17,7 @@ import {
   applyPetFoodStats,
   petCanEat,
 } from './petFoodRules';
+import { GET_WIN_REWARDS, type GetDifficulty } from './getGameRules';
 
 export interface PetStats {
   hunger: number; // 0 = starving, 100 = full
@@ -491,6 +492,15 @@ class GameStateStore {
   /** Win rewards for toppling a Bump opponent (energy was paid at bout start). */
   rewardBumpWin(difficulty: BumpDifficulty): { coins: number; happiness: number } {
     const reward = BUMP_REWARDS[difficulty];
+    this.data.coins += reward.coins;
+    this.data.pet.happiness = clamp(this.data.pet.happiness + reward.happiness);
+    this.save();
+    return reward;
+  }
+
+  /** Win rewards for clearing every note in a Get track. */
+  rewardGetWin(difficulty: GetDifficulty): { coins: number; happiness: number } {
+    const reward = GET_WIN_REWARDS[difficulty];
     this.data.coins += reward.coins;
     this.data.pet.happiness = clamp(this.data.pet.happiness + reward.happiness);
     this.save();

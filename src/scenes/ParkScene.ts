@@ -629,7 +629,7 @@ export class WestParkScene extends ParkScene {
   }
 }
 
-/** East Green — right of town: the Paper Toss arcade. */
+/** East Green — right of town: Paper Toss and Get arcade games. */
 export class EastParkScene extends ParkScene {
   constructor() {
     super({
@@ -645,7 +645,19 @@ export class EastParkScene extends ParkScene {
           prompt: 'E / Space / click — Play Paper Toss',
           sceneKey: 'PaperToss',
           spawnId: 'arcade',
-          tx: 8,
+          tx: 5.2,
+          ty: 3.1,
+          scale: 1.5,
+          radius: 72,
+          solid: [58, 38, 2],
+        },
+        {
+          texture: 'get-arcade',
+          label: 'Get',
+          prompt: 'E / Space / click — Play Get',
+          sceneKey: 'Get',
+          spawnId: 'get',
+          tx: 10.8,
           ty: 3.1,
           scale: 1.5,
           radius: 72,
@@ -663,8 +675,8 @@ export class EastParkScene extends ParkScene {
         { tex: 'wildflower', tx: 7.4, ty: 8.5, scale: 1.15 },
         { tex: 'bench', tx: 5.6, ty: 8, scale: 1.1, solid: [50, 20, 5] },
         { tex: 'bench', tx: 10.4, ty: 8, scale: 1.1, solid: [50, 20, 5] },
-        { tex: 'streetlamp', tx: 5.4, ty: 4.3, scale: 1.25, solid: [16, 14, 18] },
-        { tex: 'barrel', tx: 10.4, ty: 4.4, scale: 1.1, solid: [26, 22, 4] },
+        { tex: 'streetlamp', tx: 8, ty: 4.3, scale: 1.25, solid: [16, 14, 18] },
+        { tex: 'barrel', tx: 13.2, ty: 4.4, scale: 1.1, solid: [26, 22, 4] },
         { tex: 'rock', tx: 12.6, ty: 10.4, scale: 1.1, solid: [28, 18, 5] },
       ],
     });

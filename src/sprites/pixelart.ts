@@ -1113,6 +1113,26 @@ const ARCADE: Grid = [
   '................',
 ];
 
+/** Get rhythm booth — sky-blue cabinet with a gold music note marquee. */
+const GET_ARCADE: Grid = [
+  '................',
+  '..kkkkkkkkkkkk..',
+  '.kssssssssssssk.',
+  '.ksyyyyyssssssk.',
+  '.ksyykkyssssssk.',
+  '.ksyykssssssssk.',
+  '.ksyykssyyssssk.',
+  '.ksyyyyyysssssk.',
+  '.kssssssssssssk.',
+  '.ksssqqqqqqsssk.',
+  '.ksssqqqqqqsssk.',
+  '..kkkkkkkkkkkk..',
+  '................',
+  '................',
+  '................',
+  '................',
+];
+
 /** Outdoor Skip Rope booth — pink canopy + rope post. */
 const SKIPROPE_BOOTH: Grid = [
   '................',
@@ -1181,6 +1201,42 @@ const BIN: Grid = [
   '................',
   '................',
   '................',
+];
+const MUSIC_NOTE: Grid = [
+  '..........',
+  '....kk....',
+  '....kyk...',
+  '....kyyk..',
+  '....kyyk..',
+  '....kyk...',
+  '....kyk...',
+  '.kk.kyk...',
+  'kyykkk....',
+  'kyyyk.....',
+  '.kkk......',
+  '..........',
+];
+const POOP: Grid = [
+  '............',
+  '.....kk.....',
+  '....kNNk....',
+  '...kNNNNk...',
+  '..kNNNNNNk..',
+  '.kNwNNNNwNk.',
+  '.kNNNkkNNNk.',
+  'kNNNNNNNNNNk',
+  'kkkkkkkkkkkk',
+  '............',
+];
+const CATCH_BOWL: Grid = [
+  '......................',
+  'kk..................kk',
+  '.kkkkkkkkkkkkkkkkkkkk.',
+  '..kqqqqqqqqqqqqqqqqk..',
+  '...kqqqqqqqqqqqqqqk...',
+  '....kqqqqqqqqqqqqk....',
+  '.....kkkkkkkkkkkk.....',
+  '......................',
 ];
 const COIN: Grid = [
   '........',
@@ -1571,9 +1627,13 @@ export function generateTextures(scene: Phaser.Scene) {
     makeTexture(scene, 'house', [HOUSE]);
     makeTexture(scene, 'cafe', [CAFE]);
     makeTexture(scene, 'arcade', [ARCADE]);
+    makeTexture(scene, 'get-arcade', [GET_ARCADE]);
     if (!scene.textures.exists('skiprope-booth')) makeTexture(scene, 'skiprope-booth', [SKIPROPE_BOOTH]);
     makeTexture(scene, 'paperball', [PAPERBALL]);
     makeTexture(scene, 'bin', [BIN]);
+    makeTexture(scene, 'music-note', [MUSIC_NOTE]);
+    makeTexture(scene, 'poop', [POOP]);
+    makeTexture(scene, 'catch-bowl', [CATCH_BOWL]);
     makeTexture(scene, 'coin', [COIN]);
     makeTexture(scene, 'fish', [FISH]);
     makeTexture(scene, 'bait', [BAIT]);
@@ -1599,6 +1659,10 @@ export function generateTextures(scene: Phaser.Scene) {
   }
 
   if (!scene.textures.exists('cafe')) makeTexture(scene, 'cafe', [CAFE]);
+  if (!scene.textures.exists('get-arcade')) makeTexture(scene, 'get-arcade', [GET_ARCADE]);
+  if (!scene.textures.exists('music-note')) makeTexture(scene, 'music-note', [MUSIC_NOTE]);
+  if (!scene.textures.exists('poop')) makeTexture(scene, 'poop', [POOP]);
+  if (!scene.textures.exists('catch-bowl')) makeTexture(scene, 'catch-bowl', [CATCH_BOWL]);
   if (!scene.textures.exists('skiprope-booth')) makeTexture(scene, 'skiprope-booth', [SKIPROPE_BOOTH]);
 
   if (scene.textures.exists('tile-plaza')) scene.textures.remove('tile-plaza');
