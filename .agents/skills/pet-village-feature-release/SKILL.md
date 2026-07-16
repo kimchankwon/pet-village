@@ -38,7 +38,7 @@ local verification, playable Netlify app, and Netlify explanation as required de
 - Deploy the root-hosted preview with `npx --yes netlify-cli@26.2.0 deploy --prod --no-build --dir=/tmp/pet-village-pr-{N}-app --site=<app-site-id>`.
 - Deploy the explanation with `npx --yes netlify-cli@26.2.0 deploy --prod --no-build --dir=<temp-dir> --site=<explain-site-id>`.
 - Always pass the explicit site ID so repository-level Netlify linkage cannot redirect either deployment.
-- Do not claim deployment success until both production URLs respond successfully and show the intended content. For the app, verify the root HTML and at least one referenced JavaScript or CSS asset return HTTP 200.
+- Do not claim deployment success until both production URLs respond successfully and show the intended content. For the app, verify the root HTML and every browser-requested asset needed to load it—including scripts, stylesheets, module chunks, fonts, and images—return HTTP 200; checking a single representative asset is not sufficient.
 
 ## Completion report
 

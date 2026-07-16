@@ -27,7 +27,7 @@ For the full release ritual (version bump, tests, both deploys), follow `.agents
    ```sh
    npx --yes netlify-cli@26.2.0 deploy --prod --no-build --dir=/tmp/pet-village-pr-{N}-app --site=<app-site-id>
    ```
-4. Confirm `https://pet-village-pr-{N}.netlify.app` returns HTTP 200 for `/` and at least one JS/CSS asset.
+4. Load `https://pet-village-pr-{N}.netlify.app` and confirm `/` plus every browser-requested script, stylesheet, module chunk, font, and image required by the page returns HTTP 200. One representative asset is not sufficient.
 
 ## Explain page
 
