@@ -90,7 +90,8 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   throws), and pick your paper-ball colour with the swatches.
 - **Get** sits beside Paper Toss in the East Green: move your pet's bowl with
   arrows, A/D, or either side of the touchscreen to catch notes and dodge poop
-  across Easy, Normal, and Hard tracks.
+  across newly randomized Easy, Normal, and Hard tracks. Each run costs 5, 8,
+  or 12 energy respectively; easier modes give your pet a wider catching bowl.
 - Anything you can interact with (house, Daniel, arcade, your pet, the
   door mat) lights up when you're close enough.
 - MINITEEN residents roam Town, Shore, West Green, and East Green. Their

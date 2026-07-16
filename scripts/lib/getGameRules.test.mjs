@@ -4,6 +4,7 @@ import {
   buildGetTrack,
   GET_CATCH_HALF_WIDTH,
   GET_DIFFICULTIES,
+  GET_ENERGY_COST,
   GET_PLAYER_SPEED,
   GET_POOP_HALF_WIDTH,
   GET_SAFE_MARGIN,
@@ -38,40 +39,71 @@ test('Get clear rewards increase with difficulty', () => {
   assert.deepEqual(GET_WIN_REWARDS.hard, { coins: 26, happiness: 14 });
 });
 
+test('Get energy cost increases with difficulty', () => {
+  assert.deepEqual(GET_ENERGY_COST, { easy: 5, normal: 8, hard: 12 });
+});
+
+test('Get bowl width shrinks from Easy to Normal to Hard', () => {
+  assert.deepEqual(GET_CATCH_HALF_WIDTH, { easy: 58, normal: 46, hard: 36 });
+});
+
+test('Get tracks vary note timing, positions, and poop cadence between runs', () => {
+  const first = buildGetTrack('normal', { ...FIELD, random: seededRandom(7) });
+  const second = buildGetTrack('normal', { ...FIELD, random: seededRandom(99) });
+  assert.notDeepEqual(first, second);
+
+  const firstNotes = first.filter((event) => event.kind === 'note');
+  const intervals = firstNotes.slice(1).map((event, index) => event.arrivalMs - firstNotes[index].arrivalMs);
+  assert.ok(new Set(intervals.map((interval) => Math.round(interval))).size > 1);
+
+  const poopGaps = [];
+  let notesSincePoop = 0;
+  for (const event of [...first].sort((a, b) => a.arrivalMs - b.arrivalMs)) {
+    if (event.kind === 'note') notesSincePoop++;
+    else {
+      poopGaps.push(notesSincePoop);
+      notesSincePoop = 0;
+    }
+  }
+  assert.ok(new Set(poopGaps).size > 1);
+});
+
 for (const difficulty of DIFFICULTIES) {
   test(`${difficulty} Get track keeps every catch and dodge reachable`, () => {
-    const track = buildGetTrack(difficulty, { ...FIELD, random: seededRandom() });
-    const byArrival = [...track].sort((a, b) => a.arrivalMs - b.arrivalMs);
-    let x = (FIELD.minX + FIELD.maxX) / 2;
-    let timeMs = 0;
-    let notes = 0;
-    let poop = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+      const track = buildGetTrack(difficulty, { ...FIELD, random: seededRandom(seed) });
+      const byArrival = [...track].sort((a, b) => a.arrivalMs - b.arrivalMs);
+      let x = (FIELD.minX + FIELD.maxX) / 2;
+      let timeMs = 0;
+      let notes = 0;
+      let poop = 0;
 
-    for (const event of byArrival) {
-      assert.ok(event.x >= FIELD.minX && event.x <= FIELD.maxX);
-      assert.ok(event.spawnMs >= 0, 'objects must not need to spawn before the run starts');
-      const reachable = (GET_PLAYER_SPEED * (event.arrivalMs - timeMs)) / 1000;
+      for (const event of byArrival) {
+        assert.ok(event.x >= FIELD.minX && event.x <= FIELD.maxX);
+        assert.ok(event.spawnMs >= 0, 'objects must not need to spawn before the run starts');
+        const reachable = (GET_PLAYER_SPEED * (event.arrivalMs - timeMs)) / 1000;
 
-      if (event.kind === 'note') {
-        assert.ok(Math.abs(event.x - x) <= reachable + 0.001, 'note is reachable');
-        x = event.x;
-        timeMs = event.arrivalMs;
-        notes++;
-      } else {
-        assert.notEqual(event.escapeX, undefined);
-        assert.ok(
-          Math.abs(event.escapeX - event.x) >
-            GET_CATCH_HALF_WIDTH + GET_POOP_HALF_WIDTH + GET_SAFE_MARGIN,
-          'escape route fully clears the poop',
-        );
-        assert.ok(Math.abs(event.escapeX - x) <= reachable + 0.001, 'poop is avoidable after catch');
-        x = event.escapeX;
-        timeMs = event.arrivalMs;
-        poop++;
+        if (event.kind === 'note') {
+          assert.ok(Math.abs(event.x - x) <= reachable + 0.001, 'note is reachable');
+          x = event.x;
+          timeMs = event.arrivalMs;
+          notes++;
+        } else {
+          assert.notEqual(event.escapeX, undefined);
+          assert.ok(
+            Math.abs(event.escapeX - event.x) >
+              GET_CATCH_HALF_WIDTH[difficulty] + GET_POOP_HALF_WIDTH + GET_SAFE_MARGIN,
+            'escape route fully clears the poop',
+          );
+          assert.ok(Math.abs(event.escapeX - x) <= reachable + 0.001, 'poop is avoidable after catch');
+          x = event.escapeX;
+          timeMs = event.arrivalMs;
+          poop++;
+        }
       }
-    }
 
-    assert.equal(notes, GET_DIFFICULTIES[difficulty].notesToClear);
-    assert.ok(poop > 0);
+      assert.equal(notes, GET_DIFFICULTIES[difficulty].notesToClear);
+      assert.ok(poop > 0);
+    }
   });
 }

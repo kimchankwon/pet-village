@@ -16,8 +16,10 @@ export type GetDifficultyConfig = {
   fallSpeed: number;
   firstArrivalMs: number;
   noteIntervalMs: number;
+  noteIntervalJitterMs: number;
   poopDelayMs: number;
-  poopEvery: number;
+  poopDelayJitterMs: number;
+  poopGap: readonly [minNotes: number, maxNotes: number];
   notesToClear: number;
 };
 
@@ -28,13 +30,27 @@ export const GET_WIN_REWARDS: Record<GetDifficulty, { coins: number; happiness: 
   hard: { coins: 26, happiness: 14 },
 };
 
+/** Energy paid at the start of every Get track. */
+export const GET_ENERGY_COST: Record<GetDifficulty, number> = {
+  easy: 5,
+  normal: 8,
+  hard: 12,
+};
+
 export const GET_PLAYER_SPEED = 360;
 export const GET_TAP_DISTANCE = 90;
-export const GET_CATCH_HALF_WIDTH = 36;
+/** Actual bowl catch radius: Easy is widest, Normal is medium, Hard is narrowest. */
+export const GET_CATCH_HALF_WIDTH: Record<GetDifficulty, number> = {
+  easy: 58,
+  normal: 46,
+  hard: 36,
+};
 export const GET_POOP_HALF_WIDTH = 18;
 export const GET_SAFE_MARGIN = 14;
-export const GET_DODGE_DISTANCE =
-  GET_CATCH_HALF_WIDTH + GET_POOP_HALF_WIDTH + GET_SAFE_MARGIN + 44;
+
+export function getGetDodgeDistance(difficulty: GetDifficulty): number {
+  return GET_CATCH_HALF_WIDTH[difficulty] + GET_POOP_HALF_WIDTH + GET_SAFE_MARGIN + 44;
+}
 
 /** Distance the catcher can cover during the same elapsed time used by the track clock. */
 export function getGetTravelDistance(elapsedMs: number): number {
@@ -47,8 +63,10 @@ export const GET_DIFFICULTIES: Record<GetDifficulty, GetDifficultyConfig> = {
     fallSpeed: 150,
     firstArrivalMs: 3400,
     noteIntervalMs: 1080,
+    noteIntervalJitterMs: 220,
     poopDelayMs: 720,
-    poopEvery: 3,
+    poopDelayJitterMs: 110,
+    poopGap: [2, 4],
     notesToClear: 18,
   },
   normal: {
@@ -56,8 +74,10 @@ export const GET_DIFFICULTIES: Record<GetDifficulty, GetDifficultyConfig> = {
     fallSpeed: 205,
     firstArrivalMs: 2700,
     noteIntervalMs: 900,
+    noteIntervalJitterMs: 180,
     poopDelayMs: 580,
-    poopEvery: 2,
+    poopDelayJitterMs: 85,
+    poopGap: [1, 3],
     notesToClear: 22,
   },
   hard: {
@@ -65,8 +85,10 @@ export const GET_DIFFICULTIES: Record<GetDifficulty, GetDifficultyConfig> = {
     fallSpeed: 270,
     firstArrivalMs: 2200,
     noteIntervalMs: 760,
+    noteIntervalJitterMs: 140,
     poopDelayMs: 500,
-    poopEvery: 1,
+    poopDelayJitterMs: 65,
+    poopGap: [1, 2],
     notesToClear: 26,
   },
 };
@@ -83,12 +105,24 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function randomBetween(random: () => number, min: number, max: number): number {
+  return min + random() * (max - min);
+}
+
+function randomPoopGap(
+  random: () => number,
+  [minNotes, maxNotes]: GetDifficultyConfig['poopGap'],
+): number {
+  return minNotes + Math.floor(random() * (maxNotes - minNotes + 1));
+}
+
 /**
  * Builds a complete Get track in arrival-time order.
  *
  * The schedule carries a known-safe route. Notes are placed within the
- * distance the catcher can travel, and poop always lands where the previous
- * note was caught only after there is enough time to reach `escapeX`.
+ * distance the catcher can travel, and poop aims near the previous catch only
+ * after there is enough time to reach `escapeX`. Timing, positions, and poop
+ * gaps vary while keeping that safe route intact.
  */
 export function buildGetTrack(
   difficulty: GetDifficulty,
@@ -101,14 +135,20 @@ export function buildGetTrack(
 
   let safeX = (options.minX + options.maxX) / 2;
   let safeAtMs = 0;
+  let noteArrivalMs = cfg.firstArrivalMs;
+  let notesUntilPoop = randomPoopGap(random, cfg.poopGap);
+  const dodgeDistance = getGetDodgeDistance(difficulty);
 
   for (let noteIndex = 0; noteIndex < cfg.notesToClear; noteIndex++) {
-    const arrivalMs = cfg.firstArrivalMs + noteIndex * cfg.noteIntervalMs;
+    const arrivalMs = noteArrivalMs;
     const travelMs = Math.max(0, arrivalMs - safeAtMs);
     // Leave 18% movement headroom for reaction time and imperfect input.
     const maxTravel = Math.max(20, getGetTravelDistance(travelMs) * 0.82);
-    const centeredRandom = random() * 2 - 1;
-    const noteX = clamp(safeX + centeredRandom * maxTravel, options.minX, options.maxX);
+    const noteX = randomBetween(
+      random,
+      Math.max(options.minX, safeX - maxTravel),
+      Math.min(options.maxX, safeX + maxTravel),
+    );
 
     events.push({
       kind: 'note',
@@ -118,29 +158,43 @@ export function buildGetTrack(
     });
     safeX = noteX;
     safeAtMs = arrivalMs;
+    noteArrivalMs +=
+      cfg.noteIntervalMs +
+      randomBetween(random, -cfg.noteIntervalJitterMs, cfg.noteIntervalJitterMs);
 
-    if ((noteIndex + 1) % cfg.poopEvery !== 0) continue;
+    notesUntilPoop--;
+    if (notesUntilPoop > 0) continue;
+    notesUntilPoop = randomPoopGap(random, cfg.poopGap);
 
-    const roomLeft = noteX - options.minX;
-    const roomRight = options.maxX - noteX;
-    const preferredDirection = random() < 0.5 ? -1 : 1;
-    const direction =
-      preferredDirection < 0
-        ? roomLeft >= GET_DODGE_DISTANCE
-          ? -1
-          : 1
-        : roomRight >= GET_DODGE_DISTANCE
-          ? 1
-          : -1;
-    const escapeX = clamp(
-      noteX + direction * GET_DODGE_DISTANCE,
+    const poopX = clamp(
+      noteX + randomBetween(random, -GET_POOP_HALF_WIDTH, GET_POOP_HALF_WIDTH),
       options.minX,
       options.maxX,
     );
-    const poopArrivalMs = arrivalMs + cfg.poopDelayMs;
+
+    const roomLeft = poopX - options.minX;
+    const roomRight = options.maxX - poopX;
+    const preferredDirection = random() < 0.5 ? -1 : 1;
+    const direction =
+      preferredDirection < 0
+        ? roomLeft >= dodgeDistance
+          ? -1
+          : 1
+        : roomRight >= dodgeDistance
+          ? 1
+          : -1;
+    const escapeX = clamp(
+      noteX + direction * dodgeDistance,
+      options.minX,
+      options.maxX,
+    );
+    const poopArrivalMs =
+      arrivalMs +
+      cfg.poopDelayMs +
+      randomBetween(random, -cfg.poopDelayJitterMs, cfg.poopDelayJitterMs);
     events.push({
       kind: 'poop',
-      x: noteX,
+      x: poopX,
       arrivalMs: poopArrivalMs,
       spawnMs: poopArrivalMs - fallMs,
       escapeX,

@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
-import { MIN_GAME_ENERGY, State } from '../systems/GameState';
+import { State } from '../systems/GameState';
 import {
   buildGetTrack,
   GET_CATCH_HALF_WIDTH,
   GET_DIFFICULTIES,
+  GET_ENERGY_COST,
   GET_TAP_DISTANCE,
   getGetTravelDistance,
   type GetDifficulty,
@@ -255,11 +256,12 @@ export class GetScene extends Phaser.Scene {
   private openDifficultyMenu() {
     this.mode = 'pick';
     this.menuOpen = true;
-    const tired = !State.hasEnergy(MIN_GAME_ENERGY);
     const option = (difficulty: GetDifficulty) => {
       const cfg = GET_DIFFICULTIES[difficulty];
+      const energyCost = GET_ENERGY_COST[difficulty];
+      const tired = !State.hasEnergy(energyCost);
       return {
-        label: `${cfg.label} · ${cfg.fallSpeed}px/s${tired ? ' — too tired!' : ''}`,
+        label: `${cfg.label} · ${cfg.fallSpeed}px/s · ${energyCost} energy${tired ? ' — too tired!' : ''}`,
         disabled: tired,
         onSelect: () => this.beginRun(difficulty),
       };
@@ -268,7 +270,7 @@ export class GetScene extends Phaser.Scene {
       this,
       'Get!',
       [option('easy'), option('normal'), option('hard')],
-      { subtitle: 'Catch every music note · dodge poop · one miss ends the track' },
+      { subtitle: 'Energy is spent per run · catch every note · dodge poop' },
     );
     menu.onClose = () => {
       this.menuOpen = false;
@@ -280,7 +282,16 @@ export class GetScene extends Phaser.Scene {
   }
 
   private beginRun(difficulty: GetDifficulty) {
+    const energyCost = GET_ENERGY_COST[difficulty];
+    if (!State.hasEnergy(energyCost)) {
+      this.menuOpen = false;
+      this.time.delayedCall(0, () => this.openDifficultyMenu());
+      return;
+    }
+    State.spendEnergy(energyCost);
     this.difficulty = difficulty;
+    const bowlScaleX = GET_CATCH_HALF_WIDTH[difficulty] / GET_CATCH_HALF_WIDTH.hard;
+    this.bowl.setScale(bowlScaleX, 1 + (bowlScaleX - 1) * 0.2);
     this.mode = 'playing';
     this.menuOpen = false;
     this.score = 0;
@@ -298,7 +309,13 @@ export class GetScene extends Phaser.Scene {
     this.catcher.play(petAnimKey(State.data.petSpecies, 'bounce'));
     this.modeText.setText(`${GET_DIFFICULTIES[difficulty].label} · ${GET_DIFFICULTIES[difficulty].fallSpeed}px/s`);
     this.updateScore();
-    toast(this, this.cameras.main.width / 2, 126, 'Catch notes · dodge poop!', '#ffe066');
+    toast(
+      this,
+      this.cameras.main.width / 2,
+      126,
+      `-${energyCost} energy · catch notes · dodge poop!`,
+      '#ffe066',
+    );
   }
 
   private spawnEvent(event: GetEvent) {
@@ -485,7 +502,8 @@ export class GetScene extends Phaser.Scene {
 
       if (!object.crossedBowl && previousY <= this.bowlY && object.sprite.y >= this.bowlY) {
         object.crossedBowl = true;
-        const overlapsBowl = Math.abs(object.sprite.x - this.bowl.x) <= GET_CATCH_HALF_WIDTH;
+        const overlapsBowl =
+          Math.abs(object.sprite.x - this.bowl.x) <= GET_CATCH_HALF_WIDTH[this.difficulty];
         if (object.event.kind === 'note' && overlapsBowl) {
           this.catchNote(object);
           continue;
