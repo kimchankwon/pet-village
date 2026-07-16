@@ -349,9 +349,10 @@ export class GetScene extends Phaser.Scene {
     this.tapTargetX = null;
     this.catcher.stop();
     this.catcher.setTexture(petTextureKey(State.data.petSpecies, 'happy'));
+    const reward = State.rewardGetWin(this.difficulty);
     this.showEndPanel(
       `${GET_DIFFICULTIES[this.difficulty].label} cleared!`,
-      `You caught all ${this.score} music notes.`,
+      `You caught all ${this.score} music notes.\n+${reward.coins} coins · +${reward.happiness} happiness`,
       '#ffe066',
       'Play again',
     );

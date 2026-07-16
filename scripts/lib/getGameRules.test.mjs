@@ -7,6 +7,7 @@ import {
   GET_PLAYER_SPEED,
   GET_POOP_HALF_WIDTH,
   GET_SAFE_MARGIN,
+  GET_WIN_REWARDS,
   getGetTravelDistance,
 } from '../../src/systems/getGameRules.ts';
 
@@ -29,6 +30,12 @@ test('Get catcher travel uses the full elapsed track time after a frame stall', 
   assert.equal(getGetTravelDistance(50), 18);
   assert.equal(getGetTravelDistance(1000), GET_PLAYER_SPEED);
   assert.equal(getGetTravelDistance(1200), 432);
+});
+
+test('Get clear rewards increase with difficulty', () => {
+  assert.deepEqual(GET_WIN_REWARDS.easy, { coins: 6, happiness: 5 });
+  assert.deepEqual(GET_WIN_REWARDS.normal, { coins: 14, happiness: 9 });
+  assert.deepEqual(GET_WIN_REWARDS.hard, { coins: 26, happiness: 14 });
 });
 
 for (const difficulty of DIFFICULTIES) {

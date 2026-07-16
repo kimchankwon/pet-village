@@ -21,6 +21,13 @@ export type GetDifficultyConfig = {
   notesToClear: number;
 };
 
+/** Completion rewards rise with Get's difficulty, matching Bump's economy curve. */
+export const GET_WIN_REWARDS: Record<GetDifficulty, { coins: number; happiness: number }> = {
+  easy: { coins: 6, happiness: 5 },
+  normal: { coins: 14, happiness: 9 },
+  hard: { coins: 26, happiness: 14 },
+};
+
 export const GET_PLAYER_SPEED = 360;
 export const GET_TAP_DISTANCE = 90;
 export const GET_CATCH_HALF_WIDTH = 36;
