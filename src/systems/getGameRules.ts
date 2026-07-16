@@ -39,14 +39,35 @@ export const GET_ENERGY_COST: Record<GetDifficulty, number> = {
 
 export const GET_PLAYER_SPEED = 360;
 export const GET_TAP_DISTANCE = 90;
+/** Half-width of the unscaled bowl artwork. */
+export const GET_BOWL_BASE_HALF_WIDTH = 36;
 /** Actual bowl catch radius: Easy is widest, Normal is medium, Hard is narrowest. */
 export const GET_CATCH_HALF_WIDTH: Record<GetDifficulty, number> = {
   easy: 58,
-  normal: 46,
-  hard: 36,
+  normal: 42,
+  hard: 26,
 };
+
+export function getGetBowlScaleX(difficulty: GetDifficulty): number {
+  return GET_CATCH_HALF_WIDTH[difficulty] / GET_BOWL_BASE_HALF_WIDTH;
+}
 export const GET_POOP_HALF_WIDTH = 18;
 export const GET_SAFE_MARGIN = 14;
+
+export const GET_NOTE_TEXTURES = [
+  'music-note-crotchet',
+  'music-note-quaver',
+  'music-note-double-quaver',
+] as const;
+
+/** Pick one of the three colourful note silhouettes for a falling note. */
+export function getGetNoteTexture(random: () => number = Math.random): string {
+  const index = Math.min(
+    GET_NOTE_TEXTURES.length - 1,
+    Math.floor(random() * GET_NOTE_TEXTURES.length),
+  );
+  return GET_NOTE_TEXTURES[index]!;
+}
 
 export function getGetDodgeDistance(difficulty: GetDifficulty): number {
   return GET_CATCH_HALF_WIDTH[difficulty] + GET_POOP_HALF_WIDTH + GET_SAFE_MARGIN + 44;

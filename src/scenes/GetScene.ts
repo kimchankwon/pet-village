@@ -7,6 +7,8 @@ import {
   GET_DIFFICULTIES,
   GET_ENERGY_COST,
   GET_TAP_DISTANCE,
+  getGetBowlScaleX,
+  getGetNoteTexture,
   getGetTravelDistance,
   type GetDifficulty,
   type GetEvent,
@@ -41,6 +43,7 @@ export class GetScene extends Phaser.Scene {
 
   private catcher!: Phaser.GameObjects.Sprite;
   private bowl!: Phaser.GameObjects.Image;
+  private bowlScaleX = 1;
   private bowlY = 470;
   private floorY = 540;
   private spawnY = 74;
@@ -290,8 +293,8 @@ export class GetScene extends Phaser.Scene {
     }
     State.spendEnergy(energyCost);
     this.difficulty = difficulty;
-    const bowlScaleX = GET_CATCH_HALF_WIDTH[difficulty] / GET_CATCH_HALF_WIDTH.hard;
-    this.bowl.setScale(bowlScaleX, 1 + (bowlScaleX - 1) * 0.2);
+    this.bowlScaleX = getGetBowlScaleX(difficulty);
+    this.bowl.setScale(this.bowlScaleX, 1);
     this.mode = 'playing';
     this.menuOpen = false;
     this.score = 0;
@@ -320,10 +323,10 @@ export class GetScene extends Phaser.Scene {
 
   private spawnEvent(event: GetEvent) {
     const sprite = this.add
-      .image(event.x, this.spawnY, event.kind === 'note' ? 'music-note' : 'poop')
+      .image(event.x, this.spawnY, event.kind === 'note' ? getGetNoteTexture() : 'poop')
       .setDepth(10);
     if (event.kind === 'note') {
-      sprite.setTint(NOTE_TINTS[this.score % NOTE_TINTS.length]!);
+      sprite.setTint(Phaser.Utils.Array.GetRandom(NOTE_TINTS));
     }
     this.falling.push({ event, sprite, crossedBowl: false });
   }
@@ -343,7 +346,7 @@ export class GetScene extends Phaser.Scene {
     toast(this, this.catcher.x, this.bowlY - 30, `♪ ${this.score}`, '#ffe066');
     this.tweens.add({
       targets: this.bowl,
-      scaleX: { from: 1.12, to: 1 },
+      scaleX: { from: this.bowlScaleX * 1.12, to: this.bowlScaleX },
       scaleY: { from: 0.88, to: 1 },
       duration: 130,
     });

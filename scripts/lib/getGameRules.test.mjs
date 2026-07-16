@@ -2,12 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildGetTrack,
+  GET_BOWL_BASE_HALF_WIDTH,
   GET_CATCH_HALF_WIDTH,
   GET_DIFFICULTIES,
   GET_ENERGY_COST,
   GET_PLAYER_SPEED,
   GET_POOP_HALF_WIDTH,
   GET_SAFE_MARGIN,
+  getGetBowlScaleX,
+  getGetNoteTexture,
   GET_WIN_REWARDS,
   getGetTravelDistance,
 } from '../../src/systems/getGameRules.ts';
@@ -44,7 +47,17 @@ test('Get energy cost increases with difficulty', () => {
 });
 
 test('Get bowl width shrinks from Easy to Normal to Hard', () => {
-  assert.deepEqual(GET_CATCH_HALF_WIDTH, { easy: 58, normal: 46, hard: 36 });
+  assert.equal(GET_BOWL_BASE_HALF_WIDTH, 36);
+  assert.deepEqual(GET_CATCH_HALF_WIDTH, { easy: 58, normal: 42, hard: 26 });
+  assert.ok(getGetBowlScaleX('easy') > getGetBowlScaleX('normal'));
+  assert.ok(getGetBowlScaleX('normal') > 1);
+  assert.ok(getGetBowlScaleX('hard') < 1);
+});
+
+test('Get can render crotchets, quavers, and double quavers', () => {
+  assert.equal(getGetNoteTexture(() => 0), 'music-note-crotchet');
+  assert.equal(getGetNoteTexture(() => 0.34), 'music-note-quaver');
+  assert.equal(getGetNoteTexture(() => 0.67), 'music-note-double-quaver');
 });
 
 test('Get tracks vary note timing, positions, and poop cadence between runs', () => {
