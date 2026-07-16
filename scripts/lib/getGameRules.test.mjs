@@ -7,6 +7,7 @@ import {
   GET_PLAYER_SPEED,
   GET_POOP_HALF_WIDTH,
   GET_SAFE_MARGIN,
+  getGetTravelDistance,
 } from '../../src/systems/getGameRules.ts';
 
 const FIELD = { minX: 70, maxX: 730, spawnY: 64, catchY: 480 };
@@ -22,6 +23,12 @@ function seededRandom(seed = 7) {
 test('Get difficulty makes falling objects progressively faster', () => {
   assert.ok(GET_DIFFICULTIES.easy.fallSpeed < GET_DIFFICULTIES.normal.fallSpeed);
   assert.ok(GET_DIFFICULTIES.normal.fallSpeed < GET_DIFFICULTIES.hard.fallSpeed);
+});
+
+test('Get catcher travel uses the full elapsed track time after a frame stall', () => {
+  assert.equal(getGetTravelDistance(50), 18);
+  assert.equal(getGetTravelDistance(1000), GET_PLAYER_SPEED);
+  assert.equal(getGetTravelDistance(1200), 432);
 });
 
 for (const difficulty of DIFFICULTIES) {

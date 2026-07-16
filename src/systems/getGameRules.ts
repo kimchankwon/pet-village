@@ -29,6 +29,11 @@ export const GET_SAFE_MARGIN = 14;
 export const GET_DODGE_DISTANCE =
   GET_CATCH_HALF_WIDTH + GET_POOP_HALF_WIDTH + GET_SAFE_MARGIN + 44;
 
+/** Distance the catcher can cover during the same elapsed time used by the track clock. */
+export function getGetTravelDistance(elapsedMs: number): number {
+  return (GET_PLAYER_SPEED * Math.max(0, elapsedMs)) / 1000;
+}
+
 export const GET_DIFFICULTIES: Record<GetDifficulty, GetDifficultyConfig> = {
   easy: {
     label: 'Easy',
@@ -94,7 +99,7 @@ export function buildGetTrack(
     const arrivalMs = cfg.firstArrivalMs + noteIndex * cfg.noteIntervalMs;
     const travelMs = Math.max(0, arrivalMs - safeAtMs);
     // Leave 18% movement headroom for reaction time and imperfect input.
-    const maxTravel = Math.max(20, (GET_PLAYER_SPEED * travelMs * 0.82) / 1000);
+    const maxTravel = Math.max(20, getGetTravelDistance(travelMs) * 0.82);
     const centeredRandom = random() * 2 - 1;
     const noteX = clamp(safeX + centeredRandom * maxTravel, options.minX, options.maxX);
 

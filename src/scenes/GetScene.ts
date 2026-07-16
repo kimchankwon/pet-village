@@ -5,8 +5,8 @@ import {
   buildGetTrack,
   GET_CATCH_HALF_WIDTH,
   GET_DIFFICULTIES,
-  GET_PLAYER_SPEED,
   GET_TAP_DISTANCE,
+  getGetTravelDistance,
   type GetDifficulty,
   type GetEvent,
 } from '../systems/getGameRules';
@@ -19,7 +19,6 @@ const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 const SESSION_BEST_KEY = 'getSessionBest';
 
 type Mode = 'pick' | 'playing' | 'failed' | 'cleared';
-type RestartData = { difficulty?: GetDifficulty };
 type FallingObject = {
   event: GetEvent;
   sprite: Phaser.GameObjects.Image;
@@ -73,7 +72,7 @@ export class GetScene extends Phaser.Scene {
     super('Get');
   }
 
-  create(data?: RestartData) {
+  create() {
     generateTextures(this);
     this.mode = 'pick';
     this.menuOpen = false;
@@ -250,8 +249,7 @@ export class GetScene extends Phaser.Scene {
       },
     });
 
-    if (data?.difficulty) this.beginRun(data.difficulty);
-    else this.openDifficultyMenu();
+    this.openDifficultyMenu();
   }
 
   private openDifficultyMenu() {
@@ -390,7 +388,8 @@ export class GetScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
-    retry.on('pointerdown', () => this.scene.restart({ difficulty: this.difficulty }));
+    // Match Bump/Paper Toss: every new run returns to difficulty selection.
+    retry.on('pointerdown', () => this.scene.restart());
     const leave = this.add
       .text(cx + 128, cy + 62, '[ Back outside ]', {
         ...FONT,
@@ -440,7 +439,10 @@ export class GetScene extends Phaser.Scene {
       else direction = Math.sign(remaining);
     }
 
-    const distance = (GET_PLAYER_SPEED * Math.min(deltaMs, 50)) / 1000;
+    // Falling objects use the same uncapped elapsed time through runStartedAt.
+    // Keeping movement on that clock preserves the track's reachability proof
+    // even if a frame stalls for longer than 50 ms.
+    const distance = getGetTravelDistance(deltaMs);
     if (direction !== 0) {
       let nextX = this.catcher.x + direction * distance;
       if (this.pointerDirection === 0 && this.tapTargetX != null) {
