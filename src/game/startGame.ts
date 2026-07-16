@@ -6,6 +6,7 @@ import { HouseScene } from '../scenes/HouseScene';
 import { ShopScene } from '../scenes/ShopScene';
 import { ClothesShopScene } from '../scenes/ClothesShopScene';
 import { PaperTossScene } from '../scenes/PaperTossScene';
+import { GetScene } from '../scenes/GetScene';
 import { ShoreScene } from '../scenes/ShoreScene';
 import { FishingScene } from '../scenes/FishingScene';
 import { SkipRopeScene } from '../scenes/SkipRopeScene';
@@ -58,6 +59,7 @@ export function startGame(parent: HTMLElement): Phaser.Game {
       ShopScene,
       ClothesShopScene,
       PaperTossScene,
+      GetScene,
       ShoreScene,
       FishingScene,
       SkipRopeScene,
