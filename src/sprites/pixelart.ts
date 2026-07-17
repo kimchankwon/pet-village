@@ -1202,19 +1202,53 @@ const BIN: Grid = [
   '................',
   '................',
 ];
-const MUSIC_NOTE: Grid = [
-  '..........',
-  '....kk....',
-  '....kyk...',
-  '....kyyk..',
-  '....kyyk..',
-  '....kyk...',
-  '....kyk...',
-  '.kk.kyk...',
-  'kyykkk....',
-  'kyyyk.....',
-  '.kkk......',
-  '..........',
+const MUSIC_NOTE_CROTCHET: Grid = [
+  '............',
+  '.......kk...',
+  '......kwk...',
+  '......kwk...',
+  '......kwk...',
+  '......kwk...',
+  '......kwk...',
+  '......kwk...',
+  '..kkkkkwk...',
+  '.kwwwwwkk...',
+  'kwwwwwwk....',
+  'kwwwwwwk....',
+  '.kkkkkk.....',
+  '............',
+];
+const MUSIC_NOTE_QUAVER: Grid = [
+  '..............',
+  '......kkkkk...',
+  '......kwwwwk..',
+  '......kwwwwk..',
+  '......kwkkk...',
+  '......kwk.....',
+  '......kwk.....',
+  '......kwk.....',
+  '..kkkkkwk.....',
+  '.kwwwwwkk.....',
+  'kwwwwwwk......',
+  'kwwwwwwk......',
+  '.kkkkkk.......',
+  '..............',
+];
+const MUSIC_NOTE_DOUBLE_QUAVER: Grid = [
+  '................',
+  '..kkkkkkkkkk....',
+  '..kwwwwwwwwk....',
+  '..kwkkkkkkwk....',
+  '..kw......wk....',
+  '..kw......wk....',
+  '..kw......wk....',
+  '..kw......wk....',
+  'kkkk....kkkk....',
+  'kwwwk...kwwwk...',
+  'kwwwwk..kwwwwk..',
+  'kwwwwk..kwwwwk..',
+  '.kkkk....kkkk...',
+  '................',
 ];
 const POOP: Grid = [
   '............',
@@ -1230,7 +1264,7 @@ const POOP: Grid = [
 ];
 const CATCH_BOWL: Grid = [
   '......................',
-  'kk..................kk',
+  '......................',
   '.kkkkkkkkkkkkkkkkkkkk.',
   '..kqqqqqqqqqqqqqqqqk..',
   '...kqqqqqqqqqqqqqqk...',
@@ -1631,7 +1665,9 @@ export function generateTextures(scene: Phaser.Scene) {
     if (!scene.textures.exists('skiprope-booth')) makeTexture(scene, 'skiprope-booth', [SKIPROPE_BOOTH]);
     makeTexture(scene, 'paperball', [PAPERBALL]);
     makeTexture(scene, 'bin', [BIN]);
-    makeTexture(scene, 'music-note', [MUSIC_NOTE]);
+    makeTexture(scene, 'music-note-crotchet', [MUSIC_NOTE_CROTCHET]);
+    makeTexture(scene, 'music-note-quaver', [MUSIC_NOTE_QUAVER]);
+    makeTexture(scene, 'music-note-double-quaver', [MUSIC_NOTE_DOUBLE_QUAVER]);
     makeTexture(scene, 'poop', [POOP]);
     makeTexture(scene, 'catch-bowl', [CATCH_BOWL]);
     makeTexture(scene, 'coin', [COIN]);
@@ -1660,7 +1696,15 @@ export function generateTextures(scene: Phaser.Scene) {
 
   if (!scene.textures.exists('cafe')) makeTexture(scene, 'cafe', [CAFE]);
   if (!scene.textures.exists('get-arcade')) makeTexture(scene, 'get-arcade', [GET_ARCADE]);
-  if (!scene.textures.exists('music-note')) makeTexture(scene, 'music-note', [MUSIC_NOTE]);
+  if (!scene.textures.exists('music-note-crotchet')) {
+    makeTexture(scene, 'music-note-crotchet', [MUSIC_NOTE_CROTCHET]);
+  }
+  if (!scene.textures.exists('music-note-quaver')) {
+    makeTexture(scene, 'music-note-quaver', [MUSIC_NOTE_QUAVER]);
+  }
+  if (!scene.textures.exists('music-note-double-quaver')) {
+    makeTexture(scene, 'music-note-double-quaver', [MUSIC_NOTE_DOUBLE_QUAVER]);
+  }
   if (!scene.textures.exists('poop')) makeTexture(scene, 'poop', [POOP]);
   if (!scene.textures.exists('catch-bowl')) makeTexture(scene, 'catch-bowl', [CATCH_BOWL]);
   if (!scene.textures.exists('skiprope-booth')) makeTexture(scene, 'skiprope-booth', [SKIPROPE_BOOTH]);

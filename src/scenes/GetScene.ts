@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
-import { MIN_GAME_ENERGY, State } from '../systems/GameState';
+import { State } from '../systems/GameState';
 import {
   buildGetTrack,
   GET_CATCH_HALF_WIDTH,
   GET_DIFFICULTIES,
+  GET_ENERGY_COST,
   GET_TAP_DISTANCE,
+  getGetBowlScaleX,
+  getGetNoteTexture,
   getGetTravelDistance,
   type GetDifficulty,
   type GetEvent,
@@ -40,6 +43,7 @@ export class GetScene extends Phaser.Scene {
 
   private catcher!: Phaser.GameObjects.Sprite;
   private bowl!: Phaser.GameObjects.Image;
+  private bowlScaleX = 1;
   private bowlY = 470;
   private floorY = 540;
   private spawnY = 74;
@@ -255,11 +259,12 @@ export class GetScene extends Phaser.Scene {
   private openDifficultyMenu() {
     this.mode = 'pick';
     this.menuOpen = true;
-    const tired = !State.hasEnergy(MIN_GAME_ENERGY);
     const option = (difficulty: GetDifficulty) => {
       const cfg = GET_DIFFICULTIES[difficulty];
+      const energyCost = GET_ENERGY_COST[difficulty];
+      const tired = !State.hasEnergy(energyCost);
       return {
-        label: `${cfg.label} · ${cfg.fallSpeed}px/s${tired ? ' — too tired!' : ''}`,
+        label: `${cfg.label} · ${cfg.fallSpeed}px/s · ${energyCost} energy${tired ? ' — too tired!' : ''}`,
         disabled: tired,
         onSelect: () => this.beginRun(difficulty),
       };
@@ -268,7 +273,7 @@ export class GetScene extends Phaser.Scene {
       this,
       'Get!',
       [option('easy'), option('normal'), option('hard')],
-      { subtitle: 'Catch every music note · dodge poop · one miss ends the track' },
+      { subtitle: 'Energy is spent per run · catch every note · dodge poop' },
     );
     menu.onClose = () => {
       this.menuOpen = false;
@@ -280,7 +285,16 @@ export class GetScene extends Phaser.Scene {
   }
 
   private beginRun(difficulty: GetDifficulty) {
+    const energyCost = GET_ENERGY_COST[difficulty];
+    if (!State.hasEnergy(energyCost)) {
+      this.menuOpen = false;
+      this.time.delayedCall(0, () => this.openDifficultyMenu());
+      return;
+    }
+    State.spendEnergy(energyCost);
     this.difficulty = difficulty;
+    this.bowlScaleX = getGetBowlScaleX(difficulty);
+    this.bowl.setScale(this.bowlScaleX, 1);
     this.mode = 'playing';
     this.menuOpen = false;
     this.score = 0;
@@ -298,15 +312,21 @@ export class GetScene extends Phaser.Scene {
     this.catcher.play(petAnimKey(State.data.petSpecies, 'bounce'));
     this.modeText.setText(`${GET_DIFFICULTIES[difficulty].label} · ${GET_DIFFICULTIES[difficulty].fallSpeed}px/s`);
     this.updateScore();
-    toast(this, this.cameras.main.width / 2, 126, 'Catch notes · dodge poop!', '#ffe066');
+    toast(
+      this,
+      this.cameras.main.width / 2,
+      126,
+      `-${energyCost} energy · catch notes · dodge poop!`,
+      '#ffe066',
+    );
   }
 
   private spawnEvent(event: GetEvent) {
     const sprite = this.add
-      .image(event.x, this.spawnY, event.kind === 'note' ? 'music-note' : 'poop')
+      .image(event.x, this.spawnY, event.kind === 'note' ? getGetNoteTexture() : 'poop')
       .setDepth(10);
     if (event.kind === 'note') {
-      sprite.setTint(NOTE_TINTS[this.score % NOTE_TINTS.length]!);
+      sprite.setTint(Phaser.Utils.Array.GetRandom(NOTE_TINTS));
     }
     this.falling.push({ event, sprite, crossedBowl: false });
   }
@@ -326,7 +346,7 @@ export class GetScene extends Phaser.Scene {
     toast(this, this.catcher.x, this.bowlY - 30, `♪ ${this.score}`, '#ffe066');
     this.tweens.add({
       targets: this.bowl,
-      scaleX: { from: 1.12, to: 1 },
+      scaleX: { from: this.bowlScaleX * 1.12, to: this.bowlScaleX },
       scaleY: { from: 0.88, to: 1 },
       duration: 130,
     });
@@ -485,7 +505,8 @@ export class GetScene extends Phaser.Scene {
 
       if (!object.crossedBowl && previousY <= this.bowlY && object.sprite.y >= this.bowlY) {
         object.crossedBowl = true;
-        const overlapsBowl = Math.abs(object.sprite.x - this.bowl.x) <= GET_CATCH_HALF_WIDTH;
+        const overlapsBowl =
+          Math.abs(object.sprite.x - this.bowl.x) <= GET_CATCH_HALF_WIDTH[this.difficulty];
         if (object.event.kind === 'note' && overlapsBowl) {
           this.catchNote(object);
           continue;
