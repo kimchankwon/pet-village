@@ -48,6 +48,7 @@ export const GET_CATCH_HALF_WIDTH: Record<GetDifficulty, number> = {
   hard: 26,
 };
 
+/** Convert the chosen catch radius into the bowl artwork's horizontal scale. */
 export function getGetBowlScaleX(difficulty: GetDifficulty): number {
   return GET_CATCH_HALF_WIDTH[difficulty] / GET_BOWL_BASE_HALF_WIDTH;
 }
@@ -69,6 +70,7 @@ export function getGetNoteTexture(random: () => number = Math.random): string {
   return GET_NOTE_TEXTURES[index]!;
 }
 
+/** Horizontal separation required to clear a poop while retaining input margin. */
 export function getGetDodgeDistance(difficulty: GetDifficulty): number {
   return GET_CATCH_HALF_WIDTH[difficulty] + GET_POOP_HALF_WIDTH + GET_SAFE_MARGIN + 44;
 }
@@ -126,10 +128,12 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+/** Sample a value inside an inclusive numeric range. */
 function randomBetween(random: () => number, min: number, max: number): number {
   return min + random() * (max - min);
 }
 
+/** Choose how many notes appear before the next poop. */
 function randomPoopGap(
   random: () => number,
   [minNotes, maxNotes]: GetDifficultyConfig['poopGap'],
@@ -164,7 +168,7 @@ export function buildGetTrack(
     const arrivalMs = noteArrivalMs;
     const travelMs = Math.max(0, arrivalMs - safeAtMs);
     // Leave 18% movement headroom for reaction time and imperfect input.
-    const maxTravel = Math.max(20, getGetTravelDistance(travelMs) * 0.82);
+    const maxTravel = getGetTravelDistance(travelMs) * 0.82;
     const noteX = randomBetween(
       random,
       Math.max(options.minX, safeX - maxTravel),

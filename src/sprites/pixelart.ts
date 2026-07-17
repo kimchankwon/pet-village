@@ -1264,7 +1264,7 @@ const POOP: Grid = [
 ];
 const CATCH_BOWL: Grid = [
   '......................',
-  'kk..................kk',
+  '......................',
   '.kkkkkkkkkkkkkkkkkkkk.',
   '..kqqqqqqqqqqqqqqqqk..',
   '...kqqqqqqqqqqqqqqk...',

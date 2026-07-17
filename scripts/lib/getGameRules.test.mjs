@@ -25,6 +25,11 @@ function seededRandom(seed = 7) {
   };
 }
 
+function sequenceRandom(values, fallback = 0.5) {
+  let index = 0;
+  return () => values[index++] ?? fallback;
+}
+
 test('Get difficulty makes falling objects progressively faster', () => {
   assert.ok(GET_DIFFICULTIES.easy.fallSpeed < GET_DIFFICULTIES.normal.fallSpeed);
   assert.ok(GET_DIFFICULTIES.normal.fallSpeed < GET_DIFFICULTIES.hard.fallSpeed);
@@ -79,6 +84,30 @@ test('Get tracks vary note timing, positions, and poop cadence between runs', ()
     }
   }
   assert.ok(new Set(poopGaps).size > 1);
+});
+
+test('Easy worst-case post-poop timing keeps the next note within its reachable distance', () => {
+  const track = buildGetTrack('easy', {
+    ...FIELD,
+    random: sequenceRandom([
+      0, // first poop after two notes
+      0.5, 0.5, // first note position and interval jitter
+      0.5, 0, // second note position and minimum interval jitter
+      0.5, // following poop gap
+      0.5, 1, 1, // centered poop, right escape, maximum delay jitter
+      1, // place the next note at the edge of its allowed travel
+    ]),
+  });
+  const byArrival = [...track].sort((a, b) => a.arrivalMs - b.arrivalMs);
+  const poopIndex = byArrival.findIndex((event) => event.kind === 'poop');
+  const poop = byArrival[poopIndex];
+  const nextNote = byArrival[poopIndex + 1];
+
+  assert.equal(poop.kind, 'poop');
+  assert.equal(nextNote.kind, 'note');
+  assert.equal(nextNote.arrivalMs - poop.arrivalMs, 30);
+  const reachableWithHeadroom = getGetTravelDistance(30) * 0.82;
+  assert.ok(Math.abs(nextNote.x - poop.escapeX) <= reachableWithHeadroom + 0.001);
 });
 
 for (const difficulty of DIFFICULTIES) {
