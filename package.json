@@ -8,7 +8,7 @@
     "dev:frontend": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "node --test scripts/lib/*.test.mjs",
+    "test": "npx tsx --test scripts/lib/*.test.mjs",
     "sprite:repair": "node scripts/repair-sprite-outline.mjs",
     "sprite:miniteen": "tsx scripts/imagine-to-miniteen.mts",
     "sprite:puffles": "tsx scripts/imagine-to-puffles.mts",

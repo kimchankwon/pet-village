@@ -16,7 +16,8 @@ const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#efe8ff' };
 /** Target display heights so every card in a row matches, regardless of texture size. */
 const COMPANION_DISPLAY_H = 61; // was 32×1.9
 const PUFFLE_DISPLAY_H = 50; // was 32×1.55
-const SELECTED_SCALE_BUMP = 0.35;
+/** Selected cards grow relative to base (not +fixed) so plate pets stay sane. */
+const SELECTED_SCALE_MULT = 1.2;
 
 /**
  * First-run screen: pick a Tamagotchi or Club Penguin Puffle and name them.
@@ -198,7 +199,7 @@ export class AdoptScene extends Phaser.Scene {
       card.ring.setFillStyle(on ? 0x342a52 : 0x2a2440, 0.95);
       const displayH = def.group === 'puffle' ? PUFFLE_DISPLAY_H : COMPANION_DISPLAY_H;
       const base = petDrawScale(this, def.id, displayH);
-      card.sprite.setScale(on ? base + SELECTED_SCALE_BUMP : base);
+      card.sprite.setScale(on ? base * SELECTED_SCALE_MULT : base);
     }
     if (this.nameInput) {
       const def = PET_SPECIES[species];

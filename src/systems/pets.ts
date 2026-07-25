@@ -1,3 +1,5 @@
+import { PET_DISPLAY_HEIGHT, scaleToDisplayHeight } from './characterScale';
+
 export type ClassicSpecies = 'mametchi' | 'kuchipatchi' | 'mimitchi' | 'violetchi';
 export type PuffleColor =
   | 'blue'
@@ -177,11 +179,7 @@ export function petAnimKey(species: PetSpecies, kind: 'bounce' | 'walk'): string
   return `${species}-${kind}`;
 }
 
-/**
- * Target on-screen height for every pet species (classic 32px art × 1.5).
- * Undersized or taller frames scale so all pets read the same size in-world.
- */
-export const PET_DISPLAY_HEIGHT = 48;
+export { PET_DISPLAY_HEIGHT };
 
 /** Minimal texture host so callers can pass a Phaser scene without a hard import. */
 type TextureHost = {
@@ -202,10 +200,8 @@ export function petDrawScale(
   displayHeight: number = PET_DISPLAY_HEIGHT,
 ): number {
   const key = petTextureKey(species, 'idle1');
-  if (!scene.textures.exists(key)) return displayHeight / 32;
-  const h = scene.textures.getFrame(key)?.height ?? 0;
-  if (h <= 0) return displayHeight / 32;
-  return displayHeight / h;
+  const h = scene.textures.exists(key) ? (scene.textures.getFrame(key)?.height ?? 0) : 0;
+  return scaleToDisplayHeight(h, displayHeight, 32);
 }
 
 export function petAssetPath(species: PetSpecies, file: (typeof PET_ASSET_FILES)[number]): string {
