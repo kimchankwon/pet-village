@@ -102,7 +102,9 @@ type Grid = string[];
 // beak, close-set eyes, large white belly with soft grey under the chin,
 // orange feet. Landmark rows kept for clothes overlays:
 //   0–3 hat · 4–5 eyes/mask · 6–8 beak/chin · 9–16 body · 18–19 feet.
-const PENGUIN_DOWN_0: Grid = [
+// Grid fallback: idle plant + two alternating mid-stride frames.
+// Sheet frame 0 = idle (stop); frames 1–2 = walk L/R (not plant+hop).
+const PENGUIN_DOWN_IDLE: Grid = [
   '.......kkkk.......',
   '.....kkvvvvkk.....',
   '....kuvvvvvvuk....',
@@ -122,8 +124,30 @@ const PENGUIN_DOWN_0: Grid = [
   '..kvvvvwwwwvvvvk..',
   '...kVvvvvvvvvVk...',
   '....kVVvvvvVVk....',
-  '....koo....ook....',
+  '....koo....ook....', // both feet planted
   '...kOoo....ooOk...',
+];
+const PENGUIN_DOWN_0: Grid = [
+  '.......kkkk.......',
+  '.....kkvvvvkk.....',
+  '....kuvvvvvvuk....',
+  '...kuvvvvvvvvuk...',
+  '...kvvvwwvwwvvk...',
+  '...kvvvwkwkwvvk...',
+  '..kvvvvoOOOovvvk..',
+  '..kvvvooOOOoovvk..',
+  '..kvvvvzzzzzvvvk..',
+  '.kvkvvwwzzzzvvkvk.',
+  'kvkvvwwwwwwwwvvkvk',
+  'kvkvwwwwwwwwwwvkvk',
+  'kvkvwwwwwwwwwwvkvk',
+  '.kvvwwwwwwwwwwvvk.',
+  '.kvvvwwwwwwwwvvvk.',
+  '..kvvvvwwwwvvvvk..',
+  '...kVvvvvvvvvVk...',
+  '....kVVvvvvVVk....',
+  '...koo......ook...', // left foot forward/raised
+  '..kOoo........ook.',
 ];
 const PENGUIN_DOWN_1: Grid = [
   '.......kkkk.......',
@@ -144,10 +168,10 @@ const PENGUIN_DOWN_1: Grid = [
   '..kvvvvwwwwvvvvk..',
   '...kVvvvvvvvvVk...',
   '....kVVvvvvVVk....',
-  '...koo......ook...',
-  '..kOoo......ooOk..',
+  '...koo......ook...', // right foot forward/raised
+  '.koo........ooOk..',
 ];
-const PENGUIN_UP_0: Grid = [
+const PENGUIN_UP_IDLE: Grid = [
   '.......kkkk.......',
   '.....kkvvvvkk.....',
   '....kuvvvvvvuk....',
@@ -169,6 +193,28 @@ const PENGUIN_UP_0: Grid = [
   '....koo....ook....',
   '...kOoo....ooOk...',
 ];
+const PENGUIN_UP_0: Grid = [
+  '.......kkkk.......',
+  '.....kkvvvvkk.....',
+  '....kuvvvvvvuk....',
+  '...kuvvvvvvvvuk...',
+  '...kvvvvvvvvvvk...',
+  '...kvvvvvvvvvvk...',
+  '..kvvvvvvvvvvvvk..',
+  '..kvvvvvvvvvvvvk..',
+  '.kvkvvvvvvvvvkvvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvvvvvvvvvvvkvk.',
+  'kvkvVvvvvvvvvVkvk.',
+  '.kvvVvvvvvvvvVvk..',
+  '.kvvvVvvvvvvVvvvk.',
+  '..kvvvvVVVVvvvvk..',
+  '...kVvvvvvvvvVk...',
+  '....kVVvvvvVVk....',
+  '...koo......ook...', // left foot forward
+  '..kOoo........ook.',
+];
 const PENGUIN_UP_1: Grid = [
   '.......kkkk.......',
   '.....kkvvvvkk.....',
@@ -188,11 +234,11 @@ const PENGUIN_UP_1: Grid = [
   '..kvvvvVVVVvvvvk..',
   '...kVvvvvvvvvVk...',
   '....kVVvvvvVVk....',
-  '...koo......ook...',
-  '..kOoo......ooOk..',
+  '...koo......ook...', // right foot forward
+  '.koo........ooOk..',
 ];
 // Side: CP profile — dome head, single eye, long orange beak, white belly
-const PENGUIN_SIDE_0: Grid = [
+const PENGUIN_SIDE_IDLE: Grid = [
   '......kkkk........',
   '....kkvvvvkk......',
   '...kuvvvvvvuk.....',
@@ -200,6 +246,28 @@ const PENGUIN_SIDE_0: Grid = [
   '..kvvvvvwwwvk.....', // single CP eye
   '..kvvvvvwkwvk.....',
   '..kvvvvvvoOook....', // long orange beak
+  '..kvvvvvvooOOok...',
+  '.kvvvvvvvvoOook...',
+  '.kvvvvvvwwwwvvk...',
+  'kvkvvvvwwwwwwvvk..',
+  'kvkvvvvwwwwwwvvk..',
+  'kvkvvvvwwzzzzvvk..',
+  '.kvvvvvwwzzzzvvk..',
+  '.kvvvvvwwwwzvvk...',
+  '..kvvvvwwwwvVk....',
+  '..kvvvvvvvvVk.....',
+  '...kVvvvvvVk......',
+  '....koo.ook.......', // both feet near plant
+  '...kOoo.ooOk......',
+];
+const PENGUIN_SIDE_0: Grid = [
+  '......kkkk........',
+  '....kkvvvvkk......',
+  '...kuvvvvvvuk.....',
+  '...kuvvvvvvvuk....',
+  '..kvvvvvwwwvk.....',
+  '..kvvvvvwkwvk.....',
+  '..kvvvvvvoOook....',
   '..kvvvvvvooOOok...',
   '.kvvvvvvvvoOook...',
   '.kvvvvvvwwwwvvk...',
@@ -1414,14 +1482,18 @@ function makeCobbleTile(scene: Phaser.Scene, key: string, size = 16) {
 /** Classic on-screen height (20 grid rows × SCALE). Plate textures scale to this. */
 export const PENGUIN_DISPLAY_HEIGHT = 20 * SCALE;
 /** Boot loads Imagine plates under this key prefix when present. */
-export const PENGUIN_PLATE_KEY = (facing: 'down' | 'up' | 'side', frame: 0 | 1) =>
+export const PENGUIN_PLATE_KEY = (facing: 'down' | 'up' | 'side', frame: 0 | 1 | 2) =>
   `penguin-plate-${facing}-${frame}`;
 
 const PENGUIN_FACINGS = ['down', 'up', 'side'] as const;
+/** 0 = idle plant (stop); 1–2 = alternating mid-stride walk. */
+const PENGUIN_FRAME_COUNT = 3;
 
 /** True when Boot preloaded Imagine plate frames for the player penguin. */
 export function hasPenguinPlates(scene: Phaser.Scene): boolean {
-  return PENGUIN_FACINGS.every((facing) => scene.textures.exists(PENGUIN_PLATE_KEY(facing, 0)));
+  return PENGUIN_FACINGS.every((facing) =>
+    ([0, 1, 2] as const).every((frame) => scene.textures.exists(PENGUIN_PLATE_KEY(facing, frame))),
+  );
 }
 
 /**
@@ -1534,6 +1606,9 @@ function stampClothesOnPlate(
 /**
  * Build penguin-down/up/side spritesheets from Imagine plate textures
  * (Boot preloads `penguin-plate-*`). Keeps plate resolution; nearest filter.
+ *
+ * Sheet frames: 0 = idle plant (stop), 1–2 = alternating walk strides.
+ * Walk anims use frames 1↔2 so the cycle never hops on one foot.
  */
 function makePenguinFromPlates(scene: Phaser.Scene) {
   const body = hexToRgb(PALETTE.v!);
@@ -1546,12 +1621,12 @@ function makePenguinFromPlates(scene: Phaser.Scene) {
     const fw = (src0 as HTMLImageElement).width || (src0 as HTMLCanvasElement).width;
     const fh = (src0 as HTMLImageElement).height || (src0 as HTMLCanvasElement).height;
     const sheet = document.createElement('canvas');
-    sheet.width = fw * 2;
+    sheet.width = fw * PENGUIN_FRAME_COUNT;
     sheet.height = fh;
     const sctx = sheet.getContext('2d')!;
 
-    for (let frame = 0; frame < 2; frame++) {
-      const srcKey = PENGUIN_PLATE_KEY(facing, frame as 0 | 1);
+    for (let frame = 0; frame < PENGUIN_FRAME_COUNT; frame++) {
+      const srcKey = PENGUIN_PLATE_KEY(facing, frame as 0 | 1 | 2);
       const srcImg = scene.textures.get(srcKey).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
       const tmp = document.createElement('canvas');
       tmp.width = fw;
@@ -1577,21 +1652,22 @@ function makePenguinFromPlates(scene: Phaser.Scene) {
   for (const key of ['walk-down', 'walk-up', 'walk-side'] as const) {
     if (anims.exists(key)) anims.remove(key);
   }
+  // Walk cycles frames 1↔2 (alternating feet). Frame 0 is idle plant for stop.
   anims.create({
     key: 'walk-down',
-    frames: anims.generateFrameNumbers('penguin-down', { start: 0, end: 1 }),
+    frames: anims.generateFrameNumbers('penguin-down', { start: 1, end: 2 }),
     frameRate: 6,
     repeat: -1,
   });
   anims.create({
     key: 'walk-up',
-    frames: anims.generateFrameNumbers('penguin-up', { start: 0, end: 1 }),
+    frames: anims.generateFrameNumbers('penguin-up', { start: 1, end: 2 }),
     frameRate: 6,
     repeat: -1,
   });
   anims.create({
     key: 'walk-side',
-    frames: anims.generateFrameNumbers('penguin-side', { start: 0, end: 1 }),
+    frames: anims.generateFrameNumbers('penguin-side', { start: 1, end: 2 }),
     frameRate: 6,
     repeat: -1,
   });
@@ -1602,15 +1678,15 @@ function makePenguin(scene: Phaser.Scene) {
     makePenguinFromPlates(scene);
     return;
   }
-  // Classic 18×20 grid fallback (pre-plate path).
-  makeTexture(scene, 'penguin-down', dressPenguin([PENGUIN_DOWN_0, PENGUIN_DOWN_1], 'down'));
-  makeTexture(scene, 'penguin-up', dressPenguin([PENGUIN_UP_0, PENGUIN_UP_1], 'up'));
-  makeTexture(scene, 'penguin-side', dressPenguin([PENGUIN_SIDE_0, PENGUIN_SIDE_1], 'side'));
+  // Classic 18×20 grid fallback (pre-plate path): idle plant + 2 walk strides.
+  makeTexture(scene, 'penguin-down', dressPenguin([PENGUIN_DOWN_IDLE, PENGUIN_DOWN_0, PENGUIN_DOWN_1], 'down'));
+  makeTexture(scene, 'penguin-up', dressPenguin([PENGUIN_UP_IDLE, PENGUIN_UP_0, PENGUIN_UP_1], 'up'));
+  makeTexture(scene, 'penguin-side', dressPenguin([PENGUIN_SIDE_IDLE, PENGUIN_SIDE_0, PENGUIN_SIDE_1], 'side'));
   const anims = scene.anims;
   if (!anims.exists('walk-down')) {
-    anims.create({ key: 'walk-down', frames: anims.generateFrameNumbers('penguin-down', { start: 0, end: 1 }), frameRate: 6, repeat: -1 });
-    anims.create({ key: 'walk-up', frames: anims.generateFrameNumbers('penguin-up', { start: 0, end: 1 }), frameRate: 6, repeat: -1 });
-    anims.create({ key: 'walk-side', frames: anims.generateFrameNumbers('penguin-side', { start: 0, end: 1 }), frameRate: 6, repeat: -1 });
+    anims.create({ key: 'walk-down', frames: anims.generateFrameNumbers('penguin-down', { start: 1, end: 2 }), frameRate: 6, repeat: -1 });
+    anims.create({ key: 'walk-up', frames: anims.generateFrameNumbers('penguin-up', { start: 1, end: 2 }), frameRate: 6, repeat: -1 });
+    anims.create({ key: 'walk-side', frames: anims.generateFrameNumbers('penguin-side', { start: 1, end: 2 }), frameRate: 6, repeat: -1 });
   }
 }
 

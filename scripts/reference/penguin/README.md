@@ -11,14 +11,16 @@ Match classic Club Penguin proportions and pose:
 | Pose | Flippers | Feet | Eyes (side) |
 |------|----------|------|-------------|
 | **Frame 0** (idle / stop) | Hang **down** by the body — never T-pose | **Both planted** flat | White oval + black pupil |
-| **Frame 1** (walk step) | Still by the body, slight sway ok | One foot steps / lifts | White oval + black pupil |
+| **Frame 1** (walk L) | Still by the body, slight sway ok | Viewer's-**left** foot raised mid-stride | White oval + black pupil |
+| **Frame 2** (walk R) | Still by the body, slight sway ok | Viewer's-**right** foot raised mid-stride | White oval + black pupil |
 
 Front eyes are white with black pupils. Side view must **never** use a solid
 black dot for the eye. Generate plates from the CP references under this folder
 (`cp-front.png`, `cp-side-angle.png`, `cp-back-angle.png`, `cp-tenor-frame.png`).
 
-When the player stops, scenes set texture frame **0** — so frame 0 is the
-standing idle, not a mid-walk hop.
+When the player stops, scenes set texture frame **0** — standing idle, not a
+mid-walk hop. Walk anims cycle frames **1↔2** so feet truly alternate (never
+plant + one-foot hop, which reads as sliding on one foot).
 
 ## Refresh
 
@@ -30,12 +32,12 @@ npm run sprite:penguin
 Poses:
 
 ```text
-scripts/reference/penguin/poses/{down,up,side}-{0,1}.png
+scripts/reference/penguin/poses/{down,up,side}-{0,1,2}.png
 # optional idle mirrors (same art as *-0):
 scripts/reference/penguin/poses/{down,up,side}-idle.png
 ```
 
-Output: `public/assets/player/penguin/`.
+Output: `public/assets/player/penguin/{down,up,side}-{0,1,2}.png`.
 
 Boot loads `penguin-plate-*` keys; `makePenguin` recolours body blues for the
 selected colourway and stamps clothes overlays at plate scale.

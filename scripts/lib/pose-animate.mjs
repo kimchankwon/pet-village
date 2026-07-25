@@ -390,7 +390,7 @@ export function sadPose(idle, opts = {}) {
 }
 
 /**
- * Walk: foot shuffle scaled to sprite height.
+ * Walk: true alternating bipedal step scaled to sprite height.
  *
  * Prefer authored / Grok Imagine walk plates when available (see
  * scripts/imagine-to-miniteen.mts). This is the procedural fallback only.
@@ -399,6 +399,10 @@ export function sadPose(idle, opts = {}) {
  * feet when dy>0 or when legs are pushed past the canvas edge. Keep every
  * foot pixel on-canvas (clamp destinations).
  *
+ * phase 1 → viewer's-left foot raised / forward; plant right
+ * phase 2 → viewer's-right foot raised / forward; plant left
+ * (mirrors each other so a 2-frame cycle never hops on one leg)
+ *
  * On large source plates (≫42px), a 1px stride is invisible — scale the
  * stride and foot band with character height so the walk still reads.
  */
@@ -406,14 +410,15 @@ export function walkPose(idle, phase) {
   const out = clonePng(idle);
   const b = contentBounds(out);
   const bodyH = Math.max(1, b.y1 - b.y0 + 1);
-  // Classic 32×42: band≈2–3, stride≈1. Plates (~300px): proportional motion.
+  // Classic 32×42: band≈3–4, stride≈1–2. Plates (~300px): proportional motion.
   // Cap band so tall plates don't lift half the silhouette as "feet".
-  const band = Math.max(2, Math.min(8, Math.round(bodyH * 0.12)));
-  const strideAmt = Math.max(1, Math.min(6, Math.round(bodyH * 0.04)));
-  const liftAmt = Math.max(1, Math.min(4, Math.round(bodyH * 0.03)));
+  const band = Math.max(3, Math.min(12, Math.round(bodyH * 0.14)));
+  const strideAmt = Math.max(1, Math.min(8, Math.round(bodyH * 0.05)));
+  const liftAmt = Math.max(1, Math.min(6, Math.round(bodyH * 0.045)));
+  const plantNudge = Math.max(0, Math.min(3, Math.round(bodyH * 0.015)));
   const footTop = b.y1 - band + 1;
-  // phase 1: left forward; phase 2: right forward
-  const stride = phase === 1 ? strideAmt : -strideAmt;
+  // phase 1: left (viewer) forward+up; phase 2: right forward+up
+  const leftForward = phase === 1;
 
   const feet = [];
   for (let y = footTop; y <= b.y1; y++) {
@@ -427,11 +432,19 @@ export function walkPose(idle, phase) {
 
   for (const p of feet) {
     const left = p.x < b.cx;
-    let nx = p.x + (left ? stride : -stride);
+    const forward = left === leftForward;
+    let nx = p.x;
     let ny = p.y;
-    // Slight lift on the forward foot only
-    const forward = (left && stride > 0) || (!left && stride < 0);
-    if (forward) ny = p.y - liftAmt;
+    if (forward) {
+      // Raised foot steps outward slightly and lifts
+      nx = p.x + (left ? -strideAmt : strideAmt);
+      ny = p.y - liftAmt;
+    } else {
+      // Plant foot shifts slightly opposite so the cycle doesn't look like a
+      // one-leg hop / slide on a fixed support.
+      nx = p.x + (left ? plantNudge : -plantNudge);
+      ny = p.y;
+    }
     // Never drop pixels off the canvas
     nx = Math.max(0, Math.min(out.width - 1, nx));
     ny = Math.max(0, Math.min(out.height - 1, ny));

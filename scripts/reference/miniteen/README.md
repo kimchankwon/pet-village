@@ -35,7 +35,8 @@ scripts/reference/miniteen/poses/<id>/{idle,walk1,walk2,happy,sad,jump}.png
 ```
 
 **Walk:** always prefer Imagine `walk1`/`walk2` plates (mid-stride, opposite
-feet). Walks must stay **upright bipedal on two legs** matching the idle —
+feet — never the same foot raised on both frames, which reads as sliding on
+one leg). Walks must stay **upright bipedal on two legs** matching the idle —
 never a four-legged animal trot (that turned Kimja into a DOA-lookalike dog).
 Arms stay arms by the body; only the two feet step. Optional **slight
 three-quarter** lean toward **screen-right** so `flipX` faces the move
