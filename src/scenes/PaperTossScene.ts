@@ -12,7 +12,7 @@ import {
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
-import { petAnimKey, petTextureKey } from '../systems/pets';
+import { petAnimKey, petDrawScale, petTextureKey } from '../systems/pets';
 
 const GROUND_Y = 480;
 // The ball sits right at the pet thrower's hands.
@@ -151,7 +151,7 @@ export class PaperTossScene extends Phaser.Scene {
     // hurls it on release (the ball is the projectile, never the pet).
     this.thrower = this.add
       .sprite(BALL_START.x - 36, GROUND_Y - 26, petTextureKey(State.data.petSpecies, 'idle1'))
-      .setScale(2.2)
+      .setScale(petDrawScale(this, State.data.petSpecies, 70))
       .setDepth(8);
     this.thrower.play(petAnimKey(State.data.petSpecies, 'bounce'));
 

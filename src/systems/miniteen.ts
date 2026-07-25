@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { PENGUIN_DISPLAY_HEIGHT } from '../sprites/pixelart';
 import { State } from './GameState';
 import { Menu, toast, type MenuOption } from './UI';
 import { WandererNpc, type NpcTalkCallbacks } from './WandererNpc';
@@ -28,16 +29,20 @@ export interface MiniteenDef {
 
 /** Native height of classic chibi frames (before Phaser scale). */
 export const MINITEEN_NATIVE_HEIGHT = 42;
-/** Classic miniteen on-screen height at the default town scale (1.5). */
-export const MINITEEN_DISPLAY_HEIGHT = MINITEEN_NATIVE_HEIGHT * 1.5;
+/**
+ * Target on-screen height for every MINITEEN villager — matched to the
+ * player penguin so town characters read as the same size.
+ */
+export const MINITEEN_DISPLAY_HEIGHT = PENGUIN_DISPLAY_HEIGHT;
 
 /**
- * Phaser scale so a villager's idle texture draws at the same on-screen height
- * as a classic 32×42 sprite at `classicScale`.
+ * Phaser scale so a villager's idle texture draws at a fixed on-screen height.
  *
- * Source-plate frames (exported with `--plate`, typically ≫42px tall) are
- * scaled down with nearest-neighbour — same approach as DOA in PR #62.
- * Classic 32×42 assets keep `classicScale` unchanged.
+ * MINITEEN (any prefix other than `bong`) target {@link MINITEEN_DISPLAY_HEIGHT}
+ * so plate crops and classic 32×42 frames all match the penguin.
+ *
+ * Bongbongee reuses this helper with `classicScale` (historically 1.55 on 32px)
+ * and is unchanged in target height.
  */
 export function miniteenDrawScale(
   scene: Phaser.Scene,
@@ -45,14 +50,25 @@ export function miniteenDrawScale(
   classicScale = 1.5,
 ): number {
   const key = `${prefix}-idle`;
-  if (!scene.textures.exists(key)) return classicScale;
-  const frame = scene.textures.getFrame(key);
-  const h = frame?.height ?? 0;
-  // Classic game frames are ≤64px tall; anything larger is a source plate.
-  if (h <= 64) return classicScale;
-  // Bongbongee classic frames are 32×32; MINITEEN are 32×42.
-  const native = prefix === 'bong' ? 32 : MINITEEN_NATIVE_HEIGHT;
-  return (native * classicScale) / h;
+  const fallbackH = prefix === 'bong' ? 32 : MINITEEN_NATIVE_HEIGHT;
+  if (!scene.textures.exists(key)) {
+    return prefix === 'bong'
+      ? classicScale
+      : MINITEEN_DISPLAY_HEIGHT / fallbackH;
+  }
+  const h = scene.textures.getFrame(key)?.height ?? 0;
+  if (h <= 0) {
+    return prefix === 'bong'
+      ? classicScale
+      : MINITEEN_DISPLAY_HEIGHT / fallbackH;
+  }
+  // Bongbongee: keep the classic 32×1.55 target (plate or not).
+  if (prefix === 'bong') {
+    if (h <= 64) return classicScale;
+    return (32 * classicScale) / h;
+  }
+  // MINITEEN: always lock display height to the penguin.
+  return MINITEEN_DISPLAY_HEIGHT / h;
 }
 
 /** True when the loaded idle texture is a hi-res Imagine plate crop. */
@@ -311,7 +327,7 @@ export class MiniteenNpc extends WandererNpc {
       name: def.name,
       texPrefix: prefix,
       waypoints,
-      scale: miniteenDrawScale(scene, prefix, 1.5),
+      scale: miniteenDrawScale(scene, prefix),
       speed: 40 + (index % 4) * 6,
     });
     this.def = def;

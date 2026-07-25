@@ -7,14 +7,15 @@ import {
   PET_SPECIES_LIST,
   PUFFLE_PETS,
   petAnimKey,
+  petDrawScale,
   petTextureKey,
   type PetSpecies,
 } from '../systems/pets';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#efe8ff' };
-/** Must match `layoutRow` scales so selection doesn't blow out the denser row. */
-const COMPANION_SCALE = 1.9;
-const PUFFLE_SCALE = 1.55;
+/** Target display heights so every card in a row matches, regardless of texture size. */
+const COMPANION_DISPLAY_H = 61; // was 32×1.9
+const PUFFLE_DISPLAY_H = 50; // was 32×1.55
 const SELECTED_SCALE_BUMP = 0.35;
 
 /**
@@ -63,17 +64,17 @@ export class AdoptScene extends Phaser.Scene {
     this.add
       .text(cx, 108, 'Tamagotchi', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
-    this.layoutRow(CLASSIC_PETS, 168, 140, COMPANION_SCALE, 100);
+    this.layoutRow(CLASSIC_PETS, 168, 140, COMPANION_DISPLAY_H, 100);
 
     this.add
       .text(cx, 232, 'Friends', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
-    this.layoutRow(MASCOT_PETS, 288, 140, COMPANION_SCALE, 100);
+    this.layoutRow(MASCOT_PETS, 288, 140, COMPANION_DISPLAY_H, 100);
 
     this.add
       .text(cx, 352, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
-    this.layoutRow(PUFFLE_PETS, 408, 72, PUFFLE_SCALE, 88);
+    this.layoutRow(PUFFLE_PETS, 408, 72, PUFFLE_DISPLAY_H, 88);
 
     this.selectSpecies('mametchi');
 
@@ -138,7 +139,7 @@ export class AdoptScene extends Phaser.Scene {
     defs: typeof CLASSIC_PETS | typeof PUFFLE_PETS | typeof MASCOT_PETS,
     centerY: number,
     spacing: number,
-    scale: number,
+    displayH: number,
     cardH: number,
   ) {
     const n = defs.length;
@@ -152,6 +153,7 @@ export class AdoptScene extends Phaser.Scene {
         .setStrokeStyle(2, 0x3a3352)
         .setInteractive({ useHandCursor: true });
 
+      const scale = petDrawScale(this, def.id, displayH);
       const sprite = this.add
         .sprite(x, centerY - (def.group === 'puffle' ? 8 : 10), petTextureKey(def.id, 'idle1'))
         .setScale(scale)
@@ -194,7 +196,8 @@ export class AdoptScene extends Phaser.Scene {
       const on = def.id === species;
       card.ring.setStrokeStyle(2, on ? 0x7ed6a8 : 0x3a3352);
       card.ring.setFillStyle(on ? 0x342a52 : 0x2a2440, 0.95);
-      const base = def.group === 'puffle' ? PUFFLE_SCALE : COMPANION_SCALE;
+      const displayH = def.group === 'puffle' ? PUFFLE_DISPLAY_H : COMPANION_DISPLAY_H;
+      const base = petDrawScale(this, def.id, displayH);
       card.sprite.setScale(on ? base + SELECTED_SCALE_BUMP : base);
     }
     if (this.nameInput) {

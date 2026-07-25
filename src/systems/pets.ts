@@ -177,6 +177,37 @@ export function petAnimKey(species: PetSpecies, kind: 'bounce' | 'walk'): string
   return `${species}-${kind}`;
 }
 
+/**
+ * Target on-screen height for every pet species (classic 32px art × 1.5).
+ * Undersized or taller frames scale so all pets read the same size in-world.
+ */
+export const PET_DISPLAY_HEIGHT = 48;
+
+/** Minimal texture host so callers can pass a Phaser scene without a hard import. */
+type TextureHost = {
+  textures: {
+    exists: (key: string) => boolean;
+    getFrame: (key: string) => { height: number } | null | undefined;
+  };
+};
+
+/**
+ * Phaser scale so `species` idle art draws at `displayHeight` world pixels.
+ * Uses the loaded texture height (not a hard-coded 1.5) so 29px / 32px /
+ * hi-res plates all land on the same on-screen size.
+ */
+export function petDrawScale(
+  scene: TextureHost,
+  species: PetSpecies,
+  displayHeight: number = PET_DISPLAY_HEIGHT,
+): number {
+  const key = petTextureKey(species, 'idle1');
+  if (!scene.textures.exists(key)) return displayHeight / 32;
+  const h = scene.textures.getFrame(key)?.height ?? 0;
+  if (h <= 0) return displayHeight / 32;
+  return displayHeight / h;
+}
+
 export function petAssetPath(species: PetSpecies, file: (typeof PET_ASSET_FILES)[number]): string {
   return `assets/pet/${species}/${file}.png`;
 }

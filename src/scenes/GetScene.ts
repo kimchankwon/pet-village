@@ -13,7 +13,7 @@ import {
   type GetDifficulty,
   type GetEvent,
 } from '../systems/getGameRules';
-import { petAnimKey, petTextureKey } from '../systems/pets';
+import { petAnimKey, petDrawScale, petTextureKey } from '../systems/pets';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
@@ -118,7 +118,7 @@ export class GetScene extends Phaser.Scene {
 
     this.catcher = this.add
       .sprite(cx, this.floorY - 42, petTextureKey(State.data.petSpecies, 'idle1'))
-      .setScale(2.2)
+      .setScale(petDrawScale(this, State.data.petSpecies, 70))
       .setDepth(12);
     if (this.catcher.displayHeight > 86) {
       const scale = this.catcher.scaleX * (86 / this.catcher.displayHeight);
