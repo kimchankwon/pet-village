@@ -318,7 +318,17 @@ function CloudGame() {
   }
 
   if (cloudSave === undefined || !hydrated) {
-    return <div className="boot">Loading your village…</div>;
+    return (
+      <div className="boot">
+        <div className="boot-stack">
+          <p className="boot-title">PET VILLAGE</p>
+          <p className="boot-status">Loading your village…</p>
+          <div className="boot-bar" aria-hidden>
+            <div className="boot-bar-fill" />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -399,7 +409,15 @@ export function App() {
   return (
     <>
       <AuthLoading>
-        <div className="boot">Checking session…</div>
+        <div className="boot">
+          <div className="boot-stack">
+            <p className="boot-title">PET VILLAGE</p>
+            <p className="boot-status">Checking session…</p>
+            <div className="boot-bar" aria-hidden>
+              <div className="boot-bar-fill" />
+            </div>
+          </div>
+        </div>
       </AuthLoading>
       <Unauthenticated>
         <AuthPanel onGuest={() => setGuest(true)} />
