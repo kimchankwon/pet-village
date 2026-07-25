@@ -18,13 +18,122 @@ import { MINITEEN, miniteenTexPrefix } from '../systems/miniteen';
 
 const NPC_POSES = ['idle', 'walk1', 'walk2', 'happy', 'sad', 'jump'] as const;
 
+const LOAD_BG = 0x1a1626;
+const LOAD_PANEL = 0x241f35;
+const LOAD_LINE = 0x3a3352;
+const LOAD_ACCENT = 0x7ed6a8;
+const LOAD_BAR_EMPTY = 0x161225;
+const LOAD_MUTED = '#a89bc4';
+const LOAD_TITLE = '#7ed6a8';
+const LOAD_TEXT = '#efe8ff';
+
+/**
+ * Full-screen loading chrome while Boot preloads sprites / plates.
+ * Built with pure Phaser graphics so it is available before any assets load.
+ */
+class BootLoadingScreen {
+  private root: Phaser.GameObjects.Container;
+  private barFill: Phaser.GameObjects.Rectangle;
+  private status: Phaser.GameObjects.Text;
+  private percent: Phaser.GameObjects.Text;
+  private readonly barW: number;
+  private readonly barH = 14;
+
+  constructor(scene: Phaser.Scene) {
+    const w = scene.scale.width;
+    const h = scene.scale.height;
+    this.barW = Math.min(320, Math.max(180, Math.floor(w * 0.55)));
+
+    const bg = scene.add.rectangle(0, 0, w, h, LOAD_BG).setOrigin(0.5);
+    const panel = scene.add
+      .rectangle(0, 0, this.barW + 48, 148, LOAD_PANEL)
+      .setOrigin(0.5)
+      .setStrokeStyle(2, LOAD_LINE);
+
+    const title = scene.add
+      .text(0, -44, 'PET VILLAGE', {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: '16px',
+        color: LOAD_TITLE,
+      })
+      .setOrigin(0.5);
+
+    this.status = scene.add
+      .text(0, -8, 'Loading sprites…', {
+        fontFamily: 'VT323, monospace',
+        fontSize: '22px',
+        color: LOAD_MUTED,
+      })
+      .setOrigin(0.5);
+
+    const barBg = scene.add
+      .rectangle(0, 24, this.barW, this.barH, LOAD_BAR_EMPTY)
+      .setOrigin(0.5)
+      .setStrokeStyle(2, LOAD_LINE);
+
+    this.barFill = scene.add
+      .rectangle(-this.barW / 2 + 2, 24, 2, this.barH - 4, LOAD_ACCENT)
+      .setOrigin(0, 0.5);
+
+    this.percent = scene.add
+      .text(0, 52, '0%', {
+        fontFamily: 'VT323, monospace',
+        fontSize: '20px',
+        color: LOAD_TEXT,
+      })
+      .setOrigin(0.5);
+
+    this.root = scene.add.container(w / 2, h / 2, [
+      bg,
+      panel,
+      title,
+      this.status,
+      barBg,
+      this.barFill,
+      this.percent,
+    ]);
+    this.root.setDepth(10_000);
+  }
+
+  setProgress(value: number) {
+    const t = Phaser.Math.Clamp(value, 0, 1);
+    const inner = this.barW - 4;
+    this.barFill.width = Math.max(2, Math.floor(inner * t));
+    this.percent.setText(`${Math.round(t * 100)}%`);
+  }
+
+  setStatus(msg: string) {
+    this.status.setText(msg);
+  }
+
+  destroy() {
+    this.root.destroy(true);
+  }
+}
+
 // Loads pet + NPC sprites, then Adopt (first run) or Town.
 export class BootScene extends Phaser.Scene {
+  private loadingUi: BootLoadingScreen | null = null;
+
   constructor() {
     super('Boot');
   }
 
   preload() {
+    // Draw chrome first so the player sees feedback while the queue fills
+    // (hundreds of pet / MINITEEN / penguin plate PNGs).
+    this.loadingUi = new BootLoadingScreen(this);
+    this.loadingUi.setProgress(0);
+
+    this.load.on('progress', (value: number) => {
+      this.loadingUi?.setProgress(value);
+      this.loadingUi?.setStatus('Loading sprites…');
+    });
+    this.load.once('complete', () => {
+      this.loadingUi?.setProgress(1);
+      this.loadingUi?.setStatus('Preparing village…');
+    });
+
     this.load.setPath(import.meta.env.BASE_URL);
     for (const species of PET_SPECIES_LIST) {
       for (const file of PET_ASSET_FILES) {
@@ -66,6 +175,10 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
+    // Still show the loading chrome while we build generated textures + anims.
+    this.loadingUi?.setStatus('Preparing village…');
+    this.loadingUi?.setProgress(1);
+
     generateTextures(this);
 
     // Source-plate frames (≫64px) scale down in-game — force nearest-neighbour
@@ -148,6 +261,9 @@ export class BootScene extends Phaser.Scene {
         repeat: -1,
       });
     }
+
+    this.loadingUi?.destroy();
+    this.loadingUi = null;
 
     if (!State.data.adopted) {
       this.scene.start('Adopt');
