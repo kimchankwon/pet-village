@@ -111,7 +111,7 @@ test('walkPose phase 1 and 2 raise opposite feet', () => {
   const w2 = walkPose(idle, 2);
   const r1 = footRaise(w1);
   const r2 = footRaise(w2);
-  assert.notEqual(r1, 'even', `walk1 should raise a foot, got ${r1}`);
-  assert.notEqual(r2, 'even', `walk2 should raise a foot, got ${r2}`);
-  assert.notEqual(r1, r2, `walk phases must alternate feet (got ${r1}/${r2})`);
+  // Documented mapping: phase 1 = viewer-left foot, phase 2 = viewer-right foot.
+  assert.equal(r1, 'L', `walk1 should raise the viewer-left foot, got ${r1}`);
+  assert.equal(r2, 'R', `walk2 should raise the viewer-right foot, got ${r2}`);
 });
