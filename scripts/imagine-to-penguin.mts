@@ -5,8 +5,14 @@
  * bg, shared bottom-aligned canvas per facing so walk frames don't jitter.
  * Phaser scales them with nearest-neighbour — no majority-downsample crush.
  *
- * Source: scripts/reference/penguin/poses/{down,up,side}-{0,1}.png
- * Output: public/assets/player/penguin/{down,up,side}-{0,1}.png
+ * Source: scripts/reference/penguin/poses/{down,up,side}-{0,1,2}.png
+ * Output: public/assets/player/penguin/{down,up,side}-{0,1,2}.png
+ *
+ * Frame layout (per facing):
+ *   0 = idle plant (both feet flat — used when the player stops)
+ *   1 = mid-stride, viewer's-left foot raised
+ *   2 = mid-stride, viewer's-right foot raised
+ * Walk anims cycle frames 1↔2 so steps truly alternate; stop snaps to 0.
  *
  *   npm run sprite:penguin
  */
@@ -23,7 +29,7 @@ const PLATE_MAX_SIDE = 512;
 const REF = path.resolve('scripts/reference/penguin/poses');
 const OUT = path.resolve('public/assets/player/penguin');
 const FACINGS = ['down', 'up', 'side'] as const;
-const FRAMES = [0, 1] as const;
+const FRAMES = [0, 1, 2] as const;
 
 function blank(w: number, h: number) {
   const png = new PNG({ width: w, height: h });
