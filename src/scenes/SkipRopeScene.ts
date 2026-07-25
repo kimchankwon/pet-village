@@ -11,7 +11,7 @@ import {
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
-import { petAnimKey, petTextureKey } from '../systems/pets';
+import { petAnimKey, petDrawScale, petTextureKey } from '../systems/pets';
 import { MINITEEN, miniteenDrawScale, miniteenTexPrefix } from '../systems/miniteen';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
@@ -157,7 +157,7 @@ export class SkipRopeScene extends Phaser.Scene {
     this.petBaseY = PET_GROUND_Y;
     this.petSprite = this.add
       .sprite(this.petX, this.petBaseY, petTextureKey(State.data.petSpecies, 'idle1'))
-      .setScale(2.3)
+      .setScale(petDrawScale(this, State.data.petSpecies, 74))
       .setDepth(10);
     this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
 

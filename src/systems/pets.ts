@@ -1,3 +1,5 @@
+import { PET_DISPLAY_HEIGHT, scaleToDisplayHeight } from './characterScale';
+
 export type ClassicSpecies = 'mametchi' | 'kuchipatchi' | 'mimitchi' | 'violetchi';
 export type PuffleColor =
   | 'blue'
@@ -175,6 +177,31 @@ export function petTextureKey(species: PetSpecies, pose: PetPose): string {
 
 export function petAnimKey(species: PetSpecies, kind: 'bounce' | 'walk'): string {
   return `${species}-${kind}`;
+}
+
+export { PET_DISPLAY_HEIGHT };
+
+/** Minimal texture host so callers can pass a Phaser scene without a hard import. */
+type TextureHost = {
+  textures: {
+    exists: (key: string) => boolean;
+    getFrame: (key: string) => { height: number } | null | undefined;
+  };
+};
+
+/**
+ * Phaser scale so `species` idle art draws at `displayHeight` world pixels.
+ * Uses the loaded texture height (not a hard-coded 1.5) so 29px / 32px /
+ * hi-res plates all land on the same on-screen size.
+ */
+export function petDrawScale(
+  scene: TextureHost,
+  species: PetSpecies,
+  displayHeight: number = PET_DISPLAY_HEIGHT,
+): number {
+  const key = petTextureKey(species, 'idle1');
+  const h = scene.textures.exists(key) ? (scene.textures.getFrame(key)?.height ?? 0) : 0;
+  return scaleToDisplayHeight(h, displayHeight, 32);
 }
 
 export function petAssetPath(species: PetSpecies, file: (typeof PET_ASSET_FILES)[number]): string {

@@ -4,7 +4,7 @@ import { BUMP_ENERGY_COST, MIN_GAME_ENERGY, State, type BumpDifficulty } from '.
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
-import { petAnimKey, petTextureKey } from '../systems/pets';
+import { petAnimKey, petDrawScale, petTextureKey } from '../systems/pets';
 import { MINITEEN, miniteenDrawScale, miniteenTexPrefix } from '../systems/miniteen';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
@@ -139,7 +139,7 @@ export class BumpScene extends Phaser.Scene {
     this.petSprite = this.add
       .sprite(cx - CHAR_GAP, PLATFORM_Y, petTextureKey(State.data.petSpecies, 'idle1'))
       .setOrigin(0.5, 1)
-      .setScale(2.1)
+      .setScale(petDrawScale(this, State.data.petSpecies, 67))
       .setDepth(10);
     this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
 
@@ -463,8 +463,9 @@ export class BumpScene extends Phaser.Scene {
       this.mash = Math.min(1, this.mash + MASH_GAIN);
       this.tug = Math.min(1.05, this.tug + TAP_IMPULSE_BASE + TAP_IMPULSE_MASH_BONUS * this.mash);
       // A little lunge sells the shove.
-      this.petSprite.setScale(2.2, 2.05);
-      this.tweens.add({ targets: this.petSprite, scaleX: 2.1, scaleY: 2.1, duration: 120 });
+      const base = petDrawScale(this, State.data.petSpecies, 67);
+      this.petSprite.setScale(base * 1.05, base * 0.98);
+      this.tweens.add({ targets: this.petSprite, scaleX: base, scaleY: base, duration: 120 });
       return;
     }
     if (this.mode === 'wait') {

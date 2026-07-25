@@ -4,7 +4,7 @@ import { ITEMS, MIN_GAME_ENERGY, State } from '../systems/GameState';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
-import { petAnimKey, petTextureKey } from '../systems/pets';
+import { petAnimKey, petDrawScale, petTextureKey } from '../systems/pets';
 import {
   FISHING_BAIT_ID,
   fishingBaitCount,
@@ -143,7 +143,7 @@ export class FishingScene extends Phaser.Scene {
     this.rod = this.add.image(210, 430, 'rod').setScale(2.2).setDepth(12).setOrigin(0.2, 0.9);
     this.petSprite = this.add
       .sprite(168, 448, petTextureKey(State.data.petSpecies, 'idle1'))
-      .setScale(2.1)
+      .setScale(petDrawScale(this, State.data.petSpecies, 67))
       .setDepth(11);
     this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
 

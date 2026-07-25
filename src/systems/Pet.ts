@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { State } from './GameState';
 import { toast } from './UI';
 import { characterDepth } from './depth';
-import { petAnimKey, petTextureKey, type PetPose } from './pets';
+import { petAnimKey, petDrawScale, petTextureKey, type PetPose } from './pets';
 import { petLine } from './petDialog';
 import { ACCESSORIES, ACCESSORY_LAYOUT, SPECIES_ACCESSORY_NUDGE, type AccessoryId } from './accessories';
 import { clampToMovementBounds, type MovementBounds } from './movementBounds';
@@ -50,7 +50,9 @@ export class Pet {
 
   constructor(scene: Phaser.Scene, x: number, y: number, movementBounds?: MovementBounds) {
     this.scene = scene;
-    this.sprite = scene.add.sprite(x, y, this.tex('idle1')).setScale(1.5);
+    this.sprite = scene.add
+      .sprite(x, y, this.tex('idle1'))
+      .setScale(petDrawScale(scene, this.species()));
     const world = movementBounds ?? scene.physics.world.bounds;
     this.movementBounds = { x: world.x, y: world.y, width: world.width, height: world.height };
     const start = this.confinedPoint(x, y);
