@@ -195,7 +195,7 @@ export class PaperTossScene extends Phaser.Scene {
         {
           ...FONT,
           fontSize: '12px',
-          color: '#c8c8dc',
+          color: '#1a1a2e',
         },
       )
       .setOrigin(0.5)

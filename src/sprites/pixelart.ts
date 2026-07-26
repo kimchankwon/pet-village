@@ -1786,49 +1786,37 @@ export function generateTextures(scene: Phaser.Scene) {
   if (!scene.textures.exists('catch-bowl')) makeTexture(scene, 'catch-bowl', [CATCH_BOWL]);
   if (!scene.textures.exists('skiprope-booth')) makeTexture(scene, 'skiprope-booth', [SKIPROPE_BOOTH]);
 
-  // Always refresh outdoor tiles so winter palette applies after hot reload.
-  for (const key of ['tile-grass', 'tile-path', 'tile-plaza', 'tile-sand', 'tile-ocean', 'tile-ocean2', 'tile-snow']) {
-    if (scene.textures.exists(key)) scene.textures.remove(key);
-  }
-  makeTile(scene, 'tile-grass', '#e8f0f8', '#d5e2ef', 14);
-  makeTile(scene, 'tile-path', '#b8d4ea', '#9fc4df', 10);
-  makeTile(scene, 'tile-plaza', '#c5daf0', '#aecce6', 5);
-  makeTile(scene, 'tile-snow', '#eef3f8', '#dde7f0', 8);
-  // Shore: pale winter sand + colder ocean.
-  makeTile(scene, 'tile-sand', '#e6e0d4', '#d4cdc0', 12);
-  makeTile(scene, 'tile-ocean', '#4a8fbf', '#3a7aa8', 10);
-  makeTile(scene, 'tile-ocean2', '#5a9dcb', '#4689b6', 10);
+  // Outdoor tiles / buildings / props: create only when missing. Never remove
+  // shared keys while live Game Objects may still reference them (scenes call
+  // generateTextures on every enter). Winter palette is baked into the grids
+  // and makeTile colors below — a full reload picks them up after art changes.
+  const ensureTile = (key: string, a: string, b: string, n: number) => {
+    if (!scene.textures.exists(key)) makeTile(scene, key, a, b, n);
+  };
+  ensureTile('tile-grass', '#e8f0f8', '#d5e2ef', 14);
+  ensureTile('tile-path', '#b8d4ea', '#9fc4df', 10);
+  ensureTile('tile-plaza', '#c5daf0', '#aecce6', 5);
+  ensureTile('tile-snow', '#eef3f8', '#dde7f0', 8);
+  ensureTile('tile-sand', '#e6e0d4', '#d4cdc0', 12);
+  ensureTile('tile-ocean', '#4a8fbf', '#3a7aa8', 10);
+  ensureTile('tile-ocean2', '#5a9dcb', '#4689b6', 10);
 
-  // Buildings + fountain + outdoor props regenerate for snow caps / winter art.
-  for (const key of [
-    'house',
-    'shop',
-    'cafe',
-    'tree',
-    'bush',
-    'streetlamp',
-    'wildflower',
-    'fountain',
-    'bench',
-    'fence',
-    'rock',
-  ]) {
-    if (scene.textures.exists(key)) scene.textures.remove(key);
+  if (!scene.textures.exists('house')) makeTexture(scene, 'house', [HOUSE]);
+  if (!scene.textures.exists('shop')) makeTexture(scene, 'shop', [SHOP]);
+  if (!scene.textures.exists('cafe')) makeTexture(scene, 'cafe', [CAFE]);
+  if (!scene.textures.exists('tree')) makeTexture(scene, 'tree', [TREE]);
+  if (!scene.textures.exists('fountain')) {
+    makeTexture(scene, 'fountain', [FOUNTAIN_0, FOUNTAIN_1]);
   }
-  makeTexture(scene, 'house', [HOUSE]);
-  makeTexture(scene, 'shop', [SHOP]);
-  makeTexture(scene, 'cafe', [CAFE]);
-  makeTexture(scene, 'tree', [TREE]);
-  if (scene.anims.exists('fountain-splash')) scene.anims.remove('fountain-splash');
-  makeTexture(scene, 'fountain', [FOUNTAIN_0, FOUNTAIN_1]);
-  scene.anims.create({
-    key: 'fountain-splash',
-    frames: scene.anims.generateFrameNumbers('fountain', { start: 0, end: 1 }),
-    frameRate: 2.5,
-    repeat: -1,
-  });
+  if (!scene.anims.exists('fountain-splash') && scene.textures.exists('fountain')) {
+    scene.anims.create({
+      key: 'fountain-splash',
+      frames: scene.anims.generateFrameNumbers('fountain', { start: 0, end: 1 }),
+      frameRate: 2.5,
+      repeat: -1,
+    });
+  }
 
-  // Outdoor décor — ensure on every call so hot reloads pick up new props.
   const outdoor: [string, Grid][] = [
     ['bush', BUSH],
     ['rock', ROCK],
@@ -1854,8 +1842,6 @@ export function generateTextures(scene: Phaser.Scene) {
     ['bump-arena', BUMP_ARENA],
   ];
   for (const [key, grid] of outdoor) {
-    // Winter props recreated every call so snow art is never stale after hot reload.
-    if (scene.textures.exists(key)) scene.textures.remove(key);
-    makeTexture(scene, key, [grid]);
+    if (!scene.textures.exists(key)) makeTexture(scene, key, [grid]);
   }
 }

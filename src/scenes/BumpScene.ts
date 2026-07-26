@@ -166,7 +166,7 @@ export class BumpScene extends Phaser.Scene {
       .text(cx, viewH - 20, 'Wait for “PUSH!” — then mash tap / click / Space!', {
         ...FONT,
         fontSize: '12px',
-        color: '#c8c8dc',
+        color: '#1a1a2e',
       })
       .setOrigin(0.5)
       .setScrollFactor(0);

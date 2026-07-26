@@ -162,13 +162,15 @@ export class FishingScene extends Phaser.Scene {
     const title = this.add
       .text(140, 16, 'SHORE FISHING', { ...FONT, fontSize: '18px', color: '#ffe066' })
       .setScrollFactor(0);
-    this.statusText = this.add.text(20, 44, '', FONT).setScrollFactor(0);
+    this.statusText = this.add
+      .text(20, 44, '', { ...FONT, color: '#1a1a2e' })
+      .setScrollFactor(0);
     this.bestText = this.add
       .text(
         viewW - 52,
         16,
         `Best: ${State.data.biggestCatch || 0}cm · Bait: ${fishingBaitCount(State.data.inventory)}`,
-        { ...FONT, color: '#c8c8dc' },
+        { ...FONT, color: '#1a1a2e' },
       )
       .setOrigin(1, 0)
       .setScrollFactor(0);
@@ -176,7 +178,7 @@ export class FishingScene extends Phaser.Scene {
       .text(cx, viewH - 28, 'Drag to aim cast · Tap = short cast · Farther = bigger fish', {
         ...FONT,
         fontSize: '12px',
-        color: '#c8c8dc',
+        color: '#1a1a2e',
       })
       .setOrigin(0.5)
       .setScrollFactor(0);

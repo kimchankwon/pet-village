@@ -141,7 +141,7 @@ export class GetScene extends Phaser.Scene {
       .text(cx, viewH - 18, '← → / A D · tap or hold either side', {
         ...FONT,
         fontSize: '12px',
-        color: '#c8c8dc',
+        color: '#1a1a2e',
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
