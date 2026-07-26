@@ -114,27 +114,27 @@ export class BumpScene extends Phaser.Scene {
     const cx = this.cameras.main.width / 2;
     const viewW = this.cameras.main.width;
     const viewH = this.cameras.main.height;
-    this.cameras.main.setBackgroundColor('#2a2440');
+    this.cameras.main.setBackgroundColor('#1a2838');
 
-    // Cozy arena hall: back wall, bunting, floor band below the platform.
-    this.add.rectangle(cx, 90, viewW, 180, 0x3d3560);
-    this.add.rectangle(cx, 280, viewW, 220, 0x352e55);
-    this.add.rectangle(cx, viewH - 60, viewW, 140, 0x4a4370);
+    // Winter arena hall: cool walls, snow floor band, icy platform.
+    this.add.rectangle(cx, 90, viewW, 180, 0x3a5068);
+    this.add.rectangle(cx, 280, viewW, 220, 0x2e4258);
+    this.add.rectangle(cx, viewH - 60, viewW, 140, 0xd8e6f2);
     for (let i = 0; i < 8; i++) {
       this.add.rectangle(50 + i * 100, 70, 40, 8, i % 2 === 0 ? 0xff7fab : 0xffe066);
     }
 
     // The platform — fall off either end and the bout is over.
-    this.add.rectangle(cx, FALL_FLOOR_Y + 12, viewW, 6, 0x1a1a2e).setDepth(1);
+    this.add.rectangle(cx, FALL_FLOOR_Y + 12, viewW, 6, 0x0e1a28).setDepth(1);
     this.add.rectangle(cx - PLATFORM_HALF + 30, PLATFORM_Y + 70, 26, 90, 0x5d4037).setDepth(2);
     this.add.rectangle(cx + PLATFORM_HALF - 30, PLATFORM_Y + 70, 26, 90, 0x5d4037).setDepth(2);
     this.add
-      .rectangle(cx, PLATFORM_Y + 14, PLATFORM_HALF * 2, 28, 0xc9a06a)
-      .setStrokeStyle(3, 0x5d4037)
+      .rectangle(cx, PLATFORM_Y + 14, PLATFORM_HALF * 2, 28, 0xb8d4ea)
+      .setStrokeStyle(3, 0x5d7a90)
       .setDepth(3);
-    this.add.rectangle(cx, PLATFORM_Y + 3, PLATFORM_HALF * 2 - 8, 6, 0xe0c9a6).setDepth(3);
+    this.add.rectangle(cx, PLATFORM_Y + 3, PLATFORM_HALF * 2 - 8, 6, 0xd0e4f4).setDepth(3);
     // Centre ring mark.
-    this.add.rectangle(cx, PLATFORM_Y + 14, 8, 28, 0xb0855a).setDepth(3);
+    this.add.rectangle(cx, PLATFORM_Y + 14, 8, 28, 0x9fc4df).setDepth(3);
 
     this.petSprite = this.add
       .sprite(cx - CHAR_GAP, PLATFORM_Y, petTextureKey(State.data.petSpecies, 'idle1'))
@@ -166,7 +166,7 @@ export class BumpScene extends Phaser.Scene {
       .text(cx, viewH - 20, 'Wait for “PUSH!” — then mash tap / click / Space!', {
         ...FONT,
         fontSize: '12px',
-        color: '#c8c8dc',
+        color: '#1a1a2e',
       })
       .setOrigin(0.5)
       .setScrollFactor(0);

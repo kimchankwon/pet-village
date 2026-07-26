@@ -143,15 +143,15 @@ export class SkipRopeScene extends Phaser.Scene {
     const cx = this.cameras.main.width / 2;
     const viewW = this.cameras.main.width;
     const viewH = this.cameras.main.height;
-    this.cameras.main.setBackgroundColor('#2a2440');
+    this.cameras.main.setBackgroundColor('#1a2838');
     this.petX = cx;
 
-    // Cozy arcade playroom
-    this.add.rectangle(cx, 90, viewW, 180, 0x3d3560);
-    this.add.rectangle(cx, 280, viewW, 220, 0x352e55);
-    this.add.rectangle(cx, viewH - 70, viewW, 160, 0x4a4370);
+    // Winter indoor playroom
+    this.add.rectangle(cx, 90, viewW, 180, 0x3a5068);
+    this.add.rectangle(cx, 280, viewW, 220, 0x2e4258);
+    this.add.rectangle(cx, viewH - 70, viewW, 160, 0xd8e6f2);
     for (let i = 0; i < 8; i++) {
-      this.add.rectangle(50 + i * 100, 70, 40, 8, 0x5d5490);
+      this.add.rectangle(50 + i * 100, 70, 40, 8, 0x5a7088);
     }
 
     this.petBaseY = PET_GROUND_Y;
@@ -202,7 +202,7 @@ export class SkipRopeScene extends Phaser.Scene {
       .text(cx, viewH - 28, hint, {
         ...FONT,
         fontSize: '12px',
-        color: '#c8c8dc',
+        color: '#1a1a2e',
       })
       .setOrigin(0.5)
       .setScrollFactor(0);

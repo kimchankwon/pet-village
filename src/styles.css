@@ -30,8 +30,8 @@ body {
   font-family: 'VT323', monospace;
   font-size: 1.35rem;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, #2d2644 0%, transparent 55%),
-    linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+    radial-gradient(ellipse 80% 50% at 50% -10%, #2a4058 0%, transparent 55%),
+    linear-gradient(180deg, #152030 0%, #0e1a28 100%);
 }
 
 .boot {

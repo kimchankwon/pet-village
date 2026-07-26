@@ -18,11 +18,11 @@ import { MINITEEN, miniteenTexPrefix } from '../systems/miniteen';
 
 const NPC_POSES = ['idle', 'walk1', 'walk2', 'happy', 'sad', 'jump'] as const;
 
-const LOAD_BG = 0x1a1626;
-const LOAD_PANEL = 0x241f35;
-const LOAD_LINE = 0x3a3352;
+const LOAD_BG = 0x0e1a28;
+const LOAD_PANEL = 0x1a2838;
+const LOAD_LINE = 0x3a5068;
 const LOAD_ACCENT = 0x7ed6a8;
-const LOAD_BAR_EMPTY = 0x161225;
+const LOAD_BAR_EMPTY = 0x0a1520;
 const LOAD_MUTED = '#a89bc4';
 const LOAD_TITLE = '#7ed6a8';
 const LOAD_TEXT = '#efe8ff';

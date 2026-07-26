@@ -12,7 +12,7 @@ const BEZEL_DEPTH = 1_000_000;
 export function addWorldBezel(
   scene: Phaser.Scene,
   bounds: MovementBounds,
-  color = 0x1a1626,
+  color = 0x0e1a28,
 ): void {
   // Cover the largest possible zoomed-out viewport without sending enormous
   // shape vertices through WebGL (very large rectangles can rasterise badly).
