@@ -52,9 +52,10 @@ const CLASSIC: PetDef[] = [
   },
   {
     id: 'mimitchi',
-    label: 'Mimitchi',
-    defaultName: 'Mimi',
-    blurb: 'Cheerful & caring · perfect-care pal',
+    // Species id stays `mimitchi` for save compatibility; art is freckled Memetchi-style.
+    label: 'Memetchi',
+    defaultName: 'Meme',
+    blurb: 'Cheerful freckled pal · loves fashion',
     group: 'classic',
   },
   {

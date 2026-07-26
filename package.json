@@ -1,7 +1,7 @@
 {
   "name": "pet-village",
   "private": true,
-  "version": "1.13.0",
+  "version": "1.14.0",
   "type": "module",
   "scripts": {
     "dev": "convex dev --start vite",
@@ -15,6 +15,7 @@
     "sprite:bongbongee": "tsx scripts/imagine-to-bongbongee.mts",
     "sprite:penguin": "tsx scripts/imagine-to-penguin.mts",
     "sprite:kirby": "tsx scripts/generate-kirby.mts",
+    "sprite:tamagotchi-kirby": "tsx scripts/imagine-to-tamagotchi-kirby.mts",
     "sprite:cinnamoroll": "tsx scripts/generate-cinnamoroll.mts",
     "sprite:editor": "python3 -m http.server 8765 --directory scripts"
   },
