@@ -137,14 +137,14 @@ export class PaperTossScene extends Phaser.Scene {
     this.dragStart = null;
     this.streak = 0;
 
-    // Backdrop: cozy arcade room
-    this.cameras.main.setBackgroundColor('#2a2440');
+    // Backdrop: winter arcade room
+    this.cameras.main.setBackgroundColor('#1a2838');
     const cx = this.cameras.main.width / 2;
     const viewW = this.cameras.main.width;
-    this.add.rectangle(cx, 540, viewW, 120, 0x4a4370); // floor
+    this.add.rectangle(cx, 540, viewW, 120, 0xd8e6f2); // snowy floor
     this.add.rectangle(cx, GROUND_Y, viewW, 4, 0x1a1a2e);
     for (let i = 0; i < 8; i++) {
-      this.add.rectangle(50 + i * 100, 100, 40, 8, 0x5d5490); // ceiling slats
+      this.add.rectangle(50 + i * 100, 100, 40, 8, 0x5a7088); // ceiling slats
     }
 
     // Your pet does the tossing — it holds the paper ball and visibly

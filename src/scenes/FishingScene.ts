@@ -125,11 +125,11 @@ export class FishingScene extends Phaser.Scene {
     const viewH = this.cameras.main.height;
     this.cameras.main.setBackgroundColor('#1a3048');
 
-    // Sky / water / dock bands
-    this.add.rectangle(cx, 90, viewW, 180, 0x6eb5e0);
-    this.add.rectangle(cx, 280, viewW, 220, 0x2e7ab8);
-    this.add.rectangle(cx, 290, viewW, 8, 0x4599dc);
-    this.add.rectangle(cx, viewH - 80, viewW, 200, 0xd4bc88);
+    // Sky / water / dock bands — winter icy shore
+    this.add.rectangle(cx, 90, viewW, 180, 0x8ec4e8);
+    this.add.rectangle(cx, 280, viewW, 220, 0x3a7aa8);
+    this.add.rectangle(cx, 290, viewW, 8, 0x5a9dcb);
+    this.add.rectangle(cx, viewH - 80, viewW, 200, 0xe6e0d4);
     this.add.rectangle(cx, 470, 280, 70, 0x8d6e63).setStrokeStyle(3, 0x5d4037);
 
     for (let i = 0; i < 6; i++) {

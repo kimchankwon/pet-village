@@ -35,12 +35,12 @@ export class AdoptScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#1a1626');
+    this.cameras.main.setBackgroundColor('#152030');
     const cx = this.cameras.main.width / 2;
     const cy = this.cameras.main.height / 2;
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
-    this.add.rectangle(cx, cy, w, h, 0x1a1626).setDepth(-10);
+    this.add.rectangle(cx, cy, w, h, 0x152030).setDepth(-10);
 
     this.add
       .text(cx, 36, 'Pet Village', {

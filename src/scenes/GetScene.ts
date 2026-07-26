@@ -99,21 +99,21 @@ export class GetScene extends Phaser.Scene {
     this.spawnY = Math.max(78, Math.round((viewH - arenaHeight) / 2));
     this.floorY = this.spawnY + arenaHeight;
 
-    this.cameras.main.setBackgroundColor('#171326');
-    this.add.rectangle(cx, viewH / 2, viewW, viewH, 0x28234b);
-    this.add.rectangle(cx, 44, viewW, 88, 0x3d3560);
+    this.cameras.main.setBackgroundColor('#152030');
+    this.add.rectangle(cx, viewH / 2, viewW, viewH, 0x1e3348);
+    this.add.rectangle(cx, 44, viewW, 88, 0x3a5068);
     this.add.rectangle(
       cx,
       this.floorY + (viewH - this.floorY) / 2,
       viewW,
       Math.max(50, viewH - this.floorY),
-      0x4a4370,
+      0xd0e0f0,
     );
-    this.add.rectangle(cx, this.floorY, viewW, 5, 0x151227).setDepth(2);
+    this.add.rectangle(cx, this.floorY, viewW, 5, 0x0e1a28).setDepth(2);
     for (let i = 0; i < Math.ceil(viewW / 80); i++) {
       const x = 36 + i * 80;
       const y = this.spawnY + 42 + (i % 3) * 96;
-      this.add.circle(x, y, 2 + (i % 2), i % 2 ? 0xffe066 : 0x87ceeb, 0.6);
+      this.add.circle(x, y, 2 + (i % 2), i % 2 ? 0xffe066 : 0xb8d4ea, 0.6);
     }
 
     this.catcher = this.add

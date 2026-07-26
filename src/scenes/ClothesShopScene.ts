@@ -63,7 +63,7 @@ export class ClothesShopScene extends Phaser.Scene {
     this.pointerHeld = false;
     this.ignoreClicksUntil = 0;
 
-    this.cameras.main.setBackgroundColor('#3a2f2a');
+    this.cameras.main.setBackgroundColor('#2a2838');
 
     for (let gy = 0; gy < ROWS; gy++) {
       for (let gx = 0; gx < COLS; gx++) {
@@ -71,14 +71,14 @@ export class ClothesShopScene extends Phaser.Scene {
         const img = this.add
           .image(this.roomX + gx * TILE + TILE / 2, ROOM_Y + gy * TILE + TILE / 2, tex)
           .setDepth(-100);
-        if (gy < WALL_ROWS) img.setTint(0xf5d0c8);
-        else img.setTint(0xf0e0c8);
+        if (gy < WALL_ROWS) img.setTint(0xd8e0f0);
+        else img.setTint(0xe8e4dc);
       }
     }
     addWorldBezel(
       this,
       { x: this.roomX, y: ROOM_Y, width: COLS * TILE, height: ROWS * TILE },
-      0x3a2f2a,
+      0x2a2838,
     );
 
     const door = placeDoorMat(this, this.roomX, ROOM_Y, COLS, ROWS, 0xffb3d1);

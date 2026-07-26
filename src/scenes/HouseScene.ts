@@ -65,19 +65,20 @@ export class HouseScene extends Phaser.Scene {
     this.placing = null;
     this.ghost = null;
 
-    this.cameras.main.setBackgroundColor('#241f38');
+    this.cameras.main.setBackgroundColor('#1a2838');
 
-    // Walls + floor
+    // Walls + floor (cozy interior; winter night outside the windows)
     for (let gy = 0; gy < ROWS; gy++) {
       for (let gx = 0; gx < COLS; gx++) {
         const tex = gy < WALL_ROWS ? 'tile-wall' : 'tile-floor';
-        this.add.image(this.roomX + gx * TILE + TILE / 2, ROOM_Y + gy * TILE + TILE / 2, tex).setDepth(-100);
+        const img = this.add.image(this.roomX + gx * TILE + TILE / 2, ROOM_Y + gy * TILE + TILE / 2, tex).setDepth(-100);
+        if (gy < WALL_ROWS) img.setTint(0xc8b8e0);
       }
     }
     addWorldBezel(
       this,
       { x: this.roomX, y: ROOM_Y, width: COLS * TILE, height: ROWS * TILE },
-      0x241f38,
+      0x1a2838,
     );
     const door = placeDoorMat(this, this.roomX, ROOM_Y, COLS, ROWS, 0x8d6e63);
     this.doorGxs = door.doorGxs;

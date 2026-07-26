@@ -719,19 +719,19 @@ const FLOWER: Grid = [
   '............',
 ];
 
-// ---- World objects ----
+// ---- World objects (Draft B — snowy island / winter cozy) ----
 const TREE: Grid = [
   '................',
-  '.....kkkkk......',
-  '...kkEEEEEkk....',
-  '..kEEEEEEEEEk...',
-  '..kEEDEEEDEEk...',
-  '.kEEEEEEEEEEEk..',
-  '.kEDEEEEEEEDEk..',
-  '.kEEEEEDEEEEEk..',
-  '..kEEEEEEEEEk...',
-  '...kkEEEEEkk....',
-  '.....kkkkk......',
+  '......kWWk......',
+  '.....kWWWWk.....',
+  '....kWWEEEWWk...',
+  '.....kEEDEEk....',
+  '....kEEEEEEEk...',
+  '...kEEDEEDEEEk..',
+  '....kEEEEEEEk...',
+  '...kEWWEEWWEk...',
+  '....kEEEEEEEk...',
+  '.....kEEEEk.....',
   '......knnk......',
   '......knnk......',
   '.....knnnnk.....',
@@ -742,9 +742,9 @@ const TREE: Grid = [
 const BUSH: Grid = [
   '............',
   '............',
-  '...kkkkk....',
-  '..kEEEEEk...',
-  '.kEDEEEDEk..',
+  '...kkWWkk...',
+  '..kWWEEEWk..',
+  '.kWEEDEEWk..',
   '.kEEEEEEEk..',
   '.kEEpPEEEk..',
   '..kEEEEEk...',
@@ -795,12 +795,12 @@ const STREETLAMP: Grid = [
   '...kyyyyk...',
   '....kyyk....',
   '.....kk.....',
-  '.....kt.....',
-  '.....kt.....',
-  '.....kt.....',
-  '.....kt.....',
-  '....kttk....',
-  '...kttttk...',
+  '.....kr.....',
+  '.....kw.....',
+  '.....kr.....',
+  '.....kw.....',
+  '....krrk....',
+  '...kwwwwk...',
 ];
 
 const FENCE: Grid = [
@@ -836,14 +836,14 @@ const MAILBOX: Grid = [
 const FOUNTAIN_0: Grid = [
   '................',
   '......kssk......',
-  '.....kssssk.....',
-  '....kssssssk....',
+  '.....kssWWk.....',
+  '....ksssssWk....',
   '.....kbbbbk.....',
   '....kbbssbbk....',
   '...kbbssssbbk...',
-  '..kbbssssssbbk..',
+  '..kbbssWsssbbk..',
   '..kbbbbbbbbbbk..',
-  '...kggggggggk...',
+  '...kWWWWWWWWk...',
   '....kkkkkkkk....',
   '................',
   '................',
@@ -857,14 +857,14 @@ const FOUNTAIN_1: Grid = [
   '................',
   '.......ss.......',
   '......kssk......',
-  '.....kssssk.....',
-  '....kssssssk....',
+  '.....kssWWk.....',
+  '....ksssssWk....',
   '.....kbbbbk.....',
   '....kbbssbbk....',
   '...kbbssssbbk...',
-  '..kbbssssssbbk..',
+  '..kbbssWsssbbk..',
   '..kbbbbbbbbbbk..',
-  '...kggggggggk...',
+  '...kWWWWWWWWk...',
   '....kkkkkkkk....',
   '................',
   '................',
@@ -885,11 +885,11 @@ const SMOKE: Grid = [
 
 const WILDFLOWER: Grid = [
   '............',
-  '..kp..ky..kl',
-  '.kPp.kyy.klL',
-  '..kp..ky..kl',
-  '...E...E...E',
-  '....E.E.E...',
+  '..kp..kW..kl',
+  '.kPp.kWW.klL',
+  '..kp..kW..kl',
+  '...s...s...s',
+  '....s.s.s...',
   '............',
   '............',
   '............',
@@ -1106,11 +1106,11 @@ const CLOTHES_RACK: Grid = [
 
 const HOUSE: Grid = [
   '.......kkkkkkkkkk.......',
-  '.....kkRRRRRRRRRRkk.....',
-  '....kRRRRRRRRRRRRRRk....',
-  '...kRRRRRRRRRRRRRRRRk...',
-  '..kRRRRRRRRRRRRRRRRRRk..',
-  '.kRRRRRRRRRRRRRRRRRRRRk.',
+  '.....kkWWWWWWWWWWkk.....',
+  '....kWWRRRRRRRRRRRWk....',
+  '...kWWRRRRRRRRRRRRRWk...',
+  '..kWRRRRRRRRRRRRRRRRWk..',
+  '.kWRRRRRRRRRRRRRRRRRRWk.',
   '.kkkkkkkkkkkkkkkkkkkkkk.',
   '.kccccccccccccccccccccK.',
   '.kccsskccccccccccksscck.',
@@ -1127,7 +1127,7 @@ const SHOP: Grid = [
   '........................',
   '......knnNk.............',
   '......knnNk.............',
-  '..kkkkkkkkkkkkkkkkkkkk..',
+  '..kkkkWWWWWWWWWWWWkkkk..',
   '.kPPwwPPwwPPwwPPwwPPwwk.',
   '.kwwPPwwPPwwPPwwPPwwPPk.',
   '..kkkkkkkkkkkkkkkkkkkk..',
@@ -1142,12 +1142,12 @@ const SHOP: Grid = [
   '.kkkkkkkkkkkkkkkkkkkkkk.',
 ];
 
-/** Cafe Cinnamon — cream walls, pink awning, warm door. */
+/** Cafe Cinnamon — cream walls, pink awning, warm door, snow cap. */
 const CAFE: Grid = [
   '........................',
   '....kkkkkkkkkkkkkkkk....',
   '...kWWWWWWWWWWWWWWWWk...',
-  '..kWWppWWWWWWWWppWWWk..',
+  '..kWWWWppWWWWWppWWWWkk..',
   '.kkkkkkkkkkkkkkkkkkkkkk.',
   '.kPPwwPPwwPPwwPPwwPPwwk.',
   '.kwwPPwwPPwwPPwwPPwwPPk.',
@@ -1763,8 +1763,9 @@ export function generateTextures(scene: Phaser.Scene) {
     makeTexture(scene, 'item-flower', [FLOWER]);
     makeTexture(scene, 'item-lightstick', [LIGHTSTICK]);
 
-    makeTile(scene, 'tile-grass', '#7ec850', '#6ab53f', 14);
-    makeTile(scene, 'tile-path', '#e0c9a6', '#cdb28a', 10);
+    // Draft B winter ground tiles (snow + ice paths).
+    makeTile(scene, 'tile-grass', '#e8f0f8', '#d5e2ef', 14);
+    makeTile(scene, 'tile-path', '#b8d4ea', '#9fc4df', 10);
     makeTile(scene, 'tile-floor', '#d9b380', '#c9a06a', 8);
     makeTile(scene, 'tile-wall', '#b085c9', '#9e6fbc', 6);
     makeTile(scene, 'tile-snow', '#eef3f8', '#dde7f0', 8);
@@ -1785,17 +1786,39 @@ export function generateTextures(scene: Phaser.Scene) {
   if (!scene.textures.exists('catch-bowl')) makeTexture(scene, 'catch-bowl', [CATCH_BOWL]);
   if (!scene.textures.exists('skiprope-booth')) makeTexture(scene, 'skiprope-booth', [SKIPROPE_BOOTH]);
 
-  if (scene.textures.exists('tile-plaza')) scene.textures.remove('tile-plaza');
-  // Smooth stone plaza (not brick cobble).
-  makeTile(scene, 'tile-plaza', '#c8c2b6', '#b8b2a6', 5);
-  if (!scene.textures.exists('tile-sand')) makeTile(scene, 'tile-sand', '#e8d4a8', '#d4bc88', 12);
-  if (!scene.textures.exists('tile-ocean')) makeTile(scene, 'tile-ocean', '#3a8fd4', '#2e7ab8', 10);
-  if (!scene.textures.exists('tile-ocean2')) makeTile(scene, 'tile-ocean2', '#4599dc', '#3484c4', 10);
+  // Always refresh outdoor tiles so winter palette applies after hot reload.
+  for (const key of ['tile-grass', 'tile-path', 'tile-plaza', 'tile-sand', 'tile-ocean', 'tile-ocean2', 'tile-snow']) {
+    if (scene.textures.exists(key)) scene.textures.remove(key);
+  }
+  makeTile(scene, 'tile-grass', '#e8f0f8', '#d5e2ef', 14);
+  makeTile(scene, 'tile-path', '#b8d4ea', '#9fc4df', 10);
+  makeTile(scene, 'tile-plaza', '#c5daf0', '#aecce6', 5);
+  makeTile(scene, 'tile-snow', '#eef3f8', '#dde7f0', 8);
+  // Shore: pale winter sand + colder ocean.
+  makeTile(scene, 'tile-sand', '#e6e0d4', '#d4cdc0', 12);
+  makeTile(scene, 'tile-ocean', '#4a8fbf', '#3a7aa8', 10);
+  makeTile(scene, 'tile-ocean2', '#5a9dcb', '#4689b6', 10);
 
-  // Shop + fountain regenerate so chimney / water frames pick up on hot reload.
-  if (scene.textures.exists('shop')) scene.textures.remove('shop');
+  // Buildings + fountain + outdoor props regenerate for snow caps / winter art.
+  for (const key of [
+    'house',
+    'shop',
+    'cafe',
+    'tree',
+    'bush',
+    'streetlamp',
+    'wildflower',
+    'fountain',
+    'bench',
+    'fence',
+    'rock',
+  ]) {
+    if (scene.textures.exists(key)) scene.textures.remove(key);
+  }
+  makeTexture(scene, 'house', [HOUSE]);
   makeTexture(scene, 'shop', [SHOP]);
-  if (scene.textures.exists('fountain')) scene.textures.remove('fountain');
+  makeTexture(scene, 'cafe', [CAFE]);
+  makeTexture(scene, 'tree', [TREE]);
   if (scene.anims.exists('fountain-splash')) scene.anims.remove('fountain-splash');
   makeTexture(scene, 'fountain', [FOUNTAIN_0, FOUNTAIN_1]);
   scene.anims.create({
@@ -1831,6 +1854,8 @@ export function generateTextures(scene: Phaser.Scene) {
     ['bump-arena', BUMP_ARENA],
   ];
   for (const [key, grid] of outdoor) {
-    if (!scene.textures.exists(key)) makeTexture(scene, key, [grid]);
+    // Winter props recreated every call so snow art is never stale after hot reload.
+    if (scene.textures.exists(key)) scene.textures.remove(key);
+    makeTexture(scene, key, [grid]);
   }
 }
