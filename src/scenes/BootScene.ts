@@ -223,12 +223,13 @@ export class BootScene extends Phaser.Scene {
         repeat: -1,
       });
       if (species.id === 'kirby') {
+        // Tenor walk GIF is ~0.85s / 10 frames ≈ 12 fps.
         this.anims.create({
           key: petAnimKey(species.id, 'walk'),
           frames: KIRBY_WALK_FILES.map((file) => ({
             key: file === 'walk1' || file === 'walk2' ? petTextureKey('kirby', file) : `kirby-${file}`,
           })),
-          frameRate: 14,
+          frameRate: 12,
           repeat: -1,
         });
       } else {
