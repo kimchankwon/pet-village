@@ -81,6 +81,13 @@ const PERSONALITY: Record<PetSpecies, string[]> = {
     'Silent as the night… until I trip-gozaru!',
     'With you as sensei, I shall become great-gozaru!',
   ],
+  memetchi: [
+    'Is my hair still cute? It better be!',
+    'Let’s go window-shopping in the village!',
+    'Freckles are my trademark, you know~',
+    'Today’s outfit? Fabulous. Tomorrow’s? Even better.',
+    'You have great taste. I mean, you chose me!',
+  ],
   bongbongee: [
     'Bong! Bong! Sparkle time!',
     'Every CARAT is a diamond~',

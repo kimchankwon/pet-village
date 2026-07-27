@@ -1,7 +1,7 @@
 {
   "name": "pet-village",
   "private": true,
-  "version": "1.15.0",
+  "version": "1.16.0",
   "type": "module",
   "scripts": {
     "dev": "convex dev --start vite",
@@ -19,6 +19,7 @@
     "sprite:kuchipatchi": "tsx scripts/generate-kuchipatchi.mts",
     "sprite:mimitchi": "tsx scripts/generate-mimitchi.mts",
     "sprite:gozarutchi": "tsx scripts/generate-gozarutchi.mts",
+    "sprite:memetchi": "tsx scripts/generate-memetchi.mts",
     "sprite:cinnamoroll": "tsx scripts/generate-cinnamoroll.mts",
     "sprite:editor": "python3 -m http.server 8765 --directory scripts"
   },
