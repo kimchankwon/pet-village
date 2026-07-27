@@ -11,6 +11,7 @@ import {
   petTextureKey,
   type PetSpecies,
 } from '../systems/pets';
+import { bindSceneResize } from '../systems/sceneResize';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#efe8ff' };
 /** Target display heights so every card in a row matches, regardless of texture size. */
@@ -108,7 +109,7 @@ export class AdoptScene extends Phaser.Scene {
     } as CSSStyleDeclaration);
     this.game.canvas.parentElement?.appendChild(this.nameInput);
     this.positionNameInput();
-    this.scale.on('resize', () => this.positionNameInput());
+    bindSceneResize(this.scale, this.events, this.positionNameInput);
 
     this.errorText = this.add
       .text(cx, 534, '', { ...FONT, fontSize: '13px', color: '#ff6b6b' })
@@ -177,7 +178,7 @@ export class AdoptScene extends Phaser.Scene {
     });
   }
 
-  private positionNameInput() {
+  private positionNameInput = () => {
     const parent = this.game.canvas.parentElement;
     if (!parent) return;
     const canvasRect = this.game.canvas.getBoundingClientRect();
@@ -188,7 +189,7 @@ export class AdoptScene extends Phaser.Scene {
     const top = canvasRect.top - parentRect.top + 500 * scaleY - 17;
     this.nameInput.style.left = `${left}px`;
     this.nameInput.style.top = `${top}px`;
-  }
+  };
 
   private selectSpecies(species: PetSpecies) {
     this.selected = species;
