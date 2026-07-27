@@ -9,6 +9,7 @@ test('every playable mini-game has a synchronized activity', () => {
     Bump: 'bump',
     SkipRope: 'skip-rope',
     PaperToss: 'paper-toss',
+    SledRun: 'sled-run',
   });
 });
 

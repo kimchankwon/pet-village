@@ -1,8 +1,9 @@
 import { Server, matchMaker } from '@colyseus/core';
 import type { NextFunction, Request, Response } from 'express';
 import { WebSocketTransport } from '@colyseus/ws-transport';
-import { PROTOCOL_VERSION, ROOM_NAME } from '@pet-village/multiplayer-protocol';
+import { PROTOCOL_VERSION, ROOM_NAME, SLED_RUN_ROOM } from '@pet-village/multiplayer-protocol';
 import { TownRoom } from './TownRoom.ts';
+import { SledRunRoom } from './SledRunRoom.ts';
 
 const origins = (process.env.CORS_ORIGINS ?? 'http://localhost:5173,https://kimchankwon.github.io')
   .split(',')
@@ -47,4 +48,5 @@ const server = new Server({
 });
 
 server.define(ROOM_NAME, TownRoom);
+server.define(SLED_RUN_ROOM, SledRunRoom);
 await server.listen(Number(process.env.PORT ?? 2567));

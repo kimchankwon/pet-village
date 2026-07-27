@@ -12,6 +12,7 @@ import { FishingScene } from '../scenes/FishingScene';
 import { SkipRopeScene } from '../scenes/SkipRopeScene';
 import { EastParkScene, WestParkScene } from '../scenes/ParkScene';
 import { BumpScene } from '../scenes/BumpScene';
+import { SledRunScene } from '../scenes/SledRunScene';
 import { State } from '../systems/GameState';
 import { BASE_HEIGHT, BASE_WIDTH, designSizeForHost } from './viewport';
 
@@ -75,6 +76,7 @@ export function startGame(parent: HTMLElement, options: StartGameOptions = {}): 
       WestParkScene,
       EastParkScene,
       BumpScene,
+      SledRunScene,
     ],
   });
 

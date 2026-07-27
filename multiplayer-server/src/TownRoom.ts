@@ -31,9 +31,9 @@ const PENGUIN_COLORS = new Set([
   'orange', 'darkpurple', 'brown', 'peach', 'darkgreen', 'lightblue',
 ]);
 
-// Version 2 clients ignore the additive activity field, so keep them admitted while
-// protocol 3 rolls out server-first; remove version 2 after the migration window.
-const SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([2, PROTOCOL_VERSION]);
+// Versions 2 and 3 remain compatible with the additive v4 Sled Run room. Keep
+// admitting them during the rolling deployment window.
+const SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([2, 3, PROTOCOL_VERSION]);
 
 export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
   const { payload } = await jwtVerify(token, secret(), {

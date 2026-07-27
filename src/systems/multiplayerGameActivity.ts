@@ -7,6 +7,7 @@ export const GAME_SCENE_ACTIVITIES = {
   Bump: 'bump',
   SkipRope: 'skip-rope',
   PaperToss: 'paper-toss',
+  SledRun: 'sled-run',
 } as const satisfies Record<string, GameActivity>;
 
 export type GameSceneKey = keyof typeof GAME_SCENE_ACTIVITIES;
