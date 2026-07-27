@@ -18,6 +18,12 @@ const placedItem = v.object({
   gy: v.number(),
 });
 
+const townPosition = v.object({
+  x: v.number(),
+  y: v.number(),
+  facing: v.union(v.literal("up"), v.literal("down"), v.literal("side")),
+});
+
 export default defineSchema({
   ...authTables,
 
@@ -40,6 +46,7 @@ export default defineSchema({
     ownedAccessories: v.optional(v.array(v.string())),
     equippedAccessories: equippedAccessoriesValidator,
     penguinColor: v.optional(v.string()),
+    townPosition: v.optional(townPosition),
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),
 });

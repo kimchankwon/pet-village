@@ -15,6 +15,7 @@ import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
 import { TILE, TOWN_MAP_H, TOWN_MAP_W, TOWN_WORLD_H, TOWN_WORLD_W } from '../systems/townMap';
+import { initialTownPosition } from '../systems/townPosition';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
 import { movementFacing } from '../systems/movementFacing';
@@ -114,10 +115,15 @@ export class TownScene extends Phaser.Scene {
     const worldBounds = { x: 0, y: 0, width: WORLD_W, height: WORLD_H };
     addWorldBezel(this, worldBounds);
 
-    // Spawn just outside the door, facing away from the building.
+    // Restore the last durable Town pose only on a full game launch. Explicit
+    // scene entrances still win when returning from a building, park, or shore.
+    const restored = initialTownPosition(State.data.townPosition, data?.spawn !== undefined);
     let sx = FOUNTAIN_POS.tx * TILE;
     let sy = (FOUNTAIN_POS.ty + 2.2) * TILE;
-    if (data?.spawn === 'house') {
+    if (restored) {
+      sx = restored.x;
+      sy = restored.y;
+    } else if (data?.spawn === 'house') {
       sx = HOUSE_POS.tx * TILE;
       sy = (HOUSE_POS.ty + 2.4) * TILE;
     } else if (data?.spawn === 'west') {
@@ -137,13 +143,16 @@ export class TownScene extends Phaser.Scene {
       sy = (MAP_H - 2.2) * TILE;
     }
 
-    this.player = this.physics.add.sprite(sx, sy, 'penguin-down', 0);
+    const initialFacing = restored?.facing ?? 'down';
+    const initialTexture =
+      initialFacing === 'up' ? 'penguin-up' : initialFacing === 'side' ? 'penguin-side' : 'penguin-down';
+    this.player = this.physics.add.sprite(sx, sy, initialTexture, 0);
     this.player.setCollideWorldBounds(true);
     configurePlayerPenguin(this.player);
-    this.facing = 'down';
+    this.facing = initialFacing;
 
     this.pet = new Pet(this, sx - 30, sy + 10, worldBounds);
-    this.lastPresence = { x: sx, y: sy, facing: 'down', moving: false, sentAt: 0 };
+    this.lastPresence = { x: sx, y: sy, facing: initialFacing, moving: false, sentAt: 0 };
     this.unsubscribeRemote = multiplayerBridge.subscribe((rows) => this.syncRemotes(rows));
     this.releaseTownActivation = multiplayerBridge.activateTown();
     // Tap/click your pet to hear what's on its mind.
@@ -181,6 +190,7 @@ export class TownScene extends Phaser.Scene {
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      State.rememberTownPosition({ x: this.player.x, y: this.player.y, facing: this.facing });
       this.releaseTownActivation?.();
       this.releaseTownActivation = undefined;
       this.unsubscribeRemote?.();
@@ -857,6 +867,7 @@ export class TownScene extends Phaser.Scene {
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
     const now = Date.now();
     const pose = { x: this.player.x, y: this.player.y, facing: this.facing, moving, sentAt: now };
+    State.rememberTownPosition({ x: pose.x, y: pose.y, facing: pose.facing });
     if (shouldSendPresence(this.lastPresence, pose, now, this.lastPresenceSent)) {
       multiplayerBridge.send({ x: pose.x, y: pose.y, petX: this.pet.sprite.x, petY: this.pet.sprite.y, facing: pose.facing, moving: pose.moving });
       this.lastPresence = pose; this.lastPresenceSent = now;

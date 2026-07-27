@@ -18,6 +18,12 @@ const placedItem = v.object({
   gy: v.number(),
 });
 
+const townPosition = v.object({
+  x: v.number(),
+  y: v.number(),
+  facing: v.union(v.literal("up"), v.literal("down"), v.literal("side")),
+});
+
 const saveFields = {
   version: v.number(),
   coins: v.number(),
@@ -34,6 +40,7 @@ const saveFields = {
   ownedAccessories: v.optional(v.array(v.string())),
   equippedAccessories: equippedAccessoriesValidator,
   penguinColor: v.optional(v.string()),
+  townPosition: v.optional(townPosition),
 };
 
 const saveDoc = v.object({

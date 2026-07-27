@@ -268,6 +268,7 @@ function CloudGame() {
           | SaveData['equippedAccessories']
           | undefined,
         penguinColor: cloudSave.penguinColor,
+        townPosition: cloudSave.townPosition,
       });
       // hydrate() applied offline decay locally; push that (and the fresh
       // lastSeen) to the cloud so an immediate sign-out can't leave the
