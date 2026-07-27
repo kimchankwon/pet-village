@@ -21,10 +21,10 @@ test('move policy tolerates a one-second delivery stall at normal walking speed'
     true,
   );
 });
-test('first move must establish an approved Town spawn', () => {
+test('first move accepts the current Town position when multiplayer connects late', () => {
   const fresh = { ...player, lastSeq: 0 };
   assert.equal(validateMove(fresh, {x:528,y:265,petX:500,petY:275,facing:'down',moving:false,seq:1}, 1001).ok, true);
-  assert.equal(validateMove(fresh, {x:900,y:650,petX:870,petY:660,facing:'down',moving:false,seq:1}, 1001).ok, false);
+  assert.equal(validateMove(fresh, {x:900,y:650,petX:870,petY:660,facing:'down',moving:true,seq:1}, 1001).ok, true);
 });
 test('wave policy enforces proximity and cooldown', () => {
   assert.equal(canWave(player, {x:150,y:100}, 2000), true);
