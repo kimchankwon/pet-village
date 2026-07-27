@@ -58,6 +58,7 @@ export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
 
 export class TownRoom extends Room<{ state: TownState }> {
   maxClients = 100;
+  private readonly reentrySessions = new Set<string>();
   state = new TownState();
 
   async onAuth(_client: Client, _options: unknown, context: { token?: string }) {
@@ -96,6 +97,7 @@ export class TownRoom extends Room<{ state: TownState }> {
   }
 
   onLeave(client: Client) {
+    this.reentrySessions.delete(client.sessionId);
     this.state.players.delete(client.sessionId);
   }
 
@@ -114,6 +116,7 @@ export class TownRoom extends Room<{ state: TownState }> {
       },
       payload,
       now,
+      this.reentrySessions.has(client.sessionId),
     );
     if (!result.ok) {
       client.send('positionCorrection', {
@@ -124,12 +127,14 @@ export class TownRoom extends Room<{ state: TownState }> {
       });
       return;
     }
+    this.reentrySessions.delete(client.sessionId);
     Object.assign(player, result.move, { updatedAt: now });
   }
 
   private setActive(client: Client, active: unknown) {
     const player = this.state.players.get(client.sessionId);
     if (!player || typeof active !== 'boolean') return;
+    if (active && !player.active) this.reentrySessions.add(client.sessionId);
     player.active = active;
   }
 

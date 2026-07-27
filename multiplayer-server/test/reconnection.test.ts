@@ -29,3 +29,30 @@ test('removes player state only when the client finally leaves', () => {
   room.onLeave({ sessionId: 'session-a' } as never);
   assert.equal(room.state.players.has('session-a'), false);
 });
+
+test('inactive to active authorizes exactly one approved Town re-entry spawn', () => {
+  const room = roomWithPlayer();
+  const corrections: unknown[] = [];
+  const client = {
+    sessionId: 'session-a',
+    send: (_type: string, payload: unknown) => corrections.push(payload),
+  } as never;
+  const player = room.state.players.get('session-a')!;
+  Object.assign(player, { active: true, seq: 10, x: 900, y: 600, updatedAt: Date.now() });
+
+  (room as any).setActive(client, false);
+  (room as any).setActive(client, true);
+  (room as any).move(client, {
+    x: 528, y: 266.4, petX: 500, petY: 278, facing: 'down', moving: false, seq: 11,
+  });
+  assert.equal(player.x, 528);
+  assert.equal(player.y, 266.4);
+  assert.equal(player.seq, 11);
+  assert.deepEqual(corrections, []);
+
+  (room as any).move(client, {
+    x: 76.8, y: 432, petX: 50, petY: 444, facing: 'down', moving: false, seq: 12,
+  });
+  assert.equal(player.x, 528);
+  assert.equal(corrections.length, 1);
+});

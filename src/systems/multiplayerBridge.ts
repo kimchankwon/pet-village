@@ -33,7 +33,7 @@ let rows: RemotePresence[] = [];
 const listeners = new Set<Listener>();
 let actions: Actions | null = null;
 let connectionId: ConnectionId | null = null;
-let localActive = false;
+const townActivations = new Set<symbol>();
 let moveSeq = 0;
 let correction: PositionCorrection | null = null;
 
@@ -68,7 +68,7 @@ export const multiplayerBridge = {
     moveSeq = 0;
     correction = null;
     clearRemote();
-    actions.setActive(localActive);
+    actions.setActive(townActivations.size > 0);
     return id;
   },
   uninstall(id: ConnectionId) {
@@ -82,9 +82,18 @@ export const multiplayerBridge = {
   send(pose: OutboundMove) {
     if (actions) actions.send({ ...pose, seq: ++moveSeq });
   },
-  setActive(active: boolean) {
-    localActive = active;
-    actions?.setActive(active);
+  activateTown() {
+    const token = Symbol('town-activation');
+    const wasInactive = townActivations.size === 0;
+    townActivations.add(token);
+    if (wasInactive) actions?.setActive(true);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      townActivations.delete(token);
+      if (townActivations.size === 0) actions?.setActive(false);
+    };
   },
   leave() {
     actions?.leave();

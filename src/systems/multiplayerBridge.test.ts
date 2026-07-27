@@ -30,8 +30,6 @@ test('stale connection cleanup cannot uninstall or update the current bridge', (
   multiplayerBridge.setPositionCorrection(firstId, { x: 9, y: 9, petX: 9, petY: 9 });
   assert.equal(multiplayerBridge.consumePositionCorrection(), null);
   multiplayerBridge.send(pose);
-  multiplayerBridge.setActive(false);
-  multiplayerBridge.setActive(true);
   multiplayerBridge.send(pose);
   assert.deepEqual(first, []);
   assert.deepEqual(second, [1, 2]);
@@ -44,4 +42,20 @@ test('stale connection cleanup cannot uninstall or update the current bridge', (
   assert.equal(seen[seen.length - 1]?.length, 1);
   assert.equal(multiplayerBridge.uninstall(secondId), true);
   unsubscribe();
+});
+
+test('stale Town cleanup cannot deactivate a newer Town scene', () => {
+  const activeStates: boolean[] = [];
+  const id = multiplayerBridge.install({
+    ...actions([]),
+    setActive: (active: boolean) => activeStates.push(active),
+  });
+  const releaseFirst = multiplayerBridge.activateTown();
+  const releaseSecond = multiplayerBridge.activateTown();
+
+  releaseFirst();
+  assert.equal(activeStates[activeStates.length - 1], true);
+  releaseSecond();
+  assert.equal(activeStates[activeStates.length - 1], false);
+  assert.equal(multiplayerBridge.uninstall(id), true);
 });
