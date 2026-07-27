@@ -457,6 +457,7 @@ export const SPECIES_ACCESSORY_NUDGE: Partial<
   flowetchi: { 'ribbon-tie': { y: 2 } },
   gozarutchi: { 'ribbon-tie': { y: 3 } },
   memetchi: { 'ribbon-tie': { y: 4 } },
+  mamekitty: { 'ribbon-tie': { y: 3 } },
 };
 
 export function accessoryTextureKey(id: AccessoryId): string {
