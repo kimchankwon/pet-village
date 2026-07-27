@@ -114,6 +114,16 @@ export class TownRoom extends Room<{ state: TownState }> {
   private move(client: Client, payload: MovePayload) {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
+    if (!player.active || player.activity) {
+      player.moving = false;
+      client.send('positionCorrection', {
+        x: player.x,
+        y: player.y,
+        petX: player.petX,
+        petY: player.petY,
+      });
+      return;
+    }
 
     const now = Date.now();
     const result = validateMove(

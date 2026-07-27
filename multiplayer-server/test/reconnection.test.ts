@@ -89,6 +89,28 @@ test('server publishes validated game activity and clears it on Town re-entry', 
   assert.equal(player.active, true);
 });
 
+test('server rejects movement while a player is inactive or playing a game', () => {
+  const room = roomWithPlayer();
+  const corrections: unknown[] = [];
+  const client = {
+    sessionId: 'session-a',
+    send: (_type: string, payload: unknown) => corrections.push(payload),
+  } as never;
+  const player = room.state.players.get('session-a')!;
+  Object.assign(player, { x: 320, y: 240, petX: 290, petY: 250, active: true, moving: true });
+
+  (room as any).setActivity(client, 'fishing');
+  (room as any).move(client, {
+    x: 320, y: 240, petX: 290, petY: 250, facing: 'side', moving: true, seq: 1,
+  });
+
+  assert.deepEqual(
+    { x: player.x, y: player.y, petX: player.petX, petY: player.petY, seq: player.seq, moving: player.moving },
+    { x: 320, y: 240, petX: 290, petY: 250, seq: 0, moving: false },
+  );
+  assert.deepEqual(corrections, [{ x: 320, y: 240, petX: 290, petY: 250 }]);
+});
+
 test('inactive to active authorizes exactly one approved Town re-entry spawn', () => {
   const room = roomWithPlayer();
   const corrections: unknown[] = [];

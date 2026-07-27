@@ -12,7 +12,10 @@ export const GAME_SCENE_ACTIVITIES = {
 export type GameSceneKey = keyof typeof GAME_SCENE_ACTIVITIES;
 
 type SceneLifecycle = {
-  events: { once: (event: string, callback: () => void) => unknown };
+  events: {
+    once: (event: string, callback: () => void) => unknown;
+    off: (event: string, callback: () => void) => unknown;
+  };
 };
 
 type ActivityBridge = {
@@ -29,6 +32,8 @@ export function bindGameActivity(
   const cleanup = () => {
     if (released) return;
     released = true;
+    scene.events.off('shutdown', cleanup);
+    scene.events.off('destroy', cleanup);
     release();
   };
   scene.events.once('shutdown', cleanup);

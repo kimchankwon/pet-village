@@ -71,20 +71,28 @@ test('protocol v2 clients keep existing player fields during the v3 rollout', ()
   state.players.set('session-1', player);
 
   const decoded = new ProtocolV2TownState();
+  const encoder = new Encoder(state);
+  const decoder = new Decoder(decoded);
+  const schemaDiagnostics: unknown[][] = [];
   const originalWarn = console.warn;
   const originalError = console.error;
-  console.warn = () => {};
-  console.error = () => {};
+  console.warn = (...args) => schemaDiagnostics.push(args);
+  console.error = (...args) => schemaDiagnostics.push(args);
   try {
-    assert.doesNotThrow(() => new Decoder(decoded).decode(new Encoder(state).encodeAll()));
+    assert.doesNotThrow(() => decoder.decode(encoder.encodeAll()));
+    player.seq = 8;
+    player.updatedAt = 124;
+    player.activity = 'bump';
+    assert.doesNotThrow(() => decoder.decode(encoder.encode()));
   } finally {
     console.warn = originalWarn;
     console.error = originalError;
   }
+  assert.ok(schemaDiagnostics.length > 0, 'v2 decoder should report the unknown appended v3 field');
   assert.deepEqual(decoded.players.get('session-1')?.toJSON(), {
     userId: 'user-1', displayName: 'Player', petName: 'Pet', petSpecies: '', penguinColor: 'blue',
     x: 0, y: 0, petX: 0, petY: 0, facing: 'down', moving: false, active: false,
-    seq: 7, updatedAt: 123, waveId: 'wave-1', waveTarget: 'session-2',
+    seq: 8, updatedAt: 124, waveId: 'wave-1', waveTarget: 'session-2',
   });
 });
 

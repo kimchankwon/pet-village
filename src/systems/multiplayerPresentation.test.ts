@@ -5,6 +5,7 @@ import {
   isVisibleRemotePlayer,
   dedupeRemotePlayers,
   handleRemotePlayerPointerDown,
+  isRemotePlayerInteractable,
   remotePlayerPresentation,
   remotePenguinTextureKey,
 } from './multiplayerPresentation';
@@ -34,6 +35,12 @@ test('clicking a remote consumes the ground click and waves without moving', () 
     () => actions.push('wave'),
   );
   assert.deepEqual(actions, ['stop', 'cancel-movement', 'wave']);
+});
+
+test('gameplay ghosts cannot be targeted by pointer or keyboard interactions', () => {
+  assert.equal(isRemotePlayerInteractable({ active: false, activity: 'fishing' }), false);
+  assert.equal(isRemotePlayerInteractable({ active: true, activity: '' }), true);
+  assert.equal(isRemotePlayerInteractable({ active: false, activity: '' }), false);
 });
 
 test('renders a clear non-interactive status for players inside a game', () => {

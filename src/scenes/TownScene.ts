@@ -23,6 +23,7 @@ import { partitionTownNpcSnapshot } from '../systems/networkNpcMotion';
 import {
   handleRemotePlayerPointerDown,
   isNewWaveForLocalPlayer,
+  isRemotePlayerInteractable,
   remotePlayerPresentation,
   remotePenguinTextureKey,
 } from '../systems/multiplayerPresentation';
@@ -695,6 +696,7 @@ export class TownScene extends Phaser.Scene {
       }
     }
     for (const remote of this.remotes.values()) {
+      if (!isRemotePlayerInteractable(remote.data)) continue;
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, remote.penguin.x, remote.penguin.y);
       if (d < 70 && d < bestDist) {
         best = { x: remote.penguin.x, y: remote.penguin.y, radius: 70, label: `E / Space / click — Wave to ${remote.data.name}`, action: () => this.waveTo(remote.data), targets: [remote.penguin] };
@@ -743,7 +745,7 @@ export class TownScene extends Phaser.Scene {
             event: Phaser.Types.Input.EventData,
           ) => {
             const current = this.remotes.get(data.userId);
-            if (!current || current.data.activity) return;
+            if (!current || !isRemotePlayerInteractable(current.data)) return;
             handleRemotePlayerPointerDown(
               event,
               () => {

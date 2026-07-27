@@ -50,6 +50,13 @@ const GAME_ACTIVITY_LABELS: Record<GameActivity, string> = {
   'paper-toss': 'Paper Toss',
 };
 
+export function isRemotePlayerInteractable(player: {
+  active: boolean;
+  activity: GameActivity | '';
+}) {
+  return player.active && !player.activity;
+}
+
 export function remotePlayerPresentation(player: {
   name: string;
   petName: string;
