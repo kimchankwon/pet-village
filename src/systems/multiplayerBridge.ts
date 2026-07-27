@@ -20,6 +20,7 @@ export type RemotePresence = {
 
 export type ConnectionId = symbol;
 type Listener = (rows: RemotePresence[]) => void;
+type OutboundMove = Omit<MovePayload, 'seq'>;
 type Actions = {
   send: (pose: MovePayload) => void;
   setActive: (active: boolean) => void;
@@ -32,6 +33,7 @@ const listeners = new Set<Listener>();
 let actions: Actions | null = null;
 let connectionId: ConnectionId | null = null;
 let localActive = false;
+let moveSeq = 0;
 
 function clearRemote() {
   rows = [];
@@ -53,6 +55,7 @@ export const multiplayerBridge = {
     const id = Symbol('multiplayer-connection');
     connectionId = id;
     actions = next;
+    moveSeq = 0;
     clearRemote();
     actions.setActive(localActive);
     return id;
@@ -64,8 +67,8 @@ export const multiplayerBridge = {
     clearRemote();
     return true;
   },
-  send(pose: MovePayload) {
-    actions?.send(pose);
+  send(pose: OutboundMove) {
+    if (actions) actions.send({ ...pose, seq: ++moveSeq });
   },
   setActive(active: boolean) {
     localActive = active;

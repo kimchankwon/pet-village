@@ -86,7 +86,6 @@ export class TownScene extends Phaser.Scene {
   private unsubscribeRemote?: () => void;
   private lastPresence!: PresencePose;
   private lastPresenceSent = 0;
-  private presenceSeq = 0;
 
   constructor() {
     super('Town');
@@ -805,7 +804,7 @@ export class TownScene extends Phaser.Scene {
     const now = Date.now();
     const pose = { x: this.player.x, y: this.player.y, facing: this.facing, moving, sentAt: now };
     if (shouldSendPresence(this.lastPresence, pose, now, this.lastPresenceSent)) {
-      multiplayerBridge.send({ x: pose.x, y: pose.y, petX: this.pet.sprite.x, petY: this.pet.sprite.y, facing: pose.facing, moving: pose.moving, seq: ++this.presenceSeq });
+      multiplayerBridge.send({ x: pose.x, y: pose.y, petX: this.pet.sprite.x, petY: this.pet.sprite.y, facing: pose.facing, moving: pose.moving });
       this.lastPresence = pose; this.lastPresenceSent = now;
     }
     this.updateRemotes(now);
