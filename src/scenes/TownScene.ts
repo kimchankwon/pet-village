@@ -117,9 +117,16 @@ export class TownScene extends Phaser.Scene {
     const worldBounds = { x: 0, y: 0, width: WORLD_W, height: WORLD_H };
     addWorldBezel(this, worldBounds);
 
-    // Restore the last durable Town pose only on a full game launch. Explicit
-    // scene entrances still win when returning from a building, park, or shore.
-    const restored = initialTownPosition(State.data.townPosition, data?.spawn !== undefined);
+    // Restore the last durable Town pose only when the game host explicitly
+    // marks this as a full application launch. Explicit entrances and
+    // change-pet remounts must use their server-approved spawn.
+    const restoreSavedPosition = this.registry.get('restoreTownPosition') === true;
+    this.registry.set('restoreTownPosition', false);
+    const restored = initialTownPosition(
+      State.data.townPosition,
+      data?.spawn !== undefined,
+      restoreSavedPosition,
+    );
     let sx = FOUNTAIN_POS.tx * TILE;
     let sy = (FOUNTAIN_POS.ty + 2.2) * TILE;
     if (restored) {
