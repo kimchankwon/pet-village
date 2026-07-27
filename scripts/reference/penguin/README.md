@@ -22,6 +22,14 @@ When the player stops, scenes set texture frame **0** — standing idle, not a
 mid-walk hop. Walk anims cycle frames **1↔2** so feet truly alternate (never
 plant + one-foot hop, which reads as sliding on one foot).
 
+## Side facing (v3)
+
+Side idle + walk plates were regenerated with Grok Imagine using the current
+front (`down-*`) and back (`up-*`) game sprites as style references so the
+profile matches the same chunky Club Penguin pixel look (white eye + black
+pupil, short beak, flippers by the body). Sources live under
+`imagine-side-v3/`; game inputs under `poses/side-{0,1,2}.png`.
+
 ## Refresh
 
 ```bash
