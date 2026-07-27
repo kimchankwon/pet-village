@@ -65,6 +65,7 @@ export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
 export class TownRoom extends Room<{ state: TownState }> {
   maxClients = 100;
   private readonly reentrySessions = new Set<string>();
+  private readonly restoringSessions = new Set<string>();
   private npcSimulation?: TownNpcSimulation;
   state = new TownState();
 
@@ -111,11 +112,17 @@ export class TownRoom extends Room<{ state: TownState }> {
       player.updatedAt = Date.now();
     }
     this.reentrySessions.delete(client.sessionId);
+    this.restoringSessions.delete(client.sessionId);
     void this.allowReconnection(client, 20).catch(() => undefined);
+  }
+
+  onReconnect(client: Client) {
+    this.restoringSessions.add(client.sessionId);
   }
 
   onLeave(client: Client) {
     this.reentrySessions.delete(client.sessionId);
+    this.restoringSessions.delete(client.sessionId);
     this.state.players.delete(client.sessionId);
   }
 
@@ -162,7 +169,12 @@ export class TownRoom extends Room<{ state: TownState }> {
   private setActive(client: Client, active: unknown) {
     const player = this.state.players.get(client.sessionId);
     if (!player || typeof active !== 'boolean') return;
-    if (active && !player.active && player.seq > 0) this.reentrySessions.add(client.sessionId);
+    const restoring = this.restoringSessions.delete(client.sessionId);
+    if (active && !player.active && player.seq > 0 && !restoring) {
+      this.reentrySessions.add(client.sessionId);
+    } else if (restoring) {
+      this.reentrySessions.delete(client.sessionId);
+    }
     player.active = active;
     player.moving = active ? player.moving : false;
     if (active) player.activity = '';
