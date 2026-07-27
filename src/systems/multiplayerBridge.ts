@@ -1,4 +1,4 @@
-import type { Facing, MovePayload } from '@pet-village/multiplayer-protocol';
+import type { Facing, MovePayload, PositionCorrection } from '@pet-village/multiplayer-protocol';
 
 export type RemotePresence = {
   userId: string;
@@ -35,6 +35,7 @@ let actions: Actions | null = null;
 let connectionId: ConnectionId | null = null;
 let localActive = false;
 let moveSeq = 0;
+let correction: PositionCorrection | null = null;
 
 function clearRemote() {
   rows = [];
@@ -52,11 +53,20 @@ export const multiplayerBridge = {
     rows = next;
     listeners.forEach((fn) => fn(rows));
   },
+  setPositionCorrection(id: ConnectionId, next: PositionCorrection) {
+    if (connectionId === id) correction = next;
+  },
+  consumePositionCorrection() {
+    const next = correction;
+    correction = null;
+    return next;
+  },
   install(next: Actions) {
     const id = Symbol('multiplayer-connection');
     connectionId = id;
     actions = next;
     moveSeq = 0;
+    correction = null;
     clearRemote();
     actions.setActive(localActive);
     return id;
@@ -65,6 +75,7 @@ export const multiplayerBridge = {
     if (connectionId !== id) return false;
     connectionId = null;
     actions = null;
+    correction = null;
     clearRemote();
     return true;
   },

@@ -11,12 +11,12 @@ import { verifyAdmission } from '../src/TownRoom.ts';
 const secretValue = 'local-test-secret-at-least-32-characters-long';
 const secret = new TextEncoder().encode(secretValue);
 
-async function ticket(overrides: { issuer?: string; lifetime?: string } = {}) {
+async function ticket(overrides: { issuer?: string; lifetime?: string; penguinColor?: string } = {}) {
   return new SignJWT({
     displayName: 'Alice',
     petName: 'Mame',
     petSpecies: 'mametchi',
-    penguinColor: 'blue',
+    penguinColor: overrides.penguinColor ?? 'blue',
     protocolVersion: PROTOCOL_VERSION,
   })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
@@ -37,4 +37,5 @@ test('admission validates issuer, audience, lifetime, and server secret', async 
   assert.equal((await verifyAdmission(valid)).sub, 'user-a');
   await assert.rejects(verifyAdmission(await ticket({ issuer: 'wrong' })));
   await assert.rejects(verifyAdmission(await ticket({ lifetime: '5m' })));
+  await assert.rejects(verifyAdmission(await ticket({ penguinColor: 'ultraviolet' })));
 });

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
+import { configurePlayerPenguin, ensureRemotePenguinTextures, generateTextures } from '../sprites/pixelart';
 import { State, WELCOME_KEY } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
@@ -20,7 +20,7 @@ import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
 import { movementFacing } from '../systems/movementFacing';
 import { multiplayerBridge, type RemotePresence } from '../systems/multiplayerBridge';
-import { isNewWaveForLocalPlayer } from '../systems/multiplayerPresentation';
+import { isNewWaveForLocalPlayer, remotePenguinTextureKey } from '../systems/multiplayerPresentation';
 import { shouldSendPresence, type PresencePose } from '../systems/multiplayerPolicy';
 import { petDrawScale, petTextureKey, type PetSpecies } from '../systems/pets';
 
@@ -709,9 +709,10 @@ export class TownScene extends Phaser.Scene {
     const ids = new Set(rows.map((r) => r.userId));
     for (const [id, o] of this.remotes) if (!ids.has(id)) { o.penguin.destroy(); o.pet.destroy(); o.label.destroy(); this.remotes.delete(id); }
     for (const data of rows) {
+      ensureRemotePenguinTextures(this, data.penguinColor);
       let o = this.remotes.get(data.userId);
       if (!o) {
-        const penguin = this.add.sprite(data.x, data.y, 'penguin-down', 0).setTint(this.remoteTint(data.penguinColor)).setInteractive({ useHandCursor: true });
+        const penguin = this.add.sprite(data.x, data.y, remotePenguinTextureKey('down', data.penguinColor)).setInteractive({ useHandCursor: true });
         configurePlayerPenguin(penguin);
         const pet = this.add.sprite(data.x - 28, data.y + 12, petTextureKey(data.petSpecies as PetSpecies, 'idle1')).setScale(petDrawScale(this, data.petSpecies as PetSpecies));
         const label = this.add.text(data.x, data.y - 58, `${data.name} · ${data.petName}`, { fontFamily: 'monospace', fontSize: '12px', color: '#fff', backgroundColor: '#000a', padding: { x: 4, y: 2 } }).setOrigin(.5);
@@ -733,14 +734,21 @@ export class TownScene extends Phaser.Scene {
       o.penguin.setVisible(true); o.pet.setVisible(true); o.label.setVisible(true);
       o.penguin.x = Phaser.Math.Linear(o.penguin.x, o.data.x, .22); o.penguin.y = Phaser.Math.Linear(o.penguin.y, o.data.y, .22);
       o.pet.x = Phaser.Math.Linear(o.pet.x, o.data.petX, .22); o.pet.y = Phaser.Math.Linear(o.pet.y, o.data.petY, .22); o.label.setPosition(o.penguin.x, o.penguin.y - 58);
-      o.penguin.setTexture(o.data.facing === 'up' ? 'penguin-up' : o.data.facing === 'side' ? 'penguin-side' : 'penguin-down', 0);
+      o.penguin.setTexture(remotePenguinTextureKey(o.data.facing, o.data.penguinColor));
       o.penguin.setDepth(characterDepth(o.penguin)); o.pet.setDepth(characterDepth(o.pet));
     }
   }
-  private remoteTint(key: string) { let h=0; for(const c of key) h=(h*31+c.charCodeAt(0))>>>0; return Phaser.Display.Color.HSLToColor((h%360)/360,.45,.65).color; }
 
   update() {
     if (!this.player) return;
+
+    const correction = multiplayerBridge.consumePositionCorrection();
+    if (correction) {
+      this.player.setPosition(correction.x, correction.y);
+      this.pet.sprite.setPosition(correction.petX, correction.petY);
+      this.clickMove.clear();
+      this.player.setVelocity(0, 0);
+    }
 
     const speed = 220;
     // The shell (React) menu blocks input via nav; treat it like a menu.

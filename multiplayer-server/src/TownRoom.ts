@@ -10,7 +10,7 @@ import {
   type MovePayload,
   type WavePayload,
 } from '@pet-village/multiplayer-protocol';
-import { canWave, validateMove } from './policy.ts';
+import { canWave, TOWN_SPAWNS, validateMove } from './policy.ts';
 
 function secret() {
   const value = process.env.MULTIPLAYER_TICKET_SECRET;
@@ -23,6 +23,11 @@ function secret() {
 function validClaimString(value: unknown, maxLength: number) {
   return typeof value === 'string' && value.length > 0 && value.length <= maxLength;
 }
+
+const PENGUIN_COLORS = new Set([
+  'blue', 'green', 'pink', 'black', 'red', 'purple',
+  'orange', 'darkpurple', 'brown', 'peach', 'darkgreen', 'lightblue',
+]);
 
 export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
   const { payload } = await jwtVerify(token, secret(), {
@@ -40,6 +45,7 @@ export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
     !validClaimString(claims.petName, 32) ||
     !validClaimString(claims.petSpecies, 40) ||
     !validClaimString(claims.penguinColor, 24) ||
+    !PENGUIN_COLORS.has(claims.penguinColor) ||
     !Number.isInteger(claims.iat) ||
     !Number.isInteger(claims.exp) ||
     claims.exp <= claims.iat ||
@@ -76,13 +82,17 @@ export class TownRoom extends Room<{ state: TownState }> {
       petName: claims.petName,
       petSpecies: claims.petSpecies,
       penguinColor: claims.penguinColor,
-      x: 528,
-      y: 500,
-      petX: 498,
-      petY: 510,
+      x: TOWN_SPAWNS[0].x,
+      y: TOWN_SPAWNS[0].y,
+      petX: TOWN_SPAWNS[0].x - 30,
+      petY: TOWN_SPAWNS[0].y + 10,
       updatedAt: Date.now(),
     });
     this.state.players.set(client.sessionId, player);
+  }
+
+  onDrop(client: Client) {
+    void this.allowReconnection(client, 20).catch(() => undefined);
   }
 
   onLeave(client: Client) {
@@ -105,7 +115,15 @@ export class TownRoom extends Room<{ state: TownState }> {
       payload,
       now,
     );
-    if (!result.ok) return;
+    if (!result.ok) {
+      client.send('positionCorrection', {
+        x: player.x,
+        y: player.y,
+        petX: player.petX,
+        petY: player.petY,
+      });
+      return;
+    }
     Object.assign(player, result.move, { updatedAt: now });
   }
 

@@ -39,6 +39,7 @@ export default defineSchema({
     bestSkipRope: v.optional(v.number()),
     ownedAccessories: v.optional(v.array(v.string())),
     equippedAccessories: equippedAccessoriesValidator,
+    penguinColor: v.optional(v.string()),
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),
 });

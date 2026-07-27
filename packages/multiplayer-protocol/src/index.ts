@@ -13,6 +13,8 @@ export const WAVE_RADIUS = 300;
 export const WAVE_COOLDOWN_MS = 1_000;
 export type Facing = 'up' | 'down' | 'side';
 export type MovePayload = {x:number;y:number;petX:number;petY:number;facing:Facing;moving:boolean;seq:number};
+export type ActivityPayload = { active: boolean };
+export type PositionCorrection = { x: number; y: number; petX: number; petY: number };
 export type WavePayload = { targetSessionId: string };
 export type AdmissionClaims = {sub:string;displayName:string;petName:string;petSpecies:string;penguinColor:string;protocolVersion:number;jti:string;iat:number;exp:number;iss:string;aud:string|string[]};
 

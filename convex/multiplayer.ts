@@ -10,10 +10,15 @@ import {
 import { internal } from './_generated/api';
 import { action } from './_generated/server';
 
+const PENGUIN_COLORS = new Set([
+  'blue', 'green', 'pink', 'black', 'red', 'purple',
+  'orange', 'darkpurple', 'brown', 'peach', 'darkgreen', 'lightblue',
+]);
+
 export const issueTicket = action({
-  args: {},
+  args: { penguinColor: v.string() },
   returns: v.string(),
-  handler: async (ctx): Promise<string> => {
+  handler: async (ctx, args): Promise<string> => {
     const profile: {
       identity: string;
       displayName: string;
@@ -30,7 +35,9 @@ export const issueTicket = action({
       displayName: profile.displayName,
       petName: profile.petName,
       petSpecies: profile.petSpecies,
-      penguinColor: profile.penguinColor,
+      penguinColor: PENGUIN_COLORS.has(args.penguinColor)
+        ? args.penguinColor
+        : profile.penguinColor,
       protocolVersion: PROTOCOL_VERSION,
     })
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
