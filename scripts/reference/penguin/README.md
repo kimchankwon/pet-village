@@ -22,6 +22,13 @@ When the player stops, scenes set texture frame **0** — standing idle, not a
 mid-walk hop. Walk anims cycle frames **1↔2** so feet truly alternate (never
 plant + one-foot hop, which reads as sliding on one foot).
 
+## Back walk depth (up-1 / up-2)
+
+Back-facing walk plates step **away from the camera**: the raised foot sits
+**in front of** the penguin (partially hidden under the body), and the planted
+foot is fully visible at the bottom (toward the camera). Sources:
+`imagine-back-walk-v2/` (up-2 from Imagine; up-1 is a horizontal mirror).
+
 ## Side facing (v3)
 
 Side idle + walk plates were regenerated with Grok Imagine using the current
