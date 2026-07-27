@@ -4,7 +4,7 @@ export type ClassicSpecies =
   | 'mametchi'
   | 'kuchipatchi'
   | 'mimitchi'
-  | 'violetchi'
+  | 'flowetchi'
   | 'gozarutchi'
   | 'memetchi';
 export type PuffleColor =
@@ -64,8 +64,8 @@ const CLASSIC: PetDef[] = [
     group: 'classic',
   },
   {
-    id: 'violetchi',
-    label: 'Violetchi',
+    id: 'flowetchi',
+    label: 'Flowetchi',
     defaultName: 'Petal',
     blurb: 'Gentle gardener · speaks flower',
     group: 'classic',
@@ -239,8 +239,20 @@ export function poseFromAssetFile(file: (typeof PET_ASSET_FILES)[number]): PetPo
   return FILE_TO_POSE[file];
 }
 
+/**
+ * Accepts current species ids, plus legacy `violetchi` (migrated to Flowetchi).
+ */
 export function isPetSpecies(value: unknown): value is PetSpecies {
-  return typeof value === 'string' && value in PET_SPECIES;
+  if (typeof value !== 'string') return false;
+  if (value === 'violetchi') return true; // legacy saves — remap in GameState
+  return value in PET_SPECIES;
+}
+
+/** Map retired species ids to their replacements. */
+export function migratePetSpecies(value: unknown): PetSpecies {
+  if (value === 'violetchi') return 'flowetchi';
+  if (typeof value === 'string' && value in PET_SPECIES) return value as PetSpecies;
+  return 'mametchi';
 }
 
 export function isPuffleSpecies(value: unknown): value is `puffle-${PuffleColor}` {
@@ -257,7 +269,8 @@ export const petSpeciesValidatorLiterals = [
   'mametchi',
   'kuchipatchi',
   'mimitchi',
-  'violetchi',
+  'flowetchi',
+  'violetchi', // legacy cloud saves
   'gozarutchi',
   'memetchi',
   'bongbongee',

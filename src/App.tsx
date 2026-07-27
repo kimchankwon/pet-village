@@ -6,6 +6,7 @@ import { AuthPanel } from './ui/AuthPanel';
 import { startGame } from './game/startGame';
 import { State, type SaveData } from './systems/GameState';
 import { applyPenguinColor, PENGUIN_COLORS } from './sprites/pixelart';
+import { migratePetSpecies } from './systems/pets';
 import { blockUi, resetUiBlock, setLeaveHandler, unblockUi } from './systems/nav';
 import type Phaser from 'phaser';
 import { APP_VERSION } from './appVersion';
@@ -249,7 +250,7 @@ function CloudGame() {
         version: cloudSave.version,
         coins: cloudSave.coins,
         petName: cloudSave.petName,
-        petSpecies: cloudSave.petSpecies,
+        petSpecies: migratePetSpecies(cloudSave.petSpecies),
         adopted: cloudSave.adopted,
         pet: cloudSave.pet,
         lastSeen: cloudSave.lastSeen,

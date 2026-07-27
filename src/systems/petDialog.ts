@@ -34,8 +34,8 @@ const NEED_LINES: Record<'hungry' | 'tired' | 'sad', string[]> = {
  * - Tamagotchi wiki: Mametchi is a well-mannered inventor whose gadgets tend
  *   to explode; Kuchipatchi is a lazy daydreamer who loves Tama-Donuts and
  *   ends sentences with "-datchi"; Mimitchi is the cheerful, caring
- *   perfect-care adult; Violetchi is a softhearted gardener who knows the
- *   meaning of every flower.
+ *   perfect-care adult; Flowetchi (Flowertchi) is a softhearted gardener who
+ *   knows the meaning of every flower.
  * - Club Penguin wiki puffle personalities: blue = loyal ball games, pink =
  *   skip rope/swimming, green = clown with propeller cap, black = silent
  *   skateboarder, purple = picky disco dancer, red = Rockhopper Island
@@ -67,12 +67,12 @@ const PERSONALITY: Record<PetSpecies, string[]> = {
     'You take such good care of me!',
     'Today feels lucky. I can tell!',
   ],
-  violetchi: [
+  flowetchi: [
     'This flower means friendship. It reminded me of you!',
     'I watered the town flowers. They said thank you!',
     'Violets for luck, daisies for joy… which are you?',
     'Let’s plant something pretty together.',
-    'My twin Flowertchi would adore this garden.',
+    'My twin Violetchi would adore this garden.',
   ],
   gozarutchi: [
     'Ninja training never ends… degozaru!',

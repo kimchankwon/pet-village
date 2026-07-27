@@ -10,7 +10,13 @@ import {
   type AccessoryId,
   type AccessorySlot,
 } from './accessories';
-import { isClassicSpecies, isPetSpecies, isPuffleSpecies, type PetSpecies } from './pets';
+import {
+  isClassicSpecies,
+  isPetSpecies,
+  isPuffleSpecies,
+  migratePetSpecies,
+  type PetSpecies,
+} from './pets';
 import {
   FISHING_BAIT_PRICE,
   FISHY_SNACK_HUNGER,
@@ -264,7 +270,10 @@ function normalizeEquipped(raw: unknown, forPenguin = false): EquippedAccessorie
 function mergeSave(parsed: Partial<SaveData> & { petSpecies?: unknown }): SaveData {
   const base = defaultSave();
   const hadPriorSave = parsed.version !== undefined;
-  const species = isPetSpecies(parsed.petSpecies) ? parsed.petSpecies : base.petSpecies;
+  // Violetchi was replaced by Flowetchi (Flowertchi iD sprites).
+  const species = isPetSpecies(parsed.petSpecies)
+    ? migratePetSpecies(parsed.petSpecies)
+    : base.petSpecies;
   return {
     ...base,
     ...parsed,
