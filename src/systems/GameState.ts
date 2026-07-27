@@ -267,8 +267,42 @@ function normalizeEquipped(raw: unknown, forPenguin = false): EquippedAccessorie
   return out;
 }
 
-function mergeSave(parsed: Partial<SaveData> & { petSpecies?: unknown }): SaveData {
+function finiteNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function normalizeInventory(raw: unknown, fallback: Record<string, number>): Record<string, number> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return fallback;
+  const inventory: Record<string, number> = {};
+  for (const [id, count] of Object.entries(raw)) {
+    if (typeof count === 'number' && Number.isFinite(count) && count >= 0) inventory[id] = count;
+  }
+  return inventory;
+}
+
+function normalizePlaced(raw: unknown, fallback: PlacedItem[]): PlacedItem[] {
+  if (!Array.isArray(raw)) return fallback;
+  return raw
+    .filter((item): item is PlacedItem => {
+      if (!item || typeof item !== 'object') return false;
+      const value = item as Record<string, unknown>;
+      return typeof value.id === 'string' && Number.isFinite(value.gx) && Number.isFinite(value.gy);
+    })
+    .map((item) => ({ ...item }));
+}
+
+function normalizeStringRecord(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  return Object.fromEntries(
+    Object.entries(raw).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  );
+}
+
+export function normalizeSave(raw: unknown): SaveData {
   const base = defaultSave();
+  const parsed = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Partial<SaveData> & { petSpecies?: unknown }
+    : {};
   const hadPriorSave = parsed.version !== undefined;
   // Violetchi was replaced by Flowetchi (Flowertchi iD sprites).
   const species = isPetSpecies(parsed.petSpecies)
@@ -276,21 +310,34 @@ function mergeSave(parsed: Partial<SaveData> & { petSpecies?: unknown }): SaveDa
     : base.petSpecies;
   return {
     ...base,
-    ...parsed,
+    version: finiteNumber(parsed.version, base.version),
+    coins: finiteNumber(parsed.coins, base.coins),
+    lastSeen: finiteNumber(parsed.lastSeen, base.lastSeen),
+    bestPaperToss: finiteNumber(parsed.bestPaperToss, base.bestPaperToss),
+    biggestCatch: finiteNumber(parsed.biggestCatch, base.biggestCatch),
+    bestSkipRope: finiteNumber(parsed.bestSkipRope, base.bestSkipRope),
     petSpecies: species,
     // Older saves never had `adopted` — treat them as already playing.
-    adopted: parsed.adopted ?? hadPriorSave,
-    petName: parsed.petName ?? (hadPriorSave ? 'Mochi' : base.petName),
-    pet: { ...base.pet, ...parsed.pet },
-    inventory: parsed.inventory ?? base.inventory,
-    placed: parsed.placed ?? base.placed,
+    adopted: typeof parsed.adopted === 'boolean' ? parsed.adopted : hadPriorSave,
+    petName: typeof parsed.petName === 'string' ? parsed.petName : (hadPriorSave ? 'Mochi' : base.petName),
+    pet: {
+      hunger: finiteNumber(parsed.pet?.hunger, base.pet.hunger),
+      happiness: finiteNumber(parsed.pet?.happiness, base.pet.happiness),
+      energy: finiteNumber(parsed.pet?.energy, base.pet.energy),
+    },
+    inventory: normalizeInventory(parsed.inventory, base.inventory),
+    placed: normalizePlaced(parsed.placed, base.placed),
     ownedAccessories: normalizeOwned(parsed.ownedAccessories),
     equippedAccessories: normalizeEquipped(parsed.equippedAccessories),
+    penguinColor: typeof parsed.penguinColor === 'string' ? parsed.penguinColor : base.penguinColor,
     equippedPenguinAccessories: normalizeEquipped(parsed.equippedPenguinAccessories, true),
+    npcGiftDays: normalizeStringRecord(parsed.npcGiftDays),
   };
 }
 
-class GameStateStore {
+const mergeSave = normalizeSave;
+
+export class GameStateStore {
   data: SaveData;
   private cloudSaver: CloudSaver | null = null;
   private cloudTimer: ReturnType<typeof setTimeout> | null = null;
@@ -367,6 +414,7 @@ class GameStateStore {
     if (!this.cloudSaver) return;
     if (this.cloudTimer) clearTimeout(this.cloudTimer);
     this.cloudTimer = setTimeout(() => {
+      this.cloudTimer = null;
       this.cloudSaver?.(this.snapshot());
     }, 700);
   }

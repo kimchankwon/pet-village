@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { Joystick } from './Joystick';
+import { zoomPolicy, type CameraZoomKind } from './cameraZoomPolicy';
 
 /** How far you can zoom out / in. */
 export const ZOOM_MIN = 0.9;
@@ -11,7 +12,7 @@ export const ZOOM_DEFAULT_HUB = 1.25;
 /** Minigames — 1× so the designed playfield fits the view. */
 export const ZOOM_DEFAULT_GAME = 1.0;
 
-export type ZoomKind = 'hub' | 'game';
+export type ZoomKind = CameraZoomKind;
 
 const UI_CAM_NAME = 'ui';
 const UI_FLAG = 'zoomUi';
@@ -126,7 +127,7 @@ export class CameraZoom {
   private scene: Phaser.Scene;
   private opts: CameraZoomOpts;
   private zoom: number;
-  private slider!: ZoomSlider;
+  private slider: ZoomSlider | null = null;
   private pinching = false;
   private pinchStartDist = 0;
   private pinchStartZoom = 1;
@@ -137,24 +138,23 @@ export class CameraZoom {
     this.opts = opts;
     ensureUiCamera(scene);
 
-    const fallback = opts.kind === 'game' ? ZOOM_DEFAULT_GAME : ZOOM_DEFAULT_HUB;
-    // Preserve scene-specific defaults until the player actually uses a zoom
-    // control; after that, their chosen view follows them everywhere.
-    const initial = clampZoom(rememberedUserZoom ?? fallback);
+    const policy = zoomPolicy(opts.kind, rememberedUserZoom);
+    const initial = clampZoom(policy.initial);
     this.zoom = initial;
     scene.cameras.main.setZoom(initial);
 
-    this.slider = new ZoomSlider(scene, {
-      getZoom: () => this.zoom,
-      setZoom: (z) => this.setZoom(z),
-      isBlocked: () => this.blocked(),
-    });
-
-    scene.input.on('wheel', this.onWheel);
-    scene.input.on('pointerdown', this.onPointerDown);
-    scene.input.on('pointermove', this.onPointerMove);
-    scene.input.on('pointerup', this.onPointerUp);
-    scene.input.on('pointerupoutside', this.onPointerUp);
+    if (policy.controls) {
+      this.slider = new ZoomSlider(scene, {
+        getZoom: () => this.zoom,
+        setZoom: (z) => this.setZoom(z),
+        isBlocked: () => this.blocked(),
+      });
+      scene.input.on('wheel', this.onWheel);
+      scene.input.on('pointerdown', this.onPointerDown);
+      scene.input.on('pointermove', this.onPointerMove);
+      scene.input.on('pointerup', this.onPointerUp);
+      scene.input.on('pointerupoutside', this.onPointerUp);
+    }
 
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.destroy());
   }
@@ -166,7 +166,7 @@ export class CameraZoom {
 
   /** True if this pointer is on the zoom slider. */
   ownsPointer(p: Phaser.Input.Pointer): boolean {
-    return this.slider.owns(p);
+    return this.slider?.owns(p) ?? false;
   }
 
   get value(): number {
@@ -177,13 +177,13 @@ export class CameraZoom {
     if (this.destroyed) return;
     const next = clampZoom(z);
     if (Math.abs(next - this.zoom) < 0.0005) {
-      this.slider.sync();
+      this.slider?.sync();
       return;
     }
     this.zoom = next;
     rememberedUserZoom = next;
     this.scene.cameras.main.setZoom(next);
-    this.slider.sync();
+    this.slider?.sync();
   }
 
   private blocked(): boolean {
@@ -207,7 +207,7 @@ export class CameraZoom {
     for (const p of this.scene.input.manager.pointers) {
       if (!p || !p.active || !p.isDown || !p.wasTouch) continue;
       if (this.opts.joystick?.owns(p)) continue;
-      if (this.slider.owns(p)) continue;
+      if (this.slider?.owns(p)) continue;
       out.push(p);
     }
     return out;
@@ -254,7 +254,7 @@ export class CameraZoom {
     this.scene.input.off('pointermove', this.onPointerMove);
     this.scene.input.off('pointerup', this.onPointerUp);
     this.scene.input.off('pointerupoutside', this.onPointerUp);
-    this.slider.destroy();
+    this.slider?.destroy();
   }
 }
 

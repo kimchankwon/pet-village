@@ -13,6 +13,7 @@ import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { petAnimKey, petDrawScale, petTextureKey } from '../systems/pets';
+import { clampBasketX } from '../systems/paperTossBounds';
 
 const GROUND_Y = 480;
 // The ball sits right at the pet thrower's hands.
@@ -27,6 +28,7 @@ const COINS_PER_BASKET = 2;
 // Slower, floatier flight so the wind has time to bend the arc.
 const GRAVITY = 1100;
 const BALL_R = 12;
+const BASKET_MARGIN = 12;
 // Drag-to-power: the pull saturates at MAX_DRAG px — dragging further
 // doesn't add speed (the aim line turns red at the cap).
 const MAX_DRAG = 260;
@@ -552,7 +554,8 @@ export class PaperTossScene extends Phaser.Scene {
     // and come from the stage's seeded RNG so retries replay the combo.
     const cfg = STAGES[this.stage - 1]!;
     this.wind = this.rng.between(-cfg.windMax, cfg.windMax);
-    this.binX = this.rng.between(cfg.binMin, cfg.binMax);
+    const configuredX = this.rng.between(cfg.binMin, cfg.binMax);
+    this.binX = clampBasketX(cfg.binMin, configuredX, this.cameras.main.width, this.bin.displayWidth, BASKET_MARGIN);
     this.bin.x = this.binX;
 
     // Obstacles re-randomise every throw — placed AFTER the bin so they can
