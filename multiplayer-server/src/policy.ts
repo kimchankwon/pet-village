@@ -25,7 +25,7 @@ export type PlayerVector = {
   lastWaveAt: number;
 };
 
-export function validateMove(current: PlayerVector, payload: unknown, now: number) {
+export function validateMove(current: PlayerVector, payload: unknown, now: number, allowSpawn = false) {
   if (!isMovePayload(payload) || payload.seq <= current.lastSeq) {
     return { ok: false as const, reason: 'invalid' };
   }
@@ -33,7 +33,7 @@ export function validateMove(current: PlayerVector, payload: unknown, now: numbe
   const petDistance = Math.hypot(payload.petX - payload.x, payload.petY - payload.y);
   if (petDistance > MAX_PET_DISTANCE) return { ok: false as const, reason: 'pet-distance' };
 
-  if (current.lastSeq === 0) {
+  if (current.lastSeq === 0 || allowSpawn) {
     const atSpawn = TOWN_SPAWNS.some(
       (spawn) => Math.hypot(payload.x - spawn.x, payload.y - spawn.y) <= SPAWN_RADIUS,
     );

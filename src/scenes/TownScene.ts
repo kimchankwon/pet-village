@@ -85,6 +85,7 @@ export class TownScene extends Phaser.Scene {
   private decoSolids: { x: number; y: number; w: number; h: number }[] = [];
   private remotes = new Map<string, { penguin: Phaser.GameObjects.Sprite; pet: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; data: RemotePresence; lastWaveId?: string }>();
   private unsubscribeRemote?: () => void;
+  private releaseTownActivation?: () => void;
   private lastPresence!: PresencePose;
   private lastPresenceSent = 0;
 
@@ -136,7 +137,7 @@ export class TownScene extends Phaser.Scene {
     this.pet = new Pet(this, sx - 30, sy + 10, worldBounds);
     this.lastPresence = { x: sx, y: sy, facing: 'down', moving: false, sentAt: 0 };
     this.unsubscribeRemote = multiplayerBridge.subscribe((rows) => this.syncRemotes(rows));
-    multiplayerBridge.setActive(true);
+    this.releaseTownActivation = multiplayerBridge.activateTown();
     // Tap/click your pet to hear what's on its mind.
     this.pet.sprite.setInteractive({ useHandCursor: true });
     this.pet.sprite.on('pointerdown', () => {
@@ -175,7 +176,8 @@ export class TownScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       rememberBongbongee(bong);
       rememberMiniteens(this.miniteens.list());
-      multiplayerBridge.setActive(false);
+      this.releaseTownActivation?.();
+      this.releaseTownActivation = undefined;
       this.unsubscribeRemote?.();
       this.remotes.forEach((r) => { r.penguin.destroy(); r.pet.destroy(); r.label.destroy(); });
       this.remotes.clear();
