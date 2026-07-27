@@ -1,8 +1,8 @@
 /**
  * Mimitchi pet frames from the Tamagotchi iD fandom gallery.
  *
- * Walk: File:IDMimitchiWalk.png → walk1; Happy2 used as walk2 (no Walk2 file
- * in the iD set — planted open-mouth stride that alternates with Walk).
+ * Walk: File:IDMimitchiWalk.png → walk1; File:IdMimitchiWalk2.png → walk2
+ * (gallery item 18/90 on Mimitchi/Sprite_Gallery).
  * (https://tamagotchi.fandom.com/wiki/Mimitchi/Sprite_Gallery § Tamagotchi iD)
  *
  * Reference PNGs: scripts/reference/mimitchi/frames/
