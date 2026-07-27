@@ -100,8 +100,10 @@ for (const pose of POSES) {
   const canvas = toCanvas(src);
   // cleanExterior: false — Mametchi has white eye sclera; exterior cleaners
   // that treat pure white as plate would punch holes in the face.
+  // repairOutline: false — iD gallery art already has a dark outline (~0,0,99);
+  // the repair pass would add a second pure-black ring outside it.
   saveSprite(canvas, path.join(OUT, `${pose}.png`), {
-    repairOutline: true,
+    repairOutline: false,
     cleanExterior: false,
     outline: OUTLINE,
   });

@@ -99,8 +99,10 @@ for (const pose of POSES) {
 
 fs.mkdirSync(OUT, { recursive: true });
 for (const { pose, canvas } of loaded) {
+  // Gallery art already has a dark outline (~0,0,99). repairOutline would
+  // paint a second pure-black ring outside it — skip that double outline.
   saveSprite(canvas, path.join(OUT, `${pose}.png`), {
-    repairOutline: true,
+    repairOutline: false,
     cleanExterior: false,
     outline: OUTLINE,
   });
