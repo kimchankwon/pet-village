@@ -13,7 +13,7 @@ Downloaded from static.wikia (`File:IDMimitchi*.png`):
 | neutral1 | `IDMimitchiSide.png` | Default standing |
 | neutral2 | `IDMimitchiSit.png` | Alternate standing smile |
 | walk1 | `IDMimitchiWalk.png` | Walking |
-| walk2 | `IDMimitchiHappy2.png` | No Walk2 file; open-mouth planted stride |
+| walk2 | `IdMimitchiWalk2.png` | Walking (gallery item 18/90) |
 | happy | `IDMimitchiHappy.png` | Happy |
 | sad | `IDMimitchiSad.png` | Sad |
 | sleep | `IDMimitchiAnnoyed.png` | No Sleep file; closed-eye pose |
