@@ -143,6 +143,8 @@ export type PetPose =
   | 'walk6'
   | 'walk7'
   | 'walk8'
+  | 'walk9'
+  | 'walk10'
   | 'sad'
   | 'happy'
   | 'sleep'
@@ -159,7 +161,10 @@ const FILE_TO_POSE: Record<(typeof PET_ASSET_FILES)[number], PetPose> = {
   jump: 'jump',
 };
 
-/** Kirby’s GBA-style walk uses an 8-frame cycle (extra frames beyond the shared walk1/walk2). */
+/**
+ * Kirby’s Tenor walk GIF uses a 10-frame cycle (extra frames beyond the shared
+ * walk1/walk2 used by other pets).
+ */
 export const KIRBY_WALK_FILES = [
   'walk1',
   'walk2',
@@ -169,6 +174,8 @@ export const KIRBY_WALK_FILES = [
   'walk6',
   'walk7',
   'walk8',
+  'walk9',
+  'walk10',
 ] as const;
 
 export function petTextureKey(species: PetSpecies, pose: PetPose): string {

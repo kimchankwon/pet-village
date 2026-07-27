@@ -212,6 +212,16 @@ export class BootScene extends Phaser.Scene {
           this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
         }
       }
+      // Kirby’s extra walk plates (walk3+) use keys `kirby-walkN`, not petTextureKey.
+      if (species.id === 'kirby') {
+        for (const file of KIRBY_WALK_FILES) {
+          const key =
+            file === 'walk1' || file === 'walk2' ? petTextureKey('kirby', file) : `kirby-${file}`;
+          if (this.textures.exists(key)) {
+            this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+          }
+        }
+      }
     }
 
     for (const species of PET_SPECIES_LIST) {
@@ -223,12 +233,13 @@ export class BootScene extends Phaser.Scene {
         repeat: -1,
       });
       if (species.id === 'kirby') {
+        // Tenor walk GIF is ~0.85s / 10 frames ≈ 12 fps.
         this.anims.create({
           key: petAnimKey(species.id, 'walk'),
           frames: KIRBY_WALK_FILES.map((file) => ({
             key: file === 'walk1' || file === 'walk2' ? petTextureKey('kirby', file) : `kirby-${file}`,
           })),
-          frameRate: 14,
+          frameRate: 12,
           repeat: -1,
         });
       } else {

@@ -88,7 +88,8 @@ test('generated character frames already satisfy the one-pixel outline invariant
   for (const name of ['idle', 'walk1', 'walk2', 'happy', 'sad', 'jump']) {
     files.push({ file: path.join('public/assets/npc/bongbongee', `${name}.png`), outline: BLACK });
   }
-  assert.equal(files.length, 200, 'expected the complete generated animation-frame corpus');
+  // Kirby walk cycle is 10 frames (walk1–walk10 from Tenor GIF).
+  assert.equal(files.length, 202, 'expected the complete generated animation-frame corpus');
 
   for (const { file, outline } of files) {
     const image = PNG.sync.read(fs.readFileSync(file));

@@ -1,11 +1,13 @@
 /**
- * Kirby pet frames — round pink puffball (Tenor kirby-walk GIF ref).
+ * LEGACY procedural Kirby (approximate). Prefer the Tenor GIF tracer:
+ *   npm run sprite:kirby  →  scripts/kirby-from-tenor-gif.mts
+ *
+ * Kept for reference / offline fallback when GIF frames are missing.
  *
  * Design goals (match scripts/reference/kirby/):
  *  - Near-perfect circular body, no pointy silhouette nubs
  *  - Soft round arm blobs + rounded red feet
  *  - Tall white eyes with black rim; large black pupils filling the lower half
- *    (classic Kirby look from the GIF frames)
  *  - Pink blush, small open smile + tongue
  *
  * Poses: neutral1, neutral2, walk1–walk8, sad, happy, sleep, jump.
