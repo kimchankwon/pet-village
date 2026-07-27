@@ -37,6 +37,53 @@ test('normalizeSave keeps valid legacy migration behavior', () => {
   assert.deepEqual(normalized.placed, [{ id: 'bed', gx: 2, gy: 5 }]);
 });
 
+test('normalizeSave preserves only valid Town positions', () => {
+  assert.deepEqual(
+    normalizeSave({ version: 1, townPosition: { x: 320, y: 240, facing: 'side' } }).townPosition,
+    { x: 320, y: 240, facing: 'side' },
+  );
+  assert.equal(
+    normalizeSave({ version: 1, townPosition: { x: -1, y: 240, facing: 'side' } }).townPosition,
+    undefined,
+  );
+});
+
+test('remembered Town position is durably persisted only when changed', () => {
+  const previousStorage = globalThis.localStorage;
+  const storage = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, value),
+  };
+
+  try {
+    const store = new GameStateStore();
+    store.rememberTownPosition({ x: 320, y: 240, facing: 'side' });
+    assert.equal(store.persistTownPosition(), true);
+    assert.equal(store.persistTownPosition(), false);
+    assert.deepEqual(new GameStateStore().data.townPosition, { x: 320, y: 240, facing: 'side' });
+  } finally {
+    globalThis.localStorage = previousStorage;
+  }
+});
+
+test('older cloud saves do not erase a valid device Town position', () => {
+  const previousStorage = globalThis.localStorage;
+  const local = { ...defaultSave(), townPosition: { x: 320, y: 240, facing: 'side' } };
+  globalThis.localStorage = {
+    getItem: () => JSON.stringify(local),
+    setItem: () => {},
+  };
+
+  try {
+    const store = new GameStateStore();
+    store.hydrate({ ...defaultSave(), townPosition: undefined });
+    assert.deepEqual(store.data.townPosition, { x: 320, y: 240, facing: 'side' });
+  } finally {
+    globalThis.localStorage = previousStorage;
+  }
+});
+
 test('fired cloud debounce is no longer pending for flushCloud', () => {
   const previousStorage = globalThis.localStorage;
   const previousSetTimeout = globalThis.setTimeout;

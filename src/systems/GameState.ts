@@ -24,6 +24,7 @@ import {
   petCanEat,
 } from './petFoodRules';
 import { GET_WIN_REWARDS, type GetDifficulty } from './getGameRules';
+import { normalizeTownPosition, type TownPosition } from './townPosition';
 
 export interface PetStats {
   hunger: number; // 0 = starving, 100 = full
@@ -66,6 +67,8 @@ export interface SaveData {
    * Device-local like penguinColor: NOT in snapshot().
    */
   equippedPenguinAccessories?: EquippedAccessories;
+  /** Last safe Town pose, restored on the next full game launch. */
+  townPosition?: TownPosition;
   /**
    * Day stamp (Date#toDateString) of each villager's last claimed daily
    * gift. Device-local like penguinColor: NOT in snapshot().
@@ -327,6 +330,7 @@ export function normalizeSave(raw: unknown): SaveData {
     equippedAccessories: normalizeEquipped(parsed.equippedAccessories),
     penguinColor: typeof parsed.penguinColor === 'string' ? parsed.penguinColor : base.penguinColor,
     equippedPenguinAccessories: normalizeEquipped(parsed.equippedPenguinAccessories, true),
+    townPosition: normalizeTownPosition(parsed.townPosition),
     npcGiftDays: normalizeStringRecord(parsed.npcGiftDays),
   };
 }
@@ -337,6 +341,7 @@ export class GameStateStore {
   data: SaveData;
   private cloudSaver: CloudSaver | null = null;
   private cloudTimer: ReturnType<typeof setTimeout> | null = null;
+  private townPositionDirty = false;
 
   constructor() {
     this.data = this.loadLocal();
@@ -363,10 +368,12 @@ export class GameStateStore {
     const localColor = this.data.penguinColor;
     const localGiftDays = this.data.npcGiftDays;
     const localPenguinFit = this.data.equippedPenguinAccessories;
+    const localTownPosition = this.data.townPosition;
     this.data = mergeSave(raw);
     this.data.penguinColor = raw.penguinColor ?? localColor;
     this.data.npcGiftDays = raw.npcGiftDays ?? localGiftDays;
     if (!raw.equippedPenguinAccessories) this.data.equippedPenguinAccessories = localPenguinFit;
+    if (!this.data.townPosition) this.data.townPosition = localTownPosition;
     // Decay before strip — strip may persist and would clobber lastSeen.
     this.applyOfflineDecay();
     this.stripUnwearableAccessories();
@@ -390,6 +397,7 @@ export class GameStateStore {
       ownedAccessories: [...this.data.ownedAccessories],
       equippedAccessories: { ...this.data.equippedAccessories },
       penguinColor: this.data.penguinColor ?? 'blue',
+      ...(this.data.townPosition ? { townPosition: { ...this.data.townPosition } } : {}),
     };
   }
 
@@ -410,6 +418,7 @@ export class GameStateStore {
 
   save() {
     this.persistLocal();
+    this.townPositionDirty = false;
     if (!this.cloudSaver) return;
     if (this.cloudTimer) clearTimeout(this.cloudTimer);
     this.cloudTimer = setTimeout(() => {
@@ -603,6 +612,26 @@ export class GameStateStore {
     this.data.pet.hunger = clamp(this.data.pet.hunger - 25);
     this.data.pet.happiness = clamp(this.data.pet.happiness - 8);
     this.save();
+  }
+
+  rememberTownPosition(position: TownPosition) {
+    const normalized = normalizeTownPosition(position);
+    if (!normalized) return;
+    const current = this.data.townPosition;
+    if (
+      current?.x === normalized.x &&
+      current.y === normalized.y &&
+      current.facing === normalized.facing
+    ) return;
+    this.data.townPosition = normalized;
+    this.townPositionDirty = true;
+  }
+
+  persistTownPosition(flushCloud = false): boolean {
+    if (!this.townPositionDirty) return false;
+    this.save();
+    if (flushCloud) this.flushCloud();
+    return true;
   }
 
   setPenguinColor(color: string) {
