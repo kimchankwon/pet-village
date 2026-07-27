@@ -1,6 +1,6 @@
 import { PET_DISPLAY_HEIGHT, scaleToDisplayHeight } from './characterScale';
 
-export type ClassicSpecies = 'mametchi' | 'kuchipatchi' | 'mimitchi' | 'violetchi';
+export type ClassicSpecies = 'mametchi' | 'kuchipatchi' | 'mimitchi' | 'violetchi' | 'gozarutchi';
 export type PuffleColor =
   | 'blue'
   | 'pink'
@@ -62,6 +62,13 @@ const CLASSIC: PetDef[] = [
     label: 'Violetchi',
     defaultName: 'Petal',
     blurb: 'Gentle gardener · speaks flower',
+    group: 'classic',
+  },
+  {
+    id: 'gozarutchi',
+    label: 'Gozarutchi',
+    defaultName: 'Goza',
+    blurb: 'Ninja aspirant · degozaru!',
     group: 'classic',
   },
 ];
@@ -238,6 +245,7 @@ export const petSpeciesValidatorLiterals = [
   'kuchipatchi',
   'mimitchi',
   'violetchi',
+  'gozarutchi',
   'bongbongee',
   'cinnamoroll',
   'kirby',

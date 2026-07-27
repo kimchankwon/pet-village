@@ -455,6 +455,7 @@ export const SPECIES_ACCESSORY_NUDGE: Partial<
   kuchipatchi: { 'ribbon-tie': { y: 2 } },
   mimitchi: { 'ribbon-tie': { y: 4 } },
   violetchi: { 'ribbon-tie': { y: 2 } },
+  gozarutchi: { 'ribbon-tie': { y: 3 } },
 };
 
 export function accessoryTextureKey(id: AccessoryId): string {

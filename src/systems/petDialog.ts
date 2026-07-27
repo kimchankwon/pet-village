@@ -74,6 +74,13 @@ const PERSONALITY: Record<PetSpecies, string[]> = {
     'Let’s plant something pretty together.',
     'My twin Flowertchi would adore this garden.',
   ],
+  gozarutchi: [
+    'Ninja training never ends… degozaru!',
+    'A true shinobi always watches their step-gozaru.',
+    'Shuriken practice later? …Maybe snacks first-gozaru.',
+    'Silent as the night… until I trip-gozaru!',
+    'With you as sensei, I shall become great-gozaru!',
+  ],
   bongbongee: [
     'Bong! Bong! Sparkle time!',
     'Every CARAT is a diamond~',
