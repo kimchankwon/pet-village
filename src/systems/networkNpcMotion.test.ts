@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { advanceNpcRenderPose, partitionTownNpcSnapshot } from './networkNpcMotion';
+import { advanceNpcRenderPose, partitionTownNpcSnapshot, shouldAdvanceNpcRenderPose } from './networkNpcMotion';
 import type { RemoteNpc } from './multiplayerBridge';
 
 test('authoritative roster partitions Bongbongee and removes it when omitted', () => {
@@ -13,6 +13,12 @@ test('authoritative roster partitions Bongbongee and removes it when omitted', (
     bongbongee: null,
     miniteens: [npc('ocl')],
   });
+});
+
+test('server-controlled NPCs freeze while talking or emoting', () => {
+  assert.equal(shouldAdvanceNpcRenderPose(true, 1_000, 0), false);
+  assert.equal(shouldAdvanceNpcRenderPose(false, 999, 1_000), false);
+  assert.equal(shouldAdvanceNpcRenderPose(false, 1_000, 1_000), true);
 });
 
 test('server-owned NPC render poses interpolate toward the authoritative snapshot', () => {

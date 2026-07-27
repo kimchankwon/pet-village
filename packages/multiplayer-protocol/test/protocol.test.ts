@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Encoder } from '@colyseus/schema';
+import { Decoder, Encoder } from '@colyseus/schema';
 import { isMovePayload, NpcState, PlayerState, PROTOCOL_VERSION, TownState, TOWN_BOUNDS } from '../src/index.ts';
 
 test('protocol validates finite sequenced moves within actual town bounds', () => {
@@ -18,6 +18,11 @@ test('town state serializes player and server-owned NPC maps for Colyseus synchr
   const npc = new NpcState();
   Object.assign(npc, { id: 'bongbongee', x: 360, y: 456, moving: true, facing: 'right', updatedAt: 123 });
   state.npcs.set(npc.id, npc);
-  assert.doesNotThrow(() => new Encoder(state).encodeAll());
-  assert.equal(state.npcs.get('bongbongee')?.x, 360);
+  const bytes = new Encoder(state).encodeAll();
+  const decoded = new TownState();
+  assert.doesNotThrow(() => new Decoder(decoded).decode(bytes));
+  assert.deepEqual(
+    decoded.npcs.get('bongbongee')?.toJSON(),
+    { id: 'bongbongee', x: 360, y: 456, facing: 'right', moving: true, updatedAt: 123 },
+  );
 });

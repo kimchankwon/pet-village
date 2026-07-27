@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { characterDepth } from './depth';
 import type { RemoteNpc } from './multiplayerBridge';
-import { advanceNpcRenderPose } from './networkNpcMotion';
+import { advanceNpcRenderPose, shouldAdvanceNpcRenderPose } from './networkNpcMotion';
 import {
   clampToMovementBounds,
   shuffledPatrolOrder,
@@ -267,13 +267,16 @@ export class WandererNpc {
         this.sprite.setDepth(characterDepth(this.sprite));
         return;
       }
+      if (!shouldAdvanceNpcRenderPose(this.conversing, this.scene.time.now, this.emoteUntil)) {
+        if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) this.playBounce();
+        this.sprite.setDepth(characterDepth(this.sprite));
+        return;
+      }
       const next = advanceNpcRenderPose(this.sprite, this.networkPose, 0.35);
       this.sprite.setPosition(next.x, next.y);
       this.sprite.setFlipX(this.networkPose.facing === 'left');
-      if (this.scene.time.now >= this.emoteUntil && !this.conversing) {
-        if (this.networkPose.moving) this.sprite.play(`${this.prefix}-walk`, true);
-        else if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) this.playBounce();
-      }
+      if (this.networkPose.moving) this.sprite.play(`${this.prefix}-walk`, true);
+      else if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) this.playBounce();
       this.sprite.setDepth(characterDepth(this.sprite));
       return;
     }

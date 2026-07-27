@@ -9,6 +9,10 @@ export function partitionTownNpcSnapshot(rows: RemoteNpc[]) {
   };
 }
 
+export function shouldAdvanceNpcRenderPose(conversing: boolean, now: number, emoteUntil: number) {
+  return !conversing && now >= emoteUntil;
+}
+
 export function advanceNpcRenderPose(current: Point, target: Point, alpha: number): Point {
   if (Math.hypot(target.x - current.x, target.y - current.y) < 1) return { ...target };
   const amount = Math.min(Math.max(alpha, 0), 1);
