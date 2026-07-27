@@ -20,7 +20,12 @@ import { addWorldBezel } from '../systems/worldBezel';
 import { movementFacing } from '../systems/movementFacing';
 import { multiplayerBridge, type RemoteNpc, type RemotePresence } from '../systems/multiplayerBridge';
 import { partitionTownNpcSnapshot } from '../systems/networkNpcMotion';
-import { handleRemotePlayerPointerDown, isNewWaveForLocalPlayer, remotePenguinTextureKey } from '../systems/multiplayerPresentation';
+import {
+  handleRemotePlayerPointerDown,
+  isNewWaveForLocalPlayer,
+  remotePlayerPresentation,
+  remotePenguinTextureKey,
+} from '../systems/multiplayerPresentation';
 import { shouldSendPresence, type PresencePose } from '../systems/multiplayerPolicy';
 import { petDrawScale, petTextureKey, type PetSpecies } from '../systems/pets';
 
@@ -722,11 +727,12 @@ export class TownScene extends Phaser.Scene {
     for (const data of rows) {
       ensureRemotePenguinTextures(this, data.penguinColor);
       let o = this.remotes.get(data.userId);
+      const presentation = remotePlayerPresentation(data);
       if (!o) {
         const penguin = this.add.sprite(data.x, data.y, remotePenguinTextureKey('down', data.penguinColor)).setInteractive({ useHandCursor: true });
         configurePlayerPenguin(penguin);
         const pet = this.add.sprite(data.x - 28, data.y + 12, petTextureKey(data.petSpecies as PetSpecies, 'idle1')).setScale(petDrawScale(this, data.petSpecies as PetSpecies));
-        const label = this.add.text(data.x, data.y - 58, `${data.name} · ${data.petName}`, { fontFamily: 'monospace', fontSize: '12px', color: '#fff', backgroundColor: '#000a', padding: { x: 4, y: 2 } }).setOrigin(.5);
+        const label = this.add.text(data.x, data.y - 58, presentation.label, { fontFamily: 'monospace', fontSize: '12px', color: presentation.labelColor, backgroundColor: '#000a', padding: { x: 4, y: 2 } }).setOrigin(.5);
         o = { penguin, pet, label, data, lastWaveId: data.waveId }; this.remotes.set(data.userId, o);
         penguin.on(
           'pointerdown',
@@ -737,7 +743,7 @@ export class TownScene extends Phaser.Scene {
             event: Phaser.Types.Input.EventData,
           ) => {
             const current = this.remotes.get(data.userId);
-            if (!current) return;
+            if (!current || current.data.activity) return;
             handleRemotePlayerPointerDown(
               event,
               () => {
@@ -755,6 +761,11 @@ export class TownScene extends Phaser.Scene {
         this.tweens.add({ targets: o.penguin, angle: { from: -8, to: 8 }, yoyo: true, repeat: 1, duration: 110, onComplete: () => o?.penguin.setAngle(0) });
       }
       o.data = data;
+      o.penguin.setAlpha(presentation.alpha);
+      o.pet.setAlpha(presentation.alpha);
+      o.label.setText(presentation.label).setColor(presentation.labelColor);
+      if (presentation.interactive && !o.penguin.input?.enabled) o.penguin.setInteractive({ useHandCursor: true });
+      else if (!presentation.interactive && o.penguin.input?.enabled) o.penguin.disableInteractive();
     }
   }
   private updateRemotes(now: number) {

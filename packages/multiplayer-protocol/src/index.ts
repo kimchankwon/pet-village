@@ -1,6 +1,6 @@
 import { MapSchema, Schema, defineTypes } from '@colyseus/schema';
 
-export const PROTOCOL_VERSION = 2 as const;
+export const PROTOCOL_VERSION = 3 as const;
 export const TICKET_ISSUER = 'pet-village-convex';
 export const TICKET_AUDIENCE = 'pet-village-multiplayer';
 export const ROOM_NAME = 'town_default';
@@ -12,11 +12,17 @@ export const MOVE_SLACK = 48;
 export const WAVE_RADIUS = 300;
 export const WAVE_COOLDOWN_MS = 1_000;
 export type Facing = 'up' | 'down' | 'side';
+export const GAME_ACTIVITIES = ['fishing', 'get', 'bump', 'skip-rope', 'paper-toss'] as const;
+export type GameActivity = (typeof GAME_ACTIVITIES)[number];
 export type MovePayload = {x:number;y:number;petX:number;petY:number;facing:Facing;moving:boolean;seq:number};
 export type ActivityPayload = { active: boolean };
 export type PositionCorrection = { x: number; y: number; petX: number; petY: number };
 export type WavePayload = { targetSessionId: string };
 export type AdmissionClaims = {sub:string;displayName:string;petName:string;petSpecies:string;penguinColor:string;protocolVersion:number;jti:string;iat:number;exp:number;iss:string;aud:string|string[]};
+
+export function isGameActivity(value: unknown): value is GameActivity {
+  return typeof value === 'string' && (GAME_ACTIVITIES as readonly string[]).includes(value);
+}
 
 export function isMovePayload(value: unknown): value is MovePayload {
   if (!value || typeof value !== 'object') return false;
@@ -44,6 +50,7 @@ export class PlayerState extends Schema {
   declare updatedAt: number;
   declare waveId: string;
   declare waveTarget: string;
+  declare activity: string;
 
   constructor() {
     super();
@@ -63,9 +70,10 @@ export class PlayerState extends Schema {
     this.updatedAt = 0;
     this.waveId = '';
     this.waveTarget = '';
+    this.activity = '';
   }
 }
-defineTypes(PlayerState, {userId:'string',displayName:'string',petName:'string',petSpecies:'string',penguinColor:'string',x:'number',y:'number',petX:'number',petY:'number',facing:'string',moving:'boolean',active:'boolean',seq:'number',updatedAt:'number',waveId:'string',waveTarget:'string'});
+defineTypes(PlayerState, {userId:'string',displayName:'string',petName:'string',petSpecies:'string',penguinColor:'string',x:'number',y:'number',petX:'number',petY:'number',facing:'string',moving:'boolean',active:'boolean',seq:'number',updatedAt:'number',waveId:'string',waveTarget:'string',activity:'string'});
 
 export class NpcState extends Schema {
   declare id: string;

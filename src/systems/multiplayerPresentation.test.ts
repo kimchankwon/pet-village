@@ -5,6 +5,7 @@ import {
   isVisibleRemotePlayer,
   dedupeRemotePlayers,
   handleRemotePlayerPointerDown,
+  remotePlayerPresentation,
   remotePenguinTextureKey,
 } from './multiplayerPresentation';
 
@@ -35,14 +36,37 @@ test('clicking a remote consumes the ground click and waves without moving', () 
   assert.deepEqual(actions, ['stop', 'cancel-movement', 'wave']);
 });
 
+test('renders a clear non-interactive status for players inside a game', () => {
+  assert.deepEqual(remotePlayerPresentation({ name: 'Da2el', petName: 'Mame', activity: 'fishing' }), {
+    label: 'Da2el · Playing Fishing',
+    alpha: 0.6,
+    interactive: false,
+    labelColor: '#ffe26f',
+  });
+  assert.deepEqual(remotePlayerPresentation({ name: 'Da2el', petName: 'Mame', activity: '' }), {
+    label: 'Da2el · Mame',
+    alpha: 1,
+    interactive: true,
+    labelColor: '#ffffff',
+  });
+});
+
+test('prefers an active Town session over a newer game session for the same user', () => {
+  const rows = [
+    { userId: 'user-a', sessionId: 'game', active: false, activity: 'fishing', updatedAt: 10 },
+    { userId: 'user-a', sessionId: 'town', active: true, activity: '', updatedAt: 1 },
+  ];
+  assert.deepEqual(dedupeRemotePlayers(rows), [rows[1]]);
+});
+
 test('selects one deterministic session per remote user', () => {
   const rows = [
-    { userId: 'user-a', sessionId: 'session-z', updatedAt: 2 },
-    { userId: 'user-b', sessionId: 'session-b', updatedAt: 1 },
-    { userId: 'user-a', sessionId: 'session-a', updatedAt: 1 },
+    { userId: 'user-a', sessionId: 'session-z', active: false, activity: 'bump', updatedAt: 2 },
+    { userId: 'user-b', sessionId: 'session-b', active: true, activity: '', updatedAt: 1 },
+    { userId: 'user-a', sessionId: 'session-a', active: false, activity: 'fishing', updatedAt: 1 },
   ];
   assert.deepEqual(dedupeRemotePlayers(rows), [
-    { userId: 'user-a', sessionId: 'session-z', updatedAt: 2 },
-    { userId: 'user-b', sessionId: 'session-b', updatedAt: 1 },
+    { userId: 'user-a', sessionId: 'session-z', active: false, activity: 'bump', updatedAt: 2 },
+    { userId: 'user-b', sessionId: 'session-b', active: true, activity: '', updatedAt: 1 },
   ]);
 });

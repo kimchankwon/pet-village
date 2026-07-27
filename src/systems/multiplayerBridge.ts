@@ -1,4 +1,9 @@
-import type { Facing, MovePayload, PositionCorrection } from '@pet-village/multiplayer-protocol';
+import type {
+  Facing,
+  GameActivity,
+  MovePayload,
+  PositionCorrection,
+} from '@pet-village/multiplayer-protocol';
 
 export type RemotePresence = {
   userId: string;
@@ -14,6 +19,8 @@ export type RemotePresence = {
   petY: number;
   facing: Facing;
   moving: boolean;
+  active: boolean;
+  activity: GameActivity | '';
   updatedAt: number;
   waveId?: string;
   waveTarget?: string;
@@ -35,6 +42,7 @@ type OutboundMove = Omit<MovePayload, 'seq'>;
 type Actions = {
   send: (pose: MovePayload) => void;
   setActive: (active: boolean) => void;
+  setActivity: (activity: GameActivity | '') => void;
   leave: () => void;
   wave: (id: string) => void;
 };
@@ -46,6 +54,7 @@ const npcListeners = new Set<NpcListener>();
 let actions: Actions | null = null;
 let connectionId: ConnectionId | null = null;
 const townActivations = new Set<symbol>();
+let gameActivation: { token: symbol; activity: GameActivity } | null = null;
 let moveSeq = 0;
 let correction: PositionCorrection | null = null;
 
@@ -93,6 +102,7 @@ export const multiplayerBridge = {
     correction = null;
     clearRemote();
     actions.setActive(townActivations.size > 0);
+    if (townActivations.size === 0 && gameActivation) actions.setActivity(gameActivation.activity);
     return id;
   },
   uninstall(id: ConnectionId) {
@@ -105,6 +115,19 @@ export const multiplayerBridge = {
   },
   send(pose: OutboundMove) {
     if (actions) actions.send({ ...pose, seq: ++moveSeq });
+  },
+  activateGame(activity: GameActivity) {
+    const token = Symbol('game-activation');
+    gameActivation = { token, activity };
+    actions?.setActivity(activity);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      if (gameActivation?.token !== token) return;
+      gameActivation = null;
+      actions?.setActivity('');
+    };
   },
   activateTown() {
     const token = Symbol('town-activation');

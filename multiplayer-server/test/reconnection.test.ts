@@ -70,6 +70,25 @@ test('initial activation does not turn a late first move into a Town re-entry', 
   assert.deepEqual(corrections, []);
 });
 
+test('server publishes validated game activity and clears it on Town re-entry', () => {
+  const room = roomWithPlayer();
+  const client = { sessionId: 'session-a' } as never;
+  const player = room.state.players.get('session-a')!;
+  Object.assign(player, { active: true, moving: true });
+
+  (room as any).setActivity(client, 'fishing');
+  assert.equal(player.activity, 'fishing');
+  assert.equal(player.active, false);
+  assert.equal(player.moving, false);
+
+  (room as any).setActivity(client, 'not-a-game');
+  assert.equal(player.activity, 'fishing');
+
+  (room as any).setActive(client, true);
+  assert.equal(player.activity, '');
+  assert.equal(player.active, true);
+});
+
 test('inactive to active authorizes exactly one approved Town re-entry spawn', () => {
   const room = roomWithPlayer();
   const corrections: unknown[] = [];

@@ -6,6 +6,7 @@ import {
   TICKET_ISSUER,
   PlayerState,
   TownState,
+  isGameActivity,
   type AdmissionClaims,
   type MovePayload,
   type WavePayload,
@@ -30,9 +31,9 @@ const PENGUIN_COLORS = new Set([
   'orange', 'darkpurple', 'brown', 'peach', 'darkgreen', 'lightblue',
 ]);
 
-// Version 1 clients ignore the additive NPC map, so keep them admitted while
-// protocol 2 rolls out server-first; remove version 1 after the migration window.
-const SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([1, PROTOCOL_VERSION]);
+// Version 2 clients ignore the additive activity field, so keep them admitted while
+// protocol 3 rolls out server-first; remove version 2 after the migration window.
+const SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([2, PROTOCOL_VERSION]);
 
 export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
   const { payload } = await jwtVerify(token, secret(), {
@@ -80,6 +81,7 @@ export class TownRoom extends Room<{ state: TownState }> {
     this.setSimulationInterval((deltaMs) => this.npcSimulation?.step(deltaMs), 100);
     this.onMessage('move', (client, payload: MovePayload) => this.move(client, payload));
     this.onMessage('active', (client, active: unknown) => this.setActive(client, active));
+    this.onMessage('activity', (client, activity: unknown) => this.setActivity(client, activity));
     this.onMessage('wave', (client, payload: WavePayload) => this.wave(client, payload));
   }
 
@@ -144,6 +146,20 @@ export class TownRoom extends Room<{ state: TownState }> {
     if (!player || typeof active !== 'boolean') return;
     if (active && !player.active && player.seq > 0) this.reentrySessions.add(client.sessionId);
     player.active = active;
+    player.moving = active ? player.moving : false;
+    if (active) player.activity = '';
+    player.updatedAt = Date.now();
+  }
+
+  private setActivity(client: Client, activity: unknown) {
+    const player = this.state.players.get(client.sessionId);
+    if (!player || (activity !== '' && !isGameActivity(activity))) return;
+    player.activity = activity;
+    if (activity) {
+      player.active = false;
+      player.moving = false;
+    }
+    player.updatedAt = Date.now();
   }
 
   private wave(client: Client, payload: WavePayload) {

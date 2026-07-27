@@ -5,13 +5,15 @@ import { multiplayerBridge, type RemoteNpc, type RemotePresence } from './multip
 const pose = { x: 1, y: 1, petX: 1, petY: 1, facing: 'down' as const, moving: false };
 const remote: RemotePresence = {
   userId: 'remote', sessionId: 'remote', localSessionId: 'local', name: 'Remote', petName: 'Pet', petSpecies: 'mametchi',
-  penguinColor: 'blue', x: 1, y: 1, petX: 1, petY: 1, facing: 'down', moving: false, updatedAt: 1,
+  penguinColor: 'blue', x: 1, y: 1, petX: 1, petY: 1, facing: 'down', moving: false,
+  active: true, activity: '', updatedAt: 1,
 };
 
 function actions(sent: number[]) {
   return {
     send: (move: { seq: number }) => sent.push(move.seq),
     setActive: () => {},
+    setActivity: () => {},
     leave: () => {},
     wave: () => {},
   };
@@ -58,6 +60,36 @@ test('NPC snapshots are connection-scoped and cleared on uninstall', () => {
   multiplayerBridge.uninstall(secondId);
   assert.deepEqual(seen[seen.length - 1], []);
   unsubscribe();
+});
+
+test('stale game cleanup cannot clear a newer game activity', () => {
+  const activities: string[] = [];
+  const id = multiplayerBridge.install({
+    ...actions([]),
+    setActivity: (activity: string) => activities.push(activity),
+  });
+  const releaseFishing = multiplayerBridge.activateGame('fishing');
+  const releaseBump = multiplayerBridge.activateGame('bump');
+
+  releaseFishing();
+  assert.equal(activities[activities.length - 1], 'bump');
+  releaseBump();
+  assert.equal(activities[activities.length - 1], '');
+  assert.equal(multiplayerBridge.uninstall(id), true);
+});
+
+test('game activity is published when multiplayer installs after the scene starts', () => {
+  const release = multiplayerBridge.activateGame('paper-toss');
+  const activities: string[] = [];
+  const id = multiplayerBridge.install({
+    ...actions([]),
+    setActivity: (activity: string) => activities.push(activity),
+  });
+
+  assert.deepEqual(activities, ['paper-toss']);
+  release();
+  assert.equal(activities[activities.length - 1], '');
+  assert.equal(multiplayerBridge.uninstall(id), true);
 });
 
 test('stale Town cleanup cannot deactivate a newer Town scene', () => {
