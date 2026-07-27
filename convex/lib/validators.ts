@@ -5,7 +5,8 @@ export const petSpeciesValidator = v.optional(
     v.literal("mametchi"),
     v.literal("kuchipatchi"),
     v.literal("mimitchi"),
-    v.literal("violetchi"),
+    v.literal("flowetchi"),
+    v.literal("violetchi"), // legacy saves
     v.literal("gozarutchi"),
     v.literal("memetchi"),
     v.literal("bongbongee"),
