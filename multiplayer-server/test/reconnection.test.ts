@@ -117,6 +117,40 @@ test('server rejects movement while a player is inactive or playing a game', () 
   assert.deepEqual(corrections, [{ x: 320, y: 240, petX: 290, petY: 250 }]);
 });
 
+test('same-session reconnect restores Town presence without granting spawn re-entry', () => {
+  const room = roomWithPlayer();
+  room.allowReconnection = (() => Promise.resolve({})) as never;
+  const corrections: unknown[] = [];
+  const client = {
+    sessionId: 'session-a',
+    send: (_type: string, payload: unknown) => corrections.push(payload),
+  } as never;
+  const player = room.state.players.get('session-a')!;
+  Object.assign(player, {
+    active: true,
+    seq: 10,
+    x: 320,
+    y: 240,
+    petX: 290,
+    petY: 250,
+    updatedAt: Date.now(),
+  });
+
+  room.onDrop(client);
+  (room as any).onReconnect(client);
+  (room as any).setActive(client, true);
+  (room as any).setActivity(client, '');
+  (room as any).move(client, {
+    x: 322, y: 240, petX: 292, petY: 250, facing: 'side', moving: true, seq: 11,
+  });
+
+  assert.deepEqual(
+    { active: player.active, x: player.x, y: player.y, seq: player.seq },
+    { active: true, x: 322, y: 240, seq: 11 },
+  );
+  assert.deepEqual(corrections, []);
+});
+
 test('inactive to active authorizes exactly one approved Town re-entry spawn', () => {
   const room = roomWithPlayer();
   const corrections: unknown[] = [];

@@ -65,6 +65,12 @@ function clearRemote() {
   npcListeners.forEach((fn) => fn([]));
 }
 
+function publishPresence() {
+  if (!actions) return;
+  actions.setActive(townActivations.size > 0);
+  actions.setActivity(townActivations.size === 0 ? gameActivation?.activity ?? '' : '');
+}
+
 export const multiplayerBridge = {
   subscribe(fn: Listener) {
     listeners.add(fn);
@@ -101,9 +107,13 @@ export const multiplayerBridge = {
     moveSeq = 0;
     correction = null;
     clearRemote();
-    actions.setActive(townActivations.size > 0);
-    actions.setActivity(townActivations.size === 0 ? gameActivation?.activity ?? '' : '');
+    publishPresence();
     return id;
+  },
+  republish(id: ConnectionId) {
+    if (connectionId !== id || !actions) return false;
+    publishPresence();
+    return true;
   },
   uninstall(id: ConnectionId) {
     if (connectionId !== id) return false;
