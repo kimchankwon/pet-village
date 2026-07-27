@@ -98,8 +98,11 @@ for (const pose of POSES) {
   }
   const src = PNG.sync.read(fs.readFileSync(file));
   const canvas = toCanvas(src);
+  // cleanExterior: false — Mametchi has white eye sclera; exterior cleaners
+  // that treat pure white as plate would punch holes in the face.
   saveSprite(canvas, path.join(OUT, `${pose}.png`), {
     repairOutline: true,
+    cleanExterior: false,
     outline: OUTLINE,
   });
   console.log('wrote', pose);
