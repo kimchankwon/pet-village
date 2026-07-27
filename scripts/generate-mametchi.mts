@@ -1,14 +1,14 @@
 /**
- * Mametchi pet frames from the Tamagotchi iD sprite set.
+ * Mametchi pet frames from the Tamagotchi iD fandom gallery.
  *
- * Source sheet (Spriters Resource, same poses as the fandom gallery
- * “Tamagotchi iD” section):
- *   scripts/reference/mametchi/id-sheet/mametchi-id-spriters.png
- *   https://www.spriters-resource.com/lcd_handhelds/tamagotchiididl/asset/221021/
- *   https://tamagotchi.fandom.com/wiki/Mametchi/Sprite_Gallery
+ * Walk frames are the official gallery “Walking” sprites:
+ *   File:IDMametchiWalk.png  → walk1
+ *   File:IDMametchiWalk2.png → walk2
+ * (https://tamagotchi.fandom.com/wiki/Mametchi/Sprite_Gallery § Tamagotchi iD)
  *
- * Pre-sliced poses live under scripts/reference/mametchi/frames/.
- * Each is padded to the shared 32×32 bottom-aligned pet canvas.
+ * Reference PNGs live under scripts/reference/mametchi/frames/ (from
+ * scripts/reference/mametchi/id-gallery/*-gallery.png). Each is padded to the
+ * shared 32×32 bottom-aligned pet canvas.
  *
  * Run: npx tsx scripts/generate-mametchi.mts
  *   or: npm run sprite:mametchi
