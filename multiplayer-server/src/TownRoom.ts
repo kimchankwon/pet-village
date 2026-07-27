@@ -134,7 +134,7 @@ export class TownRoom extends Room<{ state: TownState }> {
   private setActive(client: Client, active: unknown) {
     const player = this.state.players.get(client.sessionId);
     if (!player || typeof active !== 'boolean') return;
-    if (active && !player.active) this.reentrySessions.add(client.sessionId);
+    if (active && !player.active && player.seq > 0) this.reentrySessions.add(client.sessionId);
     player.active = active;
   }
 

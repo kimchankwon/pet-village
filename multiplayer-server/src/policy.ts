@@ -34,15 +34,15 @@ export function validateMove(current: PlayerVector, payload: unknown, now: numbe
   const petDy = payload.petY - payload.y;
   const petDistance = Math.hypot(petDx, petDy);
 
-  if (current.lastSeq === 0) {
-    // Multiplayer may finish connecting after the local player has already
-    // walked away from the scene entrance. The protocol bounds above still
-    // constrain this initial position; speed checks apply to every later move.
-  } else if (allowSpawn) {
+  if (allowSpawn) {
     const atSpawn = TOWN_SPAWNS.some(
       (spawn) => Math.hypot(payload.x - spawn.x, payload.y - spawn.y) <= SPAWN_RADIUS,
     );
     if (!atSpawn) return { ok: false as const, reason: 'spawn' };
+  } else if (current.lastSeq === 0) {
+    // Multiplayer may finish connecting after the local player has already
+    // walked away from the scene entrance. The protocol bounds above still
+    // constrain this initial position; speed checks apply to every later move.
   } else {
     const elapsed = Math.min(
       Math.max(0, now - current.lastMoveAt) / 1000,

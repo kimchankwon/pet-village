@@ -23,8 +23,12 @@ test('move policy tolerates a one-second delivery stall at normal walking speed'
 });
 test('first move accepts the current Town position when multiplayer connects late', () => {
   const fresh = { ...player, lastSeq: 0 };
-  assert.equal(validateMove(fresh, {x:528,y:265,petX:500,petY:275,facing:'down',moving:false,seq:1}, 1001).ok, true);
-  assert.equal(validateMove(fresh, {x:900,y:650,petX:870,petY:660,facing:'down',moving:true,seq:1}, 1001).ok, true);
+  const approvedSpawn = {x:528,y:265,petX:500,petY:275,facing:'down' as const,moving:false,seq:1};
+  const awayFromSpawn = {x:900,y:650,petX:870,petY:660,facing:'down' as const,moving:true,seq:1};
+  assert.equal(validateMove(fresh, approvedSpawn, 1001).ok, true);
+  assert.equal(validateMove(fresh, awayFromSpawn, 1001).ok, true);
+  assert.equal(validateMove(fresh, awayFromSpawn, 1001, true).ok, false);
+  assert.equal(validateMove(fresh, approvedSpawn, 1001, true).ok, true);
 });
 test('wave policy enforces proximity and cooldown', () => {
   assert.equal(canWave(player, {x:150,y:100}, 2000), true);

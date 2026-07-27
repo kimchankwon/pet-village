@@ -30,6 +30,26 @@ test('removes player state only when the client finally leaves', () => {
   assert.equal(room.state.players.has('session-a'), false);
 });
 
+test('initial activation does not turn a late first move into a Town re-entry', () => {
+  const room = roomWithPlayer();
+  const corrections: unknown[] = [];
+  const client = {
+    sessionId: 'session-a',
+    send: (_type: string, payload: unknown) => corrections.push(payload),
+  } as never;
+  const player = room.state.players.get('session-a')!;
+
+  (room as any).setActive(client, true);
+  (room as any).move(client, {
+    x: 900, y: 650, petX: 870, petY: 660, facing: 'down', moving: true, seq: 1,
+  });
+
+  assert.equal(player.x, 900);
+  assert.equal(player.y, 650);
+  assert.equal(player.seq, 1);
+  assert.deepEqual(corrections, []);
+});
+
 test('inactive to active authorizes exactly one approved Town re-entry spawn', () => {
   const room = roomWithPlayer();
   const corrections: unknown[] = [];
