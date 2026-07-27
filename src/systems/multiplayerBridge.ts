@@ -3,6 +3,7 @@ import type { Facing, MovePayload } from '@pet-village/multiplayer-protocol';
 export type RemotePresence = {
   userId: string;
   sessionId: string;
+  localSessionId: string;
   name: string;
   petName: string;
   petSpecies: string;

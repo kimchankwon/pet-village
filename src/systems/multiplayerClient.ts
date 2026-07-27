@@ -45,6 +45,7 @@ export async function connectMultiplayer(
       rows.push({
         userId: player.userId,
         sessionId,
+        localSessionId: room.sessionId,
         name: player.displayName,
         petName: player.petName,
         petSpecies: player.petSpecies,
