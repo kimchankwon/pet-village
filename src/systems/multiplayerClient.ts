@@ -121,6 +121,9 @@ export async function connectMultiplayer(
     }
   });
   room.onStateChange(sync);
+  room.onReconnect(() => {
+    if (!finished) multiplayerBridge.republish(connectionId);
+  });
   room.onLeave(finish);
   room.onError((_code, message) => {
     console.warn('Multiplayer connection error', message);

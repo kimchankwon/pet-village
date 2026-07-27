@@ -89,6 +89,35 @@ test('install publishes a cleared activity when no game scene is active', () => 
   assert.equal(multiplayerBridge.uninstall(id), true);
 });
 
+test('republish restores current Town and game presence after same-session reconnect', () => {
+  const activeStates: boolean[] = [];
+  const activities: string[] = [];
+  const id = multiplayerBridge.install({
+    ...actions([]),
+    setActive: (active: boolean) => activeStates.push(active),
+    setActivity: (activity: string) => activities.push(activity),
+  });
+  const releaseTown = multiplayerBridge.activateTown();
+
+  activeStates.length = 0;
+  activities.length = 0;
+  assert.equal(multiplayerBridge.republish(id), true);
+  assert.deepEqual(activeStates, [true]);
+  assert.deepEqual(activities, ['']);
+
+  releaseTown();
+  const releaseGame = multiplayerBridge.activateGame('paper-toss');
+  activeStates.length = 0;
+  activities.length = 0;
+  assert.equal(multiplayerBridge.republish(id), true);
+  assert.deepEqual(activeStates, [false]);
+  assert.deepEqual(activities, ['paper-toss']);
+
+  assert.equal(multiplayerBridge.republish(Symbol('stale')), false);
+  releaseGame();
+  assert.equal(multiplayerBridge.uninstall(id), true);
+});
+
 test('game activity is published when multiplayer installs after the scene starts', () => {
   const release = multiplayerBridge.activateGame('paper-toss');
   const activities: string[] = [];
