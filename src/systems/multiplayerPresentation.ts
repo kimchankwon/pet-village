@@ -1,3 +1,5 @@
+import type Phaser from 'phaser';
+
 export function isVisibleRemotePlayer(
   sessionId: string,
   userId: string,
@@ -27,6 +29,16 @@ export function normalizePenguinColor(color: string) {
 
 export function remotePenguinTextureKey(facing: 'down' | 'up' | 'side', color: string) {
   return `penguin-remote-${normalizePenguinColor(color)}-${facing}`;
+}
+
+export function handleRemotePlayerPointerDown(
+  event: Pick<Phaser.Types.Input.EventData, 'stopPropagation'>,
+  cancelMovement: () => void,
+  wave: () => void,
+) {
+  event.stopPropagation();
+  cancelMovement();
+  wave();
 }
 
 export function dedupeRemotePlayers<T extends { userId: string; sessionId: string; updatedAt: number }>(rows: T[]) {

@@ -2,7 +2,7 @@ import { isMovePayload, type MovePayload } from '@pet-village/multiplayer-protoc
 
 export const MAX_SPEED = 280;
 export const MOVE_SLACK = 48;
-export const MAX_MOVE_ELAPSED_SECONDS = 0.5;
+export const MAX_MOVE_ELAPSED_SECONDS = 2;
 export const MAX_PET_DISTANCE = 160;
 export const SPAWN_RADIUS = 48;
 export const TOWN_SPAWNS = [

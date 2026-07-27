@@ -20,7 +20,7 @@ import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
 import { movementFacing } from '../systems/movementFacing';
 import { multiplayerBridge, type RemotePresence } from '../systems/multiplayerBridge';
-import { isNewWaveForLocalPlayer, remotePenguinTextureKey } from '../systems/multiplayerPresentation';
+import { handleRemotePlayerPointerDown, isNewWaveForLocalPlayer, remotePenguinTextureKey } from '../systems/multiplayerPresentation';
 import { shouldSendPresence, type PresencePose } from '../systems/multiplayerPolicy';
 import { petDrawScale, petTextureKey, type PetSpecies } from '../systems/pets';
 
@@ -719,10 +719,27 @@ export class TownScene extends Phaser.Scene {
         const pet = this.add.sprite(data.x - 28, data.y + 12, petTextureKey(data.petSpecies as PetSpecies, 'idle1')).setScale(petDrawScale(this, data.petSpecies as PetSpecies));
         const label = this.add.text(data.x, data.y - 58, `${data.name} · ${data.petName}`, { fontFamily: 'monospace', fontSize: '12px', color: '#fff', backgroundColor: '#000a', padding: { x: 4, y: 2 } }).setOrigin(.5);
         o = { penguin, pet, label, data, lastWaveId: data.waveId }; this.remotes.set(data.userId, o);
-        penguin.on('pointerdown', () => {
-          const current = this.remotes.get(data.userId);
-          if (current) this.waveTo(current.data);
-        });
+        penguin.on(
+          'pointerdown',
+          (
+            _pointer: Phaser.Input.Pointer,
+            _localX: number,
+            _localY: number,
+            event: Phaser.Types.Input.EventData,
+          ) => {
+            const current = this.remotes.get(data.userId);
+            if (!current) return;
+            handleRemotePlayerPointerDown(
+              event,
+              () => {
+                this.pointerHeld = false;
+                this.clickMove.clear();
+                this.player.setVelocity(0, 0);
+              },
+              () => this.waveTo(current.data),
+            );
+          },
+        );
       } else if (isNewWaveForLocalPlayer(o.lastWaveId, data.waveId, data.waveTarget, data.localSessionId)) {
         o.lastWaveId = data.waveId;
         toast(this, o.penguin.x, o.penguin.y - 72, `${data.name} waves!`, '#ffe066');
