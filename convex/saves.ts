@@ -18,6 +18,9 @@ const placedItem = v.object({
   gy: v.number(),
 });
 
+const TOWN_WORLD_W = 22 * 48;
+const TOWN_WORLD_H = 16 * 48;
+
 const townPosition = v.object({
   x: v.number(),
   y: v.number(),
@@ -70,6 +73,15 @@ export const upsertMine = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
+    if (
+      args.townPosition &&
+      (args.townPosition.x < 0 ||
+        args.townPosition.x > TOWN_WORLD_W ||
+        args.townPosition.y < 0 ||
+        args.townPosition.y > TOWN_WORLD_H)
+    ) {
+      throw new Error("Town position is outside the playable map");
+    }
 
     const existing = await ctx.db
       .query("saves")

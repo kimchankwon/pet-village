@@ -191,6 +191,7 @@ export class TownScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       State.rememberTownPosition({ x: this.player.x, y: this.player.y, facing: this.facing });
+      State.persistTownPosition(true);
       this.releaseTownActivation?.();
       this.releaseTownActivation = undefined;
       this.unsubscribeRemote?.();
@@ -313,6 +314,7 @@ export class TownScene extends Phaser.Scene {
       },
     });
     this.time.addEvent({ delay: 500, loop: true, callback: () => this.hud.refresh() });
+    this.time.addEvent({ delay: 5_000, loop: true, callback: () => State.persistTownPosition() });
 
     if (!localStorage.getItem(WELCOME_KEY)) {
       localStorage.setItem(WELCOME_KEY, '1');

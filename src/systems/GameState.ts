@@ -341,6 +341,7 @@ export class GameStateStore {
   data: SaveData;
   private cloudSaver: CloudSaver | null = null;
   private cloudTimer: ReturnType<typeof setTimeout> | null = null;
+  private townPositionDirty = false;
 
   constructor() {
     this.data = this.loadLocal();
@@ -417,6 +418,7 @@ export class GameStateStore {
 
   save() {
     this.persistLocal();
+    this.townPositionDirty = false;
     if (!this.cloudSaver) return;
     if (this.cloudTimer) clearTimeout(this.cloudTimer);
     this.cloudTimer = setTimeout(() => {
@@ -614,7 +616,22 @@ export class GameStateStore {
 
   rememberTownPosition(position: TownPosition) {
     const normalized = normalizeTownPosition(position);
-    if (normalized) this.data.townPosition = normalized;
+    if (!normalized) return;
+    const current = this.data.townPosition;
+    if (
+      current?.x === normalized.x &&
+      current.y === normalized.y &&
+      current.facing === normalized.facing
+    ) return;
+    this.data.townPosition = normalized;
+    this.townPositionDirty = true;
+  }
+
+  persistTownPosition(flushCloud = false): boolean {
+    if (!this.townPositionDirty) return false;
+    this.save();
+    if (flushCloud) this.flushCloud();
+    return true;
   }
 
   setPenguinColor(color: string) {
