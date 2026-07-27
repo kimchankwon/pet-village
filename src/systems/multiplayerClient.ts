@@ -1,12 +1,28 @@
 import { Client, type Room } from '@colyseus/sdk';
 import { ROOM_NAME, type MovePayload, type PositionCorrection, type TownState } from '@pet-village/multiplayer-protocol';
-import { multiplayerBridge, type ConnectionId, type RemotePresence } from './multiplayerBridge';
+import { multiplayerBridge, type ConnectionId, type RemoteNpc, type RemotePresence } from './multiplayerBridge';
 import { dedupeRemotePlayers, isVisibleRemotePlayer } from './multiplayerPresentation';
 
 export type MultiplayerConnection = {
   closed: Promise<void>;
   disconnect: () => Promise<void>;
 };
+
+export function snapshotNpcs(state: TownState): RemoteNpc[] {
+  const npcs: RemoteNpc[] = [];
+  if (!state?.npcs) return npcs;
+  state.npcs.forEach((npc) => {
+    npcs.push({
+      id: npc.id,
+      x: npc.x,
+      y: npc.y,
+      facing: npc.facing,
+      moving: npc.moving,
+      updatedAt: npc.updatedAt,
+    });
+  });
+  return npcs;
+}
 
 export async function connectMultiplayer(
   ticket: string,
@@ -38,6 +54,7 @@ export async function connectMultiplayer(
   };
 
   const sync = () => {
+    if (!room.state?.players) return;
     const rows: RemotePresence[] = [];
     const ownUserId = room.state.players.get(room.sessionId)?.userId;
     room.state.players.forEach((player, sessionId) => {
@@ -62,6 +79,7 @@ export async function connectMultiplayer(
       });
     });
     multiplayerBridge.setRemote(connectionId, dedupeRemotePlayers(rows));
+    multiplayerBridge.setNpcs(connectionId, snapshotNpcs(room.state));
   };
 
   connectionId = multiplayerBridge.install({

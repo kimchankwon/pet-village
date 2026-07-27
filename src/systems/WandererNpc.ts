@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { characterDepth } from './depth';
+import type { RemoteNpc } from './multiplayerBridge';
+import { advanceNpcRenderPose, shouldAdvanceNpcRenderPose } from './networkNpcMotion';
 import {
   clampToMovementBounds,
   shuffledPatrolOrder,
@@ -62,6 +64,8 @@ export class WandererNpc {
   } | null = null;
   /** True while a dialogue menu with this NPC is open — don't wander away. */
   private conversing = false;
+  private serverControlled = false;
+  private networkPose: RemoteNpc | null = null;
   /** Nested Menu depth so follow-up dialogues keep the freeze. */
   private talkDepth = 0;
 
@@ -234,8 +238,48 @@ export class WandererNpc {
     });
   }
 
+  setServerControlled() {
+    this.serverControlled = true;
+  }
+
+  setServerPresent(present: boolean) {
+    this.serverControlled = true;
+    this.present = present;
+    this.sprite.setActive(present).setVisible(present);
+    if (!present) {
+      this.networkPose = null;
+      this.sprite.stop();
+    }
+  }
+
+  setNetworkPose(pose: RemoteNpc) {
+    this.serverControlled = true;
+    if (!this.networkPose) this.sprite.setPosition(pose.x, pose.y);
+    this.networkPose = pose;
+    this.setServerPresent(true);
+  }
+
   update() {
     if (!this.sprite.active) return;
+
+    if (this.serverControlled) {
+      if (!this.networkPose) {
+        this.sprite.setDepth(characterDepth(this.sprite));
+        return;
+      }
+      if (!shouldAdvanceNpcRenderPose(this.conversing, this.scene.time.now, this.emoteUntil)) {
+        if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) this.playBounce();
+        this.sprite.setDepth(characterDepth(this.sprite));
+        return;
+      }
+      const next = advanceNpcRenderPose(this.sprite, this.networkPose, 0.35);
+      this.sprite.setPosition(next.x, next.y);
+      this.sprite.setFlipX(this.networkPose.facing === 'left');
+      if (this.networkPose.moving) this.sprite.play(`${this.prefix}-walk`, true);
+      else if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) this.playBounce();
+      this.sprite.setDepth(characterDepth(this.sprite));
+      return;
+    }
 
     // An emote/hop is playing — leave texture, animation and position be.
     if (this.scene.time.now < this.emoteUntil) {

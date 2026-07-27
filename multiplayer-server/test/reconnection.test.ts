@@ -10,6 +10,26 @@ function roomWithPlayer() {
   return room;
 }
 
+test('Town room owns and advances the shared NPC simulation', () => {
+  const room = new TownRoom();
+  room.setState(new TownState());
+  let tick: ((delta: number) => void) | undefined;
+  let intervalMs = 0;
+  room.onMessage = (() => undefined) as never;
+  room.setSimulationInterval = ((callback: (delta: number) => void, delay: number) => {
+    tick = callback;
+    intervalMs = delay;
+  }) as never;
+
+  room.onCreate();
+  const before = room.state.npcs.get('bongbongee')!.x;
+  tick!(100);
+
+  assert.equal(intervalMs, 100);
+  assert.equal(room.state.npcs.size, 5);
+  assert.notEqual(room.state.npcs.get('bongbongee')!.x, before);
+});
+
 test('reserves dropped players for reconnection without removing their state', () => {
   const room = roomWithPlayer();
   let graceSeconds = 0;
