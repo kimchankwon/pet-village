@@ -403,7 +403,9 @@ export class GameStateStore {
 
   private persistLocal() {
     this.data.lastSeen = Date.now();
-    localStorage.setItem(KEY, JSON.stringify(this.data));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(KEY, JSON.stringify(this.data));
+    }
   }
 
   save() {
