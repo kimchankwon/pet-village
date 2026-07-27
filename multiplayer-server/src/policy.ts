@@ -30,8 +30,9 @@ export function validateMove(current: PlayerVector, payload: unknown, now: numbe
     return { ok: false as const, reason: 'invalid' };
   }
 
-  const petDistance = Math.hypot(payload.petX - payload.x, payload.petY - payload.y);
-  if (petDistance > MAX_PET_DISTANCE) return { ok: false as const, reason: 'pet-distance' };
+  const petDx = payload.petX - payload.x;
+  const petDy = payload.petY - payload.y;
+  const petDistance = Math.hypot(petDx, petDy);
 
   if (current.lastSeq === 0 || allowSpawn) {
     const atSpawn = TOWN_SPAWNS.some(
@@ -48,7 +49,14 @@ export function validateMove(current: PlayerVector, payload: unknown, now: numbe
     }
   }
 
-  return { ok: true as const, move: payload as MovePayload };
+  const move: MovePayload = { ...payload };
+  if (petDistance > MAX_PET_DISTANCE) {
+    const scale = MAX_PET_DISTANCE / petDistance;
+    move.petX = payload.x + petDx * scale;
+    move.petY = payload.y + petDy * scale;
+  }
+
+  return { ok: true as const, move };
 }
 
 export function canWave(
