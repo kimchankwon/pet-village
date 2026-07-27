@@ -4,7 +4,7 @@ import { multiplayerBridge, type RemotePresence } from './multiplayerBridge';
 
 const pose = { x: 1, y: 1, petX: 1, petY: 1, facing: 'down' as const, moving: false };
 const remote: RemotePresence = {
-  userId: 'remote', sessionId: 'remote', name: 'Remote', petName: 'Pet', petSpecies: 'mametchi',
+  userId: 'remote', sessionId: 'remote', localSessionId: 'local', name: 'Remote', petName: 'Pet', petSpecies: 'mametchi',
   penguinColor: 'blue', x: 1, y: 1, petX: 1, petY: 1, facing: 'down', moving: false, updatedAt: 1,
 };
 

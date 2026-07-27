@@ -20,6 +20,7 @@ import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
 import { movementFacing } from '../systems/movementFacing';
 import { multiplayerBridge, type RemotePresence } from '../systems/multiplayerBridge';
+import { isNewWaveForLocalPlayer } from '../systems/multiplayerPresentation';
 import { shouldSendPresence, type PresencePose } from '../systems/multiplayerPolicy';
 import { petDrawScale, petTextureKey, type PetSpecies } from '../systems/pets';
 
@@ -715,8 +716,11 @@ export class TownScene extends Phaser.Scene {
         const pet = this.add.sprite(data.x - 28, data.y + 12, petTextureKey(data.petSpecies as PetSpecies, 'idle1')).setScale(petDrawScale(this, data.petSpecies as PetSpecies));
         const label = this.add.text(data.x, data.y - 58, `${data.name} · ${data.petName}`, { fontFamily: 'monospace', fontSize: '12px', color: '#fff', backgroundColor: '#000a', padding: { x: 4, y: 2 } }).setOrigin(.5);
         o = { penguin, pet, label, data, lastWaveId: data.waveId }; this.remotes.set(data.userId, o);
-        penguin.on('pointerdown', () => this.waveTo(data));
-      } else if (data.waveId && data.waveId !== o.lastWaveId) {
+        penguin.on('pointerdown', () => {
+          const current = this.remotes.get(data.userId);
+          if (current) this.waveTo(current.data);
+        });
+      } else if (isNewWaveForLocalPlayer(o.lastWaveId, data.waveId, data.waveTarget, data.localSessionId)) {
         o.lastWaveId = data.waveId;
         toast(this, o.penguin.x, o.penguin.y - 72, `${data.name} waves!`, '#ffe066');
         this.tweens.add({ targets: o.penguin, angle: { from: -8, to: 8 }, yoyo: true, repeat: 1, duration: 110, onComplete: () => o?.penguin.setAngle(0) });

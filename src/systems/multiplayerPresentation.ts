@@ -6,3 +6,12 @@ export function isVisibleRemotePlayer(
 ) {
   return sessionId !== ownSessionId && (!ownUserId || userId !== ownUserId);
 }
+
+export function isNewWaveForLocalPlayer(
+  previousWaveId: string | undefined,
+  nextWaveId: string | undefined,
+  waveTarget: string | undefined,
+  localSessionId: string,
+) {
+  return Boolean(nextWaveId && nextWaveId !== previousWaveId && waveTarget === localSessionId);
+}
