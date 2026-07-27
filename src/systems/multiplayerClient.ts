@@ -122,11 +122,16 @@ export async function connectMultiplayer(
   });
   room.onStateChange(sync);
   room.onReconnect(() => {
-    if (!finished) multiplayerBridge.republish(connectionId);
+    if (finished) {
+      void room.leave();
+      return;
+    }
+    multiplayerBridge.republish(connectionId);
   });
   room.onLeave(finish);
   room.onError((_code, message) => {
     console.warn('Multiplayer connection error', message);
+    room.reconnection.enabled = false;
     finish();
     if (room.connection?.isOpen) void room.leave();
   });
@@ -135,6 +140,7 @@ export async function connectMultiplayer(
   return {
     closed,
     disconnect: async () => {
+      room.reconnection.enabled = false;
       finish();
       if (room.connection?.isOpen) await room.leave();
     },
