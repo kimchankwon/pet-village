@@ -31,7 +31,8 @@ const CROPS: Crop[] = [
   { pose: 'jump', x: 360, y: 58, width: 188, height: 154, bottom: 143 },
   { pose: 'walk2', x: 540, y: 58, width: 165, height: 144, bottom: 142 },
   { pose: 'sad', x: 191, y: 531, width: 180, height: 162, bottom: 140 },
-  { pose: 'happy', x: 550, y: 516, width: 172, height: 177, bottom: 156 },
+  // WIN/POSE (bottom-right of the sheet): raised ear, open smile, left eye open + right wink.
+  { pose: 'happy', x: 515, y: 520, width: 200, height: 155, bottom: 145 },
 ];
 
 const PALETTE: RGBA[] = [
@@ -377,15 +378,13 @@ const FACES: Record<Pose, Face> = {
       [16, 11],
     ],
   },
-  // WIN/POSE: open left eye, closed right wink. Mouth centred like idle
-  // (idle mouth lands at pet x 16–19; happy pad is +1 vs idle, so frame −1).
+  // WIN/POSE (sheet bottom-right): open left eye + right wink, open smile.
+  // Eye/blush coords measured on the 7px grid after the happy crop.
   happy: {
-    eyes: [{ x: 4, y: 6, w: 2, h: 3 }],
-    blush: { y: 9, lx: 6, rx: 19, w: 2 },
-    // Open smile aligned to default mouth middle (pet ~16–19).
+    eyes: [{ x: 9, y: 6, w: 2, h: 3 }],
+    blush: { y: 10, lx: 7, rx: 18, w: 2 },
+    // Open U smile (outline); pink tongue filled in stampFace special-case.
     mouth: [
-      [12, 10],
-      [15, 10],
       [11, 11],
       [16, 11],
       [12, 12],
@@ -460,32 +459,50 @@ function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
     }
   }
 
-  // Happy WIN/POSE: clear a face-mouth band of interior dark noise (sheet
-  // compression leaves broken bars / blue crumbs), then stamp a clean open smile.
+  // Happy WIN/POSE: clear a face-mouth band of interior dark/cyan noise (sheet
+  // compression leaves broken bars), then re-stamp open eye + wink + smile.
   if (pose === 'happy') {
+    // Clear mouth/cheek band only (y≥9) so we don't wipe the open-eye blue.
     for (let y = 9; y <= 13; y++) {
-      for (let x = 9; x <= 18; x++) {
+      for (let x = 7; x <= 20; x++) {
         if (!isInterior(x, y)) continue;
         if (isDark(x, y)) put(x, y, fur);
-        // Also clear cyan shading crumbs that read as a broken mouth
         const i = (y * output.width + x) * 4;
         const r = output.data[i]!;
         const g = output.data[i + 1]!;
         const b = output.data[i + 2]!;
+        // Clear mis-voted cyan crumbs (often land in the open mouth).
         if (b > r + 20 && g > r + 10 && b < 250) put(x, y, fur);
       }
     }
-    // Right-eye wink arc (closed lid) — two-row soft curve, no blue leftover.
+    // Also clear any stray cyan in the right-eye socket before the wink.
+    for (let y = 6; y <= 8; y++) {
+      for (let x = 14; x <= 19; x++) {
+        if (!isInterior(x, y)) continue;
+        const i = (y * output.width + x) * 4;
+        const r = output.data[i]!;
+        const g = output.data[i + 1]!;
+        const b = output.data[i + 2]!;
+        if (isDark(x, y) || (b > r + 20 && g > r + 10 && b < 250)) put(x, y, fur);
+      }
+    }
+    // Re-stamp open left eye (in case earlier passes touched it).
+    for (const eye of face.eyes ?? []) {
+      for (let dy = 0; dy < eye.h; dy++) for (let dx = 0; dx < eye.w; dx++) {
+        put(eye.x + dx, eye.y + dy, PALETTE[3]!);
+      }
+    }
+    // Right-eye wink arc (closed lid) — matches sheet WIN/POSE.
     for (const [x, y] of [
-      [12, 7],
-      [13, 7],
-      [14, 7],
-      [11, 8],
-      [15, 8],
+      [15, 7],
+      [16, 7],
+      [17, 7],
+      [14, 8],
+      [18, 8],
     ] as [number, number][]) {
       put(x, y, dark);
     }
-    // Pink tongue — same horizontal middle as idle mouth (pet x 16–19).
+    // Pink tongue inside the open smile.
     for (const [x, y] of [
       [12, 11],
       [13, 11],
@@ -494,12 +511,16 @@ function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
     ] as [number, number][]) {
       put(x, y, PALETTE[4]!);
     }
-    // Clear any leftover dark crumbs just above the smile
+    // Clear crumbs just above the smile
     for (const [x, y] of [
       [12, 9],
       [13, 9],
       [14, 9],
       [15, 9],
+      [12, 10],
+      [13, 10],
+      [14, 10],
+      [15, 10],
     ] as [number, number][]) {
       if (isInterior(x, y)) put(x, y, fur);
     }
