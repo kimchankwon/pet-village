@@ -103,6 +103,14 @@ export class TownRoom extends Room<{ state: TownState }> {
   }
 
   onDrop(client: Client) {
+    const player = this.state.players.get(client.sessionId);
+    if (player) {
+      player.active = false;
+      player.activity = '';
+      player.moving = false;
+      player.updatedAt = Date.now();
+    }
+    this.reentrySessions.delete(client.sessionId);
     void this.allowReconnection(client, 20).catch(() => undefined);
   }
 

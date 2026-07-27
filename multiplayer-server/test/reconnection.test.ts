@@ -30,18 +30,24 @@ test('Town room owns and advances the shared NPC simulation', () => {
   assert.notEqual(room.state.npcs.get('bongbongee')!.x, before);
 });
 
-test('reserves dropped players for reconnection without removing their state', () => {
+test('reserves dropped players for reconnection without publishing stale presence', () => {
   const room = roomWithPlayer();
   let graceSeconds = 0;
   room.allowReconnection = ((_client: unknown, seconds: number) => {
     graceSeconds = seconds;
     return Promise.resolve({});
   }) as never;
+  const player = room.state.players.get('session-a')!;
+  Object.assign(player, { active: false, activity: 'fishing', moving: true });
 
   room.onDrop({ sessionId: 'session-a' } as never);
 
   assert.equal(graceSeconds, 20);
   assert.equal(room.state.players.has('session-a'), true);
+  assert.deepEqual(
+    { active: player.active, activity: player.activity, moving: player.moving },
+    { active: false, activity: '', moving: false },
+  );
 });
 
 test('removes player state only when the client finally leaves', () => {
