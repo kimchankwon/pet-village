@@ -11,6 +11,7 @@ import {
 } from '../systems/GameState';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
+import { bindGameActivity } from '../systems/multiplayerGameActivity';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { petAnimKey, petDrawScale, petTextureKey } from '../systems/pets';
 import { clampBasketX } from '../systems/paperTossBounds';
@@ -130,6 +131,7 @@ export class PaperTossScene extends Phaser.Scene {
   }
 
   create(data?: RestartData) {
+    bindGameActivity(this, 'PaperToss');
     generateTextures(this);
     this.obstacles = [];
     this.windStreaks = [];

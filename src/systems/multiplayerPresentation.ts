@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import type { GameActivity } from '@pet-village/multiplayer-protocol';
 
 export function isVisibleRemotePlayer(
   sessionId: string,
@@ -41,14 +42,49 @@ export function handleRemotePlayerPointerDown(
   wave();
 }
 
-export function dedupeRemotePlayers<T extends { userId: string; sessionId: string; updatedAt: number }>(rows: T[]) {
+const GAME_ACTIVITY_LABELS: Record<GameActivity, string> = {
+  fishing: 'Fishing',
+  get: 'Get',
+  bump: 'Bump',
+  'skip-rope': 'Skip Rope',
+  'paper-toss': 'Paper Toss',
+};
+
+export function isRemotePlayerInteractable(player: {
+  active: boolean;
+  activity: GameActivity | '';
+}) {
+  return player.active && !player.activity;
+}
+
+export function remotePlayerPresentation(player: {
+  name: string;
+  petName: string;
+  activity: GameActivity | '';
+}) {
+  const inGame = Boolean(player.activity);
+  return {
+    label: inGame ? `${player.name} · Playing ${GAME_ACTIVITY_LABELS[player.activity as GameActivity]}` : `${player.name} · ${player.petName}`,
+    alpha: inGame ? 0.6 : 1,
+    interactive: !inGame,
+    labelColor: inGame ? '#ffe26f' : '#ffffff',
+  };
+}
+
+export function dedupeRemotePlayers<T extends {
+  userId: string;
+  sessionId: string;
+  active: boolean;
+  updatedAt: number;
+}>(rows: T[]) {
   const selected = new Map<string, T>();
   for (const row of rows) {
     const current = selected.get(row.userId);
     if (
       !current ||
-      row.updatedAt > current.updatedAt ||
-      (row.updatedAt === current.updatedAt && row.sessionId.localeCompare(current.sessionId) < 0)
+      (row.active && !current.active) ||
+      (row.active === current.active && row.updatedAt > current.updatedAt) ||
+      (row.active === current.active && row.updatedAt === current.updatedAt && row.sessionId.localeCompare(current.sessionId) < 0)
     ) {
       selected.set(row.userId, row);
     }

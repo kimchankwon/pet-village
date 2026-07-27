@@ -16,6 +16,7 @@ import {
 import { petAnimKey, petDrawScale, petTextureKey } from '../systems/pets';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
+import { bindGameActivity } from '../systems/multiplayerGameActivity';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
@@ -77,6 +78,7 @@ export class GetScene extends Phaser.Scene {
   }
 
   create() {
+    bindGameActivity(this, 'Get');
     generateTextures(this);
     this.mode = 'pick';
     this.menuOpen = false;

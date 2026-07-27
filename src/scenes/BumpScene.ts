@@ -3,6 +3,7 @@ import { generateTextures } from '../sprites/pixelart';
 import { BUMP_ENERGY_COST, MIN_GAME_ENERGY, State, type BumpDifficulty } from '../systems/GameState';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
+import { bindGameActivity } from '../systems/multiplayerGameActivity';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { petAnimKey, petDrawScale, petTextureKey } from '../systems/pets';
 import { MINITEEN, miniteenDrawScale, miniteenTexPrefix } from '../systems/miniteen';
@@ -103,6 +104,7 @@ export class BumpScene extends Phaser.Scene {
   }
 
   create() {
+    bindGameActivity(this, 'Bump');
     generateTextures(this);
     this.mode = 'pick';
     this.menuOpen = false;

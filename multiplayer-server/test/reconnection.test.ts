@@ -30,18 +30,24 @@ test('Town room owns and advances the shared NPC simulation', () => {
   assert.notEqual(room.state.npcs.get('bongbongee')!.x, before);
 });
 
-test('reserves dropped players for reconnection without removing their state', () => {
+test('reserves dropped players for reconnection without publishing stale presence', () => {
   const room = roomWithPlayer();
   let graceSeconds = 0;
   room.allowReconnection = ((_client: unknown, seconds: number) => {
     graceSeconds = seconds;
     return Promise.resolve({});
   }) as never;
+  const player = room.state.players.get('session-a')!;
+  Object.assign(player, { active: false, activity: 'fishing', moving: true });
 
   room.onDrop({ sessionId: 'session-a' } as never);
 
   assert.equal(graceSeconds, 20);
   assert.equal(room.state.players.has('session-a'), true);
+  assert.deepEqual(
+    { active: player.active, activity: player.activity, moving: player.moving },
+    { active: false, activity: '', moving: false },
+  );
 });
 
 test('removes player state only when the client finally leaves', () => {
@@ -68,6 +74,47 @@ test('initial activation does not turn a late first move into a Town re-entry', 
   assert.equal(player.y, 650);
   assert.equal(player.seq, 1);
   assert.deepEqual(corrections, []);
+});
+
+test('server publishes validated game activity and clears it on Town re-entry', () => {
+  const room = roomWithPlayer();
+  const client = { sessionId: 'session-a' } as never;
+  const player = room.state.players.get('session-a')!;
+  Object.assign(player, { active: true, moving: true });
+
+  (room as any).setActivity(client, 'fishing');
+  assert.equal(player.activity, 'fishing');
+  assert.equal(player.active, false);
+  assert.equal(player.moving, false);
+
+  (room as any).setActivity(client, 'not-a-game');
+  assert.equal(player.activity, 'fishing');
+
+  (room as any).setActive(client, true);
+  assert.equal(player.activity, '');
+  assert.equal(player.active, true);
+});
+
+test('server rejects movement while a player is inactive or playing a game', () => {
+  const room = roomWithPlayer();
+  const corrections: unknown[] = [];
+  const client = {
+    sessionId: 'session-a',
+    send: (_type: string, payload: unknown) => corrections.push(payload),
+  } as never;
+  const player = room.state.players.get('session-a')!;
+  Object.assign(player, { x: 320, y: 240, petX: 290, petY: 250, active: true, moving: true });
+
+  (room as any).setActivity(client, 'fishing');
+  (room as any).move(client, {
+    x: 320, y: 240, petX: 290, petY: 250, facing: 'side', moving: true, seq: 1,
+  });
+
+  assert.deepEqual(
+    { x: player.x, y: player.y, petX: player.petX, petY: player.petY, seq: player.seq, moving: player.moving },
+    { x: 320, y: 240, petX: 290, petY: 250, seq: 0, moving: false },
+  );
+  assert.deepEqual(corrections, [{ x: 320, y: 240, petX: 290, petY: 250 }]);
 });
 
 test('inactive to active authorizes exactly one approved Town re-entry spawn', () => {

@@ -10,6 +10,7 @@ import {
 } from '../systems/GameState';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
+import { bindGameActivity } from '../systems/multiplayerGameActivity';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { petAnimKey, petDrawScale, petTextureKey } from '../systems/pets';
 import { MINITEEN, miniteenDrawScale, miniteenTexPrefix } from '../systems/miniteen';
@@ -126,6 +127,7 @@ export class SkipRopeScene extends Phaser.Scene {
   }
 
   create() {
+    bindGameActivity(this, 'SkipRope');
     generateTextures(this);
     this.mode = 'ready';
     this.menuOpen = false;

@@ -1,5 +1,11 @@
 import { Client, type Room } from '@colyseus/sdk';
-import { ROOM_NAME, type MovePayload, type PositionCorrection, type TownState } from '@pet-village/multiplayer-protocol';
+import {
+  ROOM_NAME,
+  isGameActivity,
+  type MovePayload,
+  type PositionCorrection,
+  type TownState,
+} from '@pet-village/multiplayer-protocol';
 import { multiplayerBridge, type ConnectionId, type RemoteNpc, type RemotePresence } from './multiplayerBridge';
 import { dedupeRemotePlayers, isVisibleRemotePlayer } from './multiplayerPresentation';
 
@@ -22,6 +28,43 @@ export function snapshotNpcs(state: TownState): RemoteNpc[] {
     });
   });
   return npcs;
+}
+
+export function snapshotPlayers(
+  state: TownState,
+  localSessionId: string,
+  ownUserId: string | undefined,
+): RemotePresence[] {
+  const rows: RemotePresence[] = [];
+  if (!state?.players) return rows;
+  state.players.forEach((player, sessionId) => {
+    const activity = isGameActivity(player.activity) ? player.activity : '';
+    if (
+      (!player.active && !activity) ||
+      !isVisibleRemotePlayer(sessionId, player.userId, localSessionId, ownUserId)
+    ) return;
+    rows.push({
+      userId: player.userId,
+      sessionId,
+      localSessionId,
+      name: player.displayName,
+      petName: player.petName,
+      petSpecies: player.petSpecies,
+      penguinColor: player.penguinColor,
+      x: player.x,
+      y: player.y,
+      petX: player.petX,
+      petY: player.petY,
+      facing: player.facing,
+      moving: player.moving,
+      active: player.active,
+      activity,
+      updatedAt: player.updatedAt,
+      waveId: player.waveId || undefined,
+      waveTarget: player.waveTarget || undefined,
+    });
+  });
+  return dedupeRemotePlayers(rows);
 }
 
 export async function connectMultiplayer(
@@ -55,36 +98,18 @@ export async function connectMultiplayer(
 
   const sync = () => {
     if (!room.state?.players) return;
-    const rows: RemotePresence[] = [];
     const ownUserId = room.state.players.get(room.sessionId)?.userId;
-    room.state.players.forEach((player, sessionId) => {
-      if (!player.active || !isVisibleRemotePlayer(sessionId, player.userId, room.sessionId, ownUserId)) return;
-      rows.push({
-        userId: player.userId,
-        sessionId,
-        localSessionId: room.sessionId,
-        name: player.displayName,
-        petName: player.petName,
-        petSpecies: player.petSpecies,
-        penguinColor: player.penguinColor,
-        x: player.x,
-        y: player.y,
-        petX: player.petX,
-        petY: player.petY,
-        facing: player.facing,
-        moving: player.moving,
-        updatedAt: player.updatedAt,
-        waveId: player.waveId,
-        waveTarget: player.waveTarget,
-      });
-    });
-    multiplayerBridge.setRemote(connectionId, dedupeRemotePlayers(rows));
+    multiplayerBridge.setRemote(
+      connectionId,
+      snapshotPlayers(room.state, room.sessionId, ownUserId),
+    );
     multiplayerBridge.setNpcs(connectionId, snapshotNpcs(room.state));
   };
 
   connectionId = multiplayerBridge.install({
     send: (pose) => room.send('move', pose satisfies MovePayload),
     setActive: (active) => room.send('active', active),
+    setActivity: (activity) => room.send('activity', activity),
     leave: () => {
       void room.leave();
     },

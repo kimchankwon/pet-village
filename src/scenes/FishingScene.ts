@@ -3,6 +3,7 @@ import { generateTextures } from '../sprites/pixelart';
 import { ITEMS, MIN_GAME_ENERGY, State } from '../systems/GameState';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
+import { bindGameActivity } from '../systems/multiplayerGameActivity';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { petAnimKey, petDrawScale, petTextureKey } from '../systems/pets';
 import {
@@ -108,6 +109,7 @@ export class FishingScene extends Phaser.Scene {
   }
 
   create() {
+    bindGameActivity(this, 'Fishing');
     generateTextures(this);
     this.mode = 'ready';
     this.menuOpen = false;
