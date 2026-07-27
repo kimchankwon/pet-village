@@ -31,8 +31,7 @@ const CROPS: Crop[] = [
   { pose: 'jump', x: 360, y: 58, width: 188, height: 154, bottom: 143 },
   { pose: 'walk2', x: 540, y: 58, width: 165, height: 144, bottom: 142 },
   { pose: 'sad', x: 191, y: 531, width: 180, height: 162, bottom: 140 },
-  // WIN/POSE (bottom-right of the sheet): raised ear, open smile, left eye open + right wink.
-  { pose: 'happy', x: 515, y: 520, width: 200, height: 155, bottom: 145 },
+  // happy / WIN/POSE is hand-traced (see buildWinPose) — not majority-voted from the sheet.
 ];
 
 const PALETTE: RGBA[] = [
@@ -378,21 +377,8 @@ const FACES: Record<Pose, Face> = {
       [16, 11],
     ],
   },
-  // WIN/POSE (sheet bottom-right): open left eye + right wink, open smile.
-  // Eye/blush coords measured on the 7px grid after the happy crop.
-  happy: {
-    eyes: [{ x: 9, y: 6, w: 2, h: 3 }],
-    blush: { y: 10, lx: 7, rx: 18, w: 2 },
-    // Open U smile (outline); pink tongue filled in stampFace special-case.
-    mouth: [
-      [11, 11],
-      [16, 11],
-      [12, 12],
-      [13, 12],
-      [14, 12],
-      [15, 12],
-    ],
-  },
+  // happy face is baked into buildWinPose() pixel art (both eyes open + smile).
+  happy: {},
 };
 
 function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
@@ -459,74 +445,75 @@ function stampFace(pose: Pose, output: InstanceType<typeof PNG>) {
     }
   }
 
-  // Happy WIN/POSE: clear a face-mouth band of interior dark/cyan noise (sheet
-  // compression leaves broken bars), then re-stamp open eye + wink + smile.
-  if (pose === 'happy') {
-    // Clear mouth/cheek band only (y≥9) so we don't wipe the open-eye blue.
-    for (let y = 9; y <= 13; y++) {
-      for (let x = 7; x <= 20; x++) {
-        if (!isInterior(x, y)) continue;
-        if (isDark(x, y)) put(x, y, fur);
-        const i = (y * output.width + x) * 4;
-        const r = output.data[i]!;
-        const g = output.data[i + 1]!;
-        const b = output.data[i + 2]!;
-        // Clear mis-voted cyan crumbs (often land in the open mouth).
-        if (b > r + 20 && g > r + 10 && b < 250) put(x, y, fur);
-      }
-    }
-    // Also clear any stray cyan in the right-eye socket before the wink.
-    for (let y = 6; y <= 8; y++) {
-      for (let x = 14; x <= 19; x++) {
-        if (!isInterior(x, y)) continue;
-        const i = (y * output.width + x) * 4;
-        const r = output.data[i]!;
-        const g = output.data[i + 1]!;
-        const b = output.data[i + 2]!;
-        if (isDark(x, y) || (b > r + 20 && g > r + 10 && b < 250)) put(x, y, fur);
-      }
-    }
-    // Re-stamp open left eye (in case earlier passes touched it).
-    for (const eye of face.eyes ?? []) {
-      for (let dy = 0; dy < eye.h; dy++) for (let dx = 0; dx < eye.w; dx++) {
-        put(eye.x + dx, eye.y + dy, PALETTE[3]!);
-      }
-    }
-    // Right-eye wink arc (closed lid) — matches sheet WIN/POSE.
-    for (const [x, y] of [
-      [15, 7],
-      [16, 7],
-      [17, 7],
-      [14, 8],
-      [18, 8],
-    ] as [number, number][]) {
-      put(x, y, dark);
-    }
-    // Pink tongue inside the open smile.
-    for (const [x, y] of [
-      [12, 11],
-      [13, 11],
-      [14, 11],
-      [15, 11],
-    ] as [number, number][]) {
-      put(x, y, PALETTE[4]!);
-    }
-    // Clear crumbs just above the smile
-    for (const [x, y] of [
-      [12, 9],
-      [13, 9],
-      [14, 9],
-      [15, 9],
-      [12, 10],
-      [13, 10],
-      [14, 10],
-      [15, 10],
-    ] as [number, number][]) {
-      if (isInterior(x, y)) put(x, y, fur);
+  for (const [x, y] of face.mouth ?? []) put(x, y, dark);
+}
+
+/**
+ * WIN/POSE happy frame — hand-traced from the reference sheet bottom-right cell
+ * so the raised right ear, both open eyes, open smile and tongue match exactly.
+ * Sheet majority-vote was crushing the ear lobe and mangling the face.
+ *
+ * Art lives in scripts/reference/cinnamoroll-win-pose-art.txt (kept in sync).
+ */
+function buildWinPose(): InstanceType<typeof PNG> {
+  const artPath = path.resolve('scripts/reference/cinnamoroll-win-pose-art.txt');
+  const rows = fs
+    .readFileSync(artPath, 'utf8')
+    .trim()
+    .split(/\r?\n/)
+    .filter((r) => r.length > 0);
+  const h = rows.length;
+  const w = Math.max(...rows.map((r) => r.length));
+  const out = new PNG({ width: w, height: h });
+  out.data.fill(0);
+  const key: Record<string, RGBA> = {
+    '#': PALETTE[0]!,
+    W: PALETTE[1]!,
+    C: PALETTE[2]!,
+    E: PALETTE[3]!,
+    P: PALETTE[4]!,
+  };
+  for (let y = 0; y < h; y++) {
+    const row = rows[y]!.padEnd(w, '.');
+    for (let x = 0; x < w; x++) {
+      const ch = row[x]!;
+      const c = key[ch];
+      if (!c) continue;
+      const i = (w * y + x) << 2;
+      out.data[i] = c[0];
+      out.data[i + 1] = c[1];
+      out.data[i + 2] = c[2];
+      out.data[i + 3] = 255;
     }
   }
-
-  for (const [x, y] of face.mouth ?? []) put(x, y, dark);
+  // Seal exterior outline (preserve eyes + pink).
+  const op = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= w || y >= h) return false;
+    return out.data[((w * y + x) << 2) + 3]! >= 20;
+  };
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!op(x, y)) continue;
+      const edge = [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ].some(([dx, dy]) => !op(x + dx!, y + dy!));
+      if (!edge) continue;
+      const i = (w * y + x) << 2;
+      const r = out.data[i]!;
+      const g = out.data[i + 1]!;
+      const b = out.data[i + 2]!;
+      if (b > 150 && r < 130) continue; // eye
+      if (r > 195 && r - b > 20 && g < 225) continue; // pink
+      out.data[i] = 0;
+      out.data[i + 1] = 0;
+      out.data[i + 2] = 0;
+    }
+  }
+  // Normalize to a one-pixel exterior outline (pure black) for the outline invariant.
+  return repairExternalOutline(out, { outline: PALETTE[0]! });
 }
 
 /** Paste a frame onto a 32x32 canvas, bottom-centred like the other pets. */
@@ -574,6 +561,11 @@ for (const crop of CROPS) {
   fs.writeFileSync(path.join(ROOT, `${crop.pose}.png`), PNG.sync.write(repairExternalOutline(png)));
   console.log(`${crop.pose}: ${png.width}x${png.height}`);
 }
+// WIN/POSE happy — exact traced art (not sheet majority-vote).
+const winPose = buildWinPose();
+frames.set('happy', winPose);
+fs.writeFileSync(path.join(ROOT, 'happy.png'), PNG.sync.write(winPose));
+console.log(`happy (WIN/POSE): ${winPose.width}x${winPose.height}`);
 console.log('Resampled Cinnamoroll to true pixel size');
 
 // Pet frames: same art, padded to the 32x32 pet canvas. neutral2 bobs one
@@ -587,11 +579,15 @@ const petFrames: Record<string, InstanceType<typeof PNG>> = {
   walk1: padToPet(frames.get('walk1')!),
   walk2: padToPet(frames.get('walk2')!),
   sad: padToPet(frames.get('sad')!),
+  // WIN/POSE already has a clean outline — pad only, no outline repair.
   happy: padToPet(frames.get('happy')!),
   jump: padToPet(frames.get('jump')!, -2),
   sleep: padToPet(makeSleep(idle)),
 };
 for (const [name, png] of Object.entries(petFrames)) {
-  fs.writeFileSync(path.join(PET_ROOT, `${name}.png`), PNG.sync.write(repairExternalOutline(png)));
+  // happy is already outline-normalized in buildWinPose; other poses still need repair.
+  const final =
+    name === 'happy' ? png : repairExternalOutline(png);
+  fs.writeFileSync(path.join(PET_ROOT, `${name}.png`), PNG.sync.write(final));
 }
 console.log('Wrote Cinnamoroll pet frames (32x32)');
