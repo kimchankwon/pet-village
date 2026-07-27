@@ -19,6 +19,9 @@ import { rememberBongbongee, rememberMiniteens, takeBongbongeeSnap } from '../sy
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
 import { movementFacing } from '../systems/movementFacing';
+import { multiplayerBridge, type RemotePresence } from '../systems/multiplayerBridge';
+import { shouldSendPresence, type PresencePose } from '../systems/multiplayerPolicy';
+import { petDrawScale, petTextureKey, type PetSpecies } from '../systems/pets';
 
 /** Compact town — smaller than the old 32×24 crossroads map. */
 const MAP_W = TOWN_MAP_W;
@@ -79,6 +82,11 @@ export class TownScene extends Phaser.Scene {
   private ignoreClicksUntil = 0;
   /** Solid hitboxes for outdoor décor (filled in scatterTownDecor). */
   private decoSolids: { x: number; y: number; w: number; h: number }[] = [];
+  private remotes = new Map<string, { penguin: Phaser.GameObjects.Sprite; pet: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; data: RemotePresence; lastWaveId?: string }>();
+  private unsubscribeRemote?: () => void;
+  private lastPresence!: PresencePose;
+  private lastPresenceSent = 0;
+  private presenceSeq = 0;
 
   constructor() {
     super('Town');
@@ -126,6 +134,9 @@ export class TownScene extends Phaser.Scene {
     this.facing = 'down';
 
     this.pet = new Pet(this, sx - 30, sy + 10, worldBounds);
+    this.lastPresence = { x: sx, y: sy, facing: 'down', moving: false, sentAt: 0 };
+    this.unsubscribeRemote = multiplayerBridge.subscribe((rows) => this.syncRemotes(rows));
+    multiplayerBridge.setActive(true);
     // Tap/click your pet to hear what's on its mind.
     this.pet.sprite.setInteractive({ useHandCursor: true });
     this.pet.sprite.on('pointerdown', () => {
@@ -164,6 +175,10 @@ export class TownScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       rememberBongbongee(bong);
       rememberMiniteens(this.miniteens.list());
+      multiplayerBridge.setActive(false);
+      this.unsubscribeRemote?.();
+      this.remotes.forEach((r) => { r.penguin.destroy(); r.pet.destroy(); r.label.destroy(); });
+      this.remotes.clear();
     });
 
     this.hud = new HUD(this);
@@ -670,6 +685,13 @@ export class TownScene extends Phaser.Scene {
         bestDist = d;
       }
     }
+    for (const remote of this.remotes.values()) {
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, remote.penguin.x, remote.penguin.y);
+      if (d < 70 && d < bestDist) {
+        best = { x: remote.penguin.x, y: remote.penguin.y, radius: 70, label: `E / Space / click — Wave to ${remote.data.name}`, action: () => this.waveTo(remote.data), targets: [remote.penguin] };
+        bestDist = d;
+      }
+    }
     return best;
   }
 
@@ -677,6 +699,41 @@ export class TownScene extends Phaser.Scene {
   private setHighlight(targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[]) {
     this.glowed = updateInteractionHighlight(this.glowed, targets);
   }
+
+  private waveTo(remote: RemotePresence) {
+    multiplayerBridge.wave(remote.userId);
+    toast(this, this.player.x, this.player.y - 70, `You wave to ${remote.name}!`, '#ffe066');
+  }
+
+  private syncRemotes(rows: RemotePresence[]) {
+    const ids = new Set(rows.map((r) => r.userId));
+    for (const [id, o] of this.remotes) if (!ids.has(id)) { o.penguin.destroy(); o.pet.destroy(); o.label.destroy(); this.remotes.delete(id); }
+    for (const data of rows) {
+      let o = this.remotes.get(data.userId);
+      if (!o) {
+        const penguin = this.add.sprite(data.x, data.y, 'penguin-down', 0).setTint(this.remoteTint(data.penguinColor)).setInteractive({ useHandCursor: true });
+        const pet = this.add.sprite(data.x - 28, data.y + 12, petTextureKey(data.petSpecies as PetSpecies, 'idle1')).setScale(petDrawScale(this, data.petSpecies as PetSpecies));
+        const label = this.add.text(data.x, data.y - 58, `${data.name} · ${data.petName}`, { fontFamily: 'monospace', fontSize: '12px', color: '#fff', backgroundColor: '#000a', padding: { x: 4, y: 2 } }).setOrigin(.5);
+        o = { penguin, pet, label, data, lastWaveId: data.waveId }; this.remotes.set(data.userId, o);
+        penguin.on('pointerdown', () => this.waveTo(data));
+      } else if (data.waveId && data.waveId !== o.lastWaveId) {
+        o.lastWaveId = data.waveId;
+        toast(this, o.penguin.x, o.penguin.y - 72, `${data.name} waves!`, '#ffe066');
+        this.tweens.add({ targets: o.penguin, angle: { from: -8, to: 8 }, yoyo: true, repeat: 1, duration: 110, onComplete: () => o?.penguin.setAngle(0) });
+      }
+      o.data = data;
+    }
+  }
+  private updateRemotes(now: number) {
+    for (const o of this.remotes.values()) {
+      o.penguin.setVisible(true); o.pet.setVisible(true); o.label.setVisible(true);
+      o.penguin.x = Phaser.Math.Linear(o.penguin.x, o.data.x, .22); o.penguin.y = Phaser.Math.Linear(o.penguin.y, o.data.y, .22);
+      o.pet.x = Phaser.Math.Linear(o.pet.x, o.data.petX, .22); o.pet.y = Phaser.Math.Linear(o.pet.y, o.data.petY, .22); o.label.setPosition(o.penguin.x, o.penguin.y - 58);
+      o.penguin.setTexture(o.data.facing === 'up' ? 'penguin-up' : o.data.facing === 'side' ? 'penguin-side' : 'penguin-down', 0);
+      o.penguin.setDepth(characterDepth(o.penguin)); o.pet.setDepth(characterDepth(o.pet));
+    }
+  }
+  private remoteTint(key: string) { let h=0; for(const c of key) h=(h*31+c.charCodeAt(0))>>>0; return Phaser.Display.Color.HSLToColor((h%360)/360,.45,.65).color; }
 
   update() {
     if (!this.player) return;
@@ -745,6 +802,13 @@ export class TownScene extends Phaser.Scene {
     this.player.setDepth(characterDepth(this.player));
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
+    const now = Date.now();
+    const pose = { x: this.player.x, y: this.player.y, facing: this.facing, moving, sentAt: now };
+    if (shouldSendPresence(this.lastPresence, pose, now, this.lastPresenceSent)) {
+      multiplayerBridge.send({ x: pose.x, y: pose.y, petX: this.pet.sprite.x, petY: this.pet.sprite.y, facing: pose.facing, moving: pose.moving, seq: ++this.presenceSeq });
+      this.lastPresence = pose; this.lastPresenceSent = now;
+    }
+    this.updateRemotes(now);
     for (const npc of this.npcs) npc.update();
     this.miniteens.update();
 

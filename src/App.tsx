@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Authenticated, Unauthenticated, AuthLoading, useConvexAuth, useMutation, useQuery } from 'convex/react';
+import { Authenticated, Unauthenticated, AuthLoading, useAction, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { api } from '../convex/_generated/api';
 import { AuthPanel } from './ui/AuthPanel';
@@ -10,6 +10,7 @@ import { migratePetSpecies } from './systems/pets';
 import { blockUi, resetUiBlock, setLeaveHandler, unblockUi } from './systems/nav';
 import type Phaser from 'phaser';
 import { APP_VERSION } from './appVersion';
+import { connectMultiplayer, type MultiplayerConnection } from './systems/multiplayerClient';
 
 // Game-styled confirmation dialog. ESC cancels via a capture-phase listener
 // with stopPropagation so Phaser's own window keydown listener doesn't also
@@ -231,6 +232,7 @@ function CloudGame() {
   const cloudSave = useQuery(api.saves.getMine);
   const upsert = useMutation(api.saves.upsertMine);
   const viewer = useQuery(api.users.viewer);
+  const issueTicket = useAction(api.multiplayer.issueTicket);
   const { signOut } = useAuthActions();
   const [hydrated, setHydrated] = useState(false);
   const [gameKey, setGameKey] = useState(0);
@@ -286,6 +288,41 @@ function CloudGame() {
       State.setCloudSaver(null);
     };
   }, [upsert]);
+
+  useEffect(() => {
+    if (!hydrated || !import.meta.env.VITE_MULTIPLAYER_URL) return;
+
+    let cancelled = false;
+    let connection: MultiplayerConnection | undefined;
+    const isCurrent = () => !cancelled;
+
+    void (async () => {
+      let delayMs = 1_000;
+      while (!cancelled) {
+        try {
+          const ticket = await issueTicket({});
+          if (cancelled) break;
+          connection = await connectMultiplayer(ticket, isCurrent);
+          delayMs = 1_000;
+          await connection.closed;
+          connection = undefined;
+        } catch (error) {
+          if (!cancelled && !(error instanceof Error && error.message === 'Stale multiplayer connection')) {
+            console.warn('Multiplayer unavailable; retrying in solo mode', error);
+          }
+        }
+        if (!cancelled) {
+          await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+          delayMs = Math.min(delayMs * 2, 10_000);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      void connection?.disconnect();
+    };
+  }, [hydrated, issueTicket]);
 
   useEffect(() => {
     if (!hydrated || !hostRef.current) return;

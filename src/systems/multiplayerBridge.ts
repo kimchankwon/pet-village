@@ -1,0 +1,80 @@
+import type { Facing, MovePayload } from '@pet-village/multiplayer-protocol';
+
+export type RemotePresence = {
+  userId: string;
+  sessionId: string;
+  name: string;
+  petName: string;
+  petSpecies: string;
+  penguinColor: string;
+  x: number;
+  y: number;
+  petX: number;
+  petY: number;
+  facing: Facing;
+  moving: boolean;
+  updatedAt: number;
+  waveId?: string;
+  waveTarget?: string;
+};
+
+export type ConnectionId = symbol;
+type Listener = (rows: RemotePresence[]) => void;
+type Actions = {
+  send: (pose: MovePayload) => void;
+  setActive: (active: boolean) => void;
+  leave: () => void;
+  wave: (id: string) => void;
+};
+
+let rows: RemotePresence[] = [];
+const listeners = new Set<Listener>();
+let actions: Actions | null = null;
+let connectionId: ConnectionId | null = null;
+let localActive = false;
+
+function clearRemote() {
+  rows = [];
+  listeners.forEach((fn) => fn([]));
+}
+
+export const multiplayerBridge = {
+  subscribe(fn: Listener) {
+    listeners.add(fn);
+    fn(rows);
+    return () => listeners.delete(fn);
+  },
+  setRemote(id: ConnectionId, next: RemotePresence[]) {
+    if (connectionId !== id) return;
+    rows = next;
+    listeners.forEach((fn) => fn(rows));
+  },
+  install(next: Actions) {
+    const id = Symbol('multiplayer-connection');
+    connectionId = id;
+    actions = next;
+    clearRemote();
+    actions.setActive(localActive);
+    return id;
+  },
+  uninstall(id: ConnectionId) {
+    if (connectionId !== id) return false;
+    connectionId = null;
+    actions = null;
+    clearRemote();
+    return true;
+  },
+  send(pose: MovePayload) {
+    actions?.send(pose);
+  },
+  setActive(active: boolean) {
+    localActive = active;
+    actions?.setActive(active);
+  },
+  leave() {
+    actions?.leave();
+  },
+  wave(id: string) {
+    actions?.wave(id);
+  },
+};
