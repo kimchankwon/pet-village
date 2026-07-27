@@ -23,7 +23,11 @@ function applyHostAspect(game: Phaser.Game, parent: HTMLElement) {
   game.scale.refresh();
 }
 
-export function startGame(parent: HTMLElement): Phaser.Game {
+export interface StartGameOptions {
+  restoreTownPosition?: boolean;
+}
+
+export function startGame(parent: HTMLElement, options: StartGameOptions = {}): Phaser.Game {
   // Size matches the host aspect (expanded from 800×600). FIT then scales
   // uniformly to fill the host — no letterbox, no stretched pixels.
   const initial = designSizeForHost(parent.clientWidth || BASE_WIDTH, parent.clientHeight || BASE_HEIGHT);
@@ -38,6 +42,11 @@ export function startGame(parent: HTMLElement): Phaser.Game {
     },
     pixelArt: true,
     backgroundColor: '#1a1626',
+    callbacks: {
+      preBoot: (bootingGame) => {
+        bootingGame.registry.set('restoreTownPosition', options.restoreTownPosition ?? true);
+      },
+    },
     // Phaser's loader only tops up its download queue from scene UPDATE
     // ticks, which stop entirely while the tab is hidden/occluded (rAF is
     // suspended) — boot would stall after the first 32 files until the tab

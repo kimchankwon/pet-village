@@ -330,7 +330,10 @@ function CloudGame() {
   useEffect(() => {
     if (!hydrated || !hostRef.current) return;
     resetUiBlock();
-    const game = startGame(hostRef.current);
+    // Only a full application launch may restore a durable Town pose. A
+    // change-pet remount keeps the existing multiplayer room/sequence and must
+    // re-enter at a server-approved spawn instead.
+    const game = startGame(hostRef.current, { restoreTownPosition: gameKey === 0 });
     gameRef.current = game;
     return () => {
       game.destroy(true);
@@ -402,7 +405,7 @@ function GuestGame({ onBack }: { onBack: () => void }) {
     State.setCloudSaver(null);
     if (!hostRef.current) return;
     resetUiBlock();
-    const game = startGame(hostRef.current);
+    const game = startGame(hostRef.current, { restoreTownPosition: gameKey === 0 });
     gameRef.current = game;
     return () => {
       game.destroy(true);
