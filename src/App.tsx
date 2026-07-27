@@ -236,6 +236,7 @@ function CloudGame() {
   const { signOut } = useAuthActions();
   const [hydrated, setHydrated] = useState(false);
   const [gameKey, setGameKey] = useState(0);
+  const [multiplayerProfileVersion, setMultiplayerProfileVersion] = useState(0);
   const hydratedRef = useRef(false);
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -266,6 +267,7 @@ function CloudGame() {
         equippedAccessories: cloudSave.equippedAccessories as
           | SaveData['equippedAccessories']
           | undefined,
+        penguinColor: cloudSave.penguinColor,
       });
       // hydrate() applied offline decay locally; push that (and the fresh
       // lastSeen) to the cloud so an immediate sign-out can't leave the
@@ -300,7 +302,7 @@ function CloudGame() {
       let delayMs = 1_000;
       while (!cancelled) {
         try {
-          const ticket = await issueTicket({});
+          const ticket = await issueTicket({ penguinColor: State.data.penguinColor ?? 'blue' });
           if (cancelled) break;
           connection = await connectMultiplayer(ticket, isCurrent);
           delayMs = 1_000;
@@ -322,7 +324,7 @@ function CloudGame() {
       cancelled = true;
       void connection?.disconnect();
     };
-  }, [hydrated, issueTicket]);
+  }, [hydrated, issueTicket, multiplayerProfileVersion]);
 
   useEffect(() => {
     if (!hydrated || !hostRef.current) return;
@@ -342,6 +344,7 @@ function CloudGame() {
     State.setPenguinColor(id);
     const scene = gameRef.current?.scene.getScenes(true)[0];
     if (scene) applyPenguinColor(scene, id);
+    setMultiplayerProfileVersion((version) => version + 1);
   }
 
   // Return to adopt without wiping the village; push the adopt=false

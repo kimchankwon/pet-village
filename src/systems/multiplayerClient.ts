@@ -1,7 +1,7 @@
 import { Client, type Room } from '@colyseus/sdk';
-import { ROOM_NAME, type MovePayload, type TownState } from '@pet-village/multiplayer-protocol';
+import { ROOM_NAME, type MovePayload, type PositionCorrection, type TownState } from '@pet-village/multiplayer-protocol';
 import { multiplayerBridge, type ConnectionId, type RemotePresence } from './multiplayerBridge';
-import { isVisibleRemotePlayer } from './multiplayerPresentation';
+import { dedupeRemotePlayers, isVisibleRemotePlayer } from './multiplayerPresentation';
 
 export type MultiplayerConnection = {
   closed: Promise<void>;
@@ -61,7 +61,7 @@ export async function connectMultiplayer(
         waveTarget: player.waveTarget,
       });
     });
-    multiplayerBridge.setRemote(connectionId, rows);
+    multiplayerBridge.setRemote(connectionId, dedupeRemotePlayers(rows));
   };
 
   connectionId = multiplayerBridge.install({
@@ -71,6 +71,11 @@ export async function connectMultiplayer(
       void room.leave();
     },
     wave: (id) => room.send('wave', { targetSessionId: id }),
+  });
+  room.onMessage('positionCorrection', (next: PositionCorrection) => {
+    if ([next?.x, next?.y, next?.petX, next?.petY].every(Number.isFinite)) {
+      multiplayerBridge.setPositionCorrection(connectionId, next);
+    }
   });
   room.onStateChange(sync);
   room.onLeave(finish);

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ACCESSORIES, type AccessoryId, type AccessorySlot } from '../systems/accessories';
 import { State } from '../systems/GameState';
+import { normalizePenguinColor, remotePenguinTextureKey } from '../systems/multiplayerPresentation';
 
 // Pixel-art textures generated at runtime from character grids.
 // Each sprite is an array of strings; each character maps to a palette color,
@@ -1671,6 +1672,43 @@ function makePenguinFromPlates(scene: Phaser.Scene) {
     frameRate: 6,
     repeat: -1,
   });
+}
+
+/** Build unaccessorized, colour-specific textures for a remote player. */
+export function ensureRemotePenguinTextures(scene: Phaser.Scene, requestedColor: string) {
+  const color = normalizePenguinColor(requestedColor);
+  if (scene.textures.exists(remotePenguinTextureKey('down', color))) return;
+  const palette = PENGUIN_COLORS[color] ?? PENGUIN_COLORS.blue;
+
+  if (!hasPenguinPlates(scene)) {
+    const previous = { v: PALETTE.v!, V: PALETTE.V!, u: PALETTE.u! };
+    setPenguinPalette(color);
+    makeTexture(scene, remotePenguinTextureKey('down', color), [PENGUIN_DOWN_IDLE]);
+    makeTexture(scene, remotePenguinTextureKey('up', color), [PENGUIN_UP_IDLE]);
+    makeTexture(scene, remotePenguinTextureKey('side', color), [PENGUIN_SIDE_IDLE]);
+    Object.assign(PALETTE, previous);
+    return;
+  }
+
+  const body = hexToRgb(palette.v);
+  const shade = hexToRgb(palette.V);
+  const hi = hexToRgb(palette.u);
+  for (const facing of PENGUIN_FACINGS) {
+    const source = scene.textures.get(PENGUIN_PLATE_KEY(facing, 0)).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    const width = source.width;
+    const height = source.height;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(source as CanvasImageSource, 0, 0, width, height);
+    const image = ctx.getImageData(0, 0, width, height);
+    recolorPenguinPlateData(image.data, body, shade, hi);
+    ctx.putImageData(image, 0, 0);
+    const key = remotePenguinTextureKey(facing, color);
+    scene.textures.addCanvas(key, canvas);
+    scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+  }
 }
 
 function makePenguin(scene: Phaser.Scene) {

@@ -59,11 +59,7 @@ export interface SaveData {
   ownedAccessories: AccessoryId[];
   /** One equipped accessory per slot. */
   equippedAccessories: EquippedAccessories;
-  /**
-   * Penguin colourway. Device-local: deliberately NOT in snapshot() — the
-   * deployed Convex validator rejects unknown fields, so it can't ride
-   * along until the server schema gains it.
-   */
+  /** Penguin colourway, synced so multiplayer can render the public profile accurately. */
   penguinColor?: string;
   /**
    * Clothes worn by the player's penguin (wearable: 'penguin' items only).
@@ -393,6 +389,7 @@ export class GameStateStore {
       bestSkipRope: this.data.bestSkipRope,
       ownedAccessories: [...this.data.ownedAccessories],
       equippedAccessories: { ...this.data.equippedAccessories },
+      penguinColor: this.data.penguinColor ?? 'blue',
     };
   }
 

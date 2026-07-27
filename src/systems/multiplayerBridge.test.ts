@@ -27,6 +27,8 @@ test('stale connection cleanup cannot uninstall or update the current bridge', (
 
   assert.equal(multiplayerBridge.uninstall(firstId), false);
   multiplayerBridge.setRemote(firstId, [remote]);
+  multiplayerBridge.setPositionCorrection(firstId, { x: 9, y: 9, petX: 9, petY: 9 });
+  assert.equal(multiplayerBridge.consumePositionCorrection(), null);
   multiplayerBridge.send(pose);
   multiplayerBridge.setActive(false);
   multiplayerBridge.setActive(true);
@@ -36,6 +38,9 @@ test('stale connection cleanup cannot uninstall or update the current bridge', (
   assert.equal(seen[seen.length - 1]?.length, 0);
 
   multiplayerBridge.setRemote(secondId, [remote]);
+  multiplayerBridge.setPositionCorrection(secondId, { x: 2, y: 3, petX: 4, petY: 5 });
+  assert.deepEqual(multiplayerBridge.consumePositionCorrection(), { x: 2, y: 3, petX: 4, petY: 5 });
+  assert.equal(multiplayerBridge.consumePositionCorrection(), null);
   assert.equal(seen[seen.length - 1]?.length, 1);
   assert.equal(multiplayerBridge.uninstall(secondId), true);
   unsubscribe();
