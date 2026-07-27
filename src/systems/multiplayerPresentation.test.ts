@@ -4,6 +4,7 @@ import {
   isNewWaveForLocalPlayer,
   isVisibleRemotePlayer,
   dedupeRemotePlayers,
+  handleRemotePlayerPointerDown,
   remotePenguinTextureKey,
 } from './multiplayerPresentation';
 
@@ -22,6 +23,16 @@ test('shows a new wave only to its intended local session', () => {
 test('uses validated colour-specific remote penguin textures', () => {
   assert.equal(remotePenguinTextureKey('side', 'red'), 'penguin-remote-red-side');
   assert.equal(remotePenguinTextureKey('down', 'not-a-colour'), 'penguin-remote-blue-down');
+});
+
+test('clicking a remote consumes the ground click and waves without moving', () => {
+  const actions: string[] = [];
+  handleRemotePlayerPointerDown(
+    { stopPropagation: () => actions.push('stop') },
+    () => actions.push('cancel-movement'),
+    () => actions.push('wave'),
+  );
+  assert.deepEqual(actions, ['stop', 'cancel-movement', 'wave']);
 });
 
 test('selects one deterministic session per remote user', () => {
