@@ -102,7 +102,7 @@ export const multiplayerBridge = {
     correction = null;
     clearRemote();
     actions.setActive(townActivations.size > 0);
-    if (townActivations.size === 0 && gameActivation) actions.setActivity(gameActivation.activity);
+    actions.setActivity(townActivations.size === 0 ? gameActivation?.activity ?? '' : '');
     return id;
   },
   uninstall(id: ConnectionId) {

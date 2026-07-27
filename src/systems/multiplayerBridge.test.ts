@@ -78,6 +78,17 @@ test('stale game cleanup cannot clear a newer game activity', () => {
   assert.equal(multiplayerBridge.uninstall(id), true);
 });
 
+test('install publishes a cleared activity when no game scene is active', () => {
+  const activities: string[] = [];
+  const id = multiplayerBridge.install({
+    ...actions([]),
+    setActivity: (activity: string) => activities.push(activity),
+  });
+
+  assert.deepEqual(activities, ['']);
+  assert.equal(multiplayerBridge.uninstall(id), true);
+});
+
 test('game activity is published when multiplayer installs after the scene starts', () => {
   const release = multiplayerBridge.activateGame('paper-toss');
   const activities: string[] = [];
