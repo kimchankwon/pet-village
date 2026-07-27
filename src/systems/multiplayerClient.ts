@@ -1,10 +1,7 @@
 import { Client, type Room } from '@colyseus/sdk';
 import { ROOM_NAME, type MovePayload, type TownState } from '@pet-village/multiplayer-protocol';
-import {
-  multiplayerBridge,
-  type ConnectionId,
-  type RemotePresence,
-} from './multiplayerBridge';
+import { multiplayerBridge, type ConnectionId, type RemotePresence } from './multiplayerBridge';
+import { isVisibleRemotePlayer } from './multiplayerPresentation';
 
 export type MultiplayerConnection = {
   closed: Promise<void>;
@@ -42,10 +39,11 @@ export async function connectMultiplayer(
 
   const sync = () => {
     const rows: RemotePresence[] = [];
+    const ownUserId = room.state.players.get(room.sessionId)?.userId;
     room.state.players.forEach((player, sessionId) => {
-      if (sessionId === room.sessionId || !player.active) return;
+      if (!player.active || !isVisibleRemotePlayer(sessionId, player.userId, room.sessionId, ownUserId)) return;
       rows.push({
-        userId: sessionId,
+        userId: player.userId,
         sessionId,
         name: player.displayName,
         petName: player.petName,

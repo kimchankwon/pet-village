@@ -700,7 +700,7 @@ export class TownScene extends Phaser.Scene {
   }
 
   private waveTo(remote: RemotePresence) {
-    multiplayerBridge.wave(remote.userId);
+    multiplayerBridge.wave(remote.sessionId);
     toast(this, this.player.x, this.player.y - 70, `You wave to ${remote.name}!`, '#ffe066');
   }
 
@@ -711,6 +711,7 @@ export class TownScene extends Phaser.Scene {
       let o = this.remotes.get(data.userId);
       if (!o) {
         const penguin = this.add.sprite(data.x, data.y, 'penguin-down', 0).setTint(this.remoteTint(data.penguinColor)).setInteractive({ useHandCursor: true });
+        configurePlayerPenguin(penguin);
         const pet = this.add.sprite(data.x - 28, data.y + 12, petTextureKey(data.petSpecies as PetSpecies, 'idle1')).setScale(petDrawScale(this, data.petSpecies as PetSpecies));
         const label = this.add.text(data.x, data.y - 58, `${data.name} · ${data.petName}`, { fontFamily: 'monospace', fontSize: '12px', color: '#fff', backgroundColor: '#000a', padding: { x: 4, y: 2 } }).setOrigin(.5);
         o = { penguin, pet, label, data, lastWaveId: data.waveId }; this.remotes.set(data.userId, o);
