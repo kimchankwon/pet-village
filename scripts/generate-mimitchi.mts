@@ -97,8 +97,10 @@ for (const pose of POSES) {
   const src = PNG.sync.read(fs.readFileSync(file));
   const canvas = toCanvas(src);
   // cleanExterior: false — Mimitchi body is white; exterior cleaners punch holes.
+  // repairOutline: false — iD gallery art already has a dark outline; the
+  // repair pass would add a second pure-black ring outside it.
   saveSprite(canvas, path.join(OUT, `${pose}.png`), {
-    repairOutline: true,
+    repairOutline: false,
     cleanExterior: false,
     outline: OUTLINE,
   });
