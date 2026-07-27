@@ -14,7 +14,7 @@
     "sprite:puffles": "tsx scripts/imagine-to-puffles.mts",
     "sprite:bongbongee": "tsx scripts/imagine-to-bongbongee.mts",
     "sprite:penguin": "tsx scripts/imagine-to-penguin.mts",
-    "sprite:kirby": "python3 scripts/kirby-from-tenor-gif.py",
+    "sprite:kirby": "python3 scripts/extract-kirby-gif-frames.py && python3 scripts/kirby-from-tenor-gif.py",
     "sprite:cinnamoroll": "tsx scripts/generate-cinnamoroll.mts",
     "sprite:editor": "python3 -m http.server 8765 --directory scripts"
   },
