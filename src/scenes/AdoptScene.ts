@@ -65,8 +65,8 @@ export class AdoptScene extends Phaser.Scene {
     this.add
       .text(cx, 108, 'Tamagotchi', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
-    // 6 classic pets — tighter spacing so the row still fits.
-    this.layoutRow(CLASSIC_PETS, 168, 100, COMPANION_DISPLAY_H, 96);
+    // 7 classic pets — tighter spacing so the row still fits.
+    this.layoutRow(CLASSIC_PETS, 168, 88, COMPANION_DISPLAY_H, 84);
 
     this.add
       .text(cx, 232, 'Friends', { ...FONT, fontSize: '13px', color: '#ffe066' })

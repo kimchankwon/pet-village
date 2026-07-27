@@ -6,7 +6,8 @@ export type ClassicSpecies =
   | 'mimitchi'
   | 'flowetchi'
   | 'gozarutchi'
-  | 'memetchi';
+  | 'memetchi'
+  | 'mamekitty';
 export type PuffleColor =
   | 'blue'
   | 'pink'
@@ -82,6 +83,13 @@ const CLASSIC: PetDef[] = [
     label: 'Memetchi',
     defaultName: 'Meme',
     blurb: 'Fashionista · curly bangs & freckles',
+    group: 'classic',
+  },
+  {
+    id: 'mamekitty',
+    label: 'Mame Kitty',
+    defaultName: 'Kitty',
+    blurb: 'Sanrio mix · Hello Kitty ears',
     group: 'classic',
   },
 ];
@@ -273,6 +281,7 @@ export const petSpeciesValidatorLiterals = [
   'violetchi', // legacy cloud saves
   'gozarutchi',
   'memetchi',
+  'mamekitty',
   'bongbongee',
   'cinnamoroll',
   'kirby',

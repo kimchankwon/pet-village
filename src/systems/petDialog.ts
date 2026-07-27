@@ -35,7 +35,8 @@ const NEED_LINES: Record<'hungry' | 'tired' | 'sad', string[]> = {
  *   to explode; Kuchipatchi is a lazy daydreamer who loves Tama-Donuts and
  *   ends sentences with "-datchi"; Mimitchi is the cheerful, caring
  *   perfect-care adult; Flowetchi (Flowertchi) is a softhearted gardener who
- *   knows the meaning of every flower.
+ *   knows the meaning of every flower; Mame Kitty is Mametchi's Sanrio Mix
+ *   (Hello Kitty ears & bow) from the P's Deco Pierce era.
  * - Club Penguin wiki puffle personalities: blue = loyal ball games, pink =
  *   skip rope/swimming, green = clown with propeller cap, black = silent
  *   skateboarder, purple = picky disco dancer, red = Rockhopper Island
@@ -87,6 +88,13 @@ const PERSONALITY: Record<PetSpecies, string[]> = {
     'Freckles are my trademark, you know~',
     'Today’s outfit? Fabulous. Tomorrow’s? Even better.',
     'You have great taste. I mean, you chose me!',
+  ],
+  mamekitty: [
+    'My bow is perfect today. Don’t touch it!',
+    'Sanrio House was so fun… can we go again?',
+    'I’m still Mametchi under the ears. Genius ears!',
+    'Soft ears, sharp ideas. Best of both worlds.',
+    'Nya~ …wait, that was an experiment.',
   ],
   bongbongee: [
     'Bong! Bong! Sparkle time!',
