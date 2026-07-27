@@ -1,6 +1,6 @@
 import { MapSchema, Schema, defineTypes } from '@colyseus/schema';
 
-export const PROTOCOL_VERSION = 1 as const;
+export const PROTOCOL_VERSION = 2 as const;
 export const TICKET_ISSUER = 'pet-village-convex';
 export const TICKET_AUDIENCE = 'pet-village-multiplayer';
 export const ROOM_NAME = 'town_default';
@@ -67,12 +67,34 @@ export class PlayerState extends Schema {
 }
 defineTypes(PlayerState, {userId:'string',displayName:'string',petName:'string',petSpecies:'string',penguinColor:'string',x:'number',y:'number',petX:'number',petY:'number',facing:'string',moving:'boolean',active:'boolean',seq:'number',updatedAt:'number',waveId:'string',waveTarget:'string'});
 
+export class NpcState extends Schema {
+  declare id: string;
+  declare x: number;
+  declare y: number;
+  declare facing: 'left' | 'right';
+  declare moving: boolean;
+  declare updatedAt: number;
+
+  constructor() {
+    super();
+    this.id = '';
+    this.x = 0;
+    this.y = 0;
+    this.facing = 'right';
+    this.moving = false;
+    this.updatedAt = 0;
+  }
+}
+defineTypes(NpcState, {id:'string',x:'number',y:'number',facing:'string',moving:'boolean',updatedAt:'number'});
+
 export class TownState extends Schema {
   declare players: MapSchema<PlayerState>;
+  declare npcs: MapSchema<NpcState>;
 
   constructor() {
     super();
     this.players = new MapSchema<PlayerState>();
+    this.npcs = new MapSchema<NpcState>();
   }
 }
-defineTypes(TownState, {players:{map:PlayerState}});
+defineTypes(TownState, {players:{map:PlayerState},npcs:{map:NpcState}});

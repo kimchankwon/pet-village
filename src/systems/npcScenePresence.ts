@@ -1,19 +1,10 @@
 import { MINITEEN, type MiniteenDef, type MiniteenNpc } from './miniteen';
+import { NPC_SCENE_ASSIGNMENTS } from './npcAssignments';
 import type { TownNpcSnap } from './townPresence';
 
 export type NpcSceneLocation = 'shore' | 'west-green' | 'east-green';
 
-const assignments: Record<NpcSceneLocation, string[]> = {
-  // Keep the shore's established residents, but now give them full dialogue.
-  shore: ['thepalee', 'chandalee'],
-  'west-green': [],
-  'east-green': [],
-};
-
-const parkCandidates = MINITEEN.filter((def) => !assignments.shore.includes(def.id));
-const parkOffset = Math.floor(Math.random() * parkCandidates.length);
-assignments['west-green'] = [parkCandidates[parkOffset]!.id];
-assignments['east-green'] = [parkCandidates[(parkOffset + 1) % parkCandidates.length]!.id];
+const assignments: Record<NpcSceneLocation, readonly string[]> = NPC_SCENE_ASSIGNMENTS;
 
 const sceneSnaps: Partial<Record<NpcSceneLocation, TownNpcSnap[]>> = {};
 

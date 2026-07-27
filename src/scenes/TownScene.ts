@@ -15,11 +15,11 @@ import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
 import { TILE, TOWN_MAP_H, TOWN_MAP_W, TOWN_WORLD_H, TOWN_WORLD_W } from '../systems/townMap';
-import { rememberBongbongee, rememberMiniteens, takeBongbongeeSnap } from '../systems/townPresence';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
 import { movementFacing } from '../systems/movementFacing';
-import { multiplayerBridge, type RemotePresence } from '../systems/multiplayerBridge';
+import { multiplayerBridge, type RemoteNpc, type RemotePresence } from '../systems/multiplayerBridge';
+import { partitionTownNpcSnapshot } from '../systems/networkNpcMotion';
 import { handleRemotePlayerPointerDown, isNewWaveForLocalPlayer, remotePenguinTextureKey } from '../systems/multiplayerPresentation';
 import { shouldSendPresence, type PresencePose } from '../systems/multiplayerPolicy';
 import { petDrawScale, petTextureKey, type PetSpecies } from '../systems/pets';
@@ -57,6 +57,7 @@ export class TownScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private pet!: Pet;
   private npcs: WandererNpc[] = [];
+  private bongbongee!: BongbongeeNpc;
   private miniteens!: MiniteenRoster;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
@@ -85,6 +86,7 @@ export class TownScene extends Phaser.Scene {
   private decoSolids: { x: number; y: number; w: number; h: number }[] = [];
   private remotes = new Map<string, { penguin: Phaser.GameObjects.Sprite; pet: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; data: RemotePresence; lastWaveId?: string }>();
   private unsubscribeRemote?: () => void;
+  private unsubscribeNpcs?: () => void;
   private releaseTownActivation?: () => void;
   private lastPresence!: PresencePose;
   private lastPresenceSent = 0;
@@ -145,20 +147,19 @@ export class TownScene extends Phaser.Scene {
       if (!this.menuOpen && !isUiBlocked()) this.pet.speak();
     });
 
-    // Bongbongee wanders the square; Cinnamoroll is inside Cafe Cinnamon.
-    const bong = new BongbongeeNpc(this, [
+    // Town NPC movement and roster membership are authoritative server state.
+    this.bongbongee = new BongbongeeNpc(this, [
       { x: 7.5 * TILE, y: 9.5 * TILE },
       { x: 14 * TILE, y: 7.2 * TILE },
       { x: 18 * TILE, y: 10 * TILE },
       { x: 8.5 * TILE, y: 12 * TILE },
       { x: 14.5 * TILE, y: 11.5 * TILE },
     ]);
-    const bongSaved = takeBongbongeeSnap();
-    if (bongSaved) bong.sprite.setPosition(bongSaved.x, bongSaved.y);
-    this.npcs = [bong];
-    // Only a few MINITEEN on the map at a time; they rotate in/out.
-    // Roster restores prior positions when returning from a building.
+    this.bongbongee.setServerControlled();
+    this.bongbongee.setServerPresent(false);
+    this.npcs = [this.bongbongee];
     this.miniteens = new MiniteenRoster(this);
+    this.unsubscribeNpcs = multiplayerBridge.subscribeNpcs((rows) => this.syncNpcs(rows));
 
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
@@ -174,11 +175,12 @@ export class TownScene extends Phaser.Scene {
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      rememberBongbongee(bong);
-      rememberMiniteens(this.miniteens.list());
       this.releaseTownActivation?.();
       this.releaseTownActivation = undefined;
       this.unsubscribeRemote?.();
+      this.unsubscribeRemote = undefined;
+      this.unsubscribeNpcs?.();
+      this.unsubscribeNpcs = undefined;
       this.remotes.forEach((r) => { r.penguin.destroy(); r.pet.destroy(); r.label.destroy(); });
       this.remotes.clear();
     });
@@ -705,6 +707,13 @@ export class TownScene extends Phaser.Scene {
   private waveTo(remote: RemotePresence) {
     multiplayerBridge.wave(remote.sessionId);
     toast(this, this.player.x, this.player.y - 70, `You wave to ${remote.name}!`, '#ffe066');
+  }
+
+  private syncNpcs(rows: RemoteNpc[]) {
+    const { bongbongee, miniteens } = partitionTownNpcSnapshot(rows);
+    if (bongbongee) this.bongbongee.setNetworkPose(bongbongee);
+    else this.bongbongee.setServerPresent(false);
+    this.miniteens.sync(miniteens);
   }
 
   private syncRemotes(rows: RemotePresence[]) {

@@ -11,13 +11,13 @@ import { verifyAdmission } from '../src/TownRoom.ts';
 const secretValue = 'local-test-secret-at-least-32-characters-long';
 const secret = new TextEncoder().encode(secretValue);
 
-async function ticket(overrides: { issuer?: string; lifetime?: string; penguinColor?: string } = {}) {
+async function ticket(overrides: { issuer?: string; lifetime?: string; penguinColor?: string; protocolVersion?: number } = {}) {
   return new SignJWT({
     displayName: 'Alice',
     petName: 'Mame',
     petSpecies: 'mametchi',
     penguinColor: overrides.penguinColor ?? 'blue',
-    protocolVersion: PROTOCOL_VERSION,
+    protocolVersion: overrides.protocolVersion ?? PROTOCOL_VERSION,
   })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuer(overrides.issuer ?? TICKET_ISSUER)
@@ -33,6 +33,8 @@ test('admission validates issuer, audience, lifetime, and server secret', async 
   process.env.MULTIPLAYER_TICKET_SECRET = secretValue;
   const valid = await ticket();
   assert.equal((await verifyAdmission(valid)).sub, 'user-a');
+  assert.equal((await verifyAdmission(await ticket({ protocolVersion: 1 }))).sub, 'user-a');
+  await assert.rejects(verifyAdmission(await ticket({ protocolVersion: 0 })));
   // Tickets are short-lived bearer credentials; reconnecting may reuse one until expiry.
   assert.equal((await verifyAdmission(valid)).sub, 'user-a');
   await assert.rejects(verifyAdmission(await ticket({ issuer: 'wrong' })));

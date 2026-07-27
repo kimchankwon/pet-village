@@ -19,8 +19,18 @@ export type RemotePresence = {
   waveTarget?: string;
 };
 
+export type RemoteNpc = {
+  id: string;
+  x: number;
+  y: number;
+  facing: 'left' | 'right';
+  moving: boolean;
+  updatedAt: number;
+};
+
 export type ConnectionId = symbol;
 type Listener = (rows: RemotePresence[]) => void;
+type NpcListener = (rows: RemoteNpc[]) => void;
 type OutboundMove = Omit<MovePayload, 'seq'>;
 type Actions = {
   send: (pose: MovePayload) => void;
@@ -30,7 +40,9 @@ type Actions = {
 };
 
 let rows: RemotePresence[] = [];
+let npcRows: RemoteNpc[] = [];
 const listeners = new Set<Listener>();
+const npcListeners = new Set<NpcListener>();
 let actions: Actions | null = null;
 let connectionId: ConnectionId | null = null;
 const townActivations = new Set<symbol>();
@@ -39,7 +51,9 @@ let correction: PositionCorrection | null = null;
 
 function clearRemote() {
   rows = [];
+  npcRows = [];
   listeners.forEach((fn) => fn([]));
+  npcListeners.forEach((fn) => fn([]));
 }
 
 export const multiplayerBridge = {
@@ -47,6 +61,16 @@ export const multiplayerBridge = {
     listeners.add(fn);
     fn(rows);
     return () => listeners.delete(fn);
+  },
+  subscribeNpcs(fn: NpcListener) {
+    npcListeners.add(fn);
+    fn(npcRows);
+    return () => npcListeners.delete(fn);
+  },
+  setNpcs(id: ConnectionId, next: RemoteNpc[]) {
+    if (connectionId !== id) return;
+    npcRows = next;
+    npcListeners.forEach((fn) => fn(npcRows));
   },
   setRemote(id: ConnectionId, next: RemotePresence[]) {
     if (connectionId !== id) return;

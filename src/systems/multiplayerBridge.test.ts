@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { multiplayerBridge, type RemotePresence } from './multiplayerBridge';
+import { multiplayerBridge, type RemoteNpc, type RemotePresence } from './multiplayerBridge';
 
 const pose = { x: 1, y: 1, petX: 1, petY: 1, facing: 'down' as const, moving: false };
 const remote: RemotePresence = {
@@ -41,6 +41,22 @@ test('stale connection cleanup cannot uninstall or update the current bridge', (
   assert.equal(multiplayerBridge.consumePositionCorrection(), null);
   assert.equal(seen[seen.length - 1]?.length, 1);
   assert.equal(multiplayerBridge.uninstall(secondId), true);
+  unsubscribe();
+});
+
+test('NPC snapshots are connection-scoped and cleared on uninstall', () => {
+  const npc: RemoteNpc = { id: 'bongbongee', x: 360, y: 456, facing: 'right', moving: true, updatedAt: 1 };
+  const seen: RemoteNpc[][] = [];
+  const unsubscribe = multiplayerBridge.subscribeNpcs((rows) => seen.push(rows));
+  const firstId = multiplayerBridge.install(actions([]));
+  const secondId = multiplayerBridge.install(actions([]));
+
+  multiplayerBridge.setNpcs(firstId, [npc]);
+  assert.deepEqual(seen[seen.length - 1], []);
+  multiplayerBridge.setNpcs(secondId, [npc]);
+  assert.deepEqual(seen[seen.length - 1], [npc]);
+  multiplayerBridge.uninstall(secondId);
+  assert.deepEqual(seen[seen.length - 1], []);
   unsubscribe();
 });
 

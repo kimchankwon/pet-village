@@ -11,6 +11,7 @@ import {
   type WavePayload,
 } from '@pet-village/multiplayer-protocol';
 import { canWave, TOWN_SPAWNS, validateMove } from './policy.ts';
+import { TownNpcSimulation } from './npcSimulation.ts';
 
 function secret() {
   const value = process.env.MULTIPLAYER_TICKET_SECRET;
@@ -29,6 +30,10 @@ const PENGUIN_COLORS = new Set([
   'orange', 'darkpurple', 'brown', 'peach', 'darkgreen', 'lightblue',
 ]);
 
+// Version 1 clients ignore the additive NPC map, so keep them admitted while
+// protocol 2 rolls out server-first; remove version 1 after the migration window.
+const SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([1, PROTOCOL_VERSION]);
+
 export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
   const { payload } = await jwtVerify(token, secret(), {
     algorithms: ['HS256'],
@@ -38,7 +43,7 @@ export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
   });
   const claims = payload as unknown as AdmissionClaims;
   if (
-    claims.protocolVersion !== PROTOCOL_VERSION ||
+    !SUPPORTED_PROTOCOL_VERSIONS.has(claims.protocolVersion) ||
     !validClaimString(claims.sub, 256) ||
     !validClaimString(claims.jti, 128) ||
     !validClaimString(claims.displayName, 32) ||
@@ -59,6 +64,7 @@ export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
 export class TownRoom extends Room<{ state: TownState }> {
   maxClients = 100;
   private readonly reentrySessions = new Set<string>();
+  private npcSimulation?: TownNpcSimulation;
   state = new TownState();
 
   async onAuth(_client: Client, _options: unknown, context: { token?: string }) {
@@ -70,6 +76,8 @@ export class TownRoom extends Room<{ state: TownState }> {
   }
 
   onCreate() {
+    this.npcSimulation = new TownNpcSimulation(this.state.npcs);
+    this.setSimulationInterval((deltaMs) => this.npcSimulation?.step(deltaMs), 100);
     this.onMessage('move', (client, payload: MovePayload) => this.move(client, payload));
     this.onMessage('active', (client, active: unknown) => this.setActive(client, active));
     this.onMessage('wave', (client, payload: WavePayload) => this.wave(client, payload));
