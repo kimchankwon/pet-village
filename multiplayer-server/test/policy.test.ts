@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateMove, canWave } from '../src/policy.ts';
+import { validateMove, canWave, MAX_PET_DISTANCE } from '../src/policy.ts';
 
 const player = { x: 100, y: 100, lastSeq: 4, lastMoveAt: 1000, lastWaveAt: 0 };
 test('move policy enforces monotonic sequence, town bounds and speed plus slack', () => {
@@ -8,7 +8,12 @@ test('move policy enforces monotonic sequence, town bounds and speed plus slack'
   assert.equal(validateMove(player, {x:120,y:100,petX:90,petY:110,facing:'side',moving:true,seq:4}, 1100).ok, false);
   assert.equal(validateMove(player, {x:1000,y:700,petX:900,petY:700,facing:'side',moving:true,seq:5}, 1100).ok, false);
   assert.equal(validateMove(player, {x:900,y:100,petX:870,petY:110,facing:'side',moving:true,seq:5}, 61_000).ok, false);
-  assert.equal(validateMove(player, {x:120,y:100,petX:900,petY:100,facing:'side',moving:true,seq:5}, 1100).ok, false);
+});
+test('a lagging pet is clamped without rejecting valid player movement', () => {
+  const result = validateMove(player, {x:120,y:100,petX:900,petY:100,facing:'side',moving:true,seq:5}, 1100);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.ok(Math.hypot(result.move.petX - result.move.x, result.move.petY - result.move.y) <= MAX_PET_DISTANCE);
 });
 test('move policy tolerates a one-second delivery stall at normal walking speed', () => {
   assert.equal(
