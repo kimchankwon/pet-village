@@ -1,7 +1,7 @@
 {
   "name": "pet-village",
   "private": true,
-  "version": "1.14.2",
+  "version": "1.14.3",
   "type": "module",
   "scripts": {
     "dev": "convex dev --start vite",
@@ -17,6 +17,7 @@
     "sprite:kirby": "python3 scripts/extract-kirby-gif-frames.py && python3 scripts/kirby-from-tenor-gif.py",
     "sprite:mametchi": "tsx scripts/generate-mametchi.mts",
     "sprite:kuchipatchi": "tsx scripts/generate-kuchipatchi.mts",
+    "sprite:mimitchi": "tsx scripts/generate-mimitchi.mts",
     "sprite:cinnamoroll": "tsx scripts/generate-cinnamoroll.mts",
     "sprite:editor": "python3 -m http.server 8765 --directory scripts"
   },
