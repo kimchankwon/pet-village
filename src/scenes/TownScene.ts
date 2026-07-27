@@ -97,6 +97,7 @@ export class TownScene extends Phaser.Scene {
   private releaseTownActivation?: () => void;
   private lastPresence!: PresencePose;
   private lastPresenceSent = 0;
+  private wasMoving = false;
 
   constructor() {
     super('Town');
@@ -106,6 +107,7 @@ export class TownScene extends Phaser.Scene {
     generateTextures(this);
     this.interactables = [];
     this.menuOpen = false;
+    this.wasMoving = false;
     this.ignoreClicksUntil = 0;
 
     this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
@@ -314,7 +316,6 @@ export class TownScene extends Phaser.Scene {
       },
     });
     this.time.addEvent({ delay: 500, loop: true, callback: () => this.hud.refresh() });
-    this.time.addEvent({ delay: 5_000, loop: true, callback: () => State.persistTownPosition() });
 
     if (!localStorage.getItem(WELCOME_KEY)) {
       localStorage.setItem(WELCOME_KEY, '1');
@@ -870,6 +871,10 @@ export class TownScene extends Phaser.Scene {
     const now = Date.now();
     const pose = { x: this.player.x, y: this.player.y, facing: this.facing, moving, sentAt: now };
     State.rememberTownPosition({ x: pose.x, y: pose.y, facing: pose.facing });
+    if (this.wasMoving && !moving) {
+      this.time.delayedCall(100, () => State.persistTownPosition());
+    }
+    this.wasMoving = moving;
     if (shouldSendPresence(this.lastPresence, pose, now, this.lastPresenceSent)) {
       multiplayerBridge.send({ x: pose.x, y: pose.y, petX: this.pet.sprite.x, petY: this.pet.sprite.y, facing: pose.facing, moving: pose.moving });
       this.lastPresence = pose; this.lastPresenceSent = now;
