@@ -25,6 +25,9 @@ import {
 } from './petFoodRules';
 import { GET_WIN_REWARDS, type GetDifficulty } from './getGameRules';
 import { normalizeTownPosition, type TownPosition } from './townPosition';
+import { validatePetName } from './profileNameRules';
+
+export const MULTIPLAYER_PROFILE_CHANGED_EVENT = 'pet-village:multiplayer-profile-changed';
 
 export interface PetStats {
   hunger: number; // 0 = starving, 100 = full
@@ -208,6 +211,7 @@ const KEY = 'pet-village-save-v1';
 export const WELCOME_KEY = 'pet-village-welcomed';
 
 type CloudSaver = (data: SaveData) => void;
+type AdoptionSaver = (data: SaveData) => Promise<void>;
 
 function clamp(v: number, lo = 0, hi = 100) {
   return Math.max(lo, Math.min(hi, v));
@@ -340,6 +344,7 @@ const mergeSave = normalizeSave;
 export class GameStateStore {
   data: SaveData;
   private cloudSaver: CloudSaver | null = null;
+  private adoptionSaver: AdoptionSaver | null = null;
   private cloudTimer: ReturnType<typeof setTimeout> | null = null;
   private townPositionDirty = false;
 
@@ -407,6 +412,10 @@ export class GameStateStore {
       this.cloudTimer = null;
     }
     this.cloudSaver = saver;
+  }
+
+  setAdoptionSaver(saver: AdoptionSaver | null) {
+    this.adoptionSaver = saver;
   }
 
   private persistLocal() {
@@ -680,9 +689,9 @@ export class GameStateStore {
     return this.petMood() === 'happy' ? 'happy' : 'ok';
   }
 
-  adopt(species: PetSpecies, name: string) {
-    const trimmed = name.trim().slice(0, 12);
-    if (!trimmed) throw new Error('Name your pet');
+  async adopt(species: PetSpecies, name: string) {
+    const trimmed = validatePetName(name);
+    const previous = structuredClone(this.data);
     this.data.petSpecies = species;
     this.data.petName = trimmed;
     this.data.adopted = true;
@@ -700,9 +709,37 @@ export class GameStateStore {
       // Drop anything the previous pet was wearing that this one can't.
       this.stripUnwearableAccessories();
     }
+    try {
+      await this.adoptionSaver?.(this.snapshot());
+    } catch (error) {
+      this.data = previous;
+      this.persistLocal();
+      throw error;
+    }
     this.save();
     // Adoption is a milestone — push it to the cloud immediately instead of
     // trusting the debounce to survive a quick tab close.
+    this.flushCloud();
+    this.publishMultiplayerProfileChanged();
+  }
+
+  private publishMultiplayerProfileChanged() {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(MULTIPLAYER_PROFILE_CHANGED_EVENT));
+    }
+  }
+
+  applyCanonicalPetName(expectedName: string, canonicalName: string) {
+    if (!this.data.adopted || this.data.petName !== expectedName || expectedName === canonicalName) return false;
+    this.data.petName = canonicalName;
+    this.persistLocal();
+    return true;
+  }
+
+  renamePet(name: string) {
+    const trimmed = validatePetName(name);
+    this.data.petName = trimmed;
+    this.save();
     this.flushCloud();
   }
 
@@ -813,17 +850,22 @@ export class GameStateStore {
       this.data.equippedAccessories[slot] = id;
     }
     this.save();
+    this.publishMultiplayerProfileChanged();
   }
 
   unequipAllAccessories() {
     this.unequipAllPetAccessories(false);
     this.unequipAllPenguinAccessories(false);
     this.save();
+    this.publishMultiplayerProfileChanged();
   }
 
   unequipAllPetAccessories(save = true) {
     this.data.equippedAccessories = {};
-    if (save) this.save();
+    if (save) {
+      this.save();
+      this.publishMultiplayerProfileChanged();
+    }
   }
 
   unequipAllPenguinAccessories(save = true) {

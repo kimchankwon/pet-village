@@ -2,16 +2,22 @@ import { Room, type Client, ServerError } from '@colyseus/core';
 import { jwtVerify } from 'jose';
 import {
   PROTOCOL_VERSION,
+  TOWN_BOUNDS,
+  WORLD_SCENE_SPAWNS,
   TICKET_AUDIENCE,
   TICKET_ISSUER,
   PlayerState,
   TownState,
   isGameActivity,
+  isWorldScene,
+  type ActivityPayload,
   type AdmissionClaims,
-  type MovePayload,
+  type ProfileRefreshPayload,
+  type ProfileRefreshResult,
   type WavePayload,
+  type WorldScene,
 } from '@pet-village/multiplayer-protocol';
-import { canWave, TOWN_SPAWNS, validateMove } from './policy.ts';
+import { canTransitionWorldScene, canWave, isApprovedWorldSpawn, TOWN_SPAWNS, validateMove } from './policy.ts';
 import { TownNpcSimulation } from './npcSimulation.ts';
 
 function secret() {
@@ -26,14 +32,49 @@ function validClaimString(value: unknown, maxLength: number) {
   return typeof value === 'string' && value.length > 0 && value.length <= maxLength;
 }
 
+function validTownPosition(value: AdmissionClaims['townPosition']) {
+  return value === undefined || (
+    value !== null &&
+    Number.isFinite(value.x) && value.x >= 0 && value.x <= TOWN_BOUNDS.width &&
+    Number.isFinite(value.y) && value.y >= 0 && value.y <= TOWN_BOUNDS.height &&
+    (value.facing === 'up' || value.facing === 'down' || value.facing === 'side')
+  );
+}
+
+function validActivityPose(value: unknown) {
+  if (!value || typeof value !== 'object') return false;
+  const pose = value as NonNullable<ActivityPayload['pose']>;
+  return [pose.x, pose.y, pose.petX, pose.petY].every(Number.isFinite) &&
+    (pose.facing === 'up' || pose.facing === 'down' || pose.facing === 'side') &&
+    typeof pose.moving === 'boolean' &&
+    Math.hypot(pose.petX - pose.x, pose.petY - pose.y) <= 160;
+}
+
+function validEquippedAccessories(value: AdmissionClaims['equippedAccessories']) {
+  if (value === undefined) return true;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return (['headLeft', 'headRight', 'body', 'extra'] as const).every((slot) => {
+    const id = value[slot];
+    return id === undefined || (typeof id === 'string' && id.length <= 64);
+  });
+}
+
+function accessoryFields(claims: AdmissionClaims) {
+  return {
+    accessoryHeadLeft: claims.equippedAccessories?.headLeft ?? '',
+    accessoryHeadRight: claims.equippedAccessories?.headRight ?? '',
+    accessoryBody: claims.equippedAccessories?.body ?? '',
+    accessoryExtra: claims.equippedAccessories?.extra ?? '',
+  };
+}
+
 const PENGUIN_COLORS = new Set([
   'blue', 'green', 'pink', 'black', 'red', 'purple',
   'orange', 'darkpurple', 'brown', 'peach', 'darkgreen', 'lightblue',
 ]);
 
-// Versions 2 and 3 remain compatible with the additive v4 Sled Run room. Keep
-// admitting them during the rolling deployment window.
-const SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([2, 3, PROTOCOL_VERSION]);
+// Four ticket versions are retained by the rolling-compatibility policy.
+const SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([3, 4, 5, PROTOCOL_VERSION]);
 
 export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
   const { payload } = await jwtVerify(token, secret(), {
@@ -52,6 +93,7 @@ export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
     !validClaimString(claims.petSpecies, 40) ||
     !validClaimString(claims.penguinColor, 24) ||
     !PENGUIN_COLORS.has(claims.penguinColor) ||
+    !validEquippedAccessories(claims.equippedAccessories) ||
     !Number.isInteger(claims.iat) ||
     !Number.isInteger(claims.exp) ||
     claims.exp <= claims.iat ||
@@ -59,13 +101,16 @@ export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
   ) {
     throw new Error('Invalid admission claims');
   }
-  return claims;
+  return validTownPosition(claims.townPosition)
+    ? claims
+    : { ...claims, townPosition: undefined };
 }
 
 export class TownRoom extends Room<{ state: TownState }> {
   maxClients = 100;
-  private readonly reentrySessions = new Set<string>();
+  private readonly reentrySessions = new Map<string, WorldScene>();
   private readonly restoringSessions = new Set<string>();
+  private readonly lastProfileRefreshAt = new Map<string, number>();
   private npcSimulation?: TownNpcSimulation;
   state = new TownState();
 
@@ -80,24 +125,30 @@ export class TownRoom extends Room<{ state: TownState }> {
   onCreate() {
     this.npcSimulation = new TownNpcSimulation(this.state.npcs);
     this.setSimulationInterval((deltaMs) => this.npcSimulation?.step(deltaMs), 100);
-    this.onMessage('move', (client, payload: MovePayload) => this.move(client, payload));
+    this.onMessage('move', (client, payload: unknown) => this.move(client, payload));
     this.onMessage('active', (client, active: unknown) => this.setActive(client, active));
     this.onMessage('activity', (client, activity: unknown) => this.setActivity(client, activity));
+    this.onMessage('profile', (client, payload: ProfileRefreshPayload) => {
+      void this.refreshProfile(client, payload);
+    });
     this.onMessage('wave', (client, payload: WavePayload) => this.wave(client, payload));
   }
 
   onJoin(client: Client, _options: unknown, claims: AdmissionClaims) {
     const player = new PlayerState();
+    const spawn = claims.townPosition ?? { ...TOWN_SPAWNS[0], facing: 'down' as const };
     Object.assign(player, {
       userId: claims.sub,
       displayName: claims.displayName,
       petName: claims.petName,
       petSpecies: claims.petSpecies,
       penguinColor: claims.penguinColor,
-      x: TOWN_SPAWNS[0].x,
-      y: TOWN_SPAWNS[0].y,
-      petX: TOWN_SPAWNS[0].x - 30,
-      petY: TOWN_SPAWNS[0].y + 10,
+      ...accessoryFields(claims),
+      x: spawn.x,
+      y: spawn.y,
+      petX: spawn.x - 30,
+      petY: spawn.y + 10,
+      facing: spawn.facing,
       updatedAt: Date.now(),
     });
     this.state.players.set(client.sessionId, player);
@@ -123,15 +174,17 @@ export class TownRoom extends Room<{ state: TownState }> {
   onLeave(client: Client) {
     this.reentrySessions.delete(client.sessionId);
     this.restoringSessions.delete(client.sessionId);
+    this.lastProfileRefreshAt.delete(client.sessionId);
     this.state.players.delete(client.sessionId);
   }
 
-  private move(client: Client, payload: MovePayload) {
+  private move(client: Client, payload: unknown) {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
     if (!player.active || player.activity) {
       player.moving = false;
       client.send('positionCorrection', {
+        scene: player.scene,
         x: player.x,
         y: player.y,
         petX: player.petX,
@@ -143,6 +196,7 @@ export class TownRoom extends Room<{ state: TownState }> {
     const now = Date.now();
     const result = validateMove(
       {
+        scene: player.scene,
         x: player.x,
         y: player.y,
         lastSeq: player.seq,
@@ -151,10 +205,11 @@ export class TownRoom extends Room<{ state: TownState }> {
       },
       payload,
       now,
-      this.reentrySessions.has(client.sessionId),
+      this.reentrySessions.get(client.sessionId) ?? false,
     );
     if (!result.ok) {
       client.send('positionCorrection', {
+        scene: player.scene,
         x: player.x,
         y: player.y,
         petX: player.petX,
@@ -166,19 +221,111 @@ export class TownRoom extends Room<{ state: TownState }> {
     Object.assign(player, result.move, { updatedAt: now });
   }
 
-  private setActive(client: Client, active: unknown) {
+  private setActive(client: Client, value: unknown) {
     const player = this.state.players.get(client.sessionId);
-    if (!player || typeof active !== 'boolean') return;
-    const restoring = this.restoringSessions.delete(client.sessionId);
-    if (active && !player.active && player.seq > 0 && !restoring) {
-      this.reentrySessions.add(client.sessionId);
-    } else if (restoring) {
+    if (!player) return;
+    const candidate = value && typeof value === 'object'
+      ? value as Partial<ActivityPayload>
+      : null;
+    const payload: ActivityPayload | null = typeof value === 'boolean'
+      ? { active: value, scene: 'town' }
+      : candidate &&
+          typeof candidate.active === 'boolean' &&
+          isWorldScene(candidate.scene) &&
+          (candidate.pose === undefined || validActivityPose(candidate.pose))
+        ? candidate as ActivityPayload
+        : null;
+    if (!payload) return;
+
+    const restoring = this.restoringSessions.has(client.sessionId);
+    const changingScene = payload.active && payload.scene !== player.scene;
+    if (changingScene && (
+      !canTransitionWorldScene(player.scene, payload.scene) ||
+      (payload.pose && !isApprovedWorldSpawn(payload.scene, payload.pose.x, payload.pose.y))
+    )) {
+      client.send('positionCorrection', {
+        scene: player.scene,
+        x: player.x,
+        y: player.y,
+        petX: player.petX,
+        petY: player.petY,
+        recoverScene: true,
+      });
+      return;
+    }
+    this.restoringSessions.delete(client.sessionId);
+    const restoringSameScene = restoring && !changingScene;
+    const entering = payload.active && (!player.active || changingScene);
+    if (entering && player.seq > 0 && !restoringSameScene) {
+      this.reentrySessions.set(client.sessionId, payload.scene);
+    } else if (restoringSameScene) {
       this.reentrySessions.delete(client.sessionId);
     }
-    player.active = active;
-    player.moving = active ? player.moving : false;
-    if (active) player.activity = '';
+    // Activation poses are transition-only. Reapplying a same-scene pose would
+    // create an unrestricted teleport path around the movement policy.
+    if (changingScene) {
+      player.scene = payload.scene;
+      const defaultSpawn = WORLD_SCENE_SPAWNS[payload.scene][0];
+      const spawn = payload.pose ?? {
+        x: defaultSpawn.x,
+        y: defaultSpawn.y,
+        petX: defaultSpawn.x - 30,
+        petY: defaultSpawn.y + 10,
+        facing: 'down' as const,
+        moving: false,
+      };
+      player.x = spawn.x;
+      player.y = spawn.y;
+      player.petX = spawn.petX;
+      player.petY = spawn.petY;
+      player.facing = spawn.facing;
+      player.moving = spawn.moving;
+    }
+    player.active = payload.active;
+    player.moving = payload.active ? player.moving : false;
+    if (payload.active) player.activity = '';
     player.updatedAt = Date.now();
+  }
+
+  private async refreshProfile(client: Client, payload: ProfileRefreshPayload) {
+    const requestId = typeof payload?.requestId === 'string' && payload.requestId.length <= 128
+      ? payload.requestId
+      : undefined;
+    const reply = (ok: boolean, retryAfterMs?: number) => client.send('profileRefreshed', {
+      ok,
+      ...(requestId ? { requestId } : {}),
+      ...(retryAfterMs ? { retryAfterMs } : {}),
+    } satisfies ProfileRefreshResult);
+    if (!payload || typeof payload.ticket !== 'string' || payload.ticket.length === 0 || payload.ticket.length > 8_192) {
+      reply(false);
+      return;
+    }
+    const now = Date.now();
+    const elapsed = now - (this.lastProfileRefreshAt.get(client.sessionId) ?? 0);
+    if (elapsed < 200) {
+      reply(false, 200 - elapsed);
+      return;
+    }
+    this.lastProfileRefreshAt.set(client.sessionId, now);
+    try {
+      const claims = await verifyAdmission(payload.ticket);
+      const player = this.state.players.get(client.sessionId);
+      if (!player || claims.sub !== player.userId) {
+        reply(false);
+        return;
+      }
+      Object.assign(player, {
+        displayName: claims.displayName,
+        petName: claims.petName,
+        petSpecies: claims.petSpecies,
+        penguinColor: claims.penguinColor,
+        ...accessoryFields(claims),
+        updatedAt: Date.now(),
+      });
+      reply(true);
+    } catch {
+      reply(false);
+    }
   }
 
   private setActivity(client: Client, activity: unknown) {
@@ -200,6 +347,7 @@ export class TownRoom extends Room<{ state: TownState }> {
     if (
       !player ||
       !target ||
+      player.scene !== target.scene ||
       !player.active ||
       !target.active ||
       !canWave({ x: player.x, y: player.y, lastWaveAt }, target, now)

@@ -1,13 +1,22 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  isNewWave,
   isNewWaveForLocalPlayer,
+  positionCorrectionAction,
+  visibleSceneRows,
   isVisibleRemotePlayer,
   dedupeRemotePlayers,
   handleRemotePlayerPointerDown,
   isRemotePlayerInteractable,
   remotePlayerPresentation,
   remotePenguinTextureKey,
+  remotePenguinWalkAnimKey,
+  remoteMovementDecision,
+  remotePetMovementDecision,
+  stepRemotePosition,
+  waveAnimationFrame,
+  canInitiateWave,
 } from './multiplayerPresentation';
 
 test('filters every connection belonging to the local authenticated user', () => {
@@ -20,6 +29,45 @@ test('shows a new wave only to its intended local session', () => {
   assert.equal(isNewWaveForLocalPlayer(undefined, 'wave-1', 'session-a', 'session-a'), true);
   assert.equal(isNewWaveForLocalPlayer(undefined, 'wave-1', 'session-b', 'session-a'), false);
   assert.equal(isNewWaveForLocalPlayer('wave-1', 'wave-1', 'session-a', 'session-a'), false);
+});
+
+test('bystanders see the wave animation even when someone else is the target', () => {
+  assert.equal(isNewWave(undefined, 'wave-1'), true);
+  assert.equal(isNewWave('wave-1', 'wave-2'), true);
+  assert.equal(isNewWave('wave-1', 'wave-1'), false);
+  assert.equal(isNewWave('wave-1', undefined), false);
+});
+
+const presence = (over: Partial<{ sessionId: string; sceneId: string; active: boolean; activity: '' | 'fishing' }>) => ({
+  sessionId: 'session-a',
+  sceneId: 'town',
+  active: true,
+  activity: '' as '' | 'fishing',
+  ...over,
+});
+
+test('a world scene renders only its own scene, keeping players parked in minigames', () => {
+  const rows = [
+    presence({ sessionId: 'roaming-town' }),
+    presence({ sessionId: 'roaming-cafe', sceneId: 'cafe-cinnamon' }),
+    presence({ sessionId: 'fishing-town', active: false, activity: 'fishing' }),
+    presence({ sessionId: 'idle-town', active: false }),
+    presence({ sessionId: 'fishing-cafe', sceneId: 'cafe-cinnamon', active: false, activity: 'fishing' }),
+  ];
+  assert.deepEqual(
+    visibleSceneRows(rows, 'town').map((row) => row.sessionId),
+    ['roaming-town', 'fishing-town'],
+  );
+  assert.deepEqual(
+    visibleSceneRows(rows, 'cafe-cinnamon').map((row) => row.sessionId),
+    ['roaming-cafe', 'fishing-cafe'],
+  );
+});
+
+test('a correction for another scene switches scenes instead of snapping in place', () => {
+  assert.equal(positionCorrectionAction(null, 'town'), 'ignore');
+  assert.equal(positionCorrectionAction({ sceneId: 'town' }, 'town'), 'snap');
+  assert.equal(positionCorrectionAction({ sceneId: 'cafe-cinnamon' }, 'town'), 'switch-scene');
 });
 
 test('uses validated colour-specific remote penguin textures', () => {
@@ -43,19 +91,65 @@ test('gameplay ghosts cannot be targeted by pointer or keyboard interactions', (
   assert.equal(isRemotePlayerInteractable({ active: false, activity: '' }), false);
 });
 
-test('renders a clear non-interactive status for players inside a game', () => {
+test('keeps player and pet names in separate labels', () => {
   assert.deepEqual(remotePlayerPresentation({ name: 'Da2el', petName: 'Mame', activity: 'fishing' }), {
-    label: 'Da2el · Playing Fishing',
+    playerLabel: 'Da2el · Playing Fishing',
+    petLabel: 'Mame',
     alpha: 0.6,
     interactive: false,
     labelColor: '#ffe26f',
   });
   assert.deepEqual(remotePlayerPresentation({ name: 'Da2el', petName: 'Mame', activity: '' }), {
-    label: 'Da2el · Mame',
+    playerLabel: 'Da2el',
+    petLabel: 'Mame',
     alpha: 1,
     interactive: true,
     labelColor: '#ffffff',
   });
+});
+
+test('remote interpolation is frame-rate independent and snaps teleports', () => {
+  const once = stepRemotePosition({ x: 0, y: 0 }, { x: 100, y: 40 }, 100);
+  const half = stepRemotePosition({ x: 0, y: 0 }, { x: 100, y: 40 }, 50);
+  const twice = stepRemotePosition(half, { x: 100, y: 40 }, 50);
+  assert.ok(Math.abs(once.x - twice.x) < 0.0001);
+  assert.ok(Math.abs(once.y - twice.y) < 0.0001);
+  assert.deepEqual(stepRemotePosition({ x: 0, y: 0 }, { x: 500, y: 20 }, 16), { x: 500, y: 20 });
+});
+
+test('remote penguin walk decisions preserve facing and horizontal flip', () => {
+  assert.deepEqual(remoteMovementDecision({ x: 20, y: 10 }, { x: 4, y: 11 }, 'side', true, false), {
+    facing: 'side', walking: true, flipX: true,
+  });
+  assert.deepEqual(remoteMovementDecision({ x: 4, y: 10 }, { x: 4, y: 30 }, 'down', false, true), {
+    facing: 'down', walking: false, flipX: true,
+  });
+  assert.equal(remotePenguinWalkAnimKey('side', 'red'), 'penguin-remote-red-walk-side');
+});
+
+test('remote pets walk and face their horizontal travel direction', () => {
+  assert.deepEqual(remotePetMovementDecision({ x: 10, y: 2 }, { x: 5, y: 3 }, false), {
+    walking: true, flipX: true,
+  });
+  assert.deepEqual(remotePetMovementDecision({ x: 5, y: 3 }, { x: 5.1, y: 3.1 }, true), {
+    walking: false, flipX: true,
+  });
+});
+
+test('wave gating requires an active nearby player', () => {
+  assert.equal(canInitiateWave({ x: 0, y: 0 }, { x: 92, y: 0 }, true, 92), true);
+  assert.equal(canInitiateWave({ x: 0, y: 0 }, { x: 93, y: 0 }, true, 92), false);
+  assert.equal(canInitiateWave({ x: 0, y: 0 }, { x: 1, y: 0 }, false, 92), false);
+});
+
+test('wave timing selects authored frames and ends cleanly', () => {
+  assert.equal(waveAnimationFrame(0), 0);
+  assert.equal(waveAnimationFrame(130), 1);
+  assert.equal(waveAnimationFrame(260), 2);
+  assert.equal(waveAnimationFrame(390), 3);
+  assert.equal(waveAnimationFrame(520), 2);
+  assert.equal(waveAnimationFrame(650), 1);
+  assert.equal(waveAnimationFrame(780), null);
 });
 
 test('prefers an active Town session over a newer game session for the same user', () => {

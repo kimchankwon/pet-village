@@ -15,6 +15,7 @@ import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
 import { movementFacing } from '../systems/movementFacing';
+import { bedTuckAvailability, nearestBedInteraction } from '../systems/housePetActions';
 
 const TILE = 48;
 const COLS = 12;
@@ -217,12 +218,21 @@ export class HouseScene extends Phaser.Scene {
         const placed = State.data.placed.find((p) => p.gx === g.gx && p.gy === g.gy);
         if (placed) {
           const name = ITEMS[placed.id]?.name ?? 'item';
+          const bedTuck = placed.id === 'bed' ? bedTuckAvailability(State.data.placed, this.petTucking) : null;
           this.menuOpen = true;
           this.clickMove.clear();
           const menu = new Menu(
             this,
-            'Pick up furniture?',
+            bedTuck ? `${name} — tuck ${State.data.petName || 'Pet'} in?` : 'Pick up furniture?',
             [
+              ...(bedTuck
+                ? [{
+                    label: `Tuck ${State.data.petName || 'Pet'} in (full energy!)`,
+                    icon: 'item-bed',
+                    disabled: bedTuck.disabled,
+                    onSelect: () => this.tuckPetIntoBed(),
+                  }]
+                : []),
               { label: 'Leave it', onSelect: () => undefined },
               {
                 label: `Pick up ${name}`,
@@ -241,7 +251,7 @@ export class HouseScene extends Phaser.Scene {
                 },
               },
             ],
-            `${name} goes back to your inventory`,
+            bedTuck ? `${State.data.petName || 'Pet'} naps here — or pack the bed away` : `${name} goes back to your inventory`,
           );
           menu.onClose = () => {
             this.menuOpen = false;
@@ -295,8 +305,40 @@ export class HouseScene extends Phaser.Scene {
         action: () => this.scene.start('Town', { spawn: 'house' }),
       };
     }
-    // Pet care lives on the bottom [ Pet · P ] button — no proximity interaction.
+    const bed = nearestBedInteraction(this.placedBeds(), { x: this.player.x, y: this.player.y }, {
+      petName: State.data.petName || 'Pet',
+      petTucking: this.petTucking,
+    });
+    if (bed) {
+      return {
+        x: bed.x,
+        y: bed.y,
+        radius: bed.radius,
+        label: bed.label,
+        action: () => this.tuckPetIntoBed(),
+        targets: [this.furnitureImageAt(bed.bed.gx, bed.bed.gy)].filter(
+          (img): img is Phaser.GameObjects.Image => Boolean(img),
+        ),
+      };
+    }
+    // Other pet care lives on the bottom [ Pet · P ] button.
     return null;
+  }
+
+  /** Placed Dream Beds with their room-space centres, for proximity checks. */
+  private placedBeds() {
+    return State.data.placed
+      .filter((item) => item.id === 'bed')
+      .map((item) => ({
+        gx: item.gx,
+        gy: item.gy,
+        x: this.roomX + item.gx * TILE + TILE / 2,
+        y: ROOM_Y + item.gy * TILE + TILE / 2,
+      }));
+  }
+
+  private furnitureImageAt(gx: number, gy: number) {
+    return this.furnitureSprites.find((s) => s.getData('gx') === gx && s.getData('gy') === gy);
   }
 
   // Lightweight tint on whatever the player can currently interact with.
@@ -373,7 +415,7 @@ export class HouseScene extends Phaser.Scene {
 
   private openPetMenuInHouse() {
     this.menuOpen = true;
-    const hasBed = State.data.placed.some((p) => p.id === 'bed');
+    const bedTuck = bedTuckAvailability(State.data.placed, this.petTucking);
     const options = [
       {
         label: `Chat with ${State.data.petName}`,
@@ -394,9 +436,9 @@ export class HouseScene extends Phaser.Scene {
         onFed: () => this.hud.refresh(),
       }),
       {
-        label: hasBed ? 'Tuck into bed (full energy!)' : 'Tuck into bed (needs a Dream Bed)',
+        label: bedTuck.label,
         icon: 'item-bed',
-        disabled: !hasBed || this.petTucking,
+        disabled: bedTuck.disabled,
         onSelect: () => {
           this.menuOpen = false;
           this.tuckPetIntoBed();

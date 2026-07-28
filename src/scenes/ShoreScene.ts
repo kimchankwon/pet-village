@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { worldSceneSpawn } from '@pet-village/multiplayer-protocol';
 import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
 import { MIN_GAME_ENERGY, State } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
@@ -26,6 +27,7 @@ import { movementFacing } from '../systems/movementFacing';
 import { npcDefsForScene, rememberSceneNpcs, takeSceneNpcSnaps } from '../systems/npcScenePresence';
 import { addWorldBezel } from '../systems/worldBezel';
 import { fishingBaitCount, hasFishingBait } from '../systems/fishingRules';
+import { WorldMultiplayer } from '../systems/worldMultiplayer';
 
 interface Interactable {
   x: number;
@@ -65,6 +67,7 @@ export class ShoreScene extends Phaser.Scene {
   private decoSolids: { x: number; y: number; w: number; h: number }[] = [];
   private oceanTiles: Phaser.GameObjects.Image[] = [];
   private dockImg!: Phaser.GameObjects.Image;
+  private worldMultiplayer!: WorldMultiplayer;
 
   constructor() {
     super('Shore');
@@ -86,12 +89,9 @@ export class ShoreScene extends Phaser.Scene {
     addWorldBezel(this, worldBounds);
 
     // From town → top path; from fishing → near the dock.
-    let sx = 9 * TILE;
-    let sy = 2.2 * TILE;
-    if (data?.spawn === 'fishing') {
-      sx = SHORE_DOCK.tx * TILE;
-      sy = (SHORE_DOCK.ty - 1.1) * TILE;
-    }
+    const spawn = worldSceneSpawn('shore', data?.spawn);
+    const sx = spawn.x;
+    const sy = spawn.y;
 
     this.player = this.physics.add.sprite(sx, sy, 'penguin-down', 0);
     this.player.setCollideWorldBounds(true);
@@ -144,6 +144,17 @@ export class ShoreScene extends Phaser.Scene {
     this.clickMove = new ClickMove(this);
     this.joystick = new Joystick(this);
     this.pointerHeld = false;
+    this.worldMultiplayer = new WorldMultiplayer(this, {
+      sceneId: 'shore',
+      localPlayer: this.player,
+      pet: this.pet,
+      depthFor: characterDepth,
+      cancelLocalMovement: () => {
+        this.pointerHeld = false;
+        this.clickMove.clear();
+        this.player.setVelocity(0, 0);
+      },
+    });
 
     bottomButtons(
       this,
@@ -453,6 +464,11 @@ export class ShoreScene extends Phaser.Scene {
         bestDist = d;
       }
     }
+    const remote = this.worldMultiplayer.getRemoteInteractable();
+    if (remote) {
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, remote.x, remote.y);
+      if (d < bestDist) best = remote;
+    }
     return best;
   }
 
@@ -463,6 +479,7 @@ export class ShoreScene extends Phaser.Scene {
   update() {
     if (!this.player) return;
 
+    this.worldMultiplayer.applyCorrection();
     const speed = 220;
     const uiOpen = this.menuOpen || isUiBlocked();
     let vx = 0;
@@ -520,6 +537,8 @@ export class ShoreScene extends Phaser.Scene {
     this.player.setDepth(characterDepth(this.player));
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
+    this.worldMultiplayer.update(this.facing, moving, this.game.loop.delta);
+
     for (const npc of this.npcs) npc.update();
 
     // Auto-return near the north path edge.

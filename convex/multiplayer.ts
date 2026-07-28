@@ -6,6 +6,7 @@ import {
   PROTOCOL_VERSION,
   TICKET_AUDIENCE,
   TICKET_ISSUER,
+  type AdmissionProfile,
 } from '@pet-village/multiplayer-protocol';
 import { internal } from './_generated/api';
 import { action } from './_generated/server';
@@ -19,13 +20,7 @@ export const issueTicket = action({
   args: { penguinColor: v.string() },
   returns: v.string(),
   handler: async (ctx, args): Promise<string> => {
-    const profile: {
-      identity: string;
-      displayName: string;
-      petName: string;
-      petSpecies: string;
-      penguinColor: string;
-    } = await ctx.runQuery(internal.multiplayerProfile.admissionProfile, {});
+    const profile: AdmissionProfile = await ctx.runQuery(internal.multiplayerProfile.admissionProfile, {});
     const secret = process.env.MULTIPLAYER_TICKET_SECRET;
     if (!secret || secret.length < 32) {
       throw new Error('Multiplayer ticket signing is not configured');
@@ -38,6 +33,8 @@ export const issueTicket = action({
       penguinColor: PENGUIN_COLORS.has(args.penguinColor)
         ? args.penguinColor
         : profile.penguinColor,
+      equippedAccessories: profile.equippedAccessories,
+      townPosition: profile.townPosition,
       protocolVersion: PROTOCOL_VERSION,
     })
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })

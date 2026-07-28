@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { worldSceneSpawn } from '@pet-village/multiplayer-protocol';
 import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
 import { MIN_GAME_ENERGY, State } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
@@ -23,6 +24,7 @@ import {
 } from '../systems/npcScenePresence';
 import { addWorldBezel } from '../systems/worldBezel';
 import { movementFacing } from '../systems/movementFacing';
+import { WorldMultiplayer } from '../systems/worldMultiplayer';
 
 interface Interactable {
   x: number;
@@ -99,6 +101,7 @@ export class ParkScene extends Phaser.Scene {
   private decoSolids: { x: number; y: number; w: number; h: number }[] = [];
   private boothImgs: { img: Phaser.GameObjects.Image; booth: ParkBooth }[] = [];
   private villagers: MiniteenNpc[] = [];
+  private worldMultiplayer!: WorldMultiplayer;
 
   constructor(cfg: ParkConfig) {
     super(cfg.key);
@@ -121,14 +124,10 @@ export class ParkScene extends Phaser.Scene {
     addWorldBezel(this, worldBounds);
 
     // From town → just inside the connecting edge; from a game → by its booth.
-    const entryX = this.cfg.exitEdge === 'east' ? (PARK_MAP_W - 1.6) * TILE : 1.6 * TILE;
-    let sx = entryX;
-    let sy = 6 * TILE;
     const fromBooth = this.cfg.booths.find((b) => b.spawnId === data?.spawn);
-    if (fromBooth) {
-      sx = fromBooth.tx * TILE;
-      sy = (fromBooth.ty + 1.6) * TILE;
-    }
+    const spawn = worldSceneSpawn(this.cfg.npcLocation, fromBooth?.spawnId);
+    const sx = spawn.x;
+    const sy = spawn.y;
 
     this.player = this.physics.add.sprite(sx, sy, 'penguin-down', 0);
     this.player.setCollideWorldBounds(true);
@@ -171,6 +170,17 @@ export class ParkScene extends Phaser.Scene {
     this.clickMove = new ClickMove(this);
     this.joystick = new Joystick(this);
     this.pointerHeld = false;
+    this.worldMultiplayer = new WorldMultiplayer(this, {
+      sceneId: this.cfg.npcLocation,
+      localPlayer: this.player,
+      pet: this.pet,
+      depthFor: characterDepth,
+      cancelLocalMovement: () => {
+        this.pointerHeld = false;
+        this.clickMove.clear();
+        this.player.setVelocity(0, 0);
+      },
+    });
 
     bottomButtons(
       this,
@@ -454,6 +464,11 @@ export class ParkScene extends Phaser.Scene {
         bestDist = d;
       }
     }
+    const remote = this.worldMultiplayer.getRemoteInteractable();
+    if (remote) {
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, remote.x, remote.y);
+      if (d < bestDist) best = remote;
+    }
     return best;
   }
 
@@ -464,6 +479,7 @@ export class ParkScene extends Phaser.Scene {
   update() {
     if (!this.player) return;
 
+    this.worldMultiplayer.applyCorrection();
     for (const npc of this.villagers) npc.update();
 
     const speed = 220;
@@ -523,6 +539,7 @@ export class ParkScene extends Phaser.Scene {
     this.player.setDepth(characterDepth(this.player));
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
+    this.worldMultiplayer.update(this.facing, moving, this.game.loop.delta);
 
     // Walk off the connecting-path edge → back to town.
     const onPathBand =

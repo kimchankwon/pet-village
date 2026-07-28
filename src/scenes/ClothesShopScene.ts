@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { worldSceneSpawn } from '@pet-village/multiplayer-protocol';
 import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
 import { State } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
@@ -16,6 +17,7 @@ import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
 import { movementFacing } from '../systems/movementFacing';
+import { WorldMultiplayer } from '../systems/worldMultiplayer';
 
 const TILE = 48;
 const COLS = 12;
@@ -51,6 +53,7 @@ export class ClothesShopScene extends Phaser.Scene {
   private doorCenterY = 0;
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   private ignoreClicksUntil = 0;
+  private worldMultiplayer!: WorldMultiplayer;
 
   constructor() {
     super('ClothesShop');
@@ -124,8 +127,9 @@ export class ClothesShopScene extends Phaser.Scene {
       .setDepth(1000);
     markAsUi(this, cafeHint);
 
-    const px = door.centerX;
-    const py = door.centerY; // ON the mat
+    const approvedSpawn = worldSceneSpawn('cafe-cinnamon');
+    const px = this.roomX + approvedSpawn.x;
+    const py = approvedSpawn.y; // ON the mat
     this.player = this.physics.add.sprite(px, py, 'penguin-up', 0);
     configurePlayerPenguin(this.player);
     const b = this.player.body as Phaser.Physics.Arcade.Body;
@@ -174,6 +178,17 @@ export class ClothesShopScene extends Phaser.Scene {
     this.prompt = new Prompt(this);
     this.clickMove = new ClickMove(this);
     this.joystick = new Joystick(this);
+    this.worldMultiplayer = new WorldMultiplayer(this, {
+      sceneId: 'cafe-cinnamon',
+      localPlayer: this.player,
+      pet: this.pet,
+      networkOffsetX: this.roomX,
+      cancelLocalMovement: () => {
+        this.pointerHeld = false;
+        this.clickMove.clear();
+        this.player.setVelocity(0, 0);
+      },
+    });
 
     bottomButtons(
       this,
@@ -271,7 +286,7 @@ export class ClothesShopScene extends Phaser.Scene {
         action: () => this.scene.start('Town', { spawn: 'cafe' }),
       };
     }
-    return null;
+    return this.worldMultiplayer.getRemoteInteractable();
   }
 
   private setHighlight(targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[]) {
@@ -335,6 +350,7 @@ export class ClothesShopScene extends Phaser.Scene {
   update() {
     if (!this.player) return;
 
+    this.worldMultiplayer.applyCorrection();
     this.cinna.update();
 
     const speed = 200;
@@ -394,6 +410,7 @@ export class ClothesShopScene extends Phaser.Scene {
     this.player.setDepth(feetDepth(this.player));
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
+    this.worldMultiplayer.update(this.facing, moving, this.game.loop.delta);
 
     if (!uiOpen) {
       const near = this.nearestInteractable();

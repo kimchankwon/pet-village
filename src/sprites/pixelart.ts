@@ -1,7 +1,13 @@
 import Phaser from 'phaser';
 import { ACCESSORIES, type AccessoryId, type AccessorySlot } from '../systems/accessories';
 import { State } from '../systems/GameState';
-import { normalizePenguinColor, remotePenguinTextureKey } from '../systems/multiplayerPresentation';
+import {
+  LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
+  normalizePenguinColor,
+  remotePenguinTextureKey,
+  remotePenguinWalkAnimKey,
+  remotePenguinWaveTextureKey,
+} from '../systems/multiplayerPresentation';
 
 // Pixel-art textures generated at runtime from character grids.
 // Each sprite is an array of strings; each character maps to a palette color,
@@ -172,6 +178,42 @@ const PENGUIN_DOWN_1: Grid = [
   '...koo......ook...', // right foot forward/raised
   '.koo........ooOk..',
 ];
+
+function authoredWaveFrame(changes: Record<number, string>): Grid {
+  return PENGUIN_DOWN_IDLE.map((row, index) => changes[index] ?? row);
+}
+
+// Authored front-facing flipper wave. Each pose changes the silhouette itself:
+// the screen-left flipper rises from the side, reaches overhead, and lowers.
+const PENGUIN_WAVE_1 = authoredWaveFrame({
+  7: '.kkvvvooOOOoovvk..',
+  8: 'kvkvvvvzzzzzvvvk..',
+  9: 'kvkvvwwzzzzvvkvk..',
+  10: '.kvvwwwwwwwwvvkvk.',
+  11: '.kvwwwwwwwwwwvkvk.',
+  12: '.kvwwwwwwwwwwvkvk.',
+});
+const PENGUIN_WAVE_2 = authoredWaveFrame({
+  3: '..kkuvvvvvvvvuk...',
+  4: '.kvkvvvwwvwwvvk...',
+  5: 'kvkvvvvwkwkwvvk...',
+  6: 'kvkvvvvoOOOovvvk..',
+  7: '.kkvvvooOOOoovvk..',
+  8: '..kvvvvzzzzzvvvk..',
+  9: '..kvvwwzzzzvvkvk..',
+  10: '..kvwwwwwwwwvvkvk.',
+  11: '..kwwwwwwwwwwvkvk.',
+  12: '..kvwwwwwwwwwwvkvk',
+});
+const PENGUIN_WAVE_3 = authoredWaveFrame({
+  0: '..kk...kkkk.......',
+  1: '.kvvk.kkvvvvkk....',
+  2: 'kvvvkkuvvvvvvuk...',
+  3: 'kvvkkvvvvvvvvuk...',
+  4: '.kkkvvvwwvwwvvk...',
+});
+const PENGUIN_WAVE_GRIDS = [PENGUIN_DOWN_IDLE, PENGUIN_WAVE_1, PENGUIN_WAVE_2, PENGUIN_WAVE_3];
+
 const PENGUIN_UP_IDLE: Grid = [
   '.......kkkk.......',
   '.....kkvvvvkk.....',
@@ -1505,6 +1547,9 @@ export const PENGUIN_DISPLAY_HEIGHT = 20 * SCALE;
 /** Boot loads Imagine plates under this key prefix when present. */
 export const PENGUIN_PLATE_KEY = (facing: 'down' | 'up' | 'side', frame: 0 | 1 | 2) =>
   `penguin-plate-${facing}-${frame}`;
+/** Raised-flipper wave poses; frame 0 of the wave is the idle down plate. */
+export const PENGUIN_WAVE_PLATE_KEY = (frame: 1 | 2 | 3) => `penguin-plate-wave-${frame}`;
+const PENGUIN_WAVE_PLATE_FRAMES = [1, 2, 3] as const;
 
 const PENGUIN_FACINGS = ['down', 'up', 'side'] as const;
 /** 0 = idle plant (stop); 1–2 = alternating mid-stride walk. */
@@ -1514,6 +1559,14 @@ const PENGUIN_FRAME_COUNT = 3;
 export function hasPenguinPlates(scene: Phaser.Scene): boolean {
   return PENGUIN_FACINGS.every((facing) =>
     ([0, 1, 2] as const).every((frame) => scene.textures.exists(PENGUIN_PLATE_KEY(facing, frame))),
+  );
+}
+
+/** True when Boot preloaded the plate-resolution wave poses. */
+export function hasPenguinWavePlates(scene: Phaser.Scene): boolean {
+  return (
+    hasPenguinPlates(scene) &&
+    PENGUIN_WAVE_PLATE_FRAMES.every((frame) => scene.textures.exists(PENGUIN_WAVE_PLATE_KEY(frame)))
   );
 }
 
@@ -1694,7 +1747,119 @@ function makePenguinFromPlates(scene: Phaser.Scene) {
   });
 }
 
-/** Build unaccessorized, colour-specific textures for a remote player. */
+/**
+ * Wave spritesheet from Imagine plates: frame 0 is the idle down plate, 1–3 the
+ * raised-flipper plates. Same source art, same resolution and recolour/clothes
+ * pipeline as the walk sheets, so the flipper lifts instead of the sprite
+ * dissolving into 26px blocks.
+ */
+function makeWaveTextureFromPlates(
+  scene: Phaser.Scene,
+  key: string,
+  color: string,
+  includeClothes: boolean,
+) {
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  const palette = PENGUIN_COLORS[normalizePenguinColor(color)] ?? PENGUIN_COLORS.blue!;
+  const body = hexToRgb(palette.v);
+  const shade = hexToRgb(palette.V);
+  const hi = hexToRgb(palette.u);
+  const frameKeys = [
+    PENGUIN_PLATE_KEY('down', 0),
+    ...PENGUIN_WAVE_PLATE_FRAMES.map((frame) => PENGUIN_WAVE_PLATE_KEY(frame)),
+  ];
+  const first = scene.textures.get(frameKeys[0]!).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+  const fw = first.width;
+  const fh = first.height;
+  const sheet = document.createElement('canvas');
+  sheet.width = fw * frameKeys.length;
+  sheet.height = fh;
+  const sctx = sheet.getContext('2d')!;
+  const previous = { v: PALETTE.v!, V: PALETTE.V!, u: PALETTE.u! };
+  setPenguinPalette(normalizePenguinColor(color));
+  frameKeys.forEach((frameKey, index) => {
+    const source = scene.textures.get(frameKey).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    const tmp = document.createElement('canvas');
+    tmp.width = fw;
+    tmp.height = fh;
+    const tctx = tmp.getContext('2d')!;
+    tctx.imageSmoothingEnabled = false;
+    tctx.drawImage(source as CanvasImageSource, 0, 0, fw, fh);
+    const image = tctx.getImageData(0, 0, fw, fh);
+    recolorPenguinPlateData(image.data, body, shade, hi);
+    tctx.putImageData(image, 0, 0);
+    if (includeClothes) stampClothesOnPlate(tctx, 'down', fw, fh);
+    sctx.drawImage(tmp, index * fw, 0);
+  });
+  Object.assign(PALETTE, previous);
+  scene.textures.addSpriteSheet(key, sheet as unknown as HTMLImageElement, {
+    frameWidth: fw,
+    frameHeight: fh,
+  });
+  scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+}
+
+/** Plate wave poses when Boot loaded them; hand-authored grids otherwise. */
+function makeWaveTexture(
+  scene: Phaser.Scene,
+  key: string,
+  color: string,
+  referenceKey: string,
+  includeClothes: boolean,
+) {
+  if (hasPenguinWavePlates(scene)) {
+    makeWaveTextureFromPlates(scene, key, color, includeClothes);
+    return;
+  }
+  makeAuthoredWaveTexture(scene, key, color, referenceKey, includeClothes);
+}
+
+function makeAuthoredWaveTexture(
+  scene: Phaser.Scene,
+  key: string,
+  color: string,
+  referenceKey: string,
+  includeClothes: boolean,
+) {
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  const frame = scene.textures.getFrame(referenceKey);
+  const frameW = frame?.width ?? 18 * SCALE;
+  const frameH = frame?.height ?? 20 * SCALE;
+  const canvas = document.createElement('canvas');
+  canvas.width = frameW * PENGUIN_WAVE_GRIDS.length;
+  canvas.height = frameH;
+  const ctx = canvas.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
+  const previous = { v: PALETTE.v!, V: PALETTE.V!, u: PALETTE.u! };
+  setPenguinPalette(color);
+  const cellW = frameW / 18;
+  const cellH = frameH / 20;
+  PENGUIN_WAVE_GRIDS.forEach((grid, index) => {
+    const offsetX = index * frameW;
+    for (let y = 0; y < grid.length; y++) {
+      for (let x = 0; x < grid[y]!.length; x++) {
+        const paletteColor = PALETTE[grid[y]![x]!];
+        if (!paletteColor) continue;
+        ctx.fillStyle = paletteColor;
+        ctx.fillRect(offsetX + Math.floor(x * cellW), Math.floor(y * cellH), Math.ceil(cellW), Math.ceil(cellH));
+      }
+    }
+    if (includeClothes) {
+      ctx.save();
+      ctx.translate(offsetX, 0);
+      stampClothesOnPlate(ctx, 'down', frameW, frameH);
+      ctx.restore();
+    }
+  });
+  Object.assign(PALETTE, previous);
+  scene.textures.addSpriteSheet(key, canvas as unknown as HTMLImageElement, {
+    frameWidth: frameW,
+    frameHeight: frameH,
+  });
+  scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+}
+
+/** Build unaccessorized, colour-specific textures and walk anims for a remote player. */
 export function ensureRemotePenguinTextures(scene: Phaser.Scene, requestedColor: string) {
   const color = normalizePenguinColor(requestedColor);
   if (scene.textures.exists(remotePenguinTextureKey('down', color))) return;
@@ -1703,37 +1868,70 @@ export function ensureRemotePenguinTextures(scene: Phaser.Scene, requestedColor:
   if (!hasPenguinPlates(scene)) {
     const previous = { v: PALETTE.v!, V: PALETTE.V!, u: PALETTE.u! };
     setPenguinPalette(color);
-    makeTexture(scene, remotePenguinTextureKey('down', color), [PENGUIN_DOWN_IDLE]);
-    makeTexture(scene, remotePenguinTextureKey('up', color), [PENGUIN_UP_IDLE]);
-    makeTexture(scene, remotePenguinTextureKey('side', color), [PENGUIN_SIDE_IDLE]);
+    makeTexture(scene, remotePenguinTextureKey('down', color), [PENGUIN_DOWN_IDLE, PENGUIN_DOWN_0, PENGUIN_DOWN_1]);
+    makeTexture(scene, remotePenguinTextureKey('up', color), [PENGUIN_UP_IDLE, PENGUIN_UP_0, PENGUIN_UP_1]);
+    makeTexture(scene, remotePenguinTextureKey('side', color), [PENGUIN_SIDE_IDLE, PENGUIN_SIDE_0, PENGUIN_SIDE_1]);
     Object.assign(PALETTE, previous);
-    return;
+  } else {
+    const body = hexToRgb(palette.v);
+    const shade = hexToRgb(palette.V);
+    const hi = hexToRgb(palette.u);
+    for (const facing of PENGUIN_FACINGS) {
+      const source = scene.textures.get(PENGUIN_PLATE_KEY(facing, 0)).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+      const width = source.width;
+      const height = source.height;
+      const canvas = document.createElement('canvas');
+      canvas.width = width * PENGUIN_FRAME_COUNT;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d')!;
+      for (let index = 0; index < PENGUIN_FRAME_COUNT; index++) {
+        const frameSource = scene.textures
+          .get(PENGUIN_PLATE_KEY(facing, index as 0 | 1 | 2))
+          .getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+        ctx.drawImage(frameSource as CanvasImageSource, index * width, 0, width, height);
+        const image = ctx.getImageData(index * width, 0, width, height);
+        recolorPenguinPlateData(image.data, body, shade, hi);
+        ctx.putImageData(image, index * width, 0);
+      }
+      const key = remotePenguinTextureKey(facing, color);
+      scene.textures.addSpriteSheet(key, canvas as unknown as HTMLImageElement, {
+        frameWidth: width,
+        frameHeight: height,
+      });
+      scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
   }
 
-  const body = hexToRgb(palette.v);
-  const shade = hexToRgb(palette.V);
-  const hi = hexToRgb(palette.u);
   for (const facing of PENGUIN_FACINGS) {
-    const source = scene.textures.get(PENGUIN_PLATE_KEY(facing, 0)).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
-    const width = source.width;
-    const height = source.height;
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d')!;
-    ctx.drawImage(source as CanvasImageSource, 0, 0, width, height);
-    const image = ctx.getImageData(0, 0, width, height);
-    recolorPenguinPlateData(image.data, body, shade, hi);
-    ctx.putImageData(image, 0, 0);
-    const key = remotePenguinTextureKey(facing, color);
-    scene.textures.addCanvas(key, canvas);
-    scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+    const animKey = remotePenguinWalkAnimKey(facing, color);
+    if (!scene.anims.exists(animKey)) {
+      scene.anims.create({
+        key: animKey,
+        frames: scene.anims.generateFrameNumbers(remotePenguinTextureKey(facing, color), { start: 1, end: 2 }),
+        frameRate: 6,
+        repeat: -1,
+      });
+    }
   }
+  makeWaveTexture(
+    scene,
+    remotePenguinWaveTextureKey(color),
+    color,
+    remotePenguinTextureKey('down', color),
+    false,
+  );
 }
 
 function makePenguin(scene: Phaser.Scene) {
   if (hasPenguinPlates(scene)) {
     makePenguinFromPlates(scene);
+    makeWaveTexture(
+      scene,
+      LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
+      State.data.penguinColor ?? 'blue',
+      'penguin-down',
+      true,
+    );
     return;
   }
   // Classic 18×20 grid fallback (pre-plate path): idle plant + 2 walk strides.
@@ -1746,9 +1944,21 @@ function makePenguin(scene: Phaser.Scene) {
     anims.create({ key: 'walk-up', frames: anims.generateFrameNumbers('penguin-up', { start: 1, end: 2 }), frameRate: 6, repeat: -1 });
     anims.create({ key: 'walk-side', frames: anims.generateFrameNumbers('penguin-side', { start: 1, end: 2 }), frameRate: 6, repeat: -1 });
   }
+  makeWaveTexture(
+    scene,
+    LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
+    State.data.penguinColor ?? 'blue',
+    'penguin-down',
+    true,
+  );
 }
 
-const PENGUIN_TEXTURE_KEYS = ['penguin-down', 'penguin-up', 'penguin-side'];
+const PENGUIN_TEXTURE_KEYS = [
+  'penguin-down',
+  'penguin-up',
+  'penguin-side',
+  LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
+];
 
 /**
  * Rebuild the penguin textures + walk anims (after a colourway or outfit

@@ -4,14 +4,16 @@ import { useAuthActions } from '@convex-dev/auth/react';
 import { api } from '../convex/_generated/api';
 import { AuthPanel } from './ui/AuthPanel';
 import { startGame } from './game/startGame';
-import { State, type SaveData } from './systems/GameState';
+import { State, MULTIPLAYER_PROFILE_CHANGED_EVENT, type SaveData } from './systems/GameState';
 import { applyPenguinColor, PENGUIN_COLORS } from './sprites/pixelart';
 import { migratePetSpecies } from './systems/pets';
 import { blockUi, resetUiBlock, setLeaveHandler, unblockUi } from './systems/nav';
 import type Phaser from 'phaser';
 import { APP_VERSION } from './appVersion';
 import { connectMultiplayer, type MultiplayerConnection } from './systems/multiplayerClient';
+import { multiplayerBridge } from './systems/multiplayerBridge';
 import { setMultiplayerTicketIssuer } from './systems/multiplayerTickets';
+import { validateProfileNames } from './systems/profileNameRules';
 
 // Game-styled confirmation dialog. ESC cancels via a capture-phase listener
 // with stopPropagation so Phaser's own window keydown listener doesn't also
@@ -57,25 +59,88 @@ function ConfirmModal({
   );
 }
 
+function NamesModal({
+  initialPlayerName,
+  onSave,
+  onBack,
+}: {
+  initialPlayerName: string;
+  onSave: (displayName: string, petName: string) => Promise<void>;
+  onBack: () => void;
+}) {
+  const [displayName, setDisplayName] = useState(initialPlayerName);
+  const [petName, setPetName] = useState(State.data.petName);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    setError('');
+    try {
+      const names = validateProfileNames(displayName, petName);
+      await onSave(names.displayName, names.petName);
+      onBack();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save names');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="confirm-dim" onClick={onBack}>
+      <form
+        className="confirm-card"
+        role="dialog"
+        aria-modal="true"
+        onClick={(event) => event.stopPropagation()}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        <h2>Change names</h2>
+        <label className="name-field">
+          Your player name
+          <input value={displayName} maxLength={20} autoComplete="off" onChange={(event) => setDisplayName(event.target.value)} />
+        </label>
+        <label className="name-field">
+          Your pet&apos;s name
+          <input value={petName} maxLength={16} autoComplete="off" onChange={(event) => setPetName(event.target.value)} />
+        </label>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <div className="confirm-actions">
+          <button type="button" className="btn ghost" onClick={onBack}>Back</button>
+          <button type="submit" className="btn" disabled={saving}>{saving ? 'Saving…' : 'Save names'}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function PlayChrome({
   userLabel,
+  initialPlayerName = '',
   onLeave,
   leaveLabel,
   exitNote,
   onChangePet,
   onPenguinColor,
+  onRename,
   children,
 }: {
   userLabel: string;
+  initialPlayerName?: string;
   onLeave: () => void;
   leaveLabel: string;
   exitNote: string;
   onChangePet?: () => void;
   onPenguinColor?: (id: string) => void;
+  onRename?: (displayName: string, petName: string) => Promise<void>;
   children: ReactNode;
 }) {
   // The game menu: root panel, colour picker, or change-pet confirm.
-  const [panel, setPanel] = useState<'menu' | 'color' | 'pet' | null>(null);
+  const [panel, setPanel] = useState<'menu' | 'color' | 'pet' | 'names' | null>(null);
   const [menuIndex, setMenuIndex] = useState(0);
 
   // ESC in-game and the topbar button both open the menu.
@@ -100,6 +165,9 @@ function PlayChrome({
   const menuActions: { label: string; danger?: boolean; run: () => void }[] = [
     { label: 'Back to game', run: () => setPanel(null) },
   ];
+  if (onRename) {
+    menuActions.push({ label: 'Change names', run: () => setPanel('names') });
+  }
   if (onPenguinColor) {
     menuActions.push({ label: 'Penguin colour', run: () => setPanel('color') });
   }
@@ -115,7 +183,7 @@ function PlayChrome({
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-        if (panel === 'color' || panel === 'pet') setPanel('menu');
+        if (panel === 'color' || panel === 'pet' || panel === 'names') setPanel('menu');
         else setPanel(null);
         return;
       }
@@ -146,7 +214,7 @@ function PlayChrome({
     return () => window.removeEventListener('keydown', onKey, true);
     // menuActions is rebuilt each render; length + labels are stable enough.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [panel, menuIndex, leaveLabel, onLeave, onPenguinColor, onChangePet]);
+  }, [panel, menuIndex, leaveLabel, onLeave, onPenguinColor, onChangePet, onRename]);
 
   const currentColor = State.data.penguinColor ?? 'blue';
 
@@ -184,6 +252,13 @@ function PlayChrome({
             <p className="menu-version">v{APP_VERSION}</p>
           </div>
         </div>
+      )}
+      {panel === 'names' && onRename && (
+        <NamesModal
+          initialPlayerName={initialPlayerName}
+          onSave={onRename}
+          onBack={() => setPanel('menu')}
+        />
       )}
       {panel === 'color' && onPenguinColor && (
         <div className="confirm-dim" onClick={() => setPanel('menu')}>
@@ -233,14 +308,15 @@ function CloudGame() {
   const cloudSave = useQuery(api.saves.getMine);
   const upsert = useMutation(api.saves.upsertMine);
   const viewer = useQuery(api.users.viewer);
+  const updateNames = useMutation(api.profiles.updateMine);
   const issueTicket = useAction(api.multiplayer.issueTicket);
   const { signOut } = useAuthActions();
   const [hydrated, setHydrated] = useState(false);
   const [gameKey, setGameKey] = useState(0);
-  const [multiplayerProfileVersion, setMultiplayerProfileVersion] = useState(0);
   const hydratedRef = useRef(false);
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
+  const wakeMultiplayerRetryRef = useRef<(() => void) | null>(null);
 
   // Hydrate exactly once, from the first cloud snapshot. Every save echoes
   // back through this subscription; re-hydrating from an echo would clobber
@@ -283,13 +359,20 @@ function CloudGame() {
 
   useEffect(() => {
     State.setCloudSaver((data) => {
-      void upsert(data);
+      void upsert(data)
+        .then(({ petName }) => State.applyCanonicalPetName(data.petName, petName))
+        .catch((error) => console.warn('Could not save game progress', error));
+    });
+    State.setAdoptionSaver(async (data) => {
+      const { petName } = await upsert(data);
+      State.applyCanonicalPetName(data.petName, petName);
     });
     return () => {
       // Flush any pending debounced write before dropping the saver —
       // the other order silently discards it.
       State.flushCloud();
       State.setCloudSaver(null);
+      State.setAdoptionSaver(null);
     };
   }, [upsert]);
 
@@ -321,7 +404,18 @@ function CloudGame() {
           }
         }
         if (!cancelled) {
-          await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+          await new Promise<void>((resolve) => {
+            let settled = false;
+            const finish = () => {
+              if (settled) return;
+              settled = true;
+              window.clearTimeout(timer);
+              if (wakeMultiplayerRetryRef.current === finish) wakeMultiplayerRetryRef.current = null;
+              resolve();
+            };
+            const timer = window.setTimeout(finish, delayMs);
+            wakeMultiplayerRetryRef.current = finish;
+          });
           delayMs = Math.min(delayMs * 2, 10_000);
         }
       }
@@ -329,9 +423,38 @@ function CloudGame() {
 
     return () => {
       cancelled = true;
+      wakeMultiplayerRetryRef.current?.();
+      wakeMultiplayerRetryRef.current = null;
       void connection?.disconnect();
     };
-  }, [hydrated, issueTicket, multiplayerProfileVersion]);
+  }, [hydrated, issueTicket]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    let publishTimer: number | null = null;
+    const publish = () => {
+      if (publishTimer !== null) window.clearTimeout(publishTimer);
+      publishTimer = window.setTimeout(() => {
+        publishTimer = null;
+        void (async () => {
+          const snapshot = State.snapshot();
+          const { petName } = await upsert(snapshot);
+          State.applyCanonicalPetName(snapshot.petName, petName);
+          const ticket = await issueTicket({ penguinColor: State.data.penguinColor ?? 'blue' });
+          multiplayerBridge.updateProfile(ticket);
+          // If ticket admission was backing off (for example while the player was
+          // still on the adoption screen), retry immediately now that the
+          // canonical profile exists.
+          wakeMultiplayerRetryRef.current?.();
+        })().catch((error) => console.warn('Could not publish pet profile update', error));
+      }, 250);
+    };
+    window.addEventListener(MULTIPLAYER_PROFILE_CHANGED_EVENT, publish);
+    return () => {
+      window.removeEventListener(MULTIPLAYER_PROFILE_CHANGED_EVENT, publish);
+      if (publishTimer !== null) window.clearTimeout(publishTimer);
+    };
+  }, [hydrated, issueTicket, upsert]);
 
   useEffect(() => {
     if (!hydrated || !hostRef.current) return;
@@ -354,7 +477,19 @@ function CloudGame() {
     State.setPenguinColor(id);
     const scene = gameRef.current?.scene.getScenes(true)[0];
     if (scene) applyPenguinColor(scene, id);
-    setMultiplayerProfileVersion((version) => version + 1);
+    void (async () => {
+      await upsert(State.snapshot());
+      const ticket = await issueTicket({ penguinColor: id });
+      multiplayerBridge.updateProfile(ticket);
+    })().catch((error) => console.warn('Could not publish penguin colour update', error));
+  }
+
+  async function rename(displayName: string, petName: string) {
+    const saved = await updateNames({ displayName, petName });
+    State.renamePet(saved.petName);
+    await upsert(State.snapshot());
+    const ticket = await issueTicket({ penguinColor: State.data.penguinColor ?? 'blue' });
+    multiplayerBridge.updateProfile(ticket);
   }
 
   // Return to adopt without wiping the village; push the adopt=false
@@ -384,7 +519,8 @@ function CloudGame() {
 
   return (
     <PlayChrome
-      userLabel={viewer?.email ?? 'Signed in'}
+      userLabel={viewer?.name ?? 'Signed in'}
+      initialPlayerName={viewer?.name ?? ''}
       leaveLabel="Sign out"
       exitNote="Your village is synced to the cloud."
       onLeave={() => {
@@ -396,6 +532,7 @@ function CloudGame() {
       }}
       onChangePet={changePet}
       onPenguinColor={penguinColor}
+      onRename={rename}
     >
       <div ref={hostRef} id="game" className="game-host" />
     </PlayChrome>
@@ -409,6 +546,7 @@ function GuestGame({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     State.setCloudSaver(null);
+    State.setAdoptionSaver(null);
     if (!hostRef.current) return;
     resetUiBlock();
     const game = startGame(hostRef.current, { restoreTownPosition: gameKey === 0 });

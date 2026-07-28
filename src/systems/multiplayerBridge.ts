@@ -1,9 +1,15 @@
-import type {
-  Facing,
-  GameActivity,
-  MovePayload,
-  PositionCorrection,
+import {
+  WORLD_SCENES,
+  type Facing,
+  type GameActivity,
+  type WorldScene,
 } from '@pet-village/multiplayer-protocol';
+
+import type { EquippedAccessories } from './GameState';
+
+export const WORLD_SCENE_IDS = WORLD_SCENES;
+export type WorldSceneId = WorldScene;
+const PROFILE_TICKET_LIFETIME_MS = 60_000;
 
 export type RemotePresence = {
   userId: string;
@@ -13,6 +19,7 @@ export type RemotePresence = {
   petName: string;
   petSpecies: string;
   penguinColor: string;
+  equippedAccessories: EquippedAccessories;
   x: number;
   y: number;
   petX: number;
@@ -21,6 +28,7 @@ export type RemotePresence = {
   moving: boolean;
   active: boolean;
   activity: GameActivity | '';
+  sceneId: WorldSceneId;
   updatedAt: number;
   waveId?: string;
   waveTarget?: string;
@@ -35,16 +43,38 @@ export type RemoteNpc = {
   updatedAt: number;
 };
 
+export type WorldPose = {
+  x: number;
+  y: number;
+  petX: number;
+  petY: number;
+  facing: Facing;
+  moving: boolean;
+};
+export type ScenePayload = WorldPose & { sceneId: WorldSceneId };
+export type PositionCorrectionPayload = {
+  sceneId: WorldSceneId;
+  x: number;
+  y: number;
+  petX: number;
+  petY: number;
+  recoverScene?: boolean;
+};
+
 export type ConnectionId = symbol;
 type Listener = (rows: RemotePresence[]) => void;
 type NpcListener = (rows: RemoteNpc[]) => void;
-type OutboundMove = Omit<MovePayload, 'seq'>;
+type OutboundMove = WorldPose & { sceneId?: WorldSceneId };
 type Actions = {
-  send: (pose: MovePayload) => void;
+  send: (pose: ScenePayload & { seq: number }) => void;
   setActive: (active: boolean) => void;
+  setScene: (scene: ScenePayload) => void;
   setActivity: (activity: GameActivity | '') => void;
+  updateProfile: (ticket: string) => void;
   leave: () => void;
   wave: (id: string) => void;
+  /** Re-snapshot peers now — scene filtering changed, so cached rows are stale. */
+  resync?: () => void;
 };
 
 let rows: RemotePresence[] = [];
@@ -53,10 +83,20 @@ const listeners = new Set<Listener>();
 const npcListeners = new Set<NpcListener>();
 let actions: Actions | null = null;
 let connectionId: ConnectionId | null = null;
-const townActivations = new Set<symbol>();
+let worldActivation: { token: symbol; payload: ScenePayload } | null = null;
 let gameActivation: { token: symbol; activity: GameActivity } | null = null;
 let moveSeq = 0;
-let correction: PositionCorrection | null = null;
+let correction: PositionCorrectionPayload | null = null;
+let pendingProfileTicket: string | null = null;
+let pendingProfileTicketIssuedAt = 0;
+
+function currentPendingProfileTicket() {
+  if (pendingProfileTicket && Date.now() - pendingProfileTicketIssuedAt >= PROFILE_TICKET_LIFETIME_MS) {
+    pendingProfileTicket = null;
+    pendingProfileTicketIssuedAt = 0;
+  }
+  return pendingProfileTicket;
+}
 
 function clearRemote() {
   rows = [];
@@ -67,9 +107,46 @@ function clearRemote() {
 
 function publishPresence() {
   if (!actions) return;
-  actions.setActive(townActivations.size > 0);
-  actions.setActivity(townActivations.size === 0 ? gameActivation?.activity ?? '' : '');
+  if (worldActivation) {
+    actions.setScene(worldActivation.payload);
+    actions.setActivity('');
+    return;
+  }
+  actions.setActive(false);
+  actions.setActivity(gameActivation?.activity ?? '');
 }
+
+type IncomingPositionCorrection = {
+  sceneId?: WorldSceneId;
+  scene?: string;
+  x: number;
+  y: number;
+  petX: number;
+  petY: number;
+  recoverScene?: boolean;
+};
+
+function normalizeCorrection(next: IncomingPositionCorrection): PositionCorrectionPayload | null {
+  const sceneId = next.sceneId ?? next.scene;
+  if (!WORLD_SCENE_IDS.includes(sceneId as WorldSceneId)) return null;
+  return {
+    sceneId: sceneId as WorldSceneId,
+    x: next.x,
+    y: next.y,
+    petX: next.petX,
+    petY: next.petY,
+    ...(next.recoverScene === true ? { recoverScene: true } : {}),
+  };
+}
+
+const DEFAULT_TOWN_POSE: WorldPose = {
+  x: 0,
+  y: 0,
+  petX: 0,
+  petY: 0,
+  facing: 'down',
+  moving: false,
+};
 
 export const multiplayerBridge = {
   subscribe(fn: Listener) {
@@ -92,11 +169,18 @@ export const multiplayerBridge = {
     rows = next;
     listeners.forEach((fn) => fn(rows));
   },
-  setPositionCorrection(id: ConnectionId, next: PositionCorrection) {
-    if (connectionId === id) correction = next;
+  setPositionCorrection(id: ConnectionId, next: IncomingPositionCorrection) {
+    if (connectionId !== id) return;
+    correction = normalizeCorrection(next);
   },
-  consumePositionCorrection() {
+  consumePositionCorrection(sceneId?: WorldSceneId) {
     const next = correction;
+    if (!next) return null;
+    if (sceneId && next.sceneId !== sceneId) {
+      if (next.recoverScene) return next;
+      correction = null;
+      return null;
+    }
     correction = null;
     return next;
   },
@@ -106,6 +190,8 @@ export const multiplayerBridge = {
     actions = next;
     moveSeq = 0;
     correction = null;
+    pendingProfileTicket = null;
+    pendingProfileTicketIssuedAt = 0;
     clearRemote();
     publishPresence();
     return id;
@@ -113,6 +199,8 @@ export const multiplayerBridge = {
   republish(id: ConnectionId) {
     if (connectionId !== id || !actions) return false;
     publishPresence();
+    const profileTicket = currentPendingProfileTicket();
+    if (profileTicket) actions.updateProfile(profileTicket);
     return true;
   },
   uninstall(id: ConnectionId) {
@@ -120,37 +208,73 @@ export const multiplayerBridge = {
     connectionId = null;
     actions = null;
     correction = null;
+    pendingProfileTicket = null;
+    pendingProfileTicketIssuedAt = 0;
     clearRemote();
     return true;
   },
   send(pose: OutboundMove) {
-    if (actions) actions.send({ ...pose, seq: ++moveSeq });
+    if (!actions) return;
+    const sceneId = pose.sceneId ?? worldActivation?.payload.sceneId;
+    if (!sceneId) return;
+    actions.send({
+      ...pose,
+      sceneId,
+      seq: ++moveSeq,
+    });
   },
   activateGame(activity: GameActivity) {
     const token = Symbol('game-activation');
     gameActivation = { token, activity };
-    actions?.setActivity(activity);
+    publishPresence();
     let released = false;
     return () => {
       if (released) return;
       released = true;
       if (gameActivation?.token !== token) return;
       gameActivation = null;
-      actions?.setActivity('');
+      publishPresence();
     };
   },
-  activateTown() {
-    const token = Symbol('town-activation');
-    const wasInactive = townActivations.size === 0;
-    townActivations.add(token);
-    if (wasInactive) actions?.setActive(true);
+  activateWorld(sceneId: WorldSceneId, pose: WorldPose) {
+    const token = Symbol('world-activation');
+    if (!(correction?.recoverScene && correction.sceneId === sceneId)) correction = null;
+    worldActivation = { token, payload: { sceneId, ...pose } };
+    publishPresence();
+    // Peers are filtered by the active scene, so without this the new scene
+    // waits for the next server patch before anyone pops in.
+    actions?.resync?.();
     let released = false;
     return () => {
       if (released) return;
       released = true;
-      townActivations.delete(token);
-      if (townActivations.size === 0) actions?.setActive(false);
+      if (worldActivation?.token !== token) return;
+      worldActivation = null;
+      publishPresence();
     };
+  },
+  /** Compatibility for callers transitioning from Town-only presence. */
+  activateTown(pose: WorldPose = DEFAULT_TOWN_POSE) {
+    return this.activateWorld('town', pose);
+  },
+  activeSceneId(): WorldSceneId | null {
+    return worldActivation?.payload.sceneId ?? null;
+  },
+  updateProfile(ticket: string) {
+    pendingProfileTicket = ticket;
+    pendingProfileTicketIssuedAt = Date.now();
+    actions?.updateProfile(ticket);
+  },
+  profileRefreshResult(id: ConnectionId, ticket: string, ok: boolean) {
+    if (connectionId !== id || !ok || currentPendingProfileTicket() !== ticket) return false;
+    pendingProfileTicket = null;
+    pendingProfileTicketIssuedAt = 0;
+    return true;
+  },
+  retryProfile(id: ConnectionId, ticket: string) {
+    if (connectionId !== id || currentPendingProfileTicket() !== ticket || !actions) return false;
+    actions.updateProfile(ticket);
+    return true;
   },
   leave() {
     actions?.leave();

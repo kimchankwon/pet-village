@@ -1,11 +1,71 @@
 import { MapSchema, Schema, defineTypes } from '@colyseus/schema';
 
-export const PROTOCOL_VERSION = 4 as const;
+export const PROTOCOL_VERSION = 6 as const;
 export const TICKET_ISSUER = 'pet-village-convex';
 export const TICKET_AUDIENCE = 'pet-village-multiplayer';
 export const ROOM_NAME = 'town_default';
 export const SLED_RUN_ROOM = 'sled_run';
 export const TOWN_BOUNDS = { width: 22 * 48, height: 16 * 48 } as const;
+export const WORLD_SCENES = [
+  'town',
+  'shore',
+  'west-green',
+  'east-green',
+  'daniels-shop',
+  'cafe-cinnamon',
+] as const;
+export type WorldScene = (typeof WORLD_SCENES)[number];
+export const WORLD_SCENE_BOUNDS: Record<WorldScene, { readonly width: number; readonly height: number }> = {
+  town: TOWN_BOUNDS,
+  shore: { width: 18 * 48, height: 12 * 48 },
+  'west-green': { width: 16 * 48, height: 12 * 48 },
+  'east-green': { width: 16 * 48, height: 12 * 48 },
+  'daniels-shop': { width: 12 * 48, height: 13 * 48 },
+  'cafe-cinnamon': { width: 12 * 48, height: 13 * 48 },
+};
+type WorldSpawn = { readonly x: number; readonly y: number };
+export const WORLD_SCENE_NAMED_SPAWNS = {
+  town: {
+    default: { x: 528, y: 508.8 },
+    house: { x: 528, y: 266.4 },
+    west: { x: 76.8, y: 432 },
+    east: { x: 979.2, y: 432 },
+    shop: { x: 825.6, y: 283.2 },
+    cafe: { x: 230.4, y: 283.2 },
+    shore: { x: 504, y: 662.4 },
+  },
+  shore: {
+    default: { x: 432, y: 105.6 },
+    fishing: { x: 432, y: 290.4 },
+  },
+  'west-green': {
+    default: { x: 691.2, y: 288 },
+    skiprope: { x: 211.2, y: 225.6 },
+    bump: { x: 508.8, y: 225.6 },
+    'sled-run': { x: 638.4, y: 225.6 },
+  },
+  'east-green': {
+    default: { x: 76.8, y: 288 },
+    arcade: { x: 249.6, y: 225.6 },
+    get: { x: 518.4, y: 225.6 },
+  },
+  'daniels-shop': { default: { x: 288, y: 498 } },
+  'cafe-cinnamon': { default: { x: 288, y: 498 } },
+} as const satisfies Record<WorldScene, Record<string, WorldSpawn>>;
+
+export function worldSceneSpawn(scene: WorldScene, name = 'default'): WorldSpawn {
+  const spawns = WORLD_SCENE_NAMED_SPAWNS[scene] as Record<string, WorldSpawn>;
+  return Object.prototype.hasOwnProperty.call(spawns, name) && spawns[name] ? spawns[name] : spawns.default;
+}
+
+export const WORLD_SCENE_SPAWNS: Record<WorldScene, readonly WorldSpawn[]> = {
+  town: Object.values(WORLD_SCENE_NAMED_SPAWNS.town),
+  shore: Object.values(WORLD_SCENE_NAMED_SPAWNS.shore),
+  'west-green': Object.values(WORLD_SCENE_NAMED_SPAWNS['west-green']),
+  'east-green': Object.values(WORLD_SCENE_NAMED_SPAWNS['east-green']),
+  'daniels-shop': Object.values(WORLD_SCENE_NAMED_SPAWNS['daniels-shop']),
+  'cafe-cinnamon': Object.values(WORLD_SCENE_NAMED_SPAWNS['cafe-cinnamon']),
+};
 export const MOVE_RATE_HZ = 10;
 export const HEARTBEAT_MS = 2_000;
 export const MAX_SPEED = 220;
@@ -15,23 +75,77 @@ export const WAVE_COOLDOWN_MS = 1_000;
 export type Facing = 'up' | 'down' | 'side';
 export const GAME_ACTIVITIES = ['fishing', 'get', 'bump', 'skip-rope', 'paper-toss', 'sled-run'] as const;
 export type GameActivity = (typeof GAME_ACTIVITIES)[number];
-export type MovePayload = {x:number;y:number;petX:number;petY:number;facing:Facing;moving:boolean;seq:number};
-export type ActivityPayload = { active: boolean };
-export type PositionCorrection = { x: number; y: number; petX: number; petY: number };
+export type MovePayload = {scene:WorldScene;x:number;y:number;petX:number;petY:number;facing:Facing;moving:boolean;seq:number};
+export type ActivityPose = Omit<MovePayload, 'scene' | 'seq'>;
+export type ActivityPayload = { active: boolean; scene: WorldScene; pose?: ActivityPose };
+export type PositionCorrection = { scene: WorldScene; x: number; y: number; petX: number; petY: number; recoverScene?: boolean };
+export type ProfileRefreshPayload = { ticket: string; requestId?: string };
+export type ProfileRefreshResult = { ok: boolean; requestId?: string; retryAfterMs?: number };
 export type WavePayload = { targetSessionId: string };
-export type AdmissionClaims = {sub:string;displayName:string;petName:string;petSpecies:string;penguinColor:string;protocolVersion:number;jti:string;iat:number;exp:number;iss:string;aud:string|string[]};
+export type TownPositionClaim = { x: number; y: number; facing: Facing };
+export type EquippedAccessoriesClaim = {
+  headLeft?: string;
+  headRight?: string;
+  body?: string;
+  extra?: string;
+};
+export type AdmissionClaims = {
+  sub: string;
+  displayName: string;
+  petName: string;
+  petSpecies: string;
+  penguinColor: string;
+  equippedAccessories?: EquippedAccessoriesClaim;
+  townPosition?: TownPositionClaim;
+  protocolVersion: number;
+  jti: string;
+  iat: number;
+  exp: number;
+  iss: string;
+  aud: string | string[];
+};
+export type AdmissionProfile = {
+  identity: string;
+  displayName: string;
+  petName: string;
+  petSpecies: string;
+  penguinColor: string;
+  equippedAccessories?: EquippedAccessoriesClaim;
+  townPosition?: TownPositionClaim;
+};
 
 export function isGameActivity(value: unknown): value is GameActivity {
   return typeof value === 'string' && (GAME_ACTIVITIES as readonly string[]).includes(value);
 }
 
-export function isMovePayload(value: unknown): value is MovePayload {
-  if (!value || typeof value !== 'object') return false;
+export function isWorldScene(value: unknown): value is WorldScene {
+  return typeof value === 'string' && (WORLD_SCENES as readonly string[]).includes(value);
+}
+
+function moveFields(value: unknown) {
+  if (!value || typeof value !== 'object') return null;
   const p = value as Partial<MovePayload>;
   return [p.x,p.y,p.petX,p.petY,p.seq].every(Number.isFinite) && Number.isInteger(p.seq) && (p.seq ?? 0) >= 0 &&
-    (p.facing === 'up' || p.facing === 'down' || p.facing === 'side') && typeof p.moving === 'boolean' &&
-    [p.x, p.petX].every((x) => (x ?? -1) >= 0 && (x ?? Infinity) <= TOWN_BOUNDS.width) &&
-    [p.y, p.petY].every((y) => (y ?? -1) >= 0 && (y ?? Infinity) <= TOWN_BOUNDS.height);
+    (p.facing === 'up' || p.facing === 'down' || p.facing === 'side') && typeof p.moving === 'boolean'
+    ? p
+    : null;
+}
+
+export function isMovePayload(value: unknown): value is MovePayload {
+  const p = moveFields(value);
+  if (!p || !isWorldScene(p.scene)) return false;
+  const bounds = WORLD_SCENE_BOUNDS[p.scene];
+  return [p.x, p.petX].every((x) => (x ?? -1) >= 0 && (x ?? Infinity) <= bounds.width) &&
+    [p.y, p.petY].every((y) => (y ?? -1) >= 0 && (y ?? Infinity) <= bounds.height);
+}
+
+/** Normalize v3/v4 Town movement, which did not carry a scene identifier. */
+export function normalizeMovePayload(value: unknown, legacyScene: WorldScene = 'town'): MovePayload | null {
+  if (isMovePayload(value)) return value;
+  const p = moveFields(value);
+  if (!p || (p.scene !== undefined && !isWorldScene(p.scene))) return null;
+  const normalized = { ...p, scene: legacyScene };
+  return isMovePayload(normalized) ? normalized : null;
 }
 
 export const SLED_DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
@@ -149,6 +263,11 @@ export class PlayerState extends Schema {
   declare waveId: string;
   declare waveTarget: string;
   declare activity: string;
+  declare scene: WorldScene;
+  declare accessoryHeadLeft: string;
+  declare accessoryHeadRight: string;
+  declare accessoryBody: string;
+  declare accessoryExtra: string;
 
   constructor() {
     super();
@@ -169,9 +288,14 @@ export class PlayerState extends Schema {
     this.waveId = '';
     this.waveTarget = '';
     this.activity = '';
+    this.scene = 'town';
+    this.accessoryHeadLeft = '';
+    this.accessoryHeadRight = '';
+    this.accessoryBody = '';
+    this.accessoryExtra = '';
   }
 }
-defineTypes(PlayerState, {userId:'string',displayName:'string',petName:'string',petSpecies:'string',penguinColor:'string',x:'number',y:'number',petX:'number',petY:'number',facing:'string',moving:'boolean',active:'boolean',seq:'number',updatedAt:'number',waveId:'string',waveTarget:'string',activity:'string'});
+defineTypes(PlayerState, {userId:'string',displayName:'string',petName:'string',petSpecies:'string',penguinColor:'string',x:'number',y:'number',petX:'number',petY:'number',facing:'string',moving:'boolean',active:'boolean',seq:'number',updatedAt:'number',waveId:'string',waveTarget:'string',activity:'string',scene:'string',accessoryHeadLeft:'string',accessoryHeadRight:'string',accessoryBody:'string',accessoryExtra:'string'});
 
 export class NpcState extends Schema {
   declare id: string;

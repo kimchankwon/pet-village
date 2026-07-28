@@ -12,6 +12,7 @@ import {
   type PetSpecies,
 } from '../systems/pets';
 import { bindSceneResize } from '../systems/sceneResize';
+import { validatePetName } from '../systems/profileNameRules';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#efe8ff' };
 /** Target display heights so every card in a row matches, regardless of texture size. */
@@ -213,17 +214,29 @@ export class AdoptScene extends Phaser.Scene {
     }
   }
 
-  private confirm() {
-    const name = this.nameInput.value.trim();
-    if (!name) {
-      this.errorText.setText('Give your pet a name!');
+  private confirming = false;
+
+  private async confirm() {
+    if (this.confirming) return;
+    let name: string;
+    try {
+      name = validatePetName(this.nameInput.value);
+    } catch (error) {
+      this.errorText.setText(error instanceof Error ? error.message : 'Give your pet a name!');
       this.nameInput.focus();
       return;
     }
+    this.confirming = true;
     try {
-      State.adopt(this.selected, name);
+      await State.adopt(this.selected, name);
     } catch (err) {
-      this.errorText.setText(err instanceof Error ? err.message : 'Could not adopt');
+      this.confirming = false;
+      const message = err instanceof Error ? err.message : '';
+      this.errorText.setText(
+        /pet name is already taken/i.test(message)
+          ? 'That pet name is already taken'
+          : 'Could not adopt. Please try again.',
+      );
       return;
     }
     this.teardownDom();

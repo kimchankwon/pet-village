@@ -361,6 +361,31 @@ body {
   margin-top: 0;
 }
 
+.name-field {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.8rem 0;
+  color: #ffe6f2;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.55rem;
+  text-align: left;
+}
+
+.name-field input {
+  min-width: 0;
+  padding: 0.65rem;
+  border: 2px solid #8d7aa8;
+  background: #171326;
+  color: #fff;
+  font: 1rem monospace;
+}
+
+.confirm-card .form-error {
+  margin: 0.5rem 0 0.8rem;
+  color: #ff8b8b;
+  font-size: 0.95rem;
+}
+
 /* Menu panel: stacked, thumb-sized options. */
 .menu-list {
   display: grid;

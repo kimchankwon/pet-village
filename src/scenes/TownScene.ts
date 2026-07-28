@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { configurePlayerPenguin, ensureRemotePenguinTextures, generateTextures } from '../sprites/pixelart';
+import { worldSceneSpawn } from '@pet-village/multiplayer-protocol';
+import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
 import { State, WELCOME_KEY } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
@@ -19,17 +20,9 @@ import { initialTownPosition } from '../systems/townPosition';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
 import { movementFacing } from '../systems/movementFacing';
-import { multiplayerBridge, type RemoteNpc, type RemotePresence } from '../systems/multiplayerBridge';
+import { multiplayerBridge, type RemoteNpc } from '../systems/multiplayerBridge';
 import { partitionTownNpcSnapshot } from '../systems/networkNpcMotion';
-import {
-  handleRemotePlayerPointerDown,
-  isNewWaveForLocalPlayer,
-  isRemotePlayerInteractable,
-  remotePlayerPresentation,
-  remotePenguinTextureKey,
-} from '../systems/multiplayerPresentation';
-import { shouldSendPresence, type PresencePose } from '../systems/multiplayerPolicy';
-import { petDrawScale, petTextureKey, type PetSpecies } from '../systems/pets';
+import { WorldMultiplayer } from '../systems/worldMultiplayer';
 
 /** Compact town — smaller than the old 32×24 crossroads map. */
 const MAP_W = TOWN_MAP_W;
@@ -91,12 +84,8 @@ export class TownScene extends Phaser.Scene {
   private ignoreClicksUntil = 0;
   /** Solid hitboxes for outdoor décor (filled in scatterTownDecor). */
   private decoSolids: { x: number; y: number; w: number; h: number }[] = [];
-  private remotes = new Map<string, { penguin: Phaser.GameObjects.Sprite; pet: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; data: RemotePresence; lastWaveId?: string }>();
-  private unsubscribeRemote?: () => void;
+  private worldMultiplayer!: WorldMultiplayer;
   private unsubscribeNpcs?: () => void;
-  private releaseTownActivation?: () => void;
-  private lastPresence!: PresencePose;
-  private lastPresenceSent = 0;
   private wasMoving = false;
 
   constructor() {
@@ -127,29 +116,12 @@ export class TownScene extends Phaser.Scene {
       data?.spawn !== undefined,
       restoreSavedPosition,
     );
-    let sx = FOUNTAIN_POS.tx * TILE;
-    let sy = (FOUNTAIN_POS.ty + 2.2) * TILE;
+    const approvedSpawn = worldSceneSpawn('town', data?.spawn);
+    let sx = approvedSpawn.x;
+    let sy = approvedSpawn.y;
     if (restored) {
       sx = restored.x;
       sy = restored.y;
-    } else if (data?.spawn === 'house') {
-      sx = HOUSE_POS.tx * TILE;
-      sy = (HOUSE_POS.ty + 2.4) * TILE;
-    } else if (data?.spawn === 'west') {
-      sx = 1.6 * TILE;
-      sy = (PARK_GATE_TY[0] + 1) * TILE;
-    } else if (data?.spawn === 'east') {
-      sx = (MAP_W - 1.6) * TILE;
-      sy = (PARK_GATE_TY[0] + 1) * TILE;
-    } else if (data?.spawn === 'shop') {
-      sx = SHOP_POS.tx * TILE;
-      sy = (SHOP_POS.ty + 2.4) * TILE;
-    } else if (data?.spawn === 'cafe') {
-      sx = CAFE_POS.tx * TILE;
-      sy = (CAFE_POS.ty + 2.4) * TILE;
-    } else if (data?.spawn === 'shore') {
-      sx = 10.5 * TILE;
-      sy = (MAP_H - 2.2) * TILE;
     }
 
     const initialFacing = restored?.facing ?? 'down';
@@ -161,9 +133,17 @@ export class TownScene extends Phaser.Scene {
     this.facing = initialFacing;
 
     this.pet = new Pet(this, sx - 30, sy + 10, worldBounds);
-    this.lastPresence = { x: sx, y: sy, facing: initialFacing, moving: false, sentAt: 0 };
-    this.unsubscribeRemote = multiplayerBridge.subscribe((rows) => this.syncRemotes(rows));
-    this.releaseTownActivation = multiplayerBridge.activateTown();
+    this.worldMultiplayer = new WorldMultiplayer(this, {
+      sceneId: 'town',
+      localPlayer: this.player,
+      pet: this.pet,
+      depthFor: characterDepth,
+      cancelLocalMovement: () => {
+        this.pointerHeld = false;
+        this.clickMove?.clear();
+        this.player.setVelocity(0, 0);
+      },
+    });
     // Tap/click your pet to hear what's on its mind.
     this.pet.sprite.setInteractive({ useHandCursor: true });
     this.pet.sprite.on('pointerdown', () => {
@@ -201,14 +181,8 @@ export class TownScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       State.rememberTownPosition({ x: this.player.x, y: this.player.y, facing: this.facing });
       State.persistTownPosition(true);
-      this.releaseTownActivation?.();
-      this.releaseTownActivation = undefined;
-      this.unsubscribeRemote?.();
-      this.unsubscribeRemote = undefined;
       this.unsubscribeNpcs?.();
       this.unsubscribeNpcs = undefined;
-      this.remotes.forEach((r) => { r.penguin.destroy(); r.pet.destroy(); r.label.destroy(); });
-      this.remotes.clear();
     });
 
     this.hud = new HUD(this);
@@ -715,13 +689,10 @@ export class TownScene extends Phaser.Scene {
         bestDist = d;
       }
     }
-    for (const remote of this.remotes.values()) {
-      if (!isRemotePlayerInteractable(remote.data)) continue;
-      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, remote.penguin.x, remote.penguin.y);
-      if (d < 70 && d < bestDist) {
-        best = { x: remote.penguin.x, y: remote.penguin.y, radius: 70, label: `E / Space / click — Wave to ${remote.data.name}`, action: () => this.waveTo(remote.data), targets: [remote.penguin] };
-        bestDist = d;
-      }
+    const remote = this.worldMultiplayer.getRemoteInteractable();
+    if (remote) {
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, remote.x, remote.y);
+      if (d < bestDist) best = remote;
     }
     return best;
   }
@@ -731,11 +702,6 @@ export class TownScene extends Phaser.Scene {
     this.glowed = updateInteractionHighlight(this.glowed, targets);
   }
 
-  private waveTo(remote: RemotePresence) {
-    multiplayerBridge.wave(remote.sessionId);
-    toast(this, this.player.x, this.player.y - 70, `You wave to ${remote.name}!`, '#ffe066');
-  }
-
   private syncNpcs(rows: RemoteNpc[]) {
     const { bongbongee, miniteens } = partitionTownNpcSnapshot(rows);
     if (bongbongee) this.bongbongee.setNetworkPose(bongbongee);
@@ -743,73 +709,10 @@ export class TownScene extends Phaser.Scene {
     this.miniteens.sync(miniteens);
   }
 
-  private syncRemotes(rows: RemotePresence[]) {
-    const ids = new Set(rows.map((r) => r.userId));
-    for (const [id, o] of this.remotes) if (!ids.has(id)) { o.penguin.destroy(); o.pet.destroy(); o.label.destroy(); this.remotes.delete(id); }
-    for (const data of rows) {
-      ensureRemotePenguinTextures(this, data.penguinColor);
-      let o = this.remotes.get(data.userId);
-      const presentation = remotePlayerPresentation(data);
-      if (!o) {
-        const penguin = this.add.sprite(data.x, data.y, remotePenguinTextureKey('down', data.penguinColor)).setInteractive({ useHandCursor: true });
-        configurePlayerPenguin(penguin);
-        const pet = this.add.sprite(data.x - 28, data.y + 12, petTextureKey(data.petSpecies as PetSpecies, 'idle1')).setScale(petDrawScale(this, data.petSpecies as PetSpecies));
-        const label = this.add.text(data.x, data.y - 58, presentation.label, { fontFamily: 'monospace', fontSize: '12px', color: presentation.labelColor, backgroundColor: '#000a', padding: { x: 4, y: 2 } }).setOrigin(.5);
-        o = { penguin, pet, label, data, lastWaveId: data.waveId }; this.remotes.set(data.userId, o);
-        penguin.on(
-          'pointerdown',
-          (
-            _pointer: Phaser.Input.Pointer,
-            _localX: number,
-            _localY: number,
-            event: Phaser.Types.Input.EventData,
-          ) => {
-            const current = this.remotes.get(data.userId);
-            if (!current || !isRemotePlayerInteractable(current.data)) return;
-            handleRemotePlayerPointerDown(
-              event,
-              () => {
-                this.pointerHeld = false;
-                this.clickMove.clear();
-                this.player.setVelocity(0, 0);
-              },
-              () => this.waveTo(current.data),
-            );
-          },
-        );
-      } else if (isNewWaveForLocalPlayer(o.lastWaveId, data.waveId, data.waveTarget, data.localSessionId)) {
-        o.lastWaveId = data.waveId;
-        toast(this, o.penguin.x, o.penguin.y - 72, `${data.name} waves!`, '#ffe066');
-        this.tweens.add({ targets: o.penguin, angle: { from: -8, to: 8 }, yoyo: true, repeat: 1, duration: 110, onComplete: () => o?.penguin.setAngle(0) });
-      }
-      o.data = data;
-      o.penguin.setAlpha(presentation.alpha);
-      o.pet.setAlpha(presentation.alpha);
-      o.label.setText(presentation.label).setColor(presentation.labelColor);
-      if (presentation.interactive && !o.penguin.input?.enabled) o.penguin.setInteractive({ useHandCursor: true });
-      else if (!presentation.interactive && o.penguin.input?.enabled) o.penguin.disableInteractive();
-    }
-  }
-  private updateRemotes(now: number) {
-    for (const o of this.remotes.values()) {
-      o.penguin.setVisible(true); o.pet.setVisible(true); o.label.setVisible(true);
-      o.penguin.x = Phaser.Math.Linear(o.penguin.x, o.data.x, .22); o.penguin.y = Phaser.Math.Linear(o.penguin.y, o.data.y, .22);
-      o.pet.x = Phaser.Math.Linear(o.pet.x, o.data.petX, .22); o.pet.y = Phaser.Math.Linear(o.pet.y, o.data.petY, .22); o.label.setPosition(o.penguin.x, o.penguin.y - 58);
-      o.penguin.setTexture(remotePenguinTextureKey(o.data.facing, o.data.penguinColor));
-      o.penguin.setDepth(characterDepth(o.penguin)); o.pet.setDepth(characterDepth(o.pet));
-    }
-  }
-
   update() {
     if (!this.player) return;
 
-    const correction = multiplayerBridge.consumePositionCorrection();
-    if (correction) {
-      this.player.setPosition(correction.x, correction.y);
-      this.pet.sprite.setPosition(correction.petX, correction.petY);
-      this.clickMove.clear();
-      this.player.setVelocity(0, 0);
-    }
+    this.worldMultiplayer.applyCorrection();
 
     const speed = 220;
     // The shell (React) menu blocks input via nav; treat it like a menu.
@@ -875,18 +778,12 @@ export class TownScene extends Phaser.Scene {
     this.player.setDepth(characterDepth(this.player));
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
-    const now = Date.now();
-    const pose = { x: this.player.x, y: this.player.y, facing: this.facing, moving, sentAt: now };
-    State.rememberTownPosition({ x: pose.x, y: pose.y, facing: pose.facing });
+    State.rememberTownPosition({ x: this.player.x, y: this.player.y, facing: this.facing });
     if (this.wasMoving && !moving) {
       this.time.delayedCall(100, () => State.persistTownPosition());
     }
     this.wasMoving = moving;
-    if (shouldSendPresence(this.lastPresence, pose, now, this.lastPresenceSent)) {
-      multiplayerBridge.send({ x: pose.x, y: pose.y, petX: this.pet.sprite.x, petY: this.pet.sprite.y, facing: pose.facing, moving: pose.moving });
-      this.lastPresence = pose; this.lastPresenceSent = now;
-    }
-    this.updateRemotes(now);
+    this.worldMultiplayer.update(this.facing, moving, this.game.loop.delta);
     for (const npc of this.npcs) npc.update();
     this.miniteens.update();
 

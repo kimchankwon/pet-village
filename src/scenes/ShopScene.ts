@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { worldSceneSpawn } from '@pet-village/multiplayer-protocol';
 import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
 import { State, ITEMS } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
@@ -15,6 +16,7 @@ import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZo
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
 import { movementFacing } from '../systems/movementFacing';
+import { WorldMultiplayer } from '../systems/worldMultiplayer';
 
 const TILE = 48;
 const COLS = 12;
@@ -47,6 +49,7 @@ export class ShopScene extends Phaser.Scene {
   private doorCenterY = 0;
   private glowed: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[] = [];
   private ignoreClicksUntil = 0;
+  private worldMultiplayer!: WorldMultiplayer;
 
   constructor() {
     super('Shop');
@@ -114,8 +117,9 @@ export class ShopScene extends Phaser.Scene {
       .setDepth(1000);
     markAsUi(this, shopHint);
 
-    const px = door.centerX;
-    const py = door.centerY; // ON the mat
+    const approvedSpawn = worldSceneSpawn('daniels-shop');
+    const px = this.roomX + approvedSpawn.x;
+    const py = approvedSpawn.y; // ON the mat
     this.player = this.physics.add.sprite(px, py, 'penguin-up', 0);
     configurePlayerPenguin(this.player);
     const b = this.player.body as Phaser.Physics.Arcade.Body;
@@ -166,6 +170,17 @@ export class ShopScene extends Phaser.Scene {
     this.prompt = new Prompt(this);
     this.clickMove = new ClickMove(this);
     this.joystick = new Joystick(this);
+    this.worldMultiplayer = new WorldMultiplayer(this, {
+      sceneId: 'daniels-shop',
+      localPlayer: this.player,
+      pet: this.pet,
+      networkOffsetX: this.roomX,
+      cancelLocalMovement: () => {
+        this.pointerHeld = false;
+        this.clickMove.clear();
+        this.player.setVelocity(0, 0);
+      },
+    });
 
     // Player inventory and pet care — the game menu lives in the shell.
     bottomButtons(
@@ -257,7 +272,7 @@ export class ShopScene extends Phaser.Scene {
       };
     }
     // Pet care lives on the bottom [ Pet · P ] button — no proximity interaction.
-    return null;
+    return this.worldMultiplayer.getRemoteInteractable();
   }
 
   private setHighlight(targets?: (Phaser.GameObjects.Image | Phaser.GameObjects.Sprite)[]) {
@@ -369,6 +384,7 @@ export class ShopScene extends Phaser.Scene {
   update() {
     if (!this.player) return;
 
+    this.worldMultiplayer.applyCorrection();
     const speed = 200;
     // The shell (React) menu blocks input via nav; treat it like a menu.
     const uiOpen = this.menuOpen || isUiBlocked();
@@ -427,6 +443,7 @@ export class ShopScene extends Phaser.Scene {
     this.player.setDepth(feetDepth(this.player));
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
+    this.worldMultiplayer.update(this.facing, moving, this.game.loop.delta);
 
     if (!uiOpen) {
       const near = this.nearestInteractable();
