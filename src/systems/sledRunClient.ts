@@ -28,6 +28,7 @@ export type SledRunSnapshot = {
   seed: string;
   countdownAt: number;
   startedAt: number;
+  serverTime: number;
   round: number;
   racers: SledRacerSnapshot[];
 };
@@ -67,20 +68,63 @@ export function snapshotSledRun(state: SledRunState, localSessionId: string): Sl
     seed: state.seed,
     countdownAt: state.countdownAt,
     startedAt: state.startedAt,
+    serverTime: state.serverTime,
     round: state.round,
     racers,
   };
+}
+
+function errorCode(error: unknown): number | undefined {
+  return typeof error === 'object' && error !== null && 'code' in error
+    ? Number((error as { code?: unknown }).code)
+    : undefined;
+}
+
+async function joinRoomWithTimeout(client: Client, timeoutMs: number): Promise<Room<SledRunState>> {
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const join = client.joinOrCreate<SledRunState>(SLED_RUN_ROOM);
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      reject(new Error('Sled Run connection timed out'));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([join, timeout]);
+  } catch (error) {
+    if (timedOut) {
+      void join.then(async (lateRoom) => {
+        lateRoom.reconnection.enabled = false;
+        await lateRoom.leave();
+      }).catch(() => undefined);
+    }
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 export async function connectSledRun(
   ticket: string,
   isCurrent: () => boolean,
   url = import.meta.env.VITE_MULTIPLAYER_URL as string | undefined,
+  createClient: (endpoint: string) => Client = (endpoint) => new Client(endpoint),
+  joinTimeoutMs = 8_000,
 ): Promise<SledRunConnection> {
   if (!url) throw new Error('VITE_MULTIPLAYER_URL is not configured');
-  const client = new Client(url);
+  const client = createClient(url);
   client.auth.token = ticket;
-  const room: Room<SledRunState> = await client.joinOrCreate<SledRunState>(SLED_RUN_ROOM);
+  let room: Room<SledRunState> | undefined;
+  for (let attempt = 0; attempt < 2 && !room; attempt += 1) {
+    try {
+      room = await joinRoomWithTimeout(client, joinTimeoutMs);
+    } catch (error) {
+      if (attempt === 0 && errorCode(error) === 403) continue;
+      throw error;
+    }
+  }
+  if (!room) throw new Error('Unable to join Sled Run');
   if (!isCurrent()) {
     await room.leave();
     throw new Error('Stale Sled Run connection');

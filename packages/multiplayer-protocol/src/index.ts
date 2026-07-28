@@ -48,6 +48,13 @@ export type SledCourseItem = {
 };
 export type SledInputPayload = { steering: -1 | 0 | 1; seq: number };
 export const SLED_MAX_PLAYERS = 4;
+export const SLED_COUNTDOWN_MS = 3_000;
+export const SLED_RACER_RADIUS = 24;
+export const SLED_PROGRESS_TO_PIXELS = 0.56;
+export const SLED_EFFECTS = {
+  obstacle: { multiplier: 0.52, durationMs: 1_250 },
+  ice: { multiplier: 1.45, durationMs: 1_500 },
+} as const;
 
 export type SledDifficultyConfig = {
   courseLength: number;
@@ -56,7 +63,6 @@ export type SledDifficultyConfig = {
   iceCount: number;
   baseSpeed: number;
   steeringSpeed: number;
-  itemGap: number;
   spawnClearance: number;
   finishClearance: number;
 };
@@ -64,15 +70,15 @@ export type SledDifficultyConfig = {
 const SLED_CONFIG: Record<SledDifficulty, SledDifficultyConfig> = {
   easy: {
     courseLength: 6_400, trackHalfWidth: 270, obstacleCount: 12, iceCount: 6,
-    baseSpeed: 330, steeringSpeed: 245, itemGap: 56, spawnClearance: 520, finishClearance: 420,
+    baseSpeed: 330, steeringSpeed: 245, spawnClearance: 520, finishClearance: 420,
   },
   medium: {
     courseLength: 7_200, trackHalfWidth: 250, obstacleCount: 20, iceCount: 8,
-    baseSpeed: 380, steeringSpeed: 260, itemGap: 54, spawnClearance: 520, finishClearance: 420,
+    baseSpeed: 380, steeringSpeed: 260, spawnClearance: 520, finishClearance: 420,
   },
   hard: {
     courseLength: 8_000, trackHalfWidth: 230, obstacleCount: 28, iceCount: 10,
-    baseSpeed: 430, steeringSpeed: 275, itemGap: 50, spawnClearance: 520, finishClearance: 420,
+    baseSpeed: 430, steeringSpeed: 275, spawnClearance: 520, finishClearance: 420,
   },
 };
 
@@ -242,6 +248,7 @@ export class SledRunState extends Schema {
   declare seed: string;
   declare countdownAt: number;
   declare startedAt: number;
+  declare serverTime: number;
   declare round: number;
 
   constructor() {
@@ -253,10 +260,11 @@ export class SledRunState extends Schema {
     this.seed = '';
     this.countdownAt = 0;
     this.startedAt = 0;
+    this.serverTime = 0;
     this.round = 0;
   }
 }
 defineTypes(SledRunState, {
   racers:{map:SledPlayerState},phase:'string',leader:'string',difficulty:'string',seed:'string',
-  countdownAt:'number',startedAt:'number',round:'number',
+  countdownAt:'number',startedAt:'number',serverTime:'number',round:'number',
 });

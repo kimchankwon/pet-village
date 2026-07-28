@@ -33,7 +33,7 @@ test('sled courses are deterministic for a seed and denser at higher difficultie
   assert.ok(easy.length < medium.length && medium.length < hard.length);
 });
 
-test('generated sled courses stay inside the mountain and keep hazards separated', () => {
+test('generated sled courses stay inside the mountain with evenly spaced hazards', () => {
   for (const difficulty of SLED_DIFFICULTIES) {
     const config = sledDifficultyConfig(difficulty);
     const course = generateSledCourse('bounds-check', difficulty);
@@ -42,15 +42,9 @@ test('generated sled courses stay inside the mountain and keep hazards separated
       assert.ok(item.progress >= config.spawnClearance);
       assert.ok(item.progress <= config.courseLength - config.finishClearance);
     }
-    for (let i = 0; i < course.length; i += 1) {
-      for (let j = i + 1; j < course.length; j += 1) {
-        const a = course[i]!;
-        const b = course[j]!;
-        assert.ok(
-          Math.hypot(a.x - b.x, a.progress - b.progress) >= a.radius + b.radius + config.itemGap,
-          `${difficulty} course items ${a.id} and ${b.id} overlap`,
-        );
-      }
+    const step = (config.courseLength - config.spawnClearance - config.finishClearance) / course.length;
+    for (let index = 1; index < course.length; index += 1) {
+      assert.ok(course[index]!.progress - course[index - 1]!.progress >= Math.floor(step) - 1);
     }
   }
 });
@@ -62,6 +56,7 @@ test('sled lobby and racer state survive a full schema encode and decode', () =>
   state.difficulty = 'hard';
   state.seed = 'race-seed';
   state.countdownAt = 1234;
+  state.serverTime = 1_000;
   const racer = new SledPlayerState();
   Object.assign(racer, {
     userId: 'user-1',
@@ -82,5 +77,6 @@ test('sled lobby and racer state survive a full schema encode and decode', () =>
   assert.equal(decoded.difficulty, 'hard');
   assert.equal(decoded.seed, 'race-seed');
   assert.equal(decoded.countdownAt, 1234);
+  assert.equal(decoded.serverTime, 1_000);
   assert.deepEqual(decoded.racers.get('session-1')?.toJSON(), racer.toJSON());
 });

@@ -529,6 +529,12 @@ export class GameStateStore {
     this.save();
   }
 
+  rewardSledRun(coins: number, happiness: number) {
+    this.data.coins += Math.max(0, coins);
+    this.data.pet.happiness = clamp(this.data.pet.happiness + Math.max(0, happiness));
+    this.save();
+  }
+
   /** Consolation for a failed Skip Rope run: banked per full 5-jump milestone. */
   rewardSkipRopeRun(jumps: number): { coins: number; happiness: number } {
     const n = Number.isFinite(jumps) ? Math.max(0, Math.floor(jumps)) : 0;

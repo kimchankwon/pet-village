@@ -1,6 +1,11 @@
 import Phaser from 'phaser';
 import {
   SLED_DIFFICULTIES,
+  SLED_COUNTDOWN_MS,
+  SLED_EFFECTS,
+  SLED_MAX_PLAYERS,
+  SLED_PROGRESS_TO_PIXELS,
+  SLED_RACER_RADIUS,
   generateSledCourse,
   sledDifficultyConfig,
   type SledCourseItem,
@@ -16,6 +21,8 @@ import {
   type SledRunSnapshot,
 } from '../systems/sledRunClient';
 import { shouldSendSteer, steerAxisFrom } from '../systems/sledRunPolicy';
+import { sledRunReward } from '../systems/sledRunRewards';
+import { State } from '../systems/GameState';
 
 const COLOR_TINT: Record<string, number> = {
   blue: 0x58a6ff, green: 0x53d769, pink: 0xff7eb6, black: 0x5d6470,
@@ -37,6 +44,7 @@ export class SledRunScene extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text;
   private hudText!: Phaser.GameObjects.Text;
   private startButton!: Phaser.GameObjects.Text;
+  private parkButton!: Phaser.GameObjects.Text;
   private difficultyButtons: Phaser.GameObjects.Text[] = [];
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private keyA!: Phaser.Input.Keyboard.Key;
@@ -47,6 +55,9 @@ export class SledRunScene extends Phaser.Scene {
   private localCountdownEnd = 0;
   private previousPhase = '';
   private previousRound = -1;
+  private rewardText = '';
+  private lobbyNote = '';
+  private disconnected = false;
 
   constructor() {
     super('SledRun');
@@ -66,6 +77,9 @@ export class SledRunScene extends Phaser.Scene {
     this.racerViews.clear();
     this.previousPhase = '';
     this.previousRound = -1;
+    this.rewardText = '';
+    this.lobbyNote = '';
+    this.disconnected = false;
     this.cameras.main.setBackgroundColor('#79bee7');
     this.drawMountain();
     this.courseGraphics = this.add.graphics().setDepth(20);
@@ -114,31 +128,49 @@ export class SledRunScene extends Phaser.Scene {
         if (state === 'reconnecting') {
           this.statusText.setText('Connection lost • reconnecting…');
         } else if (state === 'connected') {
+          this.disconnected = false;
           this.lastSteerSentAt = Number.NEGATIVE_INFINITY;
         } else {
+          const interrupted = this.snapshot?.phase === 'countdown' || this.snapshot?.phase === 'racing';
           this.connection = undefined;
-          this.startSolo('Solo practice • multiplayer disconnected');
+          if (interrupted) {
+            this.disconnected = true;
+            this.refreshUi();
+          } else {
+            this.startSolo('Solo practice • multiplayer disconnected');
+          }
         }
       });
     } catch (error) {
       if (this.sceneEpoch !== epoch) return;
       console.warn('Sled Run multiplayer unavailable; using solo practice', error);
-      this.startSolo('Solo practice • connection unavailable');
+      const code = typeof error === 'object' && error !== null && 'code' in error
+        ? Number((error as { code?: unknown }).code)
+        : undefined;
+      const reason = code === 426
+        ? 'Update required for multiplayer • solo practice'
+        : code === 409
+          ? 'Already racing in another tab • solo practice'
+          : code === 403
+            ? 'Online races are busy • solo practice'
+            : 'Connection unavailable • solo practice';
+      this.startSolo(reason);
     }
   }
 
   private startSolo(note: string) {
     this.solo = true;
-    this.snapshot = {
+    this.lobbyNote = note;
+    const snapshot: SledRunSnapshot = {
       localSessionId: 'solo', phase: 'lobby', leader: 'solo', difficulty: 'easy', seed: '',
-      countdownAt: 0, startedAt: 0, round: 0,
+      countdownAt: 0, startedAt: 0, serverTime: Date.now(), round: 0,
       racers: [{
         sessionId: 'solo', userId: 'solo', displayName: 'You', penguinColor: 'blue',
         x: 0, progress: 0, speed: 0, effect: '', effectUntil: 0, rank: 0, finishedAt: 0,
       }],
     };
-    this.statusText.setText(note);
-    this.acceptSnapshot(this.snapshot);
+    this.snapshot = snapshot;
+    this.acceptSnapshot(snapshot);
   }
 
   private acceptSnapshot(snapshot: SledRunSnapshot) {
@@ -150,9 +182,17 @@ export class SledRunScene extends Phaser.Scene {
     }
     if (snapshot.phase !== this.previousPhase || snapshot.round !== this.previousRound) {
       if (snapshot.phase === 'countdown') {
-        this.localCountdownEnd = this.time.now + Math.max(0, snapshot.countdownAt - Date.now());
+        this.rewardText = '';
+        this.localCountdownEnd = this.time.now + Math.max(0, snapshot.countdownAt - snapshot.serverTime);
         this.previousSteering = 0;
         this.lastSteerSentAt = Number.NEGATIVE_INFINITY;
+      } else if (snapshot.phase === 'finished' && this.previousPhase === 'racing') {
+        const local = snapshot.racers.find((racer) => racer.sessionId === snapshot.localSessionId);
+        const reward = local ? sledRunReward(snapshot.difficulty, local.rank) : undefined;
+        if (reward) {
+          State.rewardSledRun(reward.coins, reward.happiness);
+          this.rewardText = ` • +${reward.coins} coins`;
+        }
       }
       this.previousPhase = snapshot.phase;
       this.previousRound = snapshot.round;
@@ -226,7 +266,7 @@ export class SledRunScene extends Phaser.Scene {
       return button;
     });
     this.startButton = this.makeButton(center, 158, 'START RUN', () => this.startRace()).setStyle({ fontSize: '18px' });
-    this.makeButton(62, this.scale.height - 32, '← PARK', () => this.leave()).setScrollFactor(0);
+    this.parkButton = this.makeButton(62, this.scale.height - 32, '← PARK', () => this.leave()).setScrollFactor(0);
     this.add.text(center, this.scale.height - 26, '← / → or A / D  •  tap either side to steer', {
       fontFamily: 'monospace', fontSize: '12px', color: '#173a57',
       backgroundColor: '#ffffffcc', padding: { x: 7, y: 4 },
@@ -263,8 +303,9 @@ export class SledRunScene extends Phaser.Scene {
     this.snapshot.round += 1;
     this.snapshot.seed = `solo-${Date.now()}-${this.snapshot.round}`;
     this.snapshot.phase = 'countdown';
-    this.snapshot.countdownAt = Date.now() + 3_000;
-    this.localCountdownEnd = this.time.now + 3_000;
+    this.snapshot.countdownAt = Date.now() + SLED_COUNTDOWN_MS;
+    this.snapshot.serverTime = Date.now();
+    this.localCountdownEnd = this.time.now + SLED_COUNTDOWN_MS;
     this.soloHits.clear();
     this.acceptSnapshot(this.snapshot);
   }
@@ -292,22 +333,27 @@ export class SledRunScene extends Phaser.Scene {
     const snapshot = this.snapshot;
     if (!snapshot) return;
     const leader = snapshot.leader === snapshot.localSessionId;
-    this.queueText.setText(`${snapshot.racers.length}/4 RACERS\n${leader ? '★ You are leader' : 'Waiting for leader'}`);
+    this.queueText.setText(`${snapshot.racers.length}/${SLED_MAX_PLAYERS} RACERS\n${leader ? '★ You are leader' : 'Waiting for leader'}`);
     const local = snapshot.racers.find((racer) => racer.sessionId === snapshot.localSessionId);
     const config = sledDifficultyConfig(snapshot.difficulty);
     const place = local?.rank ? `Finished #${local.rank}` : `${Math.round(((local?.progress ?? 0) / config.courseLength) * 100)}%`;
     this.hudText.setText(`${snapshot.difficulty.toUpperCase()}\n${place}\n${Math.round(local?.speed ?? 0)} speed`);
     const showLobby = snapshot.phase === 'lobby' || snapshot.phase === 'finished';
-    this.startButton.setVisible(showLobby && leader).setText(snapshot.phase === 'finished' ? 'RUN AGAIN' : 'START RUN');
+    this.parkButton.setVisible(showLobby || this.disconnected);
+    this.startButton.setVisible(showLobby && leader && !this.disconnected).setText(snapshot.phase === 'finished' ? 'RUN AGAIN' : 'START RUN');
     this.difficultyButtons.forEach((button, index) => {
       const active = SLED_DIFFICULTIES[index] === snapshot.difficulty;
-      button.setVisible(snapshot.phase === 'lobby').setAlpha(active ? 1 : 0.55);
+      button.setVisible(snapshot.phase === 'lobby' && !this.disconnected).setAlpha(active ? 1 : 0.55);
     });
-    if (snapshot.phase === 'lobby') {
-      this.statusText.setText(leader ? 'Choose a difficulty • start when everyone is ready' : 'Waiting at the top for the leader to start…');
+    if (this.disconnected) {
+      this.statusText.setText('Connection lost • this run ended • return to Park');
+    } else if (snapshot.phase === 'lobby') {
+      this.statusText.setText(this.lobbyNote || (leader ? 'Choose a difficulty • start when everyone is ready' : 'Waiting at the top for the leader to start…'));
     } else if (snapshot.phase === 'finished') {
-      const results = [...snapshot.racers].sort((a, b) => a.rank - b.rank).map((racer) => `#${racer.rank} ${racer.displayName}`).join('  •  ');
-      this.statusText.setText(`FINISH!  ${results}`);
+      const results = snapshot.racers.filter((racer) => racer.rank > 0)
+        .sort((a, b) => a.rank - b.rank)
+        .map((racer) => `#${racer.rank} ${racer.displayName}`).join('  •  ');
+      this.statusText.setText(`FINISH!  ${results}${this.rewardText}`);
     }
   }
 
@@ -316,7 +362,7 @@ export class SledRunScene extends Phaser.Scene {
     const center = this.scale.width / 2;
     const playerY = this.scale.height * 0.68;
     for (const item of this.course) {
-      const y = playerY - (item.progress - localProgress) * 0.56;
+      const y = playerY - (item.progress - localProgress) * SLED_PROGRESS_TO_PIXELS;
       if (y < 88 || y > this.scale.height + 65) continue;
       const x = center + item.x;
       if (item.kind === 'ice') {
@@ -338,7 +384,7 @@ export class SledRunScene extends Phaser.Scene {
       }
     }
     const finish = this.snapshot ? sledDifficultyConfig(this.snapshot.difficulty).courseLength : 0;
-    const finishY = playerY - (finish - localProgress) * 0.56;
+    const finishY = playerY - (finish - localProgress) * SLED_PROGRESS_TO_PIXELS;
     if (finishY > 90 && finishY < this.scale.height) {
       graphics.fillStyle(0x1d3347).fillRect(center - 245, finishY - 8, 490, 16);
       for (let x = center - 245; x < center + 245; x += 28) {
@@ -359,7 +405,7 @@ export class SledRunScene extends Phaser.Scene {
       if (!view) return;
       const lobby = snapshot.phase === 'lobby' || snapshot.phase === 'countdown';
       const x = center + racer.x;
-      const y = lobby ? 225 + (index % 2) * 58 : playerY - (racer.progress - localProgress) * 0.56;
+      const y = lobby ? 225 + (index % 2) * 58 : playerY - (racer.progress - localProgress) * SLED_PROGRESS_TO_PIXELS;
       view.setPosition(x, y).setAlpha(racer.rank > 0 ? 0.7 : 1).setDepth(50 + Math.round(y));
       view.setAngle(racer.effect === 'obstacle' ? Math.sin(this.time.now * 0.03) * 10 : racer.effect === 'ice' ? Math.sin(this.time.now * 0.02) * 3 : 0);
     });
@@ -380,18 +426,23 @@ export class SledRunScene extends Phaser.Scene {
     const config = sledDifficultyConfig(snapshot.difficulty);
     const dt = Math.min(deltaMs, 100) / 1_000;
     if (racer.effect && this.time.now >= racer.effectUntil) racer.effect = '';
-    const multiplier = racer.effect === 'obstacle' ? 0.52 : racer.effect === 'ice' ? 1.45 : 1;
+    const activeEffect = racer.effect === 'obstacle' || racer.effect === 'ice'
+      ? racer.effect as keyof typeof SLED_EFFECTS
+      : undefined;
+    const multiplier = activeEffect ? SLED_EFFECTS[activeEffect].multiplier : 1;
     racer.speed += (config.baseSpeed * multiplier - racer.speed) * Math.min(1, dt * 7);
     racer.x = Phaser.Math.Clamp(racer.x + steering * config.steeringSpeed * dt, -config.trackHalfWidth, config.trackHalfWidth);
     const before = racer.progress;
     racer.progress += racer.speed * dt;
     for (const item of this.course) {
       if (this.soloHits.has(item.id) || item.progress + item.radius < before || item.progress - item.radius > racer.progress) continue;
-      if (Math.abs(item.x - racer.x) > item.radius + 24) continue;
+      if (Math.abs(item.x - racer.x) > item.radius + SLED_RACER_RADIUS) continue;
       this.soloHits.add(item.id);
-      racer.effect = item.kind === 'ice' ? 'ice' : 'obstacle';
-      racer.effectUntil = this.time.now + (item.kind === 'ice' ? 1_500 : 1_250);
-      racer.speed = config.baseSpeed * (item.kind === 'ice' ? 1.45 : 0.52);
+      const effectKey: keyof typeof SLED_EFFECTS = item.kind === 'ice' ? 'ice' : 'obstacle';
+      racer.effect = effectKey;
+      const effect = SLED_EFFECTS[effectKey];
+      racer.effectUntil = this.time.now + effect.durationMs;
+      racer.speed = config.baseSpeed * effect.multiplier;
     }
     if (racer.progress >= config.courseLength) {
       racer.progress = config.courseLength;
@@ -429,13 +480,13 @@ export class SledRunScene extends Phaser.Scene {
     const local = this.snapshot.racers.find((racer) => racer.sessionId === this.snapshot!.localSessionId);
     this.renderCourse(local?.progress ?? 0);
     this.renderRacers();
-    if (this.snapshot.phase === 'countdown') {
+    if (!this.disconnected && this.snapshot.phase === 'countdown') {
       const seconds = Math.max(1, Math.ceil((this.localCountdownEnd - this.time.now) / 1_000));
       this.statusText.setText(`${seconds}…  Everyone starts together!`);
-    } else if (this.snapshot.phase === 'racing') {
+    } else if (!this.disconnected && this.snapshot.phase === 'racing') {
       const localEffect = local?.effect === 'ice' ? ' • ICE BOOST!' : local?.effect === 'obstacle' ? ' • BUMPED!' : '';
       this.statusText.setText(`Race to the lodge!${localEffect}`);
     }
-    this.refreshUi();
+    if (this.solo) this.refreshUi();
   }
 }

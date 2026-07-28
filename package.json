@@ -11,6 +11,7 @@
     "build": "npm run build -w @pet-village/multiplayer-protocol && npm run build -w multiplayer-server && tsc && vite build",
     "preview": "vite preview",
     "test": "npx tsx --test scripts/lib/*.test.mjs src/systems/*.test.ts && npm test -w @pet-village/multiplayer-protocol && npm test -w multiplayer-server",
+    "smoke:sled": "tsx scripts/sled-smoke.mts",
     "sprite:repair": "node scripts/repair-sprite-outline.mjs",
     "sprite:miniteen": "tsx scripts/imagine-to-miniteen.mts",
     "sprite:puffles": "tsx scripts/imagine-to-puffles.mts",

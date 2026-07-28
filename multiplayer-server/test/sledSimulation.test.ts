@@ -48,14 +48,16 @@ test('server accepts only monotonic steering and keeps racers inside the mountai
   simulation.join('one', profile('one'));
   simulation.start('one', 0);
   simulation.step(3_000, 3_000);
-  assert.equal(simulation.input('one', { steering: 1, seq: 1 }), true);
-  assert.equal(simulation.input('one', { steering: -1, seq: 1 }), false);
+  assert.equal(simulation.input('one', { steering: 1, seq: 1 }, 100), true);
+  assert.equal(simulation.input('one', { steering: -1, seq: 1 }, 100), false);
+  assert.equal(simulation.input('one', { steering: -1, seq: 2 }, 105), false);
+  assert.equal(simulation.input('one', { steering: -1, seq: 2 }, 112), true);
   simulation.stopInput('one');
   assert.equal(state.racers.get('one')!.steering, 0);
-  assert.equal(state.racers.get('one')!.inputSeq, 1);
+  assert.equal(state.racers.get('one')!.inputSeq, 2);
   simulation.step(10_000, 13_000);
   const racer = state.racers.get('one')!;
-  assert.equal(racer.inputSeq, 1);
+  assert.equal(racer.inputSeq, 2);
   assert.ok(racer.x <= sledDifficultyConfig('easy').trackHalfWidth);
 });
 
@@ -114,18 +116,25 @@ test('same-tick finishers are ranked by estimated line-crossing time', () => {
   assert.ok(state.racers.get('two')!.finishedAt < state.racers.get('one')!.finishedAt);
 });
 
-test('a new racer reopens a finished room as a fresh lobby', () => {
+test('a late racer keeps finished results until the leader starts the next run', () => {
   const { state, simulation } = setup();
   simulation.join('one', profile('one'));
+  simulation.setDifficulty('one', 'hard');
   simulation.start('one', 1_000);
   simulation.step(1, 4_000);
-  const finish = sledDifficultyConfig('easy').courseLength;
+  const finish = sledDifficultyConfig('hard').courseLength;
   state.racers.get('one')!.progress = finish - 1;
   simulation.step(20, 4_020);
   assert.equal(state.phase, 'finished');
 
   assert.equal(simulation.join('two', profile('two')), true);
-  assert.equal(state.phase, 'lobby');
-  assert.equal(state.racers.size, 2);
+  assert.equal(state.phase, 'finished');
+  assert.equal(state.difficulty, 'hard');
+  assert.equal(state.racers.get('one')!.rank, 1);
+  assert.equal(state.racers.get('one')!.progress, finish);
+  assert.equal(state.racers.get('two')!.rank, 0);
+
+  assert.equal(simulation.start('one', 5_000), true);
+  assert.equal(state.phase, 'countdown');
   assert.ok([...state.racers.values()].every((racer) => racer.rank === 0 && racer.progress === 0));
 });

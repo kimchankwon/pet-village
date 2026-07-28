@@ -33,8 +33,7 @@ export class SledRunRoom extends Room<{ state: SledRunState }> {
     this.setSimulationInterval((deltaMs) => {
       this.simulation?.step(deltaMs);
       if (this.state.phase === 'finished' && this.matchmakingLocked) {
-        this.matchmakingLocked = false;
-        void this.unlock();
+        this.releaseMatchmakingLock();
       }
     }, 50);
     this.onMessage('sled:difficulty', (client, difficulty: unknown) => {
@@ -57,6 +56,9 @@ export class SledRunRoom extends Room<{ state: SledRunState }> {
       ([sessionId, racer]) => sessionId !== client.sessionId && racer.userId === claims.sub,
     );
     if (duplicateUser) throw new ServerError(409, 'User is already in this Sled Run');
+    if (this.state.racers.size >= SLED_MAX_PLAYERS) {
+      throw new ServerError(403, 'Sled Run lobby is full');
+    }
 
     const profile = {
       userId: claims.sub,
@@ -77,5 +79,14 @@ export class SledRunRoom extends Room<{ state: SledRunState }> {
 
   onLeave(client: Client) {
     this.simulation?.leave(client.sessionId);
+    if (this.state.phase === 'lobby' && this.state.racers.size === 0) {
+      this.releaseMatchmakingLock();
+    }
+  }
+
+  private releaseMatchmakingLock() {
+    if (!this.matchmakingLocked) return;
+    this.matchmakingLocked = false;
+    void this.unlock().catch(() => undefined);
   }
 }
