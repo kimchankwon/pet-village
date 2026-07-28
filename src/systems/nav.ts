@@ -4,6 +4,7 @@ type LeaveHandler = () => void;
 
 let leaveHandler: LeaveHandler | null = null;
 let uiBlockDepth = 0;
+let pointerUiBlockDepth = 0;
 let suppressLeaveUntil = 0;
 
 export function setLeaveHandler(handler: LeaveHandler | null) {
@@ -39,6 +40,27 @@ export function unblockUi() {
 export function isUiBlocked() {
   // Depth only — movement resumes immediately when the menu closes.
   return uiBlockDepth > 0;
+}
+
+/**
+ * Also swallow taps and clicks — for the chat composer, which owns Enter and
+ * Escape while it is open. A click that opened a menu or walked through a door
+ * would leave both of them listening for the same keys.
+ *
+ * Separate from `blockUi()` because the two are not the same thing: the house's
+ * furniture placement mode blocks UI keys while a click is exactly the gesture
+ * it is waiting for.
+ */
+export function blockPointerUi() {
+  pointerUiBlockDepth += 1;
+}
+
+export function unblockPointerUi() {
+  pointerUiBlockDepth = Math.max(0, pointerUiBlockDepth - 1);
+}
+
+export function isPointerUiBlocked() {
+  return pointerUiBlockDepth > 0;
 }
 
 /** True while a menu just closed — skip E/Space interact for a beat. */

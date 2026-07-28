@@ -18,6 +18,7 @@ function actions(sent: number[]) {
     updateProfile: () => {},
     leave: () => {},
     wave: () => {},
+    chat: () => {},
   };
 }
 
@@ -290,6 +291,38 @@ test('expired profile tickets are neither replayed nor acknowledged', () => {
     assert.equal(multiplayerBridge.profileRefreshResult(id, 'expiring-ticket', true), false);
     multiplayerBridge.republish(id);
     assert.deepEqual(tickets, ['expiring-ticket']);
+    multiplayerBridge.uninstall(id);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test('chat reports whether a message really went out, and is paced across world transitions', () => {
+  const originalNow = Date.now;
+  let now = 10_000;
+  Date.now = () => now;
+  try {
+    const said: string[] = [];
+    // Offline: nothing was sent, so the sender must not be shown their own bubble.
+    assert.equal(multiplayerBridge.chat('anyone there?'), false);
+    const id = multiplayerBridge.install({ ...actions([]), chat: (text: string) => said.push(text) });
+    // Connected but standing in no world — the server refuses this one too.
+    assert.equal(multiplayerBridge.chat('anyone there?'), false);
+
+    const releaseTown = multiplayerBridge.activateWorld('town', pose);
+    assert.equal(multiplayerBridge.chat('hello town'), true);
+    assert.equal(multiplayerBridge.chat('again'), false, 'the cooldown holds');
+
+    // A world transition builds a new scene, but the server is still counting
+    // from the last message, so the pacing cannot live in the scene.
+    releaseTown();
+    const releaseShore = multiplayerBridge.activateWorld('shore', pose);
+    now += 300;
+    assert.equal(multiplayerBridge.chat('hello shore'), false);
+    now += 700;
+    assert.equal(multiplayerBridge.chat('hello shore'), true);
+    assert.deepEqual(said, ['hello town', 'hello shore']);
+    releaseShore();
     multiplayerBridge.uninstall(id);
   } finally {
     Date.now = originalNow;

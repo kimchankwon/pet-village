@@ -2,6 +2,7 @@ import { Room, ServerError, type Client } from '@colyseus/core';
 import {
   PROTOCOL_VERSION,
   SLED_MAX_PLAYERS,
+  SLED_TICK_MS,
   SledRunState,
   type AdmissionClaims,
   type SledInputPayload,
@@ -35,7 +36,7 @@ export class SledRunRoom extends Room<{ state: SledRunState }> {
       if (this.state.phase === 'finished' && this.matchmakingLocked) {
         this.releaseMatchmakingLock();
       }
-    }, 50);
+    }, SLED_TICK_MS);
     this.onMessage('sled:difficulty', (client, difficulty: unknown) => {
       this.simulation?.setDifficulty(client.sessionId, difficulty);
     });

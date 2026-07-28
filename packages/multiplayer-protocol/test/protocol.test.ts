@@ -2,13 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Decoder, Encoder, MapSchema, Schema, defineTypes } from '@colyseus/schema';
 import {
+  CHAT_MAX_LENGTH,
   GAME_ACTIVITIES,
+  isChatCharacter,
   isGameActivity,
   isMovePayload,
   isWorldScene,
   NpcState,
   PlayerState,
   PROTOCOL_VERSION,
+  sanitizeChatText,
   TownState,
   TOWN_BOUNDS,
   WORLD_SCENE_BOUNDS,
@@ -16,8 +19,8 @@ import {
   worldSceneSpawn,
 } from '../src/index.ts';
 
-test('protocol v6 validates scene-scoped moves within each world bounds', () => {
-  assert.equal(PROTOCOL_VERSION, 6);
+test('protocol v7 validates scene-scoped moves within each world bounds', () => {
+  assert.equal(PROTOCOL_VERSION, 7);
   assert.deepEqual(TOWN_BOUNDS, { width: 1056, height: 768 });
   assert.deepEqual(WORLD_SCENES, [
     'town', 'shore', 'west-green', 'east-green', 'daniels-shop', 'cafe-cinnamon',
@@ -46,7 +49,7 @@ test('protocol accepts only known multiplayer game activities', () => {
   assert.equal(isGameActivity(''), false);
 });
 
-test('protocol v4 clients keep existing player fields during the v6 rollout', () => {
+test('protocol v4 clients keep existing player fields during the v7 rollout', () => {
   class ProtocolV4PlayerState extends Schema {
     declare userId: string;
     declare displayName: string;
@@ -85,7 +88,7 @@ test('protocol v4 clients keep existing player fields during the v6 rollout', ()
   const player = new PlayerState();
   Object.assign(player, {
     userId: 'user-1', active: false, activity: 'fishing', seq: 7, updatedAt: 123,
-    waveId: 'wave-1', waveTarget: 'session-2',
+    waveId: 'wave-1', waveTarget: 'session-2', chatId: '123:chat-1', chatText: 'hello village',
   });
   state.players.set('session-1', player);
 
@@ -104,6 +107,53 @@ test('protocol v4 clients keep existing player fields during the v6 rollout', ()
   });
 });
 
+test('chat text is a single printable line, capped and never empty', () => {
+  assert.equal(sanitizeChatText('  hello   village  '), 'hello village');
+  assert.equal(sanitizeChatText('penguins 🐧 rule'), 'penguins 🐧 rule');
+  // A newline would grow a bubble down into the scene; a bidi override could
+  // dress a message up as someone else's. Both flatten to a space.
+  assert.equal(sanitizeChatText('one\ntwo'), 'one two');
+  assert.equal(sanitizeChatText('one‮two'), 'one two');
+  assert.equal(sanitizeChatText('   '), null);
+  // Invisible characters cannot post a bubble with nothing in it.
+  const ZERO_WIDTH_SPACE = String.fromCodePoint(0x200b);
+  const SOFT_HYPHEN = String.fromCodePoint(0x00ad);
+  const WORD_JOINER = String.fromCodePoint(0x2060);
+  const BYTE_ORDER_MARK = String.fromCodePoint(0xfeff);
+  assert.equal(sanitizeChatText(ZERO_WIDTH_SPACE), null);
+  assert.equal(sanitizeChatText(`${SOFT_HYPHEN}${WORD_JOINER}${BYTE_ORDER_MARK}`), null);
+  assert.equal(sanitizeChatText(`one${ZERO_WIDTH_SPACE}two`), 'one two');
+  // Zero-width joiners and variation selectors stay: they are how emoji are built.
+  const ZERO_WIDTH_JOINER = String.fromCodePoint(0x200d);
+  const VARIATION_SELECTOR = String.fromCodePoint(0xfe0f);
+  assert.equal(sanitizeChatText(`${ZERO_WIDTH_JOINER}${VARIATION_SELECTOR}`), null);
+  const family = ['\u{1f468}', '\u{1f469}', '\u{1f467}'].join(ZERO_WIDTH_JOINER);
+  assert.equal(sanitizeChatText(`family ${family}`), `family ${family}`);
+  assert.equal(sanitizeChatText(`love \u2764${VARIATION_SELECTOR}`), `love \u2764${VARIATION_SELECTOR}`);
+  assert.equal(sanitizeChatText('\n\t'), null);
+  assert.equal(sanitizeChatText(''), null);
+  assert.equal(sanitizeChatText(42), null);
+  assert.equal(sanitizeChatText(null), null);
+  assert.equal(sanitizeChatText('a'.repeat(CHAT_MAX_LENGTH + 40))?.length, CHAT_MAX_LENGTH);
+  // Absurdly long input is refused outright rather than trimmed down.
+  assert.equal(sanitizeChatText('a'.repeat(CHAT_MAX_LENGTH * 8 + 1)), null);
+  // The cap counts characters, so it cannot cut an emoji in half.
+  const emoji = sanitizeChatText('🐧'.repeat(CHAT_MAX_LENGTH + 5)) ?? '';
+  assert.equal(Array.from(emoji).length, CHAT_MAX_LENGTH);
+  assert.ok(!emoji.includes('�'));
+});
+
+test('a typed chat character may be a space, but never a control key name', () => {
+  assert.equal(isChatCharacter(' '), true);
+  assert.equal(isChatCharacter('a'), true);
+  assert.equal(isChatCharacter('🐧'), true);
+  assert.equal(isChatCharacter('Shift'), false);
+  assert.equal(isChatCharacter('\n'), false);
+  assert.equal(isChatCharacter(String.fromCodePoint(0x200b)), false);
+  assert.equal(isChatCharacter(String.fromCodePoint(0xfeff)), false);
+  assert.equal(isChatCharacter(''), false);
+});
+
 test('town state serializes player scene, activity, and server-owned NPC maps for Colyseus synchronization', () => {
   const state = new TownState();
   const player = new PlayerState();
@@ -114,6 +164,8 @@ test('town state serializes player scene, activity, and server-owned NPC maps fo
     accessoryHeadRight: 'ear-cloud',
     accessoryBody: 'blue-tee',
     accessoryExtra: 'carat-diamond',
+    chatId: '123:chat-1',
+    chatText: 'hello village',
   });
   state.players.set('session-1', player);
   const npc = new NpcState();
@@ -124,6 +176,8 @@ test('town state serializes player scene, activity, and server-owned NPC maps fo
   assert.doesNotThrow(() => new Decoder(decoded).decode(bytes));
   assert.equal(decoded.players.get('session-1')?.activity, 'fishing');
   assert.equal(decoded.players.get('session-1')?.scene, 'shore');
+  assert.equal(decoded.players.get('session-1')?.chatId, '123:chat-1');
+  assert.equal(decoded.players.get('session-1')?.chatText, 'hello village');
   assert.deepEqual(
     {
       headLeft: decoded.players.get('session-1')?.accessoryHeadLeft,

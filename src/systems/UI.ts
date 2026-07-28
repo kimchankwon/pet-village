@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { State } from './GameState';
-import { blockUi, unblockUi } from './nav';
+import { blockUi, isPointerUiBlocked, unblockUi } from './nav';
 import { isPortraitDesign, joystickAnchor } from '../game/viewport';
 import { markAsUi } from './cameraZoom';
 
@@ -533,6 +533,9 @@ export function bottomButtons(
       .setDepth(1450)
       .setInteractive({ useHandCursor: true });
     b.on('pointerdown', () => {
+      // A canvas text field (chat) owns the keyboard; opening a menu behind it
+      // would hand Enter and Escape to two listeners at once.
+      if (isPointerUiBlocked()) return;
       before();
       def.onTap();
     });

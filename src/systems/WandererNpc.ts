@@ -101,6 +101,11 @@ export class WandererNpc {
     return this.isPresent();
   }
 
+  /** True while a dialogue menu with this NPC is open. */
+  isConversing() {
+    return this.conversing;
+  }
+
   /** Fully settled (not mid enter/exit) — safe to send off-map. */
   canLeave() {
     return this.isPresent() && !this.transit;

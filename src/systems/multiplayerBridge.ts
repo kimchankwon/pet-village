@@ -5,6 +5,7 @@ import {
   type WorldScene,
 } from '@pet-village/multiplayer-protocol';
 
+import { CHAT_SEND_INTERVAL_MS } from './chat';
 import type { EquippedAccessories } from './GameState';
 
 export const WORLD_SCENE_IDS = WORLD_SCENES;
@@ -32,6 +33,9 @@ export type RemotePresence = {
   updatedAt: number;
   waveId?: string;
   waveTarget?: string;
+  /** Changes on every message sent, which is how a new bubble is spotted. */
+  chatId?: string;
+  chatText?: string;
 };
 
 export type RemoteNpc = {
@@ -73,6 +77,7 @@ type Actions = {
   updateProfile: (ticket: string) => void;
   leave: () => void;
   wave: (id: string) => void;
+  chat: (text: string) => void;
   /** Re-snapshot peers now — scene filtering changed, so cached rows are stale. */
   resync?: () => void;
 };
@@ -89,6 +94,12 @@ let moveSeq = 0;
 let correction: PositionCorrectionPayload | null = null;
 let pendingProfileTicket: string | null = null;
 let pendingProfileTicketIssuedAt = 0;
+/**
+ * Deliberately not cleared by `install`/`uninstall`: a reconnect inside the
+ * grace window rejoins the same server-side player, whose last message the
+ * server is still measuring against.
+ */
+let lastChatSentAt = -Infinity;
 
 function currentPendingProfileTicket() {
   if (pendingProfileTicket && Date.now() - pendingProfileTicketIssuedAt >= PROFILE_TICKET_LIFETIME_MS) {
@@ -281,5 +292,21 @@ export const multiplayerBridge = {
   },
   wave(id: string) {
     actions?.wave(id);
+  },
+  /**
+   * Send a message, and say whether it actually went out. The sender's own
+   * bubble is optimistic, so this is where the two things the server also checks
+   * are checked first: there has to be a connection and a world to stand in, and
+   * the cooldown is kept here rather than in a scene because a world transition
+   * builds a new `WorldMultiplayer` while the server keeps counting from the last
+   * message. Wider than the server's floor so the boundary is never a race.
+   */
+  chat(text: string) {
+    if (!actions || !worldActivation) return false;
+    const now = Date.now();
+    if (now - lastChatSentAt < CHAT_SEND_INTERVAL_MS) return false;
+    lastChatSentAt = now;
+    actions.chat(text);
+    return true;
   },
 };

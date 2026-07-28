@@ -1,4 +1,5 @@
 import {
+  CHAT_COOLDOWN_MS,
   normalizeMovePayload,
   WAVE_RADIUS,
   WORLD_SCENE_SPAWNS,
@@ -80,6 +81,11 @@ export function validateMove(
   }
 
   return { ok: true as const, move: accepted };
+}
+
+/** One message at a time: chat is a speech bubble, not a firehose. */
+export function canChat(source: { lastChatAt: number }, now: number) {
+  return now - source.lastChatAt >= CHAT_COOLDOWN_MS;
 }
 
 export function canWave(

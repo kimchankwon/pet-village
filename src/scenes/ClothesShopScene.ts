@@ -9,7 +9,7 @@ import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
 import { placeDoorMat } from '../systems/doorMat';
-import { isInteractSuppressed, isUiBlocked } from '../systems/nav';
+import { isInteractSuppressed, isPointerUiBlocked, isUiBlocked } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { CinnamorollNpc } from '../systems/CinnamorollNpc';
@@ -228,6 +228,8 @@ export class ClothesShopScene extends Phaser.Scene {
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
+      // Typing a message: a click must not walk off, open a menu or change scene.
+      if (isPointerUiBlocked()) return;
       if (this.joystick.owns(pointer) || this.cameraZoom.ownsPointer(pointer)) return;
       if (this.cameraZoom.isPinching()) return;
       const near = this.nearestInteractable();

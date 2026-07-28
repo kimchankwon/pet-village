@@ -14,6 +14,10 @@ export type SledRacerSnapshot = {
   x: number;
   progress: number;
   speed: number;
+  /** The steering the server is applying, so followers can carry a sled forward. */
+  steering: number;
+  /** Newest input the server has applied, which is also our round-trip echo. */
+  inputSeq: number;
   effect: string;
   effectUntil: number;
   rank: number;
@@ -41,7 +45,8 @@ export type SledRunConnection = {
   onConnectionState: (listener: (state: SledConnectionState) => void) => () => void;
   setDifficulty: (difficulty: SledDifficulty) => void;
   start: () => void;
-  sendSteer: (steering: -1 | 0 | 1) => void;
+  /** Sends the input and returns its sequence number, or 0 when nothing went out. */
+  sendSteer: (steering: -1 | 0 | 1) => number;
   disconnect: () => Promise<void>;
 };
 
@@ -55,6 +60,8 @@ export function snapshotSledRun(state: SledRunState, localSessionId: string): Sl
     x: racer.x,
     progress: racer.progress,
     speed: racer.speed,
+    steering: racer.steering,
+    inputSeq: racer.inputSeq,
     effect: racer.effect,
     effectUntil: racer.effectUntil,
     rank: racer.rank,
@@ -188,7 +195,12 @@ export async function connectSledRun(
     },
     setDifficulty: (difficulty) => { if (connected && !closed) room.send('sled:difficulty', difficulty); },
     start: () => { if (connected && !closed) room.send('sled:start'); },
-    sendSteer: (steering) => { if (connected && !closed) room.send('sled:input', { steering, seq: ++seq }); },
+    sendSteer: (steering) => {
+      if (!connected || closed) return 0;
+      const sent = ++seq;
+      room.send('sled:input', { steering, seq: sent });
+      return sent;
+    },
     disconnect: async () => {
       if (closed) return;
       closed = true;

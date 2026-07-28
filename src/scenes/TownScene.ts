@@ -6,7 +6,7 @@ import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
 import { characterDepth, propDepth } from '../systems/depth';
-import { isInteractSuppressed, isUiBlocked, requestLeave } from '../systems/nav';
+import { isInteractSuppressed, isPointerUiBlocked, isUiBlocked, requestLeave } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, type CameraZoom } from '../systems/cameraZoom';
 import { BongbongeeNpc } from '../systems/BongbongeeNpc';
@@ -220,6 +220,8 @@ export class TownScene extends Phaser.Scene {
     // Club Penguin-style: click ground to walk; click a nearby interactable to use it.
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
+      // Typing a message: a click must not walk off, open a menu or change scene.
+      if (isPointerUiBlocked()) return;
       if (this.joystick.owns(pointer) || this.cameraZoom.ownsPointer(pointer)) return;
       if (this.cameraZoom.isPinching()) return;
       // Clicking anywhere on the house enters it when near; otherwise walk

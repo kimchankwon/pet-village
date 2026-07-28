@@ -47,9 +47,11 @@ test('admission validates issuer, audience, lifetime, and server secret', async 
   process.env.MULTIPLAYER_TICKET_SECRET = secretValue;
   const valid = await ticket();
   assert.equal((await verifyAdmission(valid)).sub, 'user-a');
-  assert.equal((await verifyAdmission(await ticket({ protocolVersion: 3 }))).sub, 'user-a');
   assert.equal((await verifyAdmission(await ticket({ protocolVersion: 4 }))).sub, 'user-a');
   assert.equal((await verifyAdmission(await ticket({ protocolVersion: 5 }))).sub, 'user-a');
+  assert.equal((await verifyAdmission(await ticket({ protocolVersion: 6 }))).sub, 'user-a');
+  // Four versions are supported at a time, so v7 slid v3 out of the window.
+  await assert.rejects(verifyAdmission(await ticket({ protocolVersion: 3 })));
   await assert.rejects(verifyAdmission(await ticket({ protocolVersion: 2 })));
   // Tickets are short-lived bearer credentials; reconnecting may reuse one until expiry.
   assert.equal((await verifyAdmission(valid)).sub, 'user-a');
@@ -124,7 +126,7 @@ test('sled room requires the current protocol while Town keeps rolling compatibi
   process.env.MULTIPLAYER_TICKET_SECRET = secretValue;
   const room = new SledRunRoom();
   await assert.rejects(
-    room.onAuth({} as never, undefined, { token: await ticket({ protocolVersion: 3 }) }),
+    room.onAuth({} as never, undefined, { token: await ticket({ protocolVersion: PROTOCOL_VERSION - 1 }) }),
     (error: unknown) => error instanceof Error && error.message.includes('requires protocol'),
   );
   const claims = await room.onAuth({} as never, undefined, { token: await ticket() });

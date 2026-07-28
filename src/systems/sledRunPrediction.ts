@@ -3,20 +3,29 @@
  *
  * The server simulates at 50ms ticks and patches at its own rate, so waiting for
  * a snapshot before moving makes steering feel like it lags a fifth of a second
- * behind the key. Instead every racer keeps a local motion state: the local sled
- * integrates its own steering immediately (the same maths the server runs), every
- * sled coasts forward on its last known speed, and both values are blended back
- * toward the authoritative snapshot so the prediction can never drift away.
+ * behind the key. Instead every racer keeps a local motion state that runs the
+ * same maths the server runs.
  *
- * The blend is a damped correction, not a replay of un-acked input: while a key is
- * held, the pull toward a snapshot that is one round-trip old holds the predicted
- * lane a little short of a full-rate steer, so the sled settles somewhere between
- * the server's position and where pure local integration would put it. That costs
- * a few pixels of travel at steady state and buys the first frame of response,
- * which is the half the player can feel. Replaying an input buffer against each
- * snapshot would close the gap, and needs the server to ack input sequence
- * numbers — a protocol change this deliberately stops short of.
+ * The local sled owns its lane outright: it integrates the key that is down this
+ * frame and is never pulled toward the raw snapshot, because a snapshot describes
+ * where the server had us one round trip ago. Pulling toward it every frame is
+ * what made steering feel like a negotiation — the correction cancelled part of
+ * the steer while a key was held, then pushed the sled further once it was
+ * released and the server was still turning. Snapshots still have the final word,
+ * via `reconcileLocalX`: the scene compares the snapshot against the lane it
+ * predicted *at the time that snapshot was made* (see `sledRunLatency`), so what
+ * is left over is real disagreement — a clamp, a dropped input, a rejected
+ * duplicate — and only that gets corrected.
+ *
+ * Everything else is still a follow: remote sleds and every sled's progress coast
+ * on their last reported rate and blend toward the snapshot carried forward by
+ * however long ago it arrived, so a chase aims at where that snapshot has got to
+ * instead of sawing back to where it was made. It stays in the snapshot's own time
+ * frame, though — the hill has to scroll past the sled the way the server scored
+ * it, or a rock would slow the sled after it looked past.
  */
+
+import { SLED_TICK_MS } from '@pet-village/multiplayer-protocol';
 
 export type SledMotion = { x: number; progress: number };
 
@@ -26,6 +35,10 @@ export const SLED_PROGRESS_BLEND_RATE = 4;
 /** Past these gaps the prediction is wrong about something — take the server's word. */
 export const SLED_X_SNAP = 110;
 export const SLED_PROGRESS_SNAP = 260;
+/** Share of a real lane disagreement absorbed per snapshot, so it never jolts. */
+export const SLED_X_CORRECTION_GAIN = 0.3;
+/** Nothing is carried forward further than this; a stalled tab is not a hint. */
+export const SLED_MAX_EXTRAPOLATION_MS = 400;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
@@ -50,6 +63,11 @@ export function blendTowardServer(
   return predicted + (authoritative - predicted) * alpha;
 }
 
+/** Where a snapshot value has travelled to by now, at the rate it reported. */
+export function extrapolate(value: number, ratePerSecond: number, ageMs: number) {
+  return value + ratePerSecond * (clamp(ageMs, 0, SLED_MAX_EXTRAPOLATION_MS) / 1_000);
+}
+
 /** The local sled's own lane position, moved by this frame's steering input. */
 export function predictSteeredX(
   currentX: number,
@@ -72,15 +90,53 @@ export function predictProgress(
   return Math.min(courseLength, currentProgress + speed * predictionStepSeconds(deltaMs));
 }
 
+/**
+ * Lane disagreement not worth correcting. A server tick integrates its whole
+ * step at whatever steering it happens to hold, so where it puts a sled is only
+ * ever right to a tick's worth of travel; correcting inside that window chases
+ * its rounding, and a shiver on every patch is exactly what steering must not do.
+ */
+export function steerDeadZone(steeringSpeed: number) {
+  return steeringSpeed * (SLED_TICK_MS / 1_000);
+}
+
+/**
+ * Fold a snapshot's verdict on our lane into the prediction. `tracedX` is where
+ * we predicted the sled was when that snapshot was made — one round trip ago —
+ * so the difference is desync we cannot explain away, not the latency the
+ * prediction exists to hide. Differences inside the server's own resolution are
+ * left alone. A wide one means we mispredicted something outright — a collision,
+ * a clamp — so the whole error is applied at once instead of being eased in; it
+ * is still applied *to the current prediction*, never by jumping to `serverX`,
+ * which is a lane from one round trip ago and would throw away every steer made
+ * since.
+ */
+export function reconcileLocalX(
+  predictedX: number,
+  serverX: number,
+  tracedX: number,
+  steeringSpeed: number,
+  trackHalfWidth: number,
+) {
+  const error = serverX - tracedX;
+  if (Math.abs(error) <= steerDeadZone(steeringSpeed)) return predictedX;
+  const corrected = Math.abs(error) >= SLED_X_SNAP
+    ? predictedX + error
+    : predictedX + error * SLED_X_CORRECTION_GAIN;
+  return clamp(corrected, -trackHalfWidth, trackHalfWidth);
+}
+
 export type SledMotionInput = {
   /** Latest snapshot values for this racer. */
-  server: { x: number; progress: number; speed: number; rank: number };
+  server: { x: number; progress: number; speed: number; steering: number; rank: number };
   /** Steering the local player is holding, or null for everyone else. */
   steering: -1 | 0 | 1 | null;
   steeringSpeed: number;
   trackHalfWidth: number;
   courseLength: number;
   deltaMs: number;
+  /** How long ago the snapshot arrived, so a follow aims at where it has got to. */
+  ageMs: number;
 };
 
 /**
@@ -88,24 +144,40 @@ export type SledMotionInput = {
  * has frozen them on the line and any coasting would push them through it.
  */
 export function stepSledMotion(motion: SledMotion, input: SledMotionInput): SledMotion {
-  const { server, deltaMs } = input;
+  const { server, deltaMs, ageMs } = input;
   if (server.rank > 0) return { x: server.x, progress: server.progress };
 
   const coasted = predictProgress(motion.progress, server.speed, input.courseLength, deltaMs);
   const progress = blendTowardServer(
     coasted,
-    server.progress,
+    Math.min(input.courseLength, extrapolate(server.progress, server.speed, ageMs)),
     deltaMs,
     SLED_PROGRESS_BLEND_RATE,
     SLED_PROGRESS_SNAP,
   );
 
-  // Remote sleds have no local input to replay, so they only ever chase the
-  // snapshot; the local sled steers first and reconciles after.
-  const steered = input.steering === null
-    ? motion.x
-    : predictSteeredX(motion.x, input.steering, input.steeringSpeed, input.trackHalfWidth, deltaMs);
-  const x = blendTowardServer(steered, server.x, deltaMs, SLED_X_BLEND_RATE, SLED_X_SNAP);
+  // The local sled steers on its own input alone; snapshots reach it through
+  // reconcileLocalX, which knows how to compare them fairly.
+  if (input.steering !== null) {
+    const x = predictSteeredX(
+      motion.x,
+      input.steering,
+      input.steeringSpeed,
+      input.trackHalfWidth,
+      deltaMs,
+    );
+    return { x, progress };
+  }
+
+  // Remote sleds have no local input to replay, so they follow the snapshot —
+  // carried forward on the steering it reported, or they would stall between
+  // patches and lurch on each one.
+  const target = clamp(
+    extrapolate(server.x, server.steering * input.steeringSpeed, ageMs),
+    -input.trackHalfWidth,
+    input.trackHalfWidth,
+  );
+  const x = blendTowardServer(motion.x, target, deltaMs, SLED_X_BLEND_RATE, SLED_X_SNAP);
 
   return { x, progress };
 }
