@@ -2,21 +2,40 @@ import {
   SLED_COUNTDOWN_MS,
   SLED_EFFECTS,
   SLED_MAX_PLAYERS,
-  SLED_RACER_RADIUS,
   SledPlayerState,
   generateSledCourse,
+  isSledClaimContradicted,
   isSledDifficulty,
+  isSledHitPlausible,
+  isSledHitUnavoidable,
   sledDifficultyConfig,
+  sledLaneJudgementReach,
+  sledLaneTrailSpan,
+  type SledCourseItem,
   type SledDifficulty,
+  type SledDifficultyConfig,
+  type SledEffect,
+  type SledHitPayload,
   type SledInputPayload,
+  type SledLaneSample,
   type SledRunState,
 } from '@pet-village/multiplayer-protocol';
+
+/** A claim the server took back, for the room to tell the client that made it. */
+export type SledRejectedClaim = { sessionId: string; itemId: string };
 
 export class SledRaceSimulation {
   private readonly hitItems = new Map<string, Set<string>>();
   private readonly lastInputAt = new Map<string, number>();
+  /** Where each racer's accepted steering put them, laid out along the track. */
+  private readonly lanes = new Map<string, SledLaneSample[]>();
+  /** Which item the racer's current effect came from, so a bad claim can be undone. */
+  private readonly effectSource = new Map<string, string>();
+  /** How far down the course each racer's claims have been settled. */
+  private readonly sweptIndex = new Map<string, number>();
+  private rejectedClaims: SledRejectedClaim[] = [];
   private finishCount = 0;
-  private course: ReturnType<typeof generateSledCourse> = [];
+  private course: SledCourseItem[] = [];
 
   constructor(
     private readonly state: SledRunState,
@@ -40,6 +59,10 @@ export class SledRaceSimulation {
     if (!this.state.racers.delete(sessionId)) return;
     this.hitItems.delete(sessionId);
     this.lastInputAt.delete(sessionId);
+    this.lanes.delete(sessionId);
+    this.effectSource.delete(sessionId);
+    this.sweptIndex.delete(sessionId);
+    this.rejectedClaims = this.rejectedClaims.filter((claim) => claim.sessionId !== sessionId);
     if (this.state.leader === sessionId) {
       this.state.leader = this.state.racers.keys().next().value ?? '';
     }
@@ -77,6 +100,14 @@ export class SledRaceSimulation {
     return true;
   }
 
+  /** Claims the server withdrew, drained by the room and sent back to their author. */
+  takeRejectedClaims(): SledRejectedClaim[] {
+    if (!this.rejectedClaims.length) return [];
+    const claims = this.rejectedClaims;
+    this.rejectedClaims = [];
+    return claims;
+  }
+
   input(sessionId: string, payload: SledInputPayload, now = Date.now()): boolean {
     const racer = this.state.racers.get(sessionId);
     if (
@@ -107,12 +138,14 @@ export class SledRaceSimulation {
     if (this.state.phase !== 'racing') return;
     const deltaSeconds = Math.min(Math.max(deltaMs, 0), 100) / 1_000;
     const config = sledDifficultyConfig(this.state.difficulty);
-    const course = this.course;
     const finishers: Array<{ sessionId: string; racer: SledPlayerState; finishedAt: number }> = [];
 
     this.state.racers.forEach((racer, sessionId) => {
       if (racer.rank > 0) return;
-      if (racer.effect && now >= racer.effectUntil) racer.effect = '';
+      if (racer.effect && now >= racer.effectUntil) {
+        racer.effect = '';
+        this.effectSource.delete(sessionId);
+      }
       const multiplier = racer.effect ? SLED_EFFECTS[racer.effect].multiplier : 1;
       const targetSpeed = config.baseSpeed * multiplier;
       racer.speed += (targetSpeed - racer.speed) * Math.min(1, deltaSeconds * 7);
@@ -122,7 +155,10 @@ export class SledRaceSimulation {
       );
       const previousProgress = racer.progress;
       racer.progress += racer.speed * deltaSeconds;
-      this.applyCourseEffects(sessionId, racer, previousProgress, course, now);
+      this.recordLane(sessionId, racer, config);
+      // Settle what the racer's own steering says about the items now safely
+      // behind them, whether or not their client mentioned them.
+      this.sweepCourse(sessionId, racer, config, now);
       if (racer.progress >= config.courseLength) {
         const travelled = Math.max(Number.EPSILON, racer.progress - previousProgress);
         const crossingFraction = Math.min(1, Math.max(0, (config.courseLength - previousProgress) / travelled));
@@ -145,31 +181,133 @@ export class SledRaceSimulation {
     if (this.everyRacerFinished()) this.state.phase = 'finished';
   }
 
-  private applyCourseEffects(
-    sessionId: string,
-    racer: SledPlayerState,
-    previousProgress: number,
-    course: ReturnType<typeof generateSledCourse>,
-    now: number,
-  ) {
+  /**
+   * Record a collision the racer's own client saw.
+   *
+   * The server does not test the course as it goes: its copy of a sled's lane is
+   * a round trip behind the key being held, so it bumped players who had already
+   * dodged. The client tests the course — which both sides generate from the same
+   * seed — against the lane it is actually drawing, and the server keeps the
+   * verdict so everyone else sees the bump too, a little later.
+   *
+   * A claim is checked twice. Here, on arrival, against roughly where the server
+   * has the racer — all it can do while the client is still ahead of it. Then
+   * again in {@link sweepCourse} once the server has driven the racer's own
+   * accepted steering past the item, which is when the claim can really be
+   * settled. Reports are not what makes the race, only what makes it prompt.
+   */
+  hit(sessionId: string, payload: SledHitPayload | undefined, now = Date.now()): boolean {
+    const racer = this.state.racers.get(sessionId);
+    if (!racer || this.state.phase !== 'racing' || racer.rank > 0) return false;
+    const itemId = payload?.itemId;
+    if (typeof itemId !== 'string') return false;
+    const item = this.course.find((candidate) => candidate.id === itemId);
+    if (!item) return false;
+    const hits = this.hitsFor(sessionId);
+    // One effect per item per racer, so a replayed report cannot stack a boost.
+    if (hits.has(item.id)) return false;
+    const config = sledDifficultyConfig(this.state.difficulty);
+    const lane = this.lanes.get(sessionId) ?? [];
+    if (!isSledHitPlausible(item, racer, config) || isSledClaimContradicted(item, lane, config)) {
+      this.rejectedClaims.push({ sessionId, itemId: item.id });
+      return false;
+    }
+    hits.add(item.id);
+    this.applyEffect(sessionId, racer, item, config, now);
+    return true;
+  }
+
+  private hitsFor(sessionId: string): Set<string> {
     let hits = this.hitItems.get(sessionId);
     if (!hits) {
       hits = new Set();
       this.hitItems.set(sessionId, hits);
     }
-    for (const item of course) {
-      if (
-        hits.has(item.id) ||
-        item.progress + item.radius < previousProgress ||
-        item.progress - item.radius > racer.progress ||
-        Math.abs(item.x - racer.x) > item.radius + SLED_RACER_RADIUS
-      ) continue;
-      hits.add(item.id);
-      racer.effect = item.kind === 'ice' ? 'ice' : 'obstacle';
-      const effect = SLED_EFFECTS[racer.effect];
-      racer.effectUntil = now + effect.durationMs;
-      racer.speed = sledDifficultyConfig(this.state.difficulty).baseSpeed * effect.multiplier;
+    return hits;
+  }
+
+  private applyEffect(
+    sessionId: string,
+    racer: SledPlayerState,
+    item: SledCourseItem,
+    config: SledDifficultyConfig,
+    now: number,
+  ) {
+    const kind: SledEffect = item.kind === 'ice' ? 'ice' : 'obstacle';
+    const effect = SLED_EFFECTS[kind];
+    racer.effect = kind;
+    racer.effectUntil = now + effect.durationMs;
+    racer.speed = config.baseSpeed * effect.multiplier;
+    this.effectSource.set(sessionId, item.id);
+  }
+
+  /** Where the racer's accepted steering has them now, kept for judging claims. */
+  private recordLane(sessionId: string, racer: SledPlayerState, config: SledDifficultyConfig) {
+    let lane = this.lanes.get(sessionId);
+    if (!lane) {
+      lane = [];
+      this.lanes.set(sessionId, lane);
     }
+    lane.push({ progress: racer.progress, x: racer.x });
+    const oldest = racer.progress - sledLaneTrailSpan(config);
+    let drop = 0;
+    while (drop < lane.length && lane[drop]!.progress < oldest) drop += 1;
+    if (drop) lane.splice(0, drop);
+  }
+
+  /**
+   * Settle the course behind a racer against their own steering history.
+   *
+   * This is where the race stays the server's. A client that reports nothing is
+   * still slowed by every rock its accepted steering drove straight through, and
+   * a client that reports an item its steering never brought it near has that
+   * claim taken back. Anything the lane leaves genuinely in doubt — the whole
+   * point of calling collisions on the client — is left to the racer.
+   *
+   * Items are settled in course order, and only once the sled is far enough past
+   * one that its report has had every chance to arrive.
+   */
+  private sweepCourse(
+    sessionId: string,
+    racer: SledPlayerState,
+    config: SledDifficultyConfig,
+    now: number,
+  ) {
+    const lane = this.lanes.get(sessionId);
+    if (!lane) return;
+    let index = this.sweptIndex.get(sessionId) ?? 0;
+    while (index < this.course.length) {
+      const item = this.course[index]!;
+      if (racer.progress <= item.progress + sledLaneJudgementReach(item, config)) break;
+      index += 1;
+      const hits = this.hitsFor(sessionId);
+      if (hits.has(item.id)) {
+        if (isSledClaimContradicted(item, lane, config)) this.revokeClaim(sessionId, racer, item, config);
+        continue;
+      }
+      // An unreported ice patch is a boost the racer went without; only the
+      // penalties are worth going looking for.
+      if (item.kind === 'ice' || !isSledHitUnavoidable(item, lane, config)) continue;
+      hits.add(item.id);
+      this.applyEffect(sessionId, racer, item, config, now);
+    }
+    this.sweptIndex.set(sessionId, index);
+  }
+
+  /** Undo an effect the racer's own lane says they never earned. */
+  private revokeClaim(
+    sessionId: string,
+    racer: SledPlayerState,
+    item: SledCourseItem,
+    config: SledDifficultyConfig,
+  ) {
+    if (this.effectSource.get(sessionId) === item.id) {
+      racer.effect = '';
+      racer.effectUntil = 0;
+      racer.speed = config.baseSpeed;
+      this.effectSource.delete(sessionId);
+    }
+    this.rejectedClaims.push({ sessionId, itemId: item.id });
   }
 
   private everyRacerFinished() {
@@ -178,6 +316,10 @@ export class SledRaceSimulation {
 
   private resetRacers() {
     this.lastInputAt.clear();
+    this.lanes.clear();
+    this.effectSource.clear();
+    this.sweptIndex.clear();
+    this.rejectedClaims = [];
     const count = this.state.racers.size;
     let index = 0;
     this.state.racers.forEach((racer) => {
@@ -214,6 +356,11 @@ export class SledRaceSimulation {
     this.finishCount = 0;
     this.hitItems.clear();
     this.lastInputAt.clear();
+    this.lanes.clear();
+    this.effectSource.clear();
+    this.sweptIndex.clear();
+    this.rejectedClaims = [];
+    this.course = [];
   }
 
 }

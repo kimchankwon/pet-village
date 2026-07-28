@@ -4,11 +4,16 @@ import { Decoder, Encoder } from '@colyseus/schema';
 import {
   GAME_ACTIVITIES,
   SLED_DIFFICULTIES,
+  SLED_HIT_TOLERANCE_MS,
   SLED_MAX_PLAYERS,
   SledPlayerState,
   SledRunState,
   generateSledCourse,
+  isSledClaimContradicted,
+  isSledHitPlausible,
+  isSledHitUnavoidable,
   sledDifficultyConfig,
+  sledLaneJudgementReach,
 } from '../src/index.ts';
 
 test('sled run is a synchronized four-player game with three difficulty levels', () => {
@@ -47,6 +52,58 @@ test('generated sled courses stay inside the mountain with evenly spaced hazards
       assert.ok(course[index]!.progress - course[index - 1]!.progress >= Math.floor(step) - 1);
     }
   }
+});
+
+test('a reported collision is plausible from a lagging copy of the racer, up to a point', () => {
+  const config = sledDifficultyConfig('easy');
+  const item = { id: 'rock-2', kind: 'rock' as const, x: 40, progress: 2_000, radius: 28 };
+  // Sitting on it, which is what the server sees when the report is fast.
+  assert.equal(isSledHitPlausible(item, { progress: 2_000, x: 40 }, config), true);
+  // The server is behind by the report's own trip, so it has the sled short of the
+  // item — and after a bad round trip, well short. Both have to be allowed.
+  const behind = config.baseSpeed * (SLED_HIT_TOLERANCE_MS / 1_000);
+  assert.equal(isSledHitPlausible(item, { progress: 2_000 - behind, x: 40 }, config), true);
+  assert.equal(isSledHitPlausible(item, { progress: 2_000 - behind * 3, x: 40 }, config), false);
+  // A steer the server has not applied yet moves the lane, but only so far.
+  const swerve = config.steeringSpeed * (SLED_HIT_TOLERANCE_MS / 1_000);
+  assert.equal(isSledHitPlausible(item, { progress: 2_000, x: 40 + swerve }, config), true);
+  assert.equal(isSledHitPlausible(item, { progress: 2_000, x: 40 + swerve * 3 }, config), false);
+  // The far end of the course is never a claim worth honouring.
+  assert.equal(isSledHitPlausible(item, { progress: 100, x: 40 }, config), false);
+});
+
+test('a racer\'s own lane settles the items the client never mentioned', () => {
+  const config = sledDifficultyConfig('easy');
+  const item = { id: 'rock-2', kind: 'rock' as const, x: 40, progress: 2_000, radius: 28 };
+  const reach = sledLaneJudgementReach(item, config);
+  const lane = (at: (progress: number) => number) => {
+    const samples = [];
+    for (let progress = 2_000 - reach - 100; progress <= 2_000 + reach + 100; progress += 20) {
+      samples.push({ progress, x: at(progress) });
+    }
+    return samples;
+  };
+
+  // Held straight down the rock's lane for the whole window: there is no moment
+  // in it where this sled was anywhere else, so the miss is not the client's to
+  // claim — a client that reports nothing is still slowed by this one.
+  assert.equal(isSledHitUnavoidable(item, lane(() => item.x), config), true);
+  // Steered away in good time. The server cannot say when in the window the sled
+  // really reached the item, and one of those moments is a clean dodge.
+  assert.equal(isSledHitUnavoidable(item, lane((p) => p < 2_000 ? item.x : item.x + 300), config), false);
+  // Never near it at all, which also makes a report of it a fiction.
+  const wide = lane(() => item.x + 300);
+  assert.equal(isSledHitUnavoidable(item, wide, config), false);
+  assert.equal(isSledClaimContradicted(item, wide, config), true);
+  assert.equal(isSledClaimContradicted(item, lane(() => item.x), config), false);
+
+  // A trail that does not cover the whole window — a racer who reconnected mid-
+  // race, or one the server has not driven past the item yet — settles nothing
+  // either way, and the client's own account stands.
+  const partial = lane(() => item.x).filter((sample) => sample.progress <= 2_000);
+  assert.equal(isSledHitUnavoidable(item, partial, config), false);
+  assert.equal(isSledClaimContradicted(item, wide.filter((s) => s.progress <= 2_000), config), false);
+  assert.equal(isSledHitUnavoidable(item, [], config), false);
 });
 
 test('sled lobby and racer state survive a full schema encode and decode', () => {

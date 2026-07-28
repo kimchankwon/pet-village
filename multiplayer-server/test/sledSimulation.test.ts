@@ -61,7 +61,7 @@ test('server accepts only monotonic steering and keeps racers inside the mountai
   assert.ok(racer.x <= sledDifficultyConfig('easy').trackHalfWidth);
 });
 
-test('authoritative simulation applies obstacle slowdowns and ice boosts visible in shared state', () => {
+test('a reported collision puts the slowdown or the boost into the shared state', () => {
   const { state, simulation } = setup();
   simulation.join('one', profile('one'));
   simulation.start('one', 0);
@@ -70,16 +70,140 @@ test('authoritative simulation applies obstacle slowdowns and ice boosts visible
   const course = generateSledCourse('fixed-seed', 'easy');
   const obstacle = course.find((item) => item.kind !== 'ice')!;
   racer.x = obstacle.x;
-  racer.progress = obstacle.progress - 1;
-  simulation.step(20, 3_020);
+  racer.progress = obstacle.progress;
+  assert.equal(simulation.hit('one', { itemId: obstacle.id }, 3_020), true);
   assert.equal(racer.effect, 'obstacle');
   const slowed = racer.speed;
+  // The client is the only one who saw it, so the same report cannot be replayed
+  // to stack another dose of the effect.
+  assert.equal(simulation.hit('one', { itemId: obstacle.id }, 3_040), false);
   const ice = course.find((item) => item.kind === 'ice')!;
   racer.x = ice.x;
-  racer.progress = ice.progress - 1;
-  simulation.step(20, 5_000);
+  racer.progress = ice.progress;
+  assert.equal(simulation.hit('one', { itemId: ice.id }, 5_000), true);
   assert.equal(racer.effect, 'ice');
   assert.ok(racer.speed > slowed);
+});
+
+test('the server does not bump a sled on contact, so a dodge on the client stands', () => {
+  const { state, simulation } = setup();
+  simulation.join('one', profile('one'));
+  simulation.start('one', 0);
+  simulation.step(3_000, 3_000);
+  const racer = state.racers.get('one')!;
+  const obstacle = generateSledCourse('fixed-seed', 'easy').find((item) => item.kind !== 'ice')!;
+  // Sitting right on top of it, in the lane the server believes: nothing happens,
+  // because that lane is a round trip old and the player may have already steered
+  // out of it. Only once the sled is well past does the server settle it, and
+  // then only against the steering it has actually accepted.
+  racer.x = obstacle.x;
+  racer.progress = obstacle.progress - 1;
+  simulation.step(20, 3_020);
+  assert.equal(racer.effect, '');
+});
+
+/** Race a sled down a fixed lane, tick by tick, past `progress`. */
+function raceTo(
+  simulation: SledRaceSimulation,
+  racer: { x: number; progress: number },
+  lane: number,
+  progress: number,
+  onTick?: (now: number) => void,
+) {
+  let now = 3_000;
+  racer.x = lane;
+  while (racer.progress < progress) {
+    now += 50;
+    simulation.step(50, now);
+    // Held steady: with no steering the server keeps the lane it was given.
+    racer.x = lane;
+    onTick?.(now);
+  }
+  return now;
+}
+
+test('a rock the racer steered straight through still slows them, reported or not', () => {
+  const { state, simulation } = setup();
+  simulation.join('one', profile('one'));
+  simulation.start('one', 0);
+  simulation.step(3_000, 3_000);
+  const racer = state.racers.get('one')!;
+  const rock = generateSledCourse('fixed-seed', 'easy').find((item) => item.kind !== 'ice')!;
+  // A client that simply never sends `sled:hit` would otherwise race the whole
+  // course untouched. The lane the server accepted from its own steering is what
+  // decides: this one left no way past.
+  raceTo(simulation, racer, rock.x, rock.progress + 500);
+  assert.equal(racer.effect, 'obstacle');
+  assert.ok(racer.speed < sledDifficultyConfig('easy').baseSpeed);
+});
+
+test('an unreported rock the racer was never in line with is left alone', () => {
+  const { state, simulation } = setup();
+  simulation.join('one', profile('one'));
+  simulation.start('one', 0);
+  simulation.step(3_000, 3_000);
+  const racer = state.racers.get('one')!;
+  const rock = generateSledCourse('fixed-seed', 'easy').find((item) => item.kind !== 'ice')!;
+  raceTo(simulation, racer, rock.x + 200, rock.progress + 500);
+  assert.equal(racer.effect, '');
+  assert.equal(racer.speed, sledDifficultyConfig('easy').baseSpeed);
+});
+
+test('a boost the racer\'s own steering rules out is taken back and reported', () => {
+  const { state, simulation } = setup();
+  simulation.join('one', profile('one'));
+  simulation.start('one', 0);
+  simulation.step(3_000, 3_000);
+  const racer = state.racers.get('one')!;
+  const ice = generateSledCourse('fixed-seed', 'easy').find((item) => item.kind === 'ice')!;
+  // Close enough that the arrival check, which only knows roughly where the sled
+  // is, cannot tell — and far enough that the lane it held never touched the ice.
+  const lane = ice.x + 150;
+  let claimed = false;
+  raceTo(simulation, racer, lane, ice.progress + 600, (now) => {
+    if (claimed || racer.progress < ice.progress - 200) return;
+    claimed = true;
+    assert.equal(simulation.hit('one', { itemId: ice.id }, now), true);
+    assert.equal(racer.effect, 'ice');
+  });
+  assert.equal(claimed, true);
+  assert.equal(racer.effect, '');
+  assert.equal(racer.speed, sledDifficultyConfig('easy').baseSpeed);
+  assert.deepEqual(simulation.takeRejectedClaims(), [{ sessionId: 'one', itemId: ice.id }]);
+  // Drained: the room only sends each one back once.
+  assert.deepEqual(simulation.takeRejectedClaims(), []);
+});
+
+test('an implausible or unknown collision report is refused', () => {
+  const { state, simulation } = setup();
+  simulation.join('one', profile('one'));
+  simulation.start('one', 0);
+  const course = generateSledCourse('fixed-seed', 'easy');
+  const ice = course.find((item) => item.kind === 'ice')!;
+  // Not racing yet, so there is nothing to claim.
+  assert.equal(simulation.hit('one', { itemId: ice.id }, 1_000), false);
+  simulation.step(3_000, 3_000);
+  const racer = state.racers.get('one')!;
+  assert.equal(simulation.hit('one', undefined, 3_020), false);
+  assert.equal(simulation.hit('one', { itemId: 'ice-999' }, 3_020), false);
+  assert.equal(simulation.hit('nobody', { itemId: ice.id }, 3_020), false);
+  // A boost cherry-picked from the far end of the course, nowhere near this sled.
+  racer.progress = 100;
+  racer.x = 0;
+  const distant = course[course.length - 1]!;
+  assert.equal(simulation.hit('one', { itemId: distant.id }, 3_020), false);
+  assert.equal(racer.effect, '');
+  // Right item, wrong side of the track.
+  racer.progress = ice.progress;
+  racer.x = ice.x + 400;
+  assert.equal(simulation.hit('one', { itemId: ice.id }, 3_020), false);
+  assert.equal(racer.effect, '');
+  // The claims that named a real item are sent back, so the client can drop the
+  // effect it already showed instead of running the rest of the race out of step.
+  assert.deepEqual(
+    simulation.takeRejectedClaims().map((claim) => claim.itemId),
+    [distant.id, ice.id],
+  );
 });
 
 test('race assigns stable finish ranks and enters finished phase when every racer crosses', () => {

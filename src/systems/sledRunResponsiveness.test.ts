@@ -10,13 +10,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   SLED_COUNTDOWN_MS,
+  SLED_RACER_RADIUS,
   SLED_TICK_MS,
   SledRunState,
+  generateSledCourse,
   sledDifficultyConfig,
+  sledLaneJudgementReach,
+  type SledCourseItem,
+  type SledEffect,
 } from '@pet-village/multiplayer-protocol';
 import { SledRaceSimulation } from '../../multiplayer-server/src/sledSimulation';
 import { SteerAckClock, SteerTrace } from './sledRunLatency';
-import { reconcileLocalX, steerDeadZone, stepSledMotion, type SledMotion } from './sledRunPrediction';
+import { newLocalSled, stepLocalSled, type LocalSled } from './sledLocalSled';
+import { reconcileLocalProgress, reconcileLocalX, steerDeadZone } from './sledRunPrediction';
 import { shouldSendSteer } from './sledRunPolicy';
 
 const DIFFICULTY = 'easy';
@@ -25,11 +31,21 @@ const FRAME_MS = 16;
 // The server's own step: the dead zone is a tick of travel, so a harness that
 // stepped at anything else would stop modelling the thing being asserted.
 const TICK_MS = SLED_TICK_MS;
+const SEED = 'flat-course';
+/** One way across a link a phone on mobile data would call unremarkable. */
+const LAG_MS = 120;
 
 type Race = {
   /** Lane the client is drawing, sampled once per frame. */
   readonly lanes: Array<{ at: number; x: number; steering: number }>;
+  /** Our own sled, frame by frame: lane, speed and the effect it called itself. */
+  readonly frames: Array<{ at: number; sled: LocalSled }>;
+  /** What the server had us doing when each snapshot was made. */
+  readonly snapshots: Array<{ at: number; speed: number; effect: SledEffect }>;
+  /** Where the server had the sled at each of its own ticks. */
+  readonly serverLanes: Array<{ at: number; x: number; progress: number }>;
   readonly serverX: () => number;
+  readonly serverEffect: () => SledEffect;
   readonly clientX: () => number;
 };
 
@@ -47,22 +63,30 @@ function race(options: {
   knock?: { at: number; by: number };
   /** Cut the link for a while, the way a dropped socket does before it reconnects. */
   outage?: { at: number; ms: number };
+  /** Send no collision reports at all, the way a lost link or a doctored client would. */
+  silent?: boolean;
   seed?: string;
 }): Race {
   const { durationMs, oneWayMs, keyAt } = options;
+  const seed = options.seed ?? SEED;
   const state = new SledRunState();
-  const simulation = new SledRaceSimulation(state, () => options.seed ?? 'flat-course');
+  const simulation = new SledRaceSimulation(state, () => seed);
   simulation.join('local', { userId: 'user-local', displayName: 'You', penguinColor: 'blue' });
   // Start the countdown in the past so the first tick is already the race.
   simulation.start('local', -SLED_COUNTDOWN_MS);
   simulation.step(TICK_MS, 0);
   const racer = state.racers.get('local')!;
+  // Both sides build the course from the seed, which is what lets the client call
+  // its own collisions and the server recognize the item it names.
+  const course = generateSledCourse(seed, DIFFICULTY);
 
   const toServer: Array<{ at: number; steering: -1 | 0 | 1; seq: number }> = [];
-  const toClient: Array<{ at: number; snapshot: { x: number; progress: number; speed: number; steering: number; inputSeq: number; rank: number } }> = [];
+  const hitsToServer: Array<{ at: number; itemId: string }> = [];
+  const toClient: Array<{ at: number; snapshot: { x: number; progress: number; speed: number; steering: number; inputSeq: number; effect: SledEffect; rank: number } }> = [];
 
-  let motion: SledMotion = { x: 0, progress: 0 };
-  let snapshot = { x: 0, progress: 0, speed: racer.speed, steering: 0, inputSeq: 0, rank: 0 };
+  let sled: LocalSled = { ...newLocalSled(0), speed: racer.speed };
+  const claimed = new Set<string>();
+  let snapshot = { x: 0, progress: 0, speed: racer.speed, steering: 0, inputSeq: 0, effect: '' as SledEffect, rank: 0 };
   let snapshotAt = 0;
   let previousSteering: -1 | 0 | 1 = 0;
   let lastSentAt = Number.NEGATIVE_INFINITY;
@@ -70,6 +94,9 @@ function race(options: {
   let ackClock = new SteerAckClock();
   const trace = new SteerTrace();
   const lanes: Race['lanes'] = [];
+  const frames: Race['frames'] = [];
+  const snapshots: Race['snapshots'] = [];
+  const serverLanes: Race['serverLanes'] = [];
   /** Link down: nothing crosses it, and nothing we draw is a claim about the race. */
   let dropped = false;
   let resync = false;
@@ -80,6 +107,7 @@ function race(options: {
       dropped = true;
       // Whatever was in flight when the socket died never lands.
       toServer.length = 0;
+      hitsToServer.length = 0;
       toClient.length = 0;
     }
     if (options.outage && now === options.outage.at + options.outage.ms) {
@@ -97,32 +125,41 @@ function race(options: {
       if (input.seq === options.dropSeq) continue;
       simulation.input('local', { steering: input.steering, seq: input.seq }, now);
     }
+    while (hitsToServer.length && hitsToServer[0]!.at <= now) {
+      simulation.hit('local', { itemId: hitsToServer.shift()!.itemId }, now);
+    }
     while (toClient.length && toClient[0]!.at <= now) {
       snapshot = toClient.shift()!.snapshot;
       snapshotAt = now;
+      snapshots.push({ at: now, speed: snapshot.speed, effect: snapshot.effect });
       if (resync) {
         resync = false;
-        motion = { x: snapshot.x, progress: snapshot.progress };
+        sled = {
+          x: snapshot.x, progress: snapshot.progress, speed: snapshot.speed,
+          effect: '', effectUntil: 0, effectItem: '',
+        };
         trace.clear();
         continue;
       }
       ackClock.acked(snapshot.inputSeq, now);
       const traced = ackClock.measured ? trace.sample(now - ackClock.roundTripMs) : undefined;
       if (traced !== undefined) {
-        const x = reconcileLocalX(motion.x, snapshot.x, traced, CONFIG.steeringSpeed, CONFIG.trackHalfWidth);
-        trace.shift(x - motion.x);
-        motion = { ...motion, x };
+        const x = reconcileLocalX(sled.x, snapshot.x, traced, CONFIG.steeringSpeed, CONFIG.trackHalfWidth);
+        trace.shift(x - sled.x);
+        sled = { ...sled, x };
       }
     }
     if (now % TICK_MS === 0 && now > 0) {
       simulation.step(TICK_MS, now);
+      serverLanes.push({ at: now, x: racer.x, progress: racer.progress });
       // A snapshot made while the link is down is never delivered.
       if (!dropped) {
         toClient.push({
           at: now + oneWayMs,
           snapshot: {
             x: racer.x, progress: racer.progress, speed: racer.speed,
-            steering: racer.steering, inputSeq: racer.inputSeq, rank: racer.rank,
+            steering: racer.steering, inputSeq: racer.inputSeq,
+            effect: racer.effect, rank: racer.rank,
           },
         });
       }
@@ -139,24 +176,57 @@ function race(options: {
     if (dropped) {
       // Prediction is frozen on the last snapshot: steering that cannot reach the
       // server would only build a lane the race will never agree with.
-      motion = { x: snapshot.x, progress: snapshot.progress };
-      lanes.push({ at: now, x: motion.x, steering });
+      sled = { ...sled, x: snapshot.x, progress: snapshot.progress };
+      lanes.push({ at: now, x: sled.x, steering });
+      frames.push({ at: now, sled });
       continue;
     }
-    motion = stepSledMotion(motion, {
-      server: snapshot,
-      steering,
-      steeringSpeed: CONFIG.steeringSpeed,
-      trackHalfWidth: CONFIG.trackHalfWidth,
-      courseLength: CONFIG.courseLength,
-      deltaMs: FRAME_MS,
-      ageMs: now - snapshotAt,
+    // The whole of our own sled runs here — including the collisions, which are
+    // reported to the server rather than waited on.
+    const step = stepLocalSled(sled, {
+      steering, course, claimed, config: CONFIG, deltaMs: FRAME_MS, now,
     });
-    trace.record(now, motion.x);
-    lanes.push({ at: now, x: motion.x, steering });
+    sled = {
+      ...step.sled,
+      progress: reconcileLocalProgress(
+        step.sled.progress, snapshot, now - snapshotAt, CONFIG.courseLength, FRAME_MS,
+      ),
+    };
+    for (const item of step.hits) {
+      claimed.add(item.id);
+      if (!options.silent) hitsToServer.push({ at: now + oneWayMs, itemId: item.id });
+    }
+    trace.record(now, sled.x);
+    lanes.push({ at: now, x: sled.x, steering });
+    frames.push({ at: now, sled });
   }
 
-  return { lanes, serverX: () => racer.x, clientX: () => motion.x };
+  return {
+    lanes,
+    frames,
+    snapshots,
+    serverLanes,
+    serverX: () => racer.x,
+    serverEffect: () => racer.effect,
+    clientX: () => sled.x,
+  };
+}
+
+/** The first thing on the course a sled starting in the middle would run into. */
+function firstItemInTheWay(): SledCourseItem {
+  const item = generateSledCourse(SEED, DIFFICULTY)
+    .find((candidate) => Math.abs(candidate.x) <= candidate.radius);
+  assert.ok(item, `seed ${SEED} has nothing in the middle of the track to collide with`);
+  return item;
+}
+
+/** The first rock or stump in the way — the kind the server goes looking for. */
+function firstObstacleInTheWay(): SledCourseItem {
+  const item = generateSledCourse(SEED, DIFFICULTY).find((candidate) => (
+    candidate.kind !== 'ice' && Math.abs(candidate.x) <= candidate.radius + SLED_RACER_RADIUS
+  ));
+  assert.ok(item, `seed ${SEED} has no obstacle in the middle of the track`);
+  return item;
 }
 
 /** Lane speed between consecutive frames, in pixels per second. */
@@ -281,6 +351,65 @@ test('a reconnect takes the lane the server raced without us, and steers on from
   );
 });
 
+test('a collision is felt the frame the client sees it, and the server follows', () => {
+  const item = firstItemInTheWay();
+  const { frames, snapshots, serverEffect } = race({ durationMs: 2_400, oneWayMs: LAG_MS, keyAt: () => 0 });
+  const feltAt = frames.findIndex((frame) => frame.sled.effect !== '');
+  const felt = frames[feltAt];
+  assert.ok(felt, 'the client drove straight into the course and felt nothing');
+  // The effect lands in the very frame the sled reaches the item — no round trip
+  // between what the player is watching and what it does to them.
+  assert.ok(
+    frames[feltAt - 1]!.sled.progress < item.progress - item.radius && felt.sled.progress >= item.progress - item.radius,
+    `expected the hit as the sled reached ${item.progress - item.radius}, got it at ${Math.round(felt.sled.progress)}`,
+  );
+  assert.ok(
+    felt.sled.speed > CONFIG.baseSpeed * 1.4,
+    `expected the boost in the same frame as the hit, speed was ${Math.round(felt.sled.speed)}`,
+  );
+  // The server learns of it from the report, so it is behind by the trip there —
+  // that lag is now the other racers' view of the bump, not the player's own.
+  const heard = snapshots.find((snapshot) => snapshot.effect !== '');
+  assert.ok(heard, 'the server was never told about the collision');
+  assert.ok(heard.at > felt.at, `the server had the effect at ${heard.at}ms, before the client at ${felt.at}ms`);
+  assert.ok(
+    heard.at - felt.at < LAG_MS * 3,
+    `expected the server a fraction of a second behind, it was ${heard.at - felt.at}ms`,
+  );
+  assert.equal(serverEffect(), 'ice');
+});
+
+test('a dodge the server has not seen yet is not punished', () => {
+  const item = firstItemInTheWay();
+  // Run straight into it once, to learn the moment of contact.
+  const straight = race({ durationMs: 2_400, oneWayMs: LAG_MS, keyAt: () => 0 });
+  const contact = straight.frames.find((frame) => frame.sled.effect !== '');
+  assert.ok(contact, 'the straight run never reached the item');
+  // Now the same run, steering off the item only just before that moment: far
+  // enough to clear it by 10px on the player's screen, late enough that the
+  // server's copy of the lane — a round trip old — still has us pointed at it.
+  const side: -1 | 1 = item.x > 0 ? -1 : 1;
+  const clearBy = item.radius + SLED_RACER_RADIUS - Math.abs(item.x) + 10;
+  const dodgeAt = contact.at - Math.ceil((clearBy / CONFIG.steeringSpeed) * 1_000);
+  const { frames, snapshots, serverLanes, serverEffect } = race({
+    durationMs: 2_400, oneWayMs: LAG_MS, keyAt: (now) => (now < dodgeAt ? 0 : side),
+  });
+  const serverAtContact = serverLanes.find((lane) => lane.progress >= item.progress - item.radius);
+  assert.ok(serverAtContact, 'the server never reached the item');
+  assert.ok(
+    Math.abs(item.x - serverAtContact.x) <= item.radius + SLED_RACER_RADIUS,
+    'the server had already caught up with the dodge, so this no longer tests anything',
+  );
+  assert.ok(
+    frames.every((frame) => frame.sled.effect === ''),
+    'the sled that dodged was bumped anyway',
+  );
+  assert.ok(
+    snapshots.every((snapshot) => snapshot.effect === '') && serverEffect() === '',
+    'the server applied an effect nobody reported',
+  );
+});
+
 test('an input the server never applied is reconciled away, without a lurch', () => {
   // The release is lost in transit — the server's rate limit refuses inputs that
   // land within 12ms of each other, which two frames of a 120Hz display can do.
@@ -300,5 +429,52 @@ test('an input the server never applied is reconciled away, without a lurch', ()
   assert.ok(
     Math.abs(clientX() - serverX()) < steerDeadZone(CONFIG.steeringSpeed),
     `expected the prediction to give way, client ${clientX()} vs server ${serverX()}`,
+  );
+});
+
+test('a rock nobody reported still catches up with the racer who drove through it', () => {
+  const obstacle = firstObstacleInTheWay();
+  const { snapshots, serverLanes } = race({
+    durationMs: 6_000, oneWayMs: LAG_MS, keyAt: () => 0, silent: true,
+  });
+  const settled = obstacle.progress + sledLaneJudgementReach(obstacle, CONFIG);
+  assert.ok(
+    serverLanes[serverLanes.length - 1]!.progress > settled,
+    'the server never got far enough past the rock to settle it',
+  );
+  // Reports make the bump prompt; they are not what makes it happen. Held dead
+  // straight through the rock, the racer is slowed whether they own up or not.
+  assert.ok(
+    snapshots.some((snapshot) => snapshot.effect === 'obstacle'),
+    'a racer who reported nothing was never slowed by the rock they drove through',
+  );
+});
+
+test('a last-moment dodge survives the server settling the rock behind it', () => {
+  const obstacle = firstObstacleInTheWay();
+  const straight = race({ durationMs: 6_000, oneWayMs: LAG_MS, keyAt: () => 0 });
+  const contact = straight.frames.find((frame) => frame.sled.effectItem === obstacle.id);
+  assert.ok(contact, 'the straight run never reached the rock');
+  const side: -1 | 1 = obstacle.x > 0 ? -1 : 1;
+  const clearBy = obstacle.radius + SLED_RACER_RADIUS - Math.abs(obstacle.x) + 10;
+  const dodgeAt = contact.at - Math.ceil((clearBy / CONFIG.steeringSpeed) * 1_000);
+  const { frames, snapshots, serverLanes } = race({
+    durationMs: 6_000, oneWayMs: LAG_MS, keyAt: (now) => (now < dodgeAt ? 0 : side),
+  });
+  const settled = obstacle.progress + sledLaneJudgementReach(obstacle, CONFIG);
+  assert.ok(
+    serverLanes[serverLanes.length - 1]!.progress > settled,
+    'the server never got far enough past the rock to settle it',
+  );
+  // The dodge is late enough that the server's own copy of the lane was still
+  // pointed at the rock when it went past. Its steering history is not, and that
+  // is the whole point: the racer keeps the dodge they watched themselves make.
+  assert.ok(
+    frames.every((frame) => frame.sled.effectItem !== obstacle.id),
+    'the sled that dodged called a hit on itself',
+  );
+  assert.ok(
+    snapshots.every((snapshot) => snapshot.effect !== 'obstacle'),
+    'the server settled the rock against the racer who had already steered clear',
   );
 });

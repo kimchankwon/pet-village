@@ -19,8 +19,8 @@ import {
   worldSceneSpawn,
 } from '../src/index.ts';
 
-test('protocol v7 validates scene-scoped moves within each world bounds', () => {
-  assert.equal(PROTOCOL_VERSION, 7);
+test('protocol v8 validates scene-scoped moves within each world bounds', () => {
+  assert.equal(PROTOCOL_VERSION, 8);
   assert.deepEqual(TOWN_BOUNDS, { width: 1056, height: 768 });
   assert.deepEqual(WORLD_SCENES, [
     'town', 'shore', 'west-green', 'east-green', 'daniels-shop', 'cafe-cinnamon',

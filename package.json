@@ -1,7 +1,7 @@
 {
   "name": "pet-village",
   "private": true,
-  "version": "1.21.0",
+  "version": "1.22.0",
   "type": "module",
   "workspaces": [
     "packages/*",
@@ -36,7 +36,7 @@
     "@auth/core": "^0.41.1",
     "@colyseus/sdk": "0.17.43",
     "@convex-dev/auth": "^0.0.94",
-    "@pet-village/multiplayer-protocol": "1.21.0",
+    "@pet-village/multiplayer-protocol": "1.22.0",
     "convex": "^1.42.1",
     "jose": "^6.1.0",
     "phaser": "^3.90.0",

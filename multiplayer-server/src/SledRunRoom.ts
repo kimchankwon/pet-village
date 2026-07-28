@@ -5,6 +5,8 @@ import {
   SLED_TICK_MS,
   SledRunState,
   type AdmissionClaims,
+  type SledHitPayload,
+  type SledHitRejectedPayload,
   type SledInputPayload,
 } from '@pet-village/multiplayer-protocol';
 import { verifyAdmission } from './TownRoom.ts';
@@ -33,6 +35,7 @@ export class SledRunRoom extends Room<{ state: SledRunState }> {
     this.simulation = new SledRaceSimulation(this.state);
     this.setSimulationInterval((deltaMs) => {
       this.simulation?.step(deltaMs);
+      this.flushRejectedClaims();
       if (this.state.phase === 'finished' && this.matchmakingLocked) {
         this.releaseMatchmakingLock();
       }
@@ -48,6 +51,25 @@ export class SledRunRoom extends Room<{ state: SledRunState }> {
     this.onMessage('sled:input', (client, payload: SledInputPayload) => {
       this.simulation?.input(client.sessionId, payload);
     });
+    // Collisions are called by the racer's own client, against the lane it is
+    // really steering; the room keeps the verdict for the other sleds' view and
+    // checks it against the racer's steering history as the sled goes past.
+    this.onMessage('sled:hit', (client, payload: SledHitPayload) => {
+      this.simulation?.hit(client.sessionId, payload);
+      this.flushRejectedClaims();
+    });
+  }
+
+  /**
+   * Tell clients about claims the server would not keep, so the one that made it
+   * can drop the effect it already showed rather than run the rest of the race a
+   * boost or a bump out of step with everyone else.
+   */
+  private flushRejectedClaims() {
+    for (const claim of this.simulation?.takeRejectedClaims() ?? []) {
+      const payload: SledHitRejectedPayload = { itemId: claim.itemId };
+      this.clients.getById(claim.sessionId)?.send('sled:hit:rejected', payload);
+    }
   }
 
   onJoin(client: Client, _options: unknown, claims: AdmissionClaims) {

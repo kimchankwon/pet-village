@@ -32,6 +32,14 @@ export type SledMotion = { x: number; progress: number };
 /** Blend rates, per second: high enough to correct fast, low enough not to snap. */
 export const SLED_X_BLEND_RATE = 7;
 export const SLED_PROGRESS_BLEND_RATE = 4;
+/**
+ * How hard our own sled is drawn back onto the server's copy of it, per second.
+ * Far gentler than a remote follow: our collisions are called here and reported,
+ * so the server is a round trip behind on every bump and chasing it would undo
+ * the dodge the player just made. This only stops that lag from drifting into a
+ * real gap over a whole run.
+ */
+export const SLED_LOCAL_PROGRESS_RATE = 1;
 /** Past these gaps the prediction is wrong about something — take the server's word. */
 export const SLED_X_SNAP = 110;
 export const SLED_PROGRESS_SNAP = 260;
@@ -124,6 +132,30 @@ export function reconcileLocalX(
     ? predictedX + error
     : predictedX + error * SLED_X_CORRECTION_GAIN;
   return clamp(corrected, -trackHalfWidth, trackHalfWidth);
+}
+
+/**
+ * Fold the server's copy of our own progress into the progress we simulated. The
+ * two disagree by design now: a bump is called here and takes half a trip to be
+ * reported, so the server applies it later and stays a little behind. That gap is
+ * eased away slowly, and only a gap too wide to be latency — a rejected hit, a
+ * sleeping tab — takes the server's word outright.
+ */
+export function reconcileLocalProgress(
+  predictedProgress: number,
+  server: { progress: number; speed: number },
+  ageMs: number,
+  courseLength: number,
+  deltaMs: number,
+) {
+  const target = Math.min(courseLength, extrapolate(server.progress, server.speed, ageMs));
+  return Math.min(courseLength, blendTowardServer(
+    predictedProgress,
+    target,
+    deltaMs,
+    SLED_LOCAL_PROGRESS_RATE,
+    SLED_PROGRESS_SNAP,
+  ));
 }
 
 export type SledMotionInput = {

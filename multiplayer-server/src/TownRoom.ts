@@ -76,7 +76,7 @@ const PENGUIN_COLORS = new Set([
 ]);
 
 // Four ticket versions are retained by the rolling-compatibility policy.
-const SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([4, 5, 6, PROTOCOL_VERSION]);
+const SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([5, 6, 7, PROTOCOL_VERSION]);
 
 export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
   const { payload } = await jwtVerify(token, secret(), {

@@ -6,6 +6,7 @@ import {
   predictProgress,
   predictSteeredX,
   predictionStepSeconds,
+  reconcileLocalProgress,
   reconcileLocalX,
   steerDeadZone,
   stepSledMotion,
@@ -46,6 +47,29 @@ test('blending closes the gap to the server without snapping on small errors', (
   // A wide gap means the prediction missed something (a rock, a sleeping tab).
   assert.equal(blendTowardServer(0, SLED_X_SNAP, 100, 7, SLED_X_SNAP), SLED_X_SNAP);
   assert.equal(blendTowardServer(0, -SLED_PROGRESS_SNAP, 100, 4, SLED_PROGRESS_SNAP), -SLED_PROGRESS_SNAP);
+});
+
+test('our own progress is eased toward the server, gently enough to keep a dodge', () => {
+  // The server is behind by the trip our collision report took, so it still has us
+  // going full speed: a frame of that disagreement must barely move the sled, or the
+  // hill would drag back the bump we just took (and, dodging, punish us for nothing).
+  const server = { progress: 3_000, speed: 380 };
+  const eased = reconcileLocalProgress(2_940, server, 0, RACE.courseLength, 16);
+  assert.ok(
+    eased - 2_940 < 1.5,
+    `expected barely any pull in one frame, got ${(eased - 2_940).toFixed(2)}px`,
+  );
+  assert.ok(eased > 2_940, 'the gap should still close, just slowly');
+  // A gap this wide is not latency — a report the server refused, or a sleeping tab.
+  assert.equal(
+    reconcileLocalProgress(3_000 + SLED_PROGRESS_SNAP, server, 0, RACE.courseLength, 16),
+    3_000,
+  );
+  // Never past the line: the server decides who finished, and when.
+  assert.equal(
+    reconcileLocalProgress(RACE.courseLength, { progress: RACE.courseLength, speed: 380 }, 400, RACE.courseLength, 16),
+    RACE.courseLength,
+  );
 });
 
 test('a snapshot is carried forward at the rate it reported, but never far', () => {
