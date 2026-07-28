@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pet Village — Guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-deep: #12101a;
+        --bg: #1a1626;
+        --bg-panel: #241f35;
+        --line: #3a3352;
+        --text: #efe8ff;
+        --muted: #a89bc4;
+        --accent: #7ed6a8;
+        --key: #f0c674;
+        --warm: #e8a0b8;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        color: var(--text);
+        font-family: "VT323", monospace;
+        font-size: 1.35rem;
+        line-height: 1.35;
+        background:
+          radial-gradient(ellipse 80% 50% at 50% -10%, #2d2644 0%, transparent 55%),
+          radial-gradient(ellipse 60% 40% at 100% 100%, #1e3a32 0%, transparent 45%),
+          linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+      }
+
+      .wrap {
+        width: min(720px, calc(100% - 2rem));
+        margin: 0 auto;
+        padding: 2.5rem 0 3.5rem;
+      }
+
+      header {
+        margin-bottom: 2rem;
+        animation: rise 0.6s ease-out both;
+      }
+
+      .brand {
+        margin: 0 0 0.85rem;
+        font-family: "Press Start 2P", monospace;
+        font-size: clamp(1.1rem, 4vw, 1.55rem);
+        letter-spacing: 0.04em;
+        color: var(--accent);
+        text-shadow: 3px 3px 0 #0d3d2a;
+      }
+
+      h1 {
+        margin: 0 0 0.4rem;
+        font-family: "Press Start 2P", monospace;
+        font-size: clamp(0.85rem, 3vw, 1.05rem);
+        line-height: 1.5;
+      }
+
+      .lede {
+        margin: 0;
+        color: var(--muted);
+        font-size: 1.45rem;
+      }
+
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        margin-top: 1.1rem;
+      }
+
+      .play {
+        display: inline-block;
+        padding: 0.55rem 0.9rem;
+        color: var(--bg-deep);
+        background: var(--accent);
+        text-decoration: none;
+        font-family: "Press Start 2P", monospace;
+        font-size: 0.65rem;
+        box-shadow: 3px 3px 0 #0d3d2a;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      .play.ghost {
+        color: var(--accent);
+        background: transparent;
+        border: 2px solid var(--accent);
+      }
+
+      .play:hover,
+      .play:focus-visible {
+        transform: translate(-1px, -1px);
+        box-shadow: 4px 4px 0 #0d3d2a;
+        outline: none;
+      }
+
+      nav.toc {
+        margin-bottom: 1.5rem;
+        padding: 0.9rem 1.15rem 1rem;
+        border: 2px dashed var(--line);
+        animation: rise 0.65s ease-out both;
+      }
+
+      nav.toc p {
+        margin: 0 0 0.5rem;
+        color: var(--muted);
+        font-size: 1.15rem;
+      }
+
+      nav.toc a {
+        color: var(--key);
+        text-decoration: none;
+        border-bottom: 1px dotted var(--line);
+      }
+
+      nav.toc a:hover,
+      nav.toc a:focus-visible {
+        color: var(--accent);
+        outline: none;
+      }
+
+      nav.toc span {
+        color: var(--line);
+        padding: 0 0.35rem;
+      }
+
+      section {
+        margin-bottom: 1.5rem;
+        padding: 1.1rem 1.15rem 1.2rem;
+        background: color-mix(in srgb, var(--bg-panel) 88%, transparent);
+        border: 2px solid var(--line);
+        animation: rise 0.7s ease-out both;
+      }
+
+      h2 {
+        margin: 0 0 0.85rem;
+        font-family: "Press Start 2P", monospace;
+        font-size: 0.72rem;
+        color: var(--warm);
+        letter-spacing: 0.03em;
+      }
+
+      h3 {
+        margin: 1.15rem 0 0.4rem;
+        font-family: "Press Start 2P", monospace;
+        font-size: 0.6rem;
+        color: var(--key);
+      }
+
+      h3:first-of-type {
+        margin-top: 0;
+      }
+
+      p {
+        margin: 0 0 0.7rem;
+      }
+
+      p:last-child {
+        margin-bottom: 0;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 0.55rem 0.35rem;
+        text-align: left;
+        vertical-align: top;
+        border-bottom: 1px solid var(--line);
+      }
+
+      th {
+        color: var(--muted);
+        font-weight: 400;
+        font-size: 1.15rem;
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      td.coins {
+        color: var(--key);
+        white-space: nowrap;
+      }
+
+      kbd {
+        display: inline-block;
+        padding: 0.12rem 0.4rem 0.05rem;
+        color: var(--bg-deep);
+        background: var(--key);
+        border: 2px solid #c9a24b;
+        box-shadow: 2px 2px 0 #6b5420;
+        font-family: "Press Start 2P", monospace;
+        font-size: 0.55rem;
+        line-height: 1.6;
+        white-space: nowrap;
+      }
+
+      ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      li {
+        position: relative;
+        padding: 0.45rem 0 0.45rem 1.1rem;
+        border-bottom: 1px solid var(--line);
+        color: var(--text);
+      }
+
+      li:last-child {
+        border-bottom: none;
+      }
+
+      li::before {
+        content: "▸";
+        position: absolute;
+        left: 0;
+        color: var(--accent);
+      }
+
+      strong {
+        color: var(--accent);
+        font-weight: 400;
+      }
+
+      .note {
+        color: var(--muted);
+      }
+
+      a.inline {
+        color: var(--key);
+      }
+
+      footer {
+        margin-top: 1.75rem;
+        color: var(--muted);
+        font-size: 1.15rem;
+        animation: rise 0.8s ease-out both;
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 520px) {
+        body {
+          font-size: 1.2rem;
+        }
+
+        kbd {
+          font-size: 0.48rem;
+          padding: 0.1rem 0.28rem 0.02rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <header>
+        <p class="brand">Pet Village</p>
+        <h1>Player's guide</h1>
+        <p class="lede">
+          Adopt a pet, keep them fed and happy, earn coins around the village, and decorate a
+          house — with other penguins wandering the same streets.
+        </p>
+        <div class="links">
+          <a class="play" href="https://kimchankwon.github.io/pet-village/">Play the game</a>
+          <a class="play ghost" href="./controls.html">Controls</a>
+        </div>
+      </header>
+
+      <nav class="toc" aria-label="On this page">
+        <p>On this page</p>
+        <a href="#start">Getting started</a><span>·</span>
+        <a href="#pet">Your pet</a><span>·</span>
+        <a href="#map">The village</a><span>·</span>
+        <a href="#games">Mini-games</a><span>·</span>
+        <a href="#coins">Coins &amp; shopping</a><span>·</span>
+        <a href="#house">Your house</a><span>·</span>
+        <a href="#together">Playing together</a><span>·</span>
+        <a href="#saves">Saves</a>
+      </nav>
+
+      <section aria-labelledby="start">
+        <h2 id="start">Getting started</h2>
+        <p>
+          Sign in with Google or email for cloud saves and multiplayer, or hit
+          <strong>Continue as guest</strong> to play the whole single-player game on local saves.
+        </p>
+        <p>
+          Then <strong>adopt a pet</strong>: pick from the Tamagotchi cast (Mametchi, Kuchipatchi,
+          Mimitchi and friends), the mascot friends, or a Puffle in ten colours — then give them a
+          name. That name is yours: once you've adopted, no other player can take it.
+        </p>
+        <p>
+          You start in <strong>Town</strong> as a penguin with your pet trotting behind you. Walk
+          with <kbd>WASD</kbd> / arrows or click where you want to go. Anything you can use —
+          doors, shop counters, game booths, villagers, your pet — shows a prompt when you get
+          close: press <kbd>E</kbd> or <kbd>Space</kbd>, or just click it.
+        </p>
+      </section>
+
+      <section aria-labelledby="pet">
+        <h2 id="pet">Your pet</h2>
+        <p>
+          Three needs sit at the top of the screen and <strong>decay in real time</strong> — even
+          while the game is closed, capped at 12 hours away so a week off isn't a punishment. Per
+          hour: food −6, happy −4, energy −3.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Need</th>
+              <th scope="col">How to fill it</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Food</td>
+              <td>
+                Feed a snack from the pet menu (<kbd>P</kbd>) — buy snacks at Daniel's Shop or
+                fish for them at the Shore
+              </td>
+            </tr>
+            <tr>
+              <td>Happy</td>
+              <td>
+                Play a mini-game, chat with your pet, or dress them in clothes from Cafe Cinnamon
+              </td>
+            </tr>
+            <tr>
+              <td>Energy</td>
+              <td>Tuck your pet into a bed at home — they wake up at full energy</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="note">
+          Mini-games spend your pet's energy, and they need at least 5 to start one — so a tired
+          pet needs a nap before the next round. Buy a <strong>Dream Bed</strong> (50 coins),
+          place it in the house, then stand next to it for the <kbd>E</kbd> / <kbd>Space</kbd> /
+          click prompt, or click the bed and choose "Tuck in".
+        </p>
+      </section>
+
+      <section aria-labelledby="map">
+        <h2 id="map">The village</h2>
+        <ul>
+          <li>
+            <strong>Town</strong> — the hub. Your house, Daniel's Shop and Cafe Cinnamon are here,
+            with signed gates out: West Green to the left, East Green to the right, the Shore at
+            the bottom.
+          </li>
+          <li>
+            <strong>The West Green</strong> — the Skip Rope booth, the Bump arena and the Sled Run
+            hill.
+          </li>
+          <li><strong>The East Green</strong> — the Paper Toss and Get arcade cabinets.</li>
+          <li>
+            <strong>The Shore</strong> — cast a line and fish for food. Your biggest catch is
+            recorded in centimetres.
+          </li>
+          <li>
+            <strong>Daniel's Shop</strong> — food, furniture and fishing bait. Talk to Daniel at
+            the counter.
+          </li>
+          <li>
+            <strong>Cafe Cinnamon</strong> — Cinna's boutique: penguin colourways and clothes for
+            you and your pet.
+          </li>
+          <li>
+            <strong>Your house</strong> — a decoratable grid, and the only place your pet can
+            sleep.
+          </li>
+        </ul>
+        <p class="note">
+          Villagers wander town and the greens. Say hello — each hands out one small coin gift per
+          day, and Bongbongee gifts CARAT clothes for your pet.
+        </p>
+      </section>
+
+      <section aria-labelledby="games">
+        <h2 id="games">Mini-games</h2>
+        <p>
+          Every game costs your pet a little energy and pays coins plus happiness. Harder
+          difficulties cost more energy and pay more back.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Game</th>
+              <th scope="col">How it plays</th>
+              <th scope="col">Pays</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Paper Toss<br /><span class="note">East Green</span></td>
+              <td>
+                Drag and release to slingshot a paper ball into the bin. Sink 3 baskets in 5 throws
+                before 3 misses; a run is two levels. The wind changes every throw and the bin
+                wanders.
+              </td>
+              <td class="coins">2 per basket<br />+1 swish / bank / streak<br />+4 per level</td>
+            </tr>
+            <tr>
+              <td>Get<br /><span class="note">East Green</span></td>
+              <td>
+                Catch falling music notes in the bowl and dodge the poop. The bowl gets narrower
+                as the difficulty rises.
+              </td>
+              <td class="coins">6 / 14 / 26</td>
+            </tr>
+            <tr>
+              <td>Skip Rope<br /><span class="note">West Green</span></td>
+              <td>
+                Time your jumps. 25 in a row clears it — and a run that ends early still banks a
+                little for every 5 jumps cleared.
+              </td>
+              <td class="coins">20 on a clear<br />2 per 5 jumps</td>
+            </tr>
+            <tr>
+              <td>Bump!<br /><span class="note">West Green</span></td>
+              <td>
+                Hold until the villager makes their move, then mash <kbd>Space</kbd> (or tap) to
+                out-shove them. Pressing too soon costs ground; energy is paid up front, win or
+                lose.
+              </td>
+              <td class="coins">6 / 14 / 26</td>
+            </tr>
+            <tr>
+              <td>Sled Run<br /><span class="note">West Green</span></td>
+              <td>
+                Up to four penguins race down the hill on one server-run simulation — steer around
+                the stumps and rocks rushing up from the bottom of the screen, ride the ice patches.
+                The lobby leader picks the difficulty and starts the countdown.
+              </td>
+              <td class="coins">up to 22<br />by finish rank</td>
+            </tr>
+            <tr>
+              <td>Fishing<br /><span class="note">The Shore</span></td>
+              <td>
+                Drag to aim your cast the way you throw in Paper Toss, click the moment the line
+                dips, then hold to reel. Bait is 3 coins at Daniel's.
+              </td>
+              <td class="coins">fish, not coins</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="note">
+          Fish are food, and the rarer the better: Silver Minnow, then Mint Bass, then Sunset
+          Snapper (45 food, 22 happy). None of them are for sale — the Shore is the only source.
+        </p>
+      </section>
+
+      <section aria-labelledby="coins">
+        <h2 id="coins">Coins &amp; shopping</h2>
+        <h3>Daniel's Shop</h3>
+        <ul>
+          <li><strong>Food</strong> — Fishy Snack 5, Choco Cookie 8.</li>
+          <li><strong>Bait</strong> — 3 coins a cast.</li>
+          <li>
+            <strong>Furniture</strong> — Flower Vase 15, Potted Plant 20, Sun Lamp 22, Pink Rug
+            25, Cozy Chair 30, Wood Table 35, Bookshelf 45, Dream Bed 50, Retro TV 60.
+          </li>
+        </ul>
+        <h3>Cafe Cinnamon</h3>
+        <ul>
+          <li><strong>Penguin colours</strong> — twelve colourways for your own penguin.</li>
+          <li><strong>Clothes</strong> — hats, held items and outfits, for you and for your pet.</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="house">
+        <h2 id="house">Your house</h2>
+        <p>
+          Buy furniture, then press <kbd>I</kbd> at home to open the decorate menu and place it on
+          the grid. Click a placed piece to pick it back up into your inventory — or, if it's a
+          bed, to tuck your pet in.
+        </p>
+      </section>
+
+      <section aria-labelledby="together">
+        <h2 id="together">Playing together</h2>
+        <p>
+          Sign in and the village fills up. Presence is shared across <strong>six worlds</strong>
+          — Town, the Shore, both Greens, Daniel's Shop and Cafe Cinnamon — so you see everyone in
+          the room with you, pets and all.
+        </p>
+        <ul>
+          <li>
+            <strong>Wave hello.</strong> Click any penguin — if they're across the square your
+            own walks over first and waves once it arrives (click elsewhere to call it off).
+            They get a toast telling them who waved.
+          </li>
+          <li>
+            <strong>Names float above everyone</strong> — the player's name over the player, the
+            pet's name over the pet — and no two villagers can share one.
+          </li>
+          <li>
+            <strong>Players in a mini-game stay in the world</strong>, dimmed and labelled with
+            what they're playing, so the streets never look empty.
+          </li>
+          <li>
+            <strong>The server owns positions.</strong> It grants one spawn per world transition
+            and corrects clients that drift, so nobody teleports around the map.
+          </li>
+          <li>
+            <strong>Drop out and come back</strong> within the grace window and you return to the
+            world you were in, with no ghost of you left behind.
+          </li>
+          <li>
+            <strong>Rename yourself or your pet</strong> from the topbar; the new name is
+            re-reserved and pushed to everyone who can see you.
+          </li>
+        </ul>
+        <p class="note">
+          Two known gaps: remote penguins render in their own colourway but not yet in their
+          clothes, and only your Town spot is remembered between sessions — every other world puts
+          you at its portal.
+        </p>
+      </section>
+
+      <section aria-labelledby="saves">
+        <h2 id="saves">Saves</h2>
+        <p>
+          Signed in, your save lives in the cloud and follows you between devices. As a guest it
+          lives in this browser's localStorage, so clearing site data resets your progress. Either
+          way your pet keeps living while you're away — capped at 12 hours of catching up.
+        </p>
+      </section>
+
+      <footer>
+        Pet Village is a hobby game built with Phaser. The
+        <a class="inline" href="./controls.html">controls page</a> has the full input list.
+      </footer>
+    </main>
+  </body>
+</html>

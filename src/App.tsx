@@ -14,6 +14,8 @@ import { connectMultiplayer, type MultiplayerConnection } from './systems/multip
 import { multiplayerBridge } from './systems/multiplayerBridge';
 import { setMultiplayerTicketIssuer } from './systems/multiplayerTickets';
 import { validateProfileNames } from './systems/profileNameRules';
+import { setLocalDisplayName } from './systems/localProfile';
+import { beginTextEntry, endTextEntry, textEntryKeyAction } from './systems/textEntry';
 
 // Game-styled confirmation dialog. ESC cancels via a capture-phase listener
 // with stopPropagation so Phaser's own window keydown listener doesn't also
@@ -73,6 +75,13 @@ function NamesModal({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Phaser captures WASD / Space / I / P on the window, which swallowed most of
+  // what you tried to type in here. Release the capture while the form is open.
+  useEffect(() => {
+    beginTextEntry();
+    return () => endTextEntry();
+  }, []);
+
   async function save() {
     setSaving(true);
     setError('');
@@ -98,16 +107,29 @@ function NamesModal({
           event.preventDefault();
           void save();
         }}
+        onKeyDown={(event) => {
+          const action = textEntryKeyAction(event.key);
+          // Escape belongs to the panel's own capture-phase handler, which has
+          // already run by the time this fires — let it through. Everything else
+          // is typing, so keep it from bubbling out to the shell's listeners.
+          if (action === 'close') return;
+          event.stopPropagation();
+          if (action !== 'save') return;
+          event.preventDefault();
+          if (!saving) void save();
+        }}
       >
         <h2>Change names</h2>
         <label className="name-field">
           Your player name
-          <input value={displayName} maxLength={20} autoComplete="off" onChange={(event) => setDisplayName(event.target.value)} />
+          {/* Focused on open so the first keystroke lands in the field. */}
+          <input autoFocus value={displayName} maxLength={20} autoComplete="off" onChange={(event) => setDisplayName(event.target.value)} />
         </label>
         <label className="name-field">
           Your pet&apos;s name
           <input value={petName} maxLength={16} autoComplete="off" onChange={(event) => setPetName(event.target.value)} />
         </label>
+        <p className="form-hint">Enter saves · Esc goes back</p>
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="confirm-actions">
           <button type="button" className="btn ghost" onClick={onBack}>Back</button>
@@ -317,6 +339,12 @@ function CloudGame() {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const wakeMultiplayerRetryRef = useRef<(() => void) | null>(null);
+
+  // The nametag over your own penguin lives in Phaser, which never sees the
+  // Convex profile — publish the name here so it (and renames) reach it.
+  useEffect(() => {
+    setLocalDisplayName(viewer?.name ?? '');
+  }, [viewer?.name]);
 
   // Hydrate exactly once, from the first cloud snapshot. Every save echoes
   // back through this subscription; re-hydrating from an echo would clobber
@@ -547,6 +575,8 @@ function GuestGame({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     State.setCloudSaver(null);
     State.setAdoptionSaver(null);
+    // Guests have no profile name; the nametag falls back to "You".
+    setLocalDisplayName('');
     if (!hostRef.current) return;
     resetUiBlock();
     const game = startGame(hostRef.current, { restoreTownPosition: gameKey === 0 });

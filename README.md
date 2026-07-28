@@ -13,6 +13,10 @@ saves via Convex (Google or email/password).
 
 https://kimchankwon.github.io/pet-village/
 
+- [Player's guide](https://kimchankwon.github.io/pet-village/guide.html) —
+  pets, worlds, mini-game payouts, shop prices, multiplayer
+- [Controls](https://kimchankwon.github.io/pet-village/controls.html)
+
 ## Run it
 
 ```sh

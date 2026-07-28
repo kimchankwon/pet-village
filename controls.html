@@ -193,6 +193,10 @@
         font-weight: 400;
       }
 
+      a.inline {
+        color: var(--key);
+      }
+
       footer {
         margin-top: 1.75rem;
         color: var(--muted);
@@ -233,13 +237,13 @@
       <header>
         <p class="brand">Pet Village</p>
         <h1>Controls</h1>
-        <p class="lede">Walk, care for Mochi, decorate your house, and earn coins.</p>
+        <p class="lede">Walk, care for your pet, decorate your house, and earn coins.</p>
         <a class="play" href="https://kimchankwon.github.io/pet-village/">Play the game</a>
-        <a class="play ghost" href="./multiplayer.html">Multiplayer</a>
+        <a class="play ghost" href="./guide.html">Game guide</a>
       </header>
 
       <section aria-labelledby="inputs">
-        <h2 id="inputs">Inputs</h2>
+        <h2 id="inputs">Around the village</h2>
         <table>
           <thead>
             <tr>
@@ -253,24 +257,33 @@
               <td>Walk around</td>
             </tr>
             <tr>
-              <td>Click / tap</td>
+              <td>Click / tap, or hold</td>
               <td>Walk to that spot (Club Penguin style)</td>
             </tr>
             <tr>
-              <td><kbd>E</kbd> / click</td>
-              <td>Interact when close (door, shop, arcade, your pet)</td>
+              <td>On-screen joystick</td>
+              <td>Drag it to walk on a phone or tablet</td>
+            </tr>
+            <tr>
+              <td><kbd>E</kbd> / <kbd>Space</kbd> / click</td>
+              <td>Use whatever is prompting you: door, gate, shop counter, game booth,
+                villager, your pet</td>
+            </tr>
+            <tr>
+              <td><kbd>P</kbd></td>
+              <td>Open the pet menu — feed a snack, play, check needs</td>
+            </tr>
+            <tr>
+              <td>Click another penguin</td>
+              <td>Wave hello — from far away you walk over first, then wave</td>
             </tr>
             <tr>
               <td><kbd>I</kbd></td>
-              <td>In house: open the decorate menu</td>
+              <td>At home: open the decorate menu</td>
             </tr>
             <tr>
               <td>Click furniture</td>
-              <td>In house: pick it up into inventory</td>
-            </tr>
-            <tr>
-              <td>Drag + release</td>
-              <td>Paper toss: slingshot the paper ball</td>
+              <td>At home: pick it back up — or tuck your pet into a bed</td>
             </tr>
             <tr>
               <td><kbd>ESC</kbd> / click outside</td>
@@ -280,30 +293,81 @@
         </table>
       </section>
 
+      <section aria-labelledby="games">
+        <h2 id="games">In the mini-games</h2>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Game</th>
+              <th scope="col">Input</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Paper Toss</td>
+              <td>Drag back and release to slingshot the ball</td>
+            </tr>
+            <tr>
+              <td>Fishing</td>
+              <td>Drag to aim the cast, click when the line dips, then hold to reel</td>
+            </tr>
+            <tr>
+              <td>Skip Rope</td>
+              <td><kbd>Space</kbd> / tap to jump</td>
+            </tr>
+            <tr>
+              <td>Bump!</td>
+              <td>Wait for the villager's move, then mash <kbd>Space</kbd> / tap</td>
+            </tr>
+            <tr>
+              <td>Get</td>
+              <td><kbd>A</kbd> <kbd>D</kbd> / left + right arrows, or hold on the side you want,
+                to slide the bowl</td>
+            </tr>
+            <tr>
+              <td>Sled Run</td>
+              <td><kbd>A</kbd> <kbd>D</kbd> / left + right arrows, or tap either side, to steer</td>
+            </tr>
+            <tr>
+              <td>Any game</td>
+              <td><kbd>ESC</kbd> or the back button to bail out</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
       <section aria-labelledby="tips">
         <h2 id="tips">Village tips</h2>
         <ul>
           <li>
-            <strong>Mochi</strong> follows you everywhere. Food / Happy / Energy decay in
-            real time — including while the game is closed (capped at 12h). Feed snacks,
-            play, and tuck Mochi into a bed to restore energy.
+            <strong>Your pet</strong> follows you everywhere. Food / Happy / Energy decay in real
+            time — including while the game is closed (capped at 12h). Feed snacks, play, and tuck
+            them into a bed to restore energy.
           </li>
           <li>
-            <strong>Bella's Shop</strong> sells food and furniture for coins.
+            <strong>Daniel's Shop</strong> sells food, fishing bait and furniture. <strong>Cafe
+            Cinnamon</strong> sells penguin colourways and clothes for you and your pet.
           </li>
           <li>
-            <strong>Paper Toss</strong> earns coins: 10 throws per round, 3 coins per
-            basket, +2 streak bonus from 3 in a row. Wind changes every throw and the bin
-            wanders.
+            <strong>The West Green</strong> has Skip Rope, Bump! and the Sled Run hill; the
+            <strong>East Green</strong> has the Paper Toss and Get cabinets; the
+            <strong>Shore</strong> is for fishing. Mini-games need at least 5 pet energy to start.
           </li>
           <li>
             <strong>Your house</strong> is a decoratable grid: buy furniture, place with
             <kbd>I</kbd>, click to pick it back up.
           </li>
+          <li>
+            <strong>Say hello to villagers</strong> — each has one small coin gift a day.
+          </li>
         </ul>
       </section>
 
-      <footer>Saves live in your browser (localStorage). Clearing site data resets progress.</footer>
+      <footer>
+        Signed in, your save lives in the cloud; as a guest it lives in this browser's
+        localStorage, so clearing site data resets progress. The
+        <a class="inline" href="./guide.html">game guide</a> covers rewards, prices and multiplayer.
+      </footer>
     </main>
   </body>
 </html>

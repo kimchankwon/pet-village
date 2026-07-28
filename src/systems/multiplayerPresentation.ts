@@ -102,6 +102,58 @@ export function canInitiateWave(
   return active && Math.hypot(remote.x - local.x, remote.y - local.y) <= radius;
 }
 
+/** Stop this far inside the wave radius, so a step of drift doesn't undo the walk. */
+const WAVE_APPROACH_MARGIN = 0.6;
+
+/** Where to walk to when the player clicks someone too far away to wave at. */
+export function approachPointForWave(local: Point, remote: Point, radius: number): Point {
+  const dx = remote.x - local.x;
+  const dy = remote.y - local.y;
+  const distance = Math.hypot(dx, dy);
+  const stopShort = radius * WAVE_APPROACH_MARGIN;
+  if (distance <= stopShort || distance === 0) return { x: local.x, y: local.y };
+  const travel = distance - stopShort;
+  return {
+    x: local.x + (dx / distance) * travel,
+    y: local.y + (dy / distance) * travel,
+  };
+}
+
+export type PendingWaveDecision = 'wave' | 'retarget' | 'walking' | 'cancel';
+
+/** How long to chase someone before giving up on the queued wave. */
+export const WAVE_APPROACH_TIMEOUT_MS = 12_000;
+
+/** How far the target must have drifted to be worth walking another leg. */
+export const WAVE_RETARGET_MIN_MOVE_PX = 24;
+
+/**
+ * What to do with a queued wave on this frame: the target may have walked off,
+ * left the scene, started a minigame, or simply not be reached yet.
+ *
+ * `targetMovedPx` is how far the target has drifted since the last leg was
+ * aimed. Once the walk has ended without arriving, that number is the only way
+ * to tell "they wandered off, chase them" from "the walk was cancelled" — a
+ * blocking collider, or the player taking the controls back with WASD, both of
+ * which should drop the queued wave rather than re-aim it every frame.
+ */
+export function pendingWaveDecision(input: {
+  present: boolean;
+  active: boolean;
+  distance: number;
+  radius: number;
+  walking: boolean;
+  elapsedMs: number;
+  targetMovedPx: number;
+  timeoutMs?: number;
+}): PendingWaveDecision {
+  if (!input.present || !input.active) return 'cancel';
+  if (input.distance <= input.radius) return 'wave';
+  if (input.elapsedMs >= (input.timeoutMs ?? WAVE_APPROACH_TIMEOUT_MS)) return 'cancel';
+  if (input.walking) return 'walking';
+  return input.targetMovedPx >= WAVE_RETARGET_MIN_MOVE_PX ? 'retarget' : 'cancel';
+}
+
 /** Returns the authored wave frame, or null once the one-shot is complete. */
 export function waveAnimationFrame(elapsedMs: number): number | null {
   if (elapsedMs < 0) return WAVE_FRAME_SEQUENCE[0];

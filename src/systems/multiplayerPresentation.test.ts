@@ -17,6 +17,10 @@ import {
   stepRemotePosition,
   waveAnimationFrame,
   canInitiateWave,
+  approachPointForWave,
+  pendingWaveDecision,
+  WAVE_APPROACH_TIMEOUT_MS,
+  WAVE_RETARGET_MIN_MOVE_PX,
 } from './multiplayerPresentation';
 
 test('filters every connection belonging to the local authenticated user', () => {
@@ -140,6 +144,35 @@ test('wave gating requires an active nearby player', () => {
   assert.equal(canInitiateWave({ x: 0, y: 0 }, { x: 92, y: 0 }, true, 92), true);
   assert.equal(canInitiateWave({ x: 0, y: 0 }, { x: 93, y: 0 }, true, 92), false);
   assert.equal(canInitiateWave({ x: 0, y: 0 }, { x: 1, y: 0 }, false, 92), false);
+});
+
+test('clicking someone far away walks to just inside wave range', () => {
+  // 200px away, radius 92: stop 55.2px short, so the walk covers 144.8px.
+  assert.deepEqual(approachPointForWave({ x: 0, y: 0 }, { x: 200, y: 0 }, 92), { x: 144.8, y: 0 });
+  const diagonal = approachPointForWave({ x: 10, y: 10 }, { x: 10, y: 210 }, 92);
+  assert.equal(diagonal.x, 10);
+  assert.equal(Math.round(diagonal.y), 155);
+  // Already close enough: stay put and let the wave fire.
+  assert.deepEqual(approachPointForWave({ x: 5, y: 5 }, { x: 25, y: 5 }, 92), { x: 5, y: 5 });
+  assert.deepEqual(approachPointForWave({ x: 5, y: 5 }, { x: 5, y: 5 }, 92), { x: 5, y: 5 });
+});
+
+test('a queued wave fires on arrival, retargets a mover, and gives up eventually', () => {
+  const base = { present: true, active: true, radius: 92, walking: true, elapsedMs: 0, targetMovedPx: 0 };
+  assert.equal(pendingWaveDecision({ ...base, distance: 90 }), 'wave');
+  assert.equal(pendingWaveDecision({ ...base, distance: 300 }), 'walking');
+  // The walk ended short of the target — they moved on, so aim again.
+  assert.equal(
+    pendingWaveDecision({ ...base, distance: 300, walking: false, targetMovedPx: WAVE_RETARGET_MIN_MOVE_PX }),
+    'retarget',
+  );
+  // The walk ended and they never moved: a collider stopped us, or the player
+  // walked off with WASD. Either way, stop re-issuing the walk every frame.
+  assert.equal(pendingWaveDecision({ ...base, distance: 300, walking: false }), 'cancel');
+  assert.equal(pendingWaveDecision({ ...base, distance: 300, elapsedMs: WAVE_APPROACH_TIMEOUT_MS }), 'cancel');
+  // Left the scene, or started a minigame: nothing to walk to.
+  assert.equal(pendingWaveDecision({ ...base, distance: 300, present: false }), 'cancel');
+  assert.equal(pendingWaveDecision({ ...base, distance: 300, active: false }), 'cancel');
 });
 
 test('wave timing selects authored frames and ends cleanly', () => {

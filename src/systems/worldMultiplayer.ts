@@ -8,9 +8,11 @@ import {
   type WorldSceneId,
 } from './multiplayerBridge';
 import {
+  approachPointForWave,
   handleRemotePlayerPointerDown,
   canInitiateWave,
   isNewWave,
+  pendingWaveDecision,
   isNewWaveForLocalPlayer,
   normalizePenguinColor,
   positionCorrectionAction,
@@ -36,6 +38,8 @@ import {
   type PetSpecies,
 } from './pets';
 import { feetDepth } from './depth';
+import { localDisplayName } from './localProfile';
+import { State } from './GameState';
 import { toast } from './UI';
 import { phaserWorldSceneKey, translateWorldCoordinates } from './worldCoordinates';
 import {
@@ -77,6 +81,13 @@ export type WorldMultiplayerOptions = {
   localPlayer: Phaser.Physics.Arcade.Sprite;
   pet: Pet;
   cancelLocalMovement: () => void;
+  /**
+   * Walk the local player somewhere — used to close in on a wave target.
+   * `quiet` suppresses the click marker, for the re-aims of a walk in progress.
+   */
+  moveLocalTo?: (x: number, y: number, quiet: boolean) => void;
+  /** True while the local player is still walking to a click-move target. */
+  isLocalMoving?: () => boolean;
   /** Screen-space interiors can be centred differently on each client. */
   networkOffsetX?: number;
   networkOffsetY?: number;
@@ -102,16 +113,25 @@ export class WorldMultiplayer {
   private readonly localPlayer: Phaser.Physics.Arcade.Sprite;
   private readonly pet: Pet;
   private readonly cancelLocalMovement: () => void;
+  private readonly moveLocalTo?: (x: number, y: number, quiet: boolean) => void;
+  private readonly isLocalMoving?: () => boolean;
   private readonly networkOffsetX: number;
   private readonly networkOffsetY: number;
   private readonly depthFor: (sprite: Phaser.GameObjects.Sprite) => number;
   private readonly localMarker: Phaser.GameObjects.Ellipse;
+  private readonly localPlayerLabel: Phaser.GameObjects.Text;
   private readonly remotes = new Map<string, RemoteAvatar>();
   private readonly unsubscribe: () => void;
   private readonly releaseWorld: () => void;
   private lastPose: PresencePose;
   private lastSentAt = -Infinity;
   private localWaveStartedAt: number | null = null;
+  private pendingWave: {
+    sessionId: string;
+    startedAt: number;
+    /** Where the target stood when this leg was aimed, to spot them moving on. */
+    aimedAt: { x: number; y: number };
+  } | null = null;
   private disposed = false;
 
   constructor(scene: Phaser.Scene, options: WorldMultiplayerOptions) {
@@ -120,6 +140,8 @@ export class WorldMultiplayer {
     this.localPlayer = options.localPlayer;
     this.pet = options.pet;
     this.cancelLocalMovement = options.cancelLocalMovement;
+    this.moveLocalTo = options.moveLocalTo;
+    this.isLocalMoving = options.isLocalMoving;
     this.networkOffsetX = options.networkOffsetX ?? 0;
     this.networkOffsetY = options.networkOffsetY ?? 0;
     this.depthFor = options.depthFor ?? feetDepth;
@@ -127,11 +149,21 @@ export class WorldMultiplayer {
       .ellipse(this.localPlayer.x, this.localPlayer.y + 12, 46, 18, 0x2d8cff, 0.34)
       .setStrokeStyle(3, 0x66b6ff, 0.98)
       .setDepth(this.depthFor(this.localPlayer) - 1);
+    // Your own nametag, on the same terms as everyone else's: always on, at any
+    // distance, so a crowd reads the same way from either side of it. Your pet
+    // already carries its own label (see Pet), so this is the player only.
+    this.localPlayerLabel = scene.add
+      .text(this.localPlayer.x, this.localPlayer.y, localDisplayName(), labelStyle('#ffe066'))
+      .setOrigin(0.5, 1);
 
     const pose = this.currentPose('down', false);
     this.lastPose = { ...pose, sentAt: scene.time.now };
     this.releaseWorld = multiplayerBridge.activateWorld(this.sceneId, pose);
     this.unsubscribe = multiplayerBridge.subscribe((rows) => this.syncRows(rows));
+
+    // Clicking a remote penguin stops propagation, so this only fires for clicks
+    // elsewhere — exactly the gesture that should call off an approach.
+    scene.input.on(Phaser.Input.Events.POINTER_DOWN, this.cancelPendingWave, this);
 
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, this.dispose, this);
     scene.events.once(Phaser.Scenes.Events.DESTROY, this.dispose, this);
@@ -193,8 +225,17 @@ export class WorldMultiplayer {
         this.localPlayer.y + this.localPlayer.displayHeight / 2 - 3,
       )
       .setDepth(this.depthFor(this.localPlayer) - 1);
+    this.updateLocalLabel();
     this.applyLocalWave(now);
     for (const remote of this.remotes.values()) this.updateRemote(remote, now, deltaMs);
+    this.updatePendingWave(now);
+  }
+
+  private updateLocalLabel() {
+    this.localPlayerLabel
+      .setText(localDisplayName())
+      .setPosition(this.localPlayer.x, this.localPlayer.y - this.localPlayer.displayHeight / 2 - 4)
+      .setDepth(this.depthFor(this.localPlayer) + 2);
   }
 
   playLocalWave() {
@@ -207,15 +248,74 @@ export class WorldMultiplayer {
 
   waveTo(remote: RemotePresence | string) {
     const avatar = typeof remote === 'string' ? this.remotes.get(remote) : this.remotes.get(remote.sessionId);
-    if (!avatar || !canInitiateWave(
+    if (!avatar || !avatar.row.active) return;
+    if (!canInitiateWave(
       { x: this.localPlayer.x, y: this.localPlayer.y },
       { x: avatar.player.x, y: avatar.player.y },
       avatar.row.active,
       REMOTE_INTERACTION_RADIUS,
-    )) return;
+    )) {
+      this.approach(avatar);
+      return;
+    }
+    this.pendingWave = null;
     this.playLocalWave();
     multiplayerBridge.wave(avatar.row.sessionId);
     toast(this.scene, this.localPlayer.x, this.localPlayer.y - 70, `You wave to ${avatar.row.name}!`, '#ffe066');
+  }
+
+  /** Called off by any click elsewhere, and when the scene tears down. */
+  cancelPendingWave() {
+    this.pendingWave = null;
+  }
+
+  /** Walk over to someone clicked from too far away; the wave fires on arrival. */
+  private approach(avatar: RemoteAvatar) {
+    if (!this.moveLocalTo) return;
+    const target = approachPointForWave(
+      { x: this.localPlayer.x, y: this.localPlayer.y },
+      { x: avatar.player.x, y: avatar.player.y },
+      REMOTE_INTERACTION_RADIUS,
+    );
+    const queued = this.pendingWave?.sessionId === avatar.row.sessionId;
+    this.pendingWave = {
+      sessionId: avatar.row.sessionId,
+      startedAt: queued ? this.pendingWave!.startedAt : this.scene.time.now,
+      aimedAt: { x: avatar.player.x, y: avatar.player.y },
+    };
+    // Only the first leg pings the click marker: re-aiming at someone who keeps
+    // walking would restamp the ring under your feet over and over.
+    this.moveLocalTo(target.x, target.y, queued);
+    if (!queued) {
+      toast(this.scene, this.localPlayer.x, this.localPlayer.y - 70, `Walking over to ${avatar.row.name}…`, '#bfe6ff');
+    }
+  }
+
+  private updatePendingWave(now: number) {
+    const pending = this.pendingWave;
+    if (!pending) return;
+    const avatar = this.remotes.get(pending.sessionId);
+    const decision = pendingWaveDecision({
+      present: Boolean(avatar),
+      active: Boolean(avatar?.row.active),
+      distance: avatar
+        ? Phaser.Math.Distance.Between(this.localPlayer.x, this.localPlayer.y, avatar.player.x, avatar.player.y)
+        : Infinity,
+      radius: REMOTE_INTERACTION_RADIUS,
+      walking: this.isLocalMoving?.() ?? false,
+      elapsedMs: now - pending.startedAt,
+      targetMovedPx: avatar
+        ? Phaser.Math.Distance.Between(pending.aimedAt.x, pending.aimedAt.y, avatar.player.x, avatar.player.y)
+        : 0,
+    });
+    if (decision === 'walking') return;
+    if (decision === 'cancel' || !avatar) {
+      this.pendingWave = null;
+      return;
+    }
+    if (decision === 'wave') this.waveTo(avatar.row.sessionId);
+    // They kept walking and we ran out of path: aim at where they are now.
+    else this.approach(avatar);
   }
 
   getRemoteInteractable(): RemoteInteractable | null {
@@ -462,9 +562,12 @@ export class WorldMultiplayer {
     this.disposed = true;
     this.scene.events.off(Phaser.Scenes.Events.SHUTDOWN, this.dispose, this);
     this.scene.events.off(Phaser.Scenes.Events.DESTROY, this.dispose, this);
+    this.scene.input.off(Phaser.Input.Events.POINTER_DOWN, this.cancelPendingWave, this);
     this.unsubscribe();
     this.releaseWorld();
+    this.pendingWave = null;
     this.localMarker.destroy();
+    this.localPlayerLabel.destroy();
     for (const [sessionId, remote] of this.remotes) this.destroyRemote(sessionId, remote);
   }
 }

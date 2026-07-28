@@ -386,6 +386,12 @@ body {
   font-size: 0.95rem;
 }
 
+.confirm-card .form-hint {
+  margin: 0.2rem 0 0.6rem;
+  color: #b8a8d4;
+  font-size: 0.9rem;
+}
+
 /* Menu panel: stacked, thumb-sized options. */
 .menu-list {
   display: grid;
