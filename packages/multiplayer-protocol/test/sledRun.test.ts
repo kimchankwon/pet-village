@@ -4,10 +4,12 @@ import { Decoder, Encoder } from '@colyseus/schema';
 import {
   GAME_ACTIVITIES,
   SLED_DIFFICULTIES,
+  SLED_HIT_TOLERANCE_MS,
   SLED_MAX_PLAYERS,
   SledPlayerState,
   SledRunState,
   generateSledCourse,
+  isSledHitPlausible,
   sledDifficultyConfig,
 } from '../src/index.ts';
 
@@ -47,6 +49,24 @@ test('generated sled courses stay inside the mountain with evenly spaced hazards
       assert.ok(course[index]!.progress - course[index - 1]!.progress >= Math.floor(step) - 1);
     }
   }
+});
+
+test('a reported collision is plausible from a lagging copy of the racer, up to a point', () => {
+  const config = sledDifficultyConfig('easy');
+  const item = { id: 'rock-2', kind: 'rock' as const, x: 40, progress: 2_000, radius: 28 };
+  // Sitting on it, which is what the server sees when the report is fast.
+  assert.equal(isSledHitPlausible(item, { progress: 2_000, x: 40 }, config), true);
+  // The server is behind by the report's own trip, so it has the sled short of the
+  // item — and after a bad round trip, well short. Both have to be allowed.
+  const behind = config.baseSpeed * (SLED_HIT_TOLERANCE_MS / 1_000);
+  assert.equal(isSledHitPlausible(item, { progress: 2_000 - behind, x: 40 }, config), true);
+  assert.equal(isSledHitPlausible(item, { progress: 2_000 - behind * 3, x: 40 }, config), false);
+  // A steer the server has not applied yet moves the lane, but only so far.
+  const swerve = config.steeringSpeed * (SLED_HIT_TOLERANCE_MS / 1_000);
+  assert.equal(isSledHitPlausible(item, { progress: 2_000, x: 40 + swerve }, config), true);
+  assert.equal(isSledHitPlausible(item, { progress: 2_000, x: 40 + swerve * 3 }, config), false);
+  // The far end of the course is never a claim worth honouring.
+  assert.equal(isSledHitPlausible(item, { progress: 100, x: 40 }, config), false);
 });
 
 test('sled lobby and racer state survive a full schema encode and decode', () => {

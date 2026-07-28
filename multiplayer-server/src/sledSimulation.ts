@@ -2,12 +2,13 @@ import {
   SLED_COUNTDOWN_MS,
   SLED_EFFECTS,
   SLED_MAX_PLAYERS,
-  SLED_RACER_RADIUS,
   SledPlayerState,
   generateSledCourse,
   isSledDifficulty,
+  isSledHitPlausible,
   sledDifficultyConfig,
   type SledDifficulty,
+  type SledHitPayload,
   type SledInputPayload,
   type SledRunState,
 } from '@pet-village/multiplayer-protocol';
@@ -107,7 +108,6 @@ export class SledRaceSimulation {
     if (this.state.phase !== 'racing') return;
     const deltaSeconds = Math.min(Math.max(deltaMs, 0), 100) / 1_000;
     const config = sledDifficultyConfig(this.state.difficulty);
-    const course = this.course;
     const finishers: Array<{ sessionId: string; racer: SledPlayerState; finishedAt: number }> = [];
 
     this.state.racers.forEach((racer, sessionId) => {
@@ -122,7 +122,6 @@ export class SledRaceSimulation {
       );
       const previousProgress = racer.progress;
       racer.progress += racer.speed * deltaSeconds;
-      this.applyCourseEffects(sessionId, racer, previousProgress, course, now);
       if (racer.progress >= config.courseLength) {
         const travelled = Math.max(Number.EPSILON, racer.progress - previousProgress);
         const crossingFraction = Math.min(1, Math.max(0, (config.courseLength - previousProgress) / travelled));
@@ -145,31 +144,40 @@ export class SledRaceSimulation {
     if (this.everyRacerFinished()) this.state.phase = 'finished';
   }
 
-  private applyCourseEffects(
-    sessionId: string,
-    racer: SledPlayerState,
-    previousProgress: number,
-    course: ReturnType<typeof generateSledCourse>,
-    now: number,
-  ) {
+  /**
+   * Record a collision the racer's own client saw.
+   *
+   * The server does not look for collisions itself: its copy of a sled's lane is
+   * a round trip behind the key being held, so it bumped players who had already
+   * dodged. The client tests the course — which both sides generate from the same
+   * seed — against the lane it is actually drawing, and the server keeps the
+   * verdict so everyone else sees the bump too, a little later.
+   *
+   * A claim is still checked: the item has to be on this course, unclaimed by
+   * this racer, and near enough to where the server has them.
+   */
+  hit(sessionId: string, payload: SledHitPayload | undefined, now = Date.now()): boolean {
+    const racer = this.state.racers.get(sessionId);
+    if (!racer || this.state.phase !== 'racing' || racer.rank > 0) return false;
+    const itemId = payload?.itemId;
+    if (typeof itemId !== 'string') return false;
+    const item = this.course.find((candidate) => candidate.id === itemId);
+    if (!item) return false;
     let hits = this.hitItems.get(sessionId);
     if (!hits) {
       hits = new Set();
       this.hitItems.set(sessionId, hits);
     }
-    for (const item of course) {
-      if (
-        hits.has(item.id) ||
-        item.progress + item.radius < previousProgress ||
-        item.progress - item.radius > racer.progress ||
-        Math.abs(item.x - racer.x) > item.radius + SLED_RACER_RADIUS
-      ) continue;
-      hits.add(item.id);
-      racer.effect = item.kind === 'ice' ? 'ice' : 'obstacle';
-      const effect = SLED_EFFECTS[racer.effect];
-      racer.effectUntil = now + effect.durationMs;
-      racer.speed = sledDifficultyConfig(this.state.difficulty).baseSpeed * effect.multiplier;
-    }
+    // One effect per item per racer, so a replayed report cannot stack a boost.
+    if (hits.has(item.id)) return false;
+    const config = sledDifficultyConfig(this.state.difficulty);
+    if (!isSledHitPlausible(item, racer, config)) return false;
+    hits.add(item.id);
+    racer.effect = item.kind === 'ice' ? 'ice' : 'obstacle';
+    const effect = SLED_EFFECTS[racer.effect];
+    racer.effectUntil = now + effect.durationMs;
+    racer.speed = config.baseSpeed * effect.multiplier;
+    return true;
   }
 
   private everyRacerFinished() {

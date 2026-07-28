@@ -1,6 +1,6 @@
 import { MapSchema, Schema, defineTypes } from '@colyseus/schema';
 
-export const PROTOCOL_VERSION = 7 as const;
+export const PROTOCOL_VERSION = 8 as const;
 export const TICKET_ISSUER = 'pet-village-convex';
 export const TICKET_AUDIENCE = 'pet-village-multiplayer';
 export const ROOM_NAME = 'town_default';
@@ -227,6 +227,13 @@ export type SledCourseItem = {
   radius: number;
 };
 export type SledInputPayload = { steering: -1 | 0 | 1; seq: number };
+/**
+ * A collision the racer's own client saw. Collisions are decided there, against
+ * the lane the player is actually steering, because the server's copy of that
+ * lane is a round trip old — it would bump a sled that dodged and miss one that
+ * did not. The server keeps the verdict for everyone else to watch.
+ */
+export type SledHitPayload = { itemId: string };
 export const SLED_MAX_PLAYERS = 4;
 export const SLED_COUNTDOWN_MS = 3_000;
 /**
@@ -315,6 +322,34 @@ export function generateSledCourse(seed: string, difficulty: SledDifficulty): Sl
       radius,
     };
   });
+}
+
+/**
+ * How far out of step with the server a reported collision may be. The client is
+ * ahead of the server's copy of it by a round trip, and the report takes another
+ * half trip to arrive, so the window has to cover a bad connection — it is a
+ * sanity check on a claim, not a second collision test.
+ */
+export const SLED_HIT_TOLERANCE_MS = 600;
+
+/**
+ * Whether a racer could plausibly have hit this item, judged from the server's
+ * own (older) copy of where they are. Rejects claims for items the sled is
+ * nowhere near — an ice boost picked out of a different part of the course.
+ */
+export function isSledHitPlausible(
+  item: SledCourseItem,
+  racer: { progress: number; x: number },
+  config: SledDifficultyConfig,
+): boolean {
+  const seconds = SLED_HIT_TOLERANCE_MS / 1_000;
+  const fastest = config.baseSpeed * SLED_EFFECTS.ice.multiplier;
+  const alongTrack = item.radius + SLED_RACER_RADIUS + fastest * seconds;
+  const acrossTrack = item.radius + SLED_RACER_RADIUS + config.steeringSpeed * seconds;
+  return (
+    Math.abs(item.progress - racer.progress) <= alongTrack &&
+    Math.abs(item.x - racer.x) <= acrossTrack
+  );
 }
 
 export class PlayerState extends Schema {

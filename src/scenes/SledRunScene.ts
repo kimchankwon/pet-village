@@ -2,14 +2,13 @@ import Phaser from 'phaser';
 import {
   SLED_DIFFICULTIES,
   SLED_COUNTDOWN_MS,
-  SLED_EFFECTS,
   SLED_MAX_PLAYERS,
   SLED_PROGRESS_TO_PIXELS,
-  SLED_RACER_RADIUS,
   generateSledCourse,
   sledDifficultyConfig,
   type SledCourseItem,
   type SledDifficulty,
+  type SledEffect,
 } from '@pet-village/multiplayer-protocol';
 import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
 import { bindGameActivity } from '../systems/multiplayerGameActivity';
@@ -21,8 +20,14 @@ import {
   type SledRunSnapshot,
 } from '../systems/sledRunClient';
 import { SteerAckClock, SteerTrace } from '../systems/sledRunLatency';
+import { newLocalSled, stepLocalSled, type LocalSled } from '../systems/sledLocalSled';
 import { shouldSendSteer, steerAxisFrom } from '../systems/sledRunPolicy';
-import { reconcileLocalX, stepSledMotion, type SledMotion } from '../systems/sledRunPrediction';
+import {
+  reconcileLocalProgress,
+  reconcileLocalX,
+  stepSledMotion,
+  type SledMotion,
+} from '../systems/sledRunPrediction';
 import { sledRunReward } from '../systems/sledRunRewards';
 import { State } from '../systems/GameState';
 
@@ -37,7 +42,10 @@ export class SledRunScene extends Phaser.Scene {
   private connection?: SledRunConnection;
   private sceneEpoch = 0;
   private solo = false;
-  private soloHits = new Set<string>();
+  /** Our own sled, simulated here: its lane, its speed, and the things it hits. */
+  private localSled: LocalSled = newLocalSled(0);
+  /** Items this run has already bumped us, so a wide rock only counts once. */
+  private claimedItems = new Set<string>();
   private course: SledCourseItem[] = [];
   private courseKey = '';
   private racerViews = new Map<string, Phaser.GameObjects.Container>();
@@ -85,7 +93,8 @@ export class SledRunScene extends Phaser.Scene {
     this.snapshot = undefined;
     this.connection = undefined;
     this.solo = false;
-    this.soloHits.clear();
+    this.localSled = newLocalSled(0);
+    this.claimedItems.clear();
     this.course = [];
     this.courseKey = '';
     this.racerViews.clear();
@@ -224,9 +233,17 @@ export class SledRunScene extends Phaser.Scene {
         this.motions.clear();
         this.steerTrace.clear();
         this.ackClock.clearPending();
+        this.localSled = newLocalSled(
+          snapshot.racers.find((racer) => racer.sessionId === snapshot.localSessionId)?.x ?? 0,
+        );
+        this.claimedItems.clear();
         this.localCountdownEnd = this.time.now + Math.max(0, snapshot.countdownAt - snapshot.serverTime);
         this.previousSteering = 0;
         this.lastSteerSentAt = Number.NEGATIVE_INFINITY;
+      } else if (snapshot.phase === 'racing') {
+        // The start signal puts everyone at full speed. Our own sled runs its own
+        // race from here, so it leaves the line at that speed too.
+        this.localSled = { ...this.localSled, speed: sledDifficultyConfig(snapshot.difficulty).baseSpeed };
       } else if (snapshot.phase === 'finished' && this.previousPhase === 'racing') {
         const local = snapshot.racers.find((racer) => racer.sessionId === snapshot.localSessionId);
         const reward = local ? sledRunReward(snapshot.difficulty, local.rank) : undefined;
@@ -259,6 +276,16 @@ export class SledRunScene extends Phaser.Scene {
     if (this.resyncFromServer) {
       this.resyncFromServer = false;
       this.motions.set(local.sessionId, { x: local.x, progress: local.progress });
+      // The race carried on without us, so the sled we were simulating is fiction:
+      // take the server's, including whatever effect it has us under — its clock is
+      // the snapshot's, so the expiry is re-read against ours.
+      this.localSled = {
+        x: local.x,
+        progress: local.progress,
+        speed: local.speed,
+        effect: local.effect,
+        effectUntil: local.effect ? this.time.now + Math.max(0, local.effectUntil - snapshot.serverTime) : 0,
+      };
       this.steerTrace.clear();
       this.ackClock.clearPending();
       return;
@@ -271,11 +298,29 @@ export class SledRunScene extends Phaser.Scene {
     const traced = this.steerTrace.sample(this.snapshotAt - this.ackClock.roundTripMs);
     if (traced === undefined) return;
     const { steeringSpeed, trackHalfWidth } = sledDifficultyConfig(snapshot.difficulty);
-    const x = reconcileLocalX(motion.x, local.x, traced, steeringSpeed, trackHalfWidth);
+    const x = reconcileLocalX(this.localSled.x, local.x, traced, steeringSpeed, trackHalfWidth);
     // Snapshots already in flight were made before this correction, so the trace
     // they will be compared against has to move with it.
-    this.steerTrace.shift(x - motion.x);
+    this.steerTrace.shift(x - this.localSled.x);
+    this.localSled = { ...this.localSled, x };
     this.motions.set(local.sessionId, { ...motion, x });
+  }
+
+  /**
+   * Whether the drawn race is the snapshot verbatim. Solo practice writes its own
+   * simulation into the snapshot, a dropped connection has nothing left to predict
+   * from, and outside a race nobody is moving at all.
+   */
+  private get authoritativeView() {
+    return this.solo || this.disconnected || this.reconnecting || this.snapshot?.phase !== 'racing';
+  }
+
+  /** The effect the player is under — ours is called here, not sent to us. */
+  private get localEffect(): SledEffect {
+    const snapshot = this.snapshot;
+    if (!snapshot) return '';
+    if (!this.authoritativeView) return this.localSled.effect;
+    return snapshot.racers.find((racer) => racer.sessionId === snapshot.localSessionId)?.effect ?? '';
   }
 
   /** Where the crest is: above this the mountain, below it the run itself. */
@@ -415,7 +460,7 @@ export class SledRunScene extends Phaser.Scene {
     this.snapshot.countdownAt = Date.now() + SLED_COUNTDOWN_MS;
     this.snapshot.serverTime = Date.now();
     this.localCountdownEnd = this.time.now + SLED_COUNTDOWN_MS;
-    this.soloHits.clear();
+    // The sled and its claimed items are reset by the countdown, in acceptSnapshot.
     this.acceptSnapshot(this.snapshot);
   }
 
@@ -445,8 +490,12 @@ export class SledRunScene extends Phaser.Scene {
     this.queueText.setText(`${snapshot.racers.length}/${SLED_MAX_PLAYERS} RACERS\n${leader ? '★ You are leader' : 'Waiting for leader'}`);
     const local = snapshot.racers.find((racer) => racer.sessionId === snapshot.localSessionId);
     const config = sledDifficultyConfig(snapshot.difficulty);
-    const place = local?.rank ? `Finished #${local.rank}` : `${Math.round(((local?.progress ?? 0) / config.courseLength) * 100)}%`;
-    this.hudText.setText(`${snapshot.difficulty.toUpperCase()}\n${place}\n${Math.round(local?.speed ?? 0)} speed`);
+    // Read from our own sled: the snapshot's copy of it is a round trip behind, so
+    // a bump would show in the HUD later than on screen.
+    const progress = local ? this.motionFor(local).progress : 0;
+    const speed = local && !local.rank && !this.authoritativeView ? this.localSled.speed : (local?.speed ?? 0);
+    const place = local?.rank ? `Finished #${local.rank}` : `${Math.round((progress / config.courseLength) * 100)}%`;
+    this.hudText.setText(`${snapshot.difficulty.toUpperCase()}\n${place}\n${Math.round(speed)} speed`);
     const showLobby = snapshot.phase === 'lobby' || snapshot.phase === 'finished';
     this.parkButton.setVisible(showLobby || this.disconnected);
     this.startButton.setVisible(showLobby && leader && !this.disconnected).setText(snapshot.phase === 'finished' ? 'RUN AGAIN' : 'START RUN');
@@ -511,16 +560,20 @@ export class SledRunScene extends Phaser.Scene {
     if (!snapshot) return;
     const playerY = this.playerY;
     const config = sledDifficultyConfig(snapshot.difficulty);
+    const localEffect = this.localEffect;
     snapshot.racers.forEach((racer, index) => {
       const view = this.racerViews.get(racer.sessionId);
       if (!view) return;
       const motion = this.motionFor(racer);
+      // Our own wobble comes from the collision we called, so it starts the instant
+      // the rock is hit rather than when the server hears about it.
+      const effect = racer.sessionId === snapshot.localSessionId ? localEffect : racer.effect;
       const lobby = snapshot.phase === 'lobby' || snapshot.phase === 'countdown';
       const y = lobby ? playerY + (index % 2) * 46 : playerY + (motion.progress - localProgress) * SLED_PROGRESS_TO_PIXELS;
       const x = this.laneX(motion.x, y, config.trackHalfWidth);
       // Sleds nearer the bottom are nearer the camera, so they draw in front.
       view.setPosition(x, y).setAlpha(racer.rank > 0 ? 0.7 : 1).setDepth(50 + Math.round(y));
-      view.setAngle(racer.effect === 'obstacle' ? Math.sin(this.time.now * 0.03) * 10 : racer.effect === 'ice' ? Math.sin(this.time.now * 0.02) * 3 : 0);
+      view.setAngle(effect === 'obstacle' ? Math.sin(this.time.now * 0.03) * 10 : effect === 'ice' ? Math.sin(this.time.now * 0.02) * 3 : 0);
     });
   }
 
@@ -529,33 +582,40 @@ export class SledRunScene extends Phaser.Scene {
   }
 
   /**
-   * Advance every sled's predicted motion by a frame. The local sled steers on
-   * the key that is down right now, with no snapshot pulling at it — snapshots
-   * reach it through `reconcileLocalSled`. Everyone else, and every sled's
-   * progress, follows the snapshot carried forward by its own age, so a follow
-   * aims at where the server is now instead of settling a round trip short.
+   * Advance every sled's motion by a frame.
+   *
+   * Our own sled is simulated outright — lane, collisions, effect, speed and how
+   * far down the hill it has got — because all of those follow from a collision,
+   * and a collision has to be judged against the lane the player can see. What the
+   * server sends back about us is a correction, not the truth: `reconcileLocalSled`
+   * trims the lane and `reconcileLocalProgress` eases the hill, both gently enough
+   * that a dodge is never taken back. Everyone else follows their snapshot carried
+   * forward by its own age — that is the slightly delayed view of their race.
    */
   private stepMotions(deltaMs: number, steering: -1 | 0 | 1) {
     const snapshot = this.snapshot;
     if (!snapshot) return;
     const config = sledDifficultyConfig(snapshot.difficulty);
-    // Solo runs already integrate locally, and outside a race nobody is moving:
-    // in both cases the snapshot is exactly what should be drawn.
-    const authoritative = this.solo || this.disconnected || this.reconnecting
-      || snapshot.phase !== 'racing';
-    // Everything a snapshot decides — how fast each sled is going, who was
-    // bumped, how far down the hill they are — is drawn in the snapshot's own
-    // time frame, so the hill still scrolls past the sled exactly as the server
-    // scored it. Only our lane runs ahead, in the time frame of our input.
+    const authoritative = this.authoritativeView;
     const ageMs = Math.max(0, this.time.now - this.snapshotAt);
     for (const racer of snapshot.racers) {
-      if (authoritative) {
+      // Outside a race nobody is moving, and a dropped connection has nothing left
+      // to predict from: in both cases the snapshot is exactly what to draw. Solo
+      // practice draws it too, because there it *is* the local simulation.
+      if (authoritative || racer.rank > 0) {
         this.motions.set(racer.sessionId, { x: racer.x, progress: racer.progress });
+        continue;
+      }
+      if (racer.sessionId === snapshot.localSessionId) {
+        const sled = this.advanceLocalSled(deltaMs, steering, snapshot.difficulty);
+        const progress = reconcileLocalProgress(sled.progress, racer, ageMs, config.courseLength, deltaMs);
+        this.localSled = { ...sled, progress };
+        this.motions.set(racer.sessionId, { x: sled.x, progress });
         continue;
       }
       this.motions.set(racer.sessionId, stepSledMotion(this.motionFor(racer), {
         server: racer,
-        steering: racer.sessionId === snapshot.localSessionId ? steering : null,
+        steering: null,
         steeringSpeed: config.steeringSpeed,
         trackHalfWidth: config.trackHalfWidth,
         courseLength: config.courseLength,
@@ -565,6 +625,29 @@ export class SledRunScene extends Phaser.Scene {
     }
     const local = this.motions.get(snapshot.localSessionId);
     if (local && !authoritative) this.steerTrace.record(this.time.now, local.x);
+  }
+
+  /**
+   * One frame of our own sled, and a report of anything it ran into. The server
+   * needs the report to show the bump to the other racers and to keep scoring the
+   * finish; it does not look for the collision itself, because its copy of our
+   * lane is a round trip old.
+   */
+  private advanceLocalSled(deltaMs: number, steering: -1 | 0 | 1, difficulty: SledDifficulty): LocalSled {
+    const step = stepLocalSled(this.localSled, {
+      steering,
+      course: this.course,
+      claimed: this.claimedItems,
+      config: sledDifficultyConfig(difficulty),
+      deltaMs,
+      now: this.time.now,
+    });
+    this.localSled = step.sled;
+    for (const item of step.hits) {
+      this.claimedItems.add(item.id);
+      this.connection?.sendHit(item.id);
+    }
+    return step.sled;
   }
 
   private updateSolo(deltaMs: number, steering: -1 | 0 | 1) {
@@ -579,29 +662,16 @@ export class SledRunScene extends Phaser.Scene {
     }
     if (snapshot.phase !== 'racing') return;
     const racer = snapshot.racers[0]!;
+    if (racer.rank > 0) return;
     const config = sledDifficultyConfig(snapshot.difficulty);
-    const dt = Math.min(deltaMs, 100) / 1_000;
-    if (racer.effect && this.time.now >= racer.effectUntil) racer.effect = '';
-    const activeEffect = racer.effect === 'obstacle' || racer.effect === 'ice'
-      ? racer.effect as keyof typeof SLED_EFFECTS
-      : undefined;
-    const multiplier = activeEffect ? SLED_EFFECTS[activeEffect].multiplier : 1;
-    racer.speed += (config.baseSpeed * multiplier - racer.speed) * Math.min(1, dt * 7);
-    racer.x = Phaser.Math.Clamp(racer.x + steering * config.steeringSpeed * dt, -config.trackHalfWidth, config.trackHalfWidth);
-    const before = racer.progress;
-    racer.progress += racer.speed * dt;
-    for (const item of this.course) {
-      if (this.soloHits.has(item.id) || item.progress + item.radius < before || item.progress - item.radius > racer.progress) continue;
-      if (Math.abs(item.x - racer.x) > item.radius + SLED_RACER_RADIUS) continue;
-      this.soloHits.add(item.id);
-      const effectKey: keyof typeof SLED_EFFECTS = item.kind === 'ice' ? 'ice' : 'obstacle';
-      racer.effect = effectKey;
-      const effect = SLED_EFFECTS[effectKey];
-      racer.effectUntil = this.time.now + effect.durationMs;
-      racer.speed = config.baseSpeed * effect.multiplier;
-    }
-    if (racer.progress >= config.courseLength) {
-      racer.progress = config.courseLength;
+    // Practice runs the same sled the multiplayer one does; with nobody to report
+    // to, its state simply is the snapshot.
+    const sled = this.advanceLocalSled(deltaMs, steering, snapshot.difficulty);
+    Object.assign(racer, {
+      x: sled.x, progress: sled.progress, speed: sled.speed,
+      effect: sled.effect, effectUntil: sled.effectUntil,
+    });
+    if (sled.progress >= config.courseLength) {
       racer.rank = 1;
       racer.finishedAt = this.time.now;
       snapshot.phase = 'finished';
@@ -644,8 +714,9 @@ export class SledRunScene extends Phaser.Scene {
       const seconds = Math.max(1, Math.ceil((this.localCountdownEnd - this.time.now) / 1_000));
       this.statusText.setText(`${seconds}…  Everyone starts together!`);
     } else if (!this.disconnected && this.snapshot.phase === 'racing') {
-      const localEffect = local?.effect === 'ice' ? ' • ICE BOOST!' : local?.effect === 'obstacle' ? ' • BUMPED!' : '';
-      this.statusText.setText(`Race to the lodge!${localEffect}`);
+      const effect = this.localEffect;
+      const banner = effect === 'ice' ? ' • ICE BOOST!' : effect === 'obstacle' ? ' • BUMPED!' : '';
+      this.statusText.setText(`Race to the lodge!${banner}`);
     }
     if (this.solo) this.refreshUi();
   }

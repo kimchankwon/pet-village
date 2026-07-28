@@ -321,6 +321,11 @@ export class WorldMultiplayer {
     return this.chatComposer.isOpen();
   }
 
+  /** Open the composer from the bottom bar's Chat button, as T would. */
+  openChat() {
+    return this.chatComposer.requestOpen();
+  }
+
   /**
    * Send what the composer collected. Peers see it through the room state; the
    * sender's own bubble is shown here, because the local session is filtered out

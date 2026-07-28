@@ -2,6 +2,7 @@ import { Client, type Room } from '@colyseus/sdk';
 import {
   SLED_RUN_ROOM,
   type SledDifficulty,
+  type SledEffect,
   type SledPhase,
   type SledRunState,
 } from '@pet-village/multiplayer-protocol';
@@ -18,7 +19,7 @@ export type SledRacerSnapshot = {
   steering: number;
   /** Newest input the server has applied, which is also our round-trip echo. */
   inputSeq: number;
-  effect: string;
+  effect: SledEffect;
   effectUntil: number;
   rank: number;
   finishedAt: number;
@@ -47,6 +48,8 @@ export type SledRunConnection = {
   start: () => void;
   /** Sends the input and returns its sequence number, or 0 when nothing went out. */
   sendSteer: (steering: -1 | 0 | 1) => number;
+  /** Tells the room about a collision this client called on its own lane. */
+  sendHit: (itemId: string) => void;
   disconnect: () => Promise<void>;
 };
 
@@ -200,6 +203,10 @@ export async function connectSledRun(
       const sent = ++seq;
       room.send('sled:input', { steering, seq: sent });
       return sent;
+    },
+    sendHit: (itemId) => {
+      if (!connected || closed) return;
+      room.send('sled:hit', { itemId });
     },
     disconnect: async () => {
       if (closed) return;

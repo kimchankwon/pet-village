@@ -5,6 +5,7 @@ import {
   SLED_TICK_MS,
   SledRunState,
   type AdmissionClaims,
+  type SledHitPayload,
   type SledInputPayload,
 } from '@pet-village/multiplayer-protocol';
 import { verifyAdmission } from './TownRoom.ts';
@@ -47,6 +48,11 @@ export class SledRunRoom extends Room<{ state: SledRunState }> {
     });
     this.onMessage('sled:input', (client, payload: SledInputPayload) => {
       this.simulation?.input(client.sessionId, payload);
+    });
+    // Collisions are called by the racer's own client, against the lane it is
+    // really steering; the room only keeps the verdict for the other sleds' view.
+    this.onMessage('sled:hit', (client, payload: SledHitPayload) => {
+      this.simulation?.hit(client.sessionId, payload);
     });
   }
 

@@ -61,7 +61,7 @@ test('server accepts only monotonic steering and keeps racers inside the mountai
   assert.ok(racer.x <= sledDifficultyConfig('easy').trackHalfWidth);
 });
 
-test('authoritative simulation applies obstacle slowdowns and ice boosts visible in shared state', () => {
+test('a reported collision puts the slowdown or the boost into the shared state', () => {
   const { state, simulation } = setup();
   simulation.join('one', profile('one'));
   simulation.start('one', 0);
@@ -70,16 +70,61 @@ test('authoritative simulation applies obstacle slowdowns and ice boosts visible
   const course = generateSledCourse('fixed-seed', 'easy');
   const obstacle = course.find((item) => item.kind !== 'ice')!;
   racer.x = obstacle.x;
-  racer.progress = obstacle.progress - 1;
-  simulation.step(20, 3_020);
+  racer.progress = obstacle.progress;
+  assert.equal(simulation.hit('one', { itemId: obstacle.id }, 3_020), true);
   assert.equal(racer.effect, 'obstacle');
   const slowed = racer.speed;
+  // The client is the only one who saw it, so the same report cannot be replayed
+  // to stack another dose of the effect.
+  assert.equal(simulation.hit('one', { itemId: obstacle.id }, 3_040), false);
   const ice = course.find((item) => item.kind === 'ice')!;
   racer.x = ice.x;
-  racer.progress = ice.progress - 1;
-  simulation.step(20, 5_000);
+  racer.progress = ice.progress;
+  assert.equal(simulation.hit('one', { itemId: ice.id }, 5_000), true);
   assert.equal(racer.effect, 'ice');
   assert.ok(racer.speed > slowed);
+});
+
+test('the server does not test collisions itself, so a dodge on the client stands', () => {
+  const { state, simulation } = setup();
+  simulation.join('one', profile('one'));
+  simulation.start('one', 0);
+  simulation.step(3_000, 3_000);
+  const racer = state.racers.get('one')!;
+  const obstacle = generateSledCourse('fixed-seed', 'easy').find((item) => item.kind !== 'ice')!;
+  // Sitting right on top of it, in the lane the server believes: nothing happens,
+  // because that lane is a round trip old and the player may have already steered
+  // out of it. Only their own report decides.
+  racer.x = obstacle.x;
+  racer.progress = obstacle.progress - 1;
+  simulation.step(20, 3_020);
+  assert.equal(racer.effect, '');
+});
+
+test('an implausible or unknown collision report is refused', () => {
+  const { state, simulation } = setup();
+  simulation.join('one', profile('one'));
+  simulation.start('one', 0);
+  const course = generateSledCourse('fixed-seed', 'easy');
+  const ice = course.find((item) => item.kind === 'ice')!;
+  // Not racing yet, so there is nothing to claim.
+  assert.equal(simulation.hit('one', { itemId: ice.id }, 1_000), false);
+  simulation.step(3_000, 3_000);
+  const racer = state.racers.get('one')!;
+  assert.equal(simulation.hit('one', undefined, 3_020), false);
+  assert.equal(simulation.hit('one', { itemId: 'ice-999' }, 3_020), false);
+  assert.equal(simulation.hit('nobody', { itemId: ice.id }, 3_020), false);
+  // A boost cherry-picked from the far end of the course, nowhere near this sled.
+  racer.progress = 100;
+  racer.x = 0;
+  const distant = course[course.length - 1]!;
+  assert.equal(simulation.hit('one', { itemId: distant.id }, 3_020), false);
+  assert.equal(racer.effect, '');
+  // Right item, wrong side of the track.
+  racer.progress = ice.progress;
+  racer.x = ice.x + 400;
+  assert.equal(simulation.hit('one', { itemId: ice.id }, 3_020), false);
+  assert.equal(racer.effect, '');
 });
 
 test('race assigns stable finish ranks and enters finished phase when every racer crosses', () => {

@@ -201,6 +201,8 @@ export class TownScene extends Phaser.Scene {
       [
         { label: '[ Inventory · I ]', onTap: () => { if (!this.menuOpen) this.openInventory(); } },
         { label: '[ Pet · P ]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } },
+        // Same composer T opens, for a player who is tapping rather than typing.
+        { label: '[ Chat · T ]', onTap: () => this.worldMultiplayer.openChat() },
       ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;

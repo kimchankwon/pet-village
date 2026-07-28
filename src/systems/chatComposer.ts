@@ -117,6 +117,16 @@ export class ChatComposer {
     this.render();
   }
 
+  /**
+   * Open it without the key — what the Chat button on the bottom bar taps. The
+   * same guard applies: a menu that already owns the keyboard keeps it.
+   */
+  requestOpen() {
+    if (this.disposed || this.opened || !this.options.canOpen()) return false;
+    this.open();
+    return true;
+  }
+
   private open() {
     this.opened = true;
     this.draft = '';
