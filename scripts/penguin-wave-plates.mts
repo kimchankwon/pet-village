@@ -4,9 +4,13 @@
  * Prefer Grok Imagine sources when present:
  *   scripts/reference/penguin/imagine-wave/wave-{1,2,3}-source.png
  *
- * Those are authored with Imagine from the front idle plate so the raised
- * flipper stays attached and matches Club Penguin proportions. Fallback is the
- * older procedural raiseFlipper path on `down-0.png` (kept for tests / offline).
+ * Imagine sources sit on solid black and the character has a black outline, so
+ * we key the exterior aggressively (outline may go with the bg), then restore a
+ * one-pixel outline via `repairExternalOutline`. Scale is driven by **body
+ * width** (max opaque row span), not total content height, so a raised flipper
+ * above the head does not shrink the torso.
+ *
+ * Fallback: procedural `raiseFlipper` on `down-0.png` (unit-tested).
  *
  * Output: public/assets/player/penguin/wave-{1,2,3}.png
  * Frame 0 of the wave animation is still the idle plate itself.
@@ -17,6 +21,8 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { findFlipperBand, raiseFlipper, WAVE_ANGLES } from './lib/penguin-wave.mjs';
+import { contentBounds, getPx, setPx } from './lib/pose-animate.mjs';
+import { repairExternalOutline } from './lib/pixel-outline.mjs';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
@@ -26,6 +32,7 @@ const REF = path.resolve('scripts/reference/penguin/imagine-wave');
 const IDLE = path.join(DIR, 'down-0.png');
 const TARGET_W = 477;
 const TARGET_H = 513;
+const OUTLINE: [number, number, number, number] = [0, 0, 0, 255];
 
 function blank(w: number, h: number) {
   const p = new PNG({ width: w, height: h });
@@ -33,62 +40,24 @@ function blank(w: number, h: number) {
   return p;
 }
 
-function get(png: InstanceType<typeof PNG>, x: number, y: number): [number, number, number, number] {
-  if (x < 0 || y < 0 || x >= png.width || y >= png.height) return [0, 0, 0, 0];
-  const i = (png.width * y + x) << 2;
-  return [png.data[i]!, png.data[i + 1]!, png.data[i + 2]!, png.data[i + 3]!];
+function asPng(image: { width: number; height: number; data: Buffer | Uint8Array }) {
+  const png = blank(image.width, image.height);
+  Buffer.from(image.data).copy(png.data);
+  return png;
 }
 
-function set(
-  png: InstanceType<typeof PNG>,
-  x: number,
-  y: number,
-  c: [number, number, number, number],
-) {
-  if (x < 0 || y < 0 || x >= png.width || y >= png.height) return;
-  const i = (png.width * y + x) << 2;
-  png.data[i] = c[0];
-  png.data[i + 1] = c[1];
-  png.data[i + 2] = c[2];
-  png.data[i + 3] = c[3];
-}
-
-function contentBounds(png: InstanceType<typeof PNG>) {
-  let x0 = png.width;
-  let y0 = png.height;
-  let x1 = 0;
-  let y1 = 0;
-  let n = 0;
-  for (let y = 0; y < png.height; y++) {
-    for (let x = 0; x < png.width; x++) {
-      if (get(png, x, y)[3] < 20) continue;
-      n++;
-      if (x < x0) x0 = x;
-      if (y < y0) y0 = y;
-      if (x > x1) x1 = x;
-      if (y > y1) y1 = y;
-    }
-  }
-  if (!n) throw new Error('empty plate content');
-  return { x0, y0, x1, y1 };
-}
-
-/** Key exterior near-black as transparent; keep character outline blacks. */
+/**
+ * Flood-key near-black exterior as transparent.
+ * Outline blacks contiguous with the plate will be removed; call
+ * `repairExternalOutline` afterward to redraw a clean 1px rim.
+ */
 function keyBlackBg(src: InstanceType<typeof PNG>) {
   const out = blank(src.width, src.height);
-  const corners = [
-    get(src, 2, 2),
-    get(src, src.width - 3, 2),
-    get(src, 2, src.height - 3),
-    get(src, src.width - 3, src.height - 3),
-  ];
-  const isBg = (c: [number, number, number, number]) => {
-    if (c[3] < 20) return true;
-    const lum = (c[0] + c[1] + c[2]) / 3;
-    if (lum < 28 && Math.max(c[0], c[1], c[2]) < 40) return true;
-    for (const bg of corners) {
-      if (Math.hypot(c[0] - bg[0], c[1] - bg[1], c[2] - bg[2]) < 22) return true;
-    }
+  const isBg = (c: number[]) => {
+    if (c[3]! < 20) return true;
+    const lum = (c[0]! + c[1]! + c[2]!) / 3;
+    // Solid black plate (and near-black AA fringe of the plate, not body blues).
+    if (lum < 28 && Math.max(c[0]!, c[1]!, c[2]!) < 40) return true;
     return false;
   };
   const exterior = new Uint8Array(src.width * src.height);
@@ -97,7 +66,7 @@ function keyBlackBg(src: InstanceType<typeof PNG>) {
     if (x < 0 || y < 0 || x >= src.width || y >= src.height) return;
     const i = y * src.width + x;
     if (exterior[i]) return;
-    if (!isBg(get(src, x, y))) return;
+    if (!isBg(getPx(src, x, y))) return;
     exterior[i] = 1;
     queue.push([x, y]);
   };
@@ -119,46 +88,126 @@ function keyBlackBg(src: InstanceType<typeof PNG>) {
   for (let y = 0; y < src.height; y++) {
     for (let x = 0; x < src.width; x++) {
       if (exterior[y * src.width + x]) continue;
-      const c = get(src, x, y);
-      if (c[3] < 20) continue;
-      set(out, x, y, [c[0], c[1], c[2], 255]);
+      const c = getPx(src, x, y);
+      if (c[3]! < 20) continue;
+      setPx(out, x, y, [c[0]!, c[1]!, c[2]!, 255]);
     }
   }
   return out;
 }
 
-/** Fit Imagine source onto the shared 477×513 canvas, matching idle content height. */
+/** Max opaque span across any row — stable body-width measure. */
+function maxRowWidth(png: InstanceType<typeof PNG>) {
+  const b = contentBounds(png);
+  let maxW = 0;
+  for (let y = b.y0; y <= b.y1; y++) {
+    let x0 = png.width;
+    let x1 = 0;
+    for (let x = b.x0; x <= b.x1; x++) {
+      if (getPx(png, x, y)[3]! < 20) continue;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+    }
+    if (x1 >= x0) maxW = Math.max(maxW, x1 - x0 + 1);
+  }
+  return maxW;
+}
+
+/** Horizontal center of the widest opaque row — stable body/torso anchor. */
+function bodyCenterX(png: InstanceType<typeof PNG>) {
+  const b = contentBounds(png);
+  let bestW = -1;
+  let cx = (b.x0 + b.x1) / 2;
+  for (let y = b.y0; y <= b.y1; y++) {
+    let x0 = png.width;
+    let x1 = 0;
+    for (let x = b.x0; x <= b.x1; x++) {
+      if (getPx(png, x, y)[3]! < 20) continue;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+    }
+    if (x1 >= x0) {
+      const w = x1 - x0 + 1;
+      if (w > bestW) {
+        bestW = w;
+        cx = (x0 + x1) / 2;
+      }
+    }
+  }
+  return cx;
+}
+
+/**
+ * Fit Imagine source onto the shared 477×513 canvas.
+ * Scale from max body width so the torso matches idle; raised flipper may
+ * extend above the idle head line and clip at the plate top rather than
+ * shrinking the body.
+ */
 function imagineToPlate(
   raw: InstanceType<typeof PNG>,
   idleBottom: number,
-  idleH: number,
+  idleBodyW: number,
+  idleBodyCx: number,
 ): InstanceType<typeof PNG> {
+  // 1) Aggressive key — silhouette outline may be eaten with the solid black plate.
   const keyed = keyBlackBg(raw);
-  const b = contentBounds(keyed);
-  const cw = b.x1 - b.x0 + 1;
-  const ch = b.y1 - b.y0 + 1;
-  const scale = idleH / ch;
+  // 2) Redraw a clean 1px exterior outline; keep enclosed blacks (eyes, beak).
+  const cleaned = asPng(repairExternalOutline(keyed, { outline: OUTLINE }));
+
+  // 3) Scale so max body width matches idle (not total height with raised flipper).
+  // Never shrink for height: a tall wave pose clips at the plate top instead.
+  const full = contentBounds(cleaned);
+  const cw = full.x1 - full.x0 + 1;
+  const ch = full.y1 - full.y0 + 1;
+  const bodyW = maxRowWidth(cleaned);
+  const scale = idleBodyW / Math.max(1, bodyW);
+
   const nw = Math.max(8, Math.round(cw * scale));
-  const nh = idleH;
+  const nh = Math.max(10, Math.round(ch * scale));
   const sized = blank(nw, nh);
   for (let y = 0; y < nh; y++) {
     for (let x = 0; x < nw; x++) {
-      const sx = b.x0 + Math.min(cw - 1, Math.floor((x / nw) * cw));
-      const sy = b.y0 + Math.min(ch - 1, Math.floor((y / nh) * ch));
-      const c = get(keyed, sx, sy);
-      if (c[3] >= 20) set(sized, x, y, [c[0], c[1], c[2], 255]);
+      const sx = full.x0 + Math.min(cw - 1, Math.floor((x / nw) * cw));
+      const sy = full.y0 + Math.min(ch - 1, Math.floor((y / nh) * ch));
+      const c = getPx(cleaned, sx, sy);
+      if (c[3]! >= 20) setPx(sized, x, y, [c[0]!, c[1]!, c[2]!, 255]);
     }
   }
+
+  // 4) Bottom-align feet with idle feet line; anchor X on body center (not
+  // full content bbox, which is biased by a raised flipper).
+  const sizedB = contentBounds(sized);
+  const contentH = sizedB.y1 - sizedB.y0 + 1;
+  const bodyCx = bodyCenterX(sized);
   const plate = blank(TARGET_W, TARGET_H);
-  const ox = Math.floor((TARGET_W - nw) / 2);
-  const oy = idleBottom - nh + 1;
-  for (let y = 0; y < nh; y++) {
-    for (let x = 0; x < nw; x++) {
-      const c = get(sized, x, y);
-      if (c[3] >= 20) set(plate, ox + x, oy + y, c);
+  const ox = Math.round(idleBodyCx - bodyCx);
+  // Feet on idle bottom; flipper may extend above y=0 and be clipped by setPx.
+  const oy = idleBottom - contentH + 1 - sizedB.y0;
+  let wrote = 0;
+  let clipped = 0;
+  for (let y = sizedB.y0; y <= sizedB.y1; y++) {
+    for (let x = sizedB.x0; x <= sizedB.x1; x++) {
+      const c = getPx(sized, x, y);
+      if (c[3]! < 20) continue;
+      const dx = ox + x;
+      const dy = oy + y;
+      if (dx < 0 || dy < 0 || dx >= TARGET_W || dy >= TARGET_H) {
+        clipped++;
+        continue;
+      }
+      setPx(plate, dx, dy, [c[0]!, c[1]!, c[2]!, 255]);
+      wrote++;
     }
   }
-  return plate;
+  if (wrote === 0) {
+    console.error('imagineToPlate: fitted content missed the canvas entirely');
+    process.exit(1);
+  }
+  if (clipped > 0) {
+    console.log(`  (clipped ${clipped}px above/beside plate — body size preserved)`);
+  }
+  // Final outline pass (nearest-neighbour can nibble the rim; clipping may open edges).
+  return asPng(repairExternalOutline(plate, { outline: OUTLINE }));
 }
 
 function hasImagineSources() {
@@ -198,15 +247,33 @@ function writeImagine() {
   }
   const idle = PNG.sync.read(fs.readFileSync(IDLE));
   const idleB = contentBounds(idle);
-  const idleH = idleB.y1 - idleB.y0 + 1;
-  console.log(`Imagine wave plates → match idle content H=${idleH}, canvas ${TARGET_W}×${TARGET_H}`);
+  const idleBodyW = maxRowWidth(idle);
+  const idleBodyCx = bodyCenterX(idle);
+  console.log(
+    `Imagine wave plates → idle bodyW=${idleBodyW} bodyCx=${idleBodyCx.toFixed(1)} ` +
+      `feet y=${idleB.y1}, canvas ${TARGET_W}×${TARGET_H} (width-lock + re-outline)`,
+  );
   for (const frame of [1, 2, 3] as const) {
     const srcPath = path.join(REF, `wave-${frame}-source.png`);
     const raw = PNG.sync.read(fs.readFileSync(srcPath));
-    const plate = imagineToPlate(raw, idleB.y1, idleH);
+    const plate = imagineToPlate(raw, idleB.y1, idleBodyW, idleBodyCx);
     const out = path.join(DIR, `wave-${frame}.png`);
     fs.writeFileSync(out, PNG.sync.write(plate));
-    console.log(`wrote ${path.relative(process.cwd(), out)} (Imagine)`);
+    const b = contentBounds(plate);
+    const bodyW = maxRowWidth(plate);
+    // black % of opaque
+    let black = 0;
+    let opaque = 0;
+    for (let i = 0; i < plate.data.length; i += 4) {
+      if (plate.data[i + 3]! < 20) continue;
+      opaque++;
+      if ((plate.data[i]! + plate.data[i + 1]! + plate.data[i + 2]!) / 3 < 40) black++;
+    }
+    console.log(
+      `wrote ${path.relative(process.cwd(), out)} ` +
+        `bodyW=${bodyW} full ${b.x1 - b.x0 + 1}×${b.y1 - b.y0 + 1} ` +
+        `feetY=${b.y1} black=${opaque ? ((100 * black) / opaque).toFixed(1) : 0}%`,
+    );
   }
 }
 
