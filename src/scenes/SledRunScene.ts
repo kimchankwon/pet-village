@@ -68,6 +68,10 @@ export class SledRunScene extends Phaser.Scene {
   private rewardText = '';
   private lobbyNote = '';
   private disconnected = false;
+  /** Dropped but still trying: nothing we predict now can be sent or believed. */
+  private reconnecting = false;
+  /** Take the next snapshot as the truth rather than reconciling toward it. */
+  private resyncFromServer = false;
 
   constructor() {
     super('SledRun');
@@ -94,6 +98,8 @@ export class SledRunScene extends Phaser.Scene {
     this.rewardText = '';
     this.lobbyNote = '';
     this.disconnected = false;
+    this.reconnecting = false;
+    this.resyncFromServer = false;
     this.cameras.main.setBackgroundColor('#79bee7');
     this.drawMountain();
     this.courseGraphics = this.add.graphics().setDepth(20);
@@ -140,14 +146,24 @@ export class SledRunScene extends Phaser.Scene {
       connection.onConnectionState((state) => {
         if (this.sceneEpoch !== epoch) return;
         if (state === 'reconnecting') {
+          // Steering does not reach the server while dropped, so predicting on it
+          // would build a lane nobody else will ever agree with.
+          this.reconnecting = true;
           this.statusText.setText('Connection lost • reconnecting…');
         } else if (state === 'connected') {
+          const resumed = this.reconnecting;
           this.disconnected = false;
+          this.reconnecting = false;
           this.lastSteerSentAt = Number.NEGATIVE_INFINITY;
-          // Inputs sent into the drop were never applied, and the lanes we traced
-          // through it were never seen: resync against the first snapshot back.
-          this.ackClock.clearPending();
-          this.steerTrace.clear();
+          this.previousSteering = 0;
+          // Inputs sent into the drop were never applied and the round trip across
+          // it means nothing: take the first snapshot back as the sled's real lane
+          // and measure the connection again from there.
+          if (resumed) {
+            this.resyncFromServer = true;
+            this.ackClock = new SteerAckClock();
+            this.steerTrace.clear();
+          }
         } else {
           const interrupted = this.snapshot?.phase === 'countdown' || this.snapshot?.phase === 'racing';
           this.connection = undefined;
@@ -238,9 +254,18 @@ export class SledRunScene extends Phaser.Scene {
     if (this.solo) return;
     const local = snapshot.racers.find((racer) => racer.sessionId === snapshot.localSessionId);
     if (!local) return;
+    // First snapshot after a reconnect: the server kept racing without us, so
+    // there is no prediction worth keeping — adopt its lane outright.
+    if (this.resyncFromServer) {
+      this.resyncFromServer = false;
+      this.motions.set(local.sessionId, { x: local.x, progress: local.progress });
+      this.steerTrace.clear();
+      this.ackClock.clearPending();
+      return;
+    }
     this.ackClock.acked(local.inputSeq, this.snapshotAt);
     const motion = this.motions.get(local.sessionId);
-    if (this.disconnected || snapshot.phase !== 'racing' || local.rank > 0 || !motion) return;
+    if (this.disconnected || this.reconnecting || snapshot.phase !== 'racing' || local.rank > 0 || !motion) return;
     // Without a measured round trip there is no moment to compare against.
     if (!this.ackClock.measured) return;
     const traced = this.steerTrace.sample(this.snapshotAt - this.ackClock.roundTripMs);
@@ -516,7 +541,8 @@ export class SledRunScene extends Phaser.Scene {
     const config = sledDifficultyConfig(snapshot.difficulty);
     // Solo runs already integrate locally, and outside a race nobody is moving:
     // in both cases the snapshot is exactly what should be drawn.
-    const authoritative = this.solo || this.disconnected || snapshot.phase !== 'racing';
+    const authoritative = this.solo || this.disconnected || this.reconnecting
+      || snapshot.phase !== 'racing';
     // Everything a snapshot decides — how fast each sled is going, who was
     // bumped, how far down the hill they are — is drawn in the snapshot's own
     // time frame, so the hill still scrolls past the sled exactly as the server
@@ -601,7 +627,9 @@ export class SledRunScene extends Phaser.Scene {
       pointerX: pointer.x,
       width: this.scale.width,
     });
-    if ((this.snapshot.phase === 'countdown' || this.snapshot.phase === 'racing') && shouldSendSteer(this.previousSteering, steering, this.time.now, this.lastSteerSentAt)) {
+    if (!this.reconnecting
+      && (this.snapshot.phase === 'countdown' || this.snapshot.phase === 'racing')
+      && shouldSendSteer(this.previousSteering, steering, this.time.now, this.lastSteerSentAt)) {
       this.ackClock.sent(this.connection?.sendSteer(steering) ?? 0, this.time.now);
       this.previousSteering = steering;
       this.lastSteerSentAt = this.time.now;

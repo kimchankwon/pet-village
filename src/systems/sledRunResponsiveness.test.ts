@@ -45,6 +45,8 @@ function race(options: {
   dropSeq?: number;
   /** Shove the server's sled sideways at `at`, the way a collision would. */
   knock?: { at: number; by: number };
+  /** Cut the link for a while, the way a dropped socket does before it reconnects. */
+  outage?: { at: number; ms: number };
   seed?: string;
 }): Race {
   const { durationMs, oneWayMs, keyAt } = options;
@@ -65,12 +67,31 @@ function race(options: {
   let previousSteering: -1 | 0 | 1 = 0;
   let lastSentAt = Number.NEGATIVE_INFINITY;
   let seq = 0;
-  const ackClock = new SteerAckClock();
+  let ackClock = new SteerAckClock();
   const trace = new SteerTrace();
   const lanes: Race['lanes'] = [];
+  /** Link down: nothing crosses it, and nothing we draw is a claim about the race. */
+  let dropped = false;
+  let resync = false;
 
   for (let now = 0; now <= durationMs; now += 1) {
     if (options.knock && now === options.knock.at) racer.x += options.knock.by;
+    if (options.outage && now === options.outage.at) {
+      dropped = true;
+      // Whatever was in flight when the socket died never lands.
+      toServer.length = 0;
+      toClient.length = 0;
+    }
+    if (options.outage && now === options.outage.at + options.outage.ms) {
+      dropped = false;
+      // Same resync the scene does on `connected`: forget the round trip and the
+      // lanes traced through the blackout, and re-send the key that is held.
+      resync = true;
+      ackClock = new SteerAckClock();
+      trace.clear();
+      previousSteering = 0;
+      lastSentAt = Number.NEGATIVE_INFINITY;
+    }
     while (toServer.length && toServer[0]!.at <= now) {
       const input = toServer.shift()!;
       if (input.seq === options.dropSeq) continue;
@@ -79,6 +100,12 @@ function race(options: {
     while (toClient.length && toClient[0]!.at <= now) {
       snapshot = toClient.shift()!.snapshot;
       snapshotAt = now;
+      if (resync) {
+        resync = false;
+        motion = { x: snapshot.x, progress: snapshot.progress };
+        trace.clear();
+        continue;
+      }
       ackClock.acked(snapshot.inputSeq, now);
       const traced = ackClock.measured ? trace.sample(now - ackClock.roundTripMs) : undefined;
       if (traced !== undefined) {
@@ -89,22 +116,32 @@ function race(options: {
     }
     if (now % TICK_MS === 0 && now > 0) {
       simulation.step(TICK_MS, now);
-      toClient.push({
-        at: now + oneWayMs,
-        snapshot: {
-          x: racer.x, progress: racer.progress, speed: racer.speed,
-          steering: racer.steering, inputSeq: racer.inputSeq, rank: racer.rank,
-        },
-      });
+      // A snapshot made while the link is down is never delivered.
+      if (!dropped) {
+        toClient.push({
+          at: now + oneWayMs,
+          snapshot: {
+            x: racer.x, progress: racer.progress, speed: racer.speed,
+            steering: racer.steering, inputSeq: racer.inputSeq, rank: racer.rank,
+          },
+        });
+      }
     }
     if (now % FRAME_MS !== 0) continue;
     const steering = keyAt(now);
-    if (shouldSendSteer(previousSteering, steering, now, lastSentAt)) {
+    if (!dropped && shouldSendSteer(previousSteering, steering, now, lastSentAt)) {
       seq += 1;
       toServer.push({ at: now + oneWayMs, steering, seq });
       ackClock.sent(seq, now);
       previousSteering = steering;
       lastSentAt = now;
+    }
+    if (dropped) {
+      // Prediction is frozen on the last snapshot: steering that cannot reach the
+      // server would only build a lane the race will never agree with.
+      motion = { x: snapshot.x, progress: snapshot.progress };
+      lanes.push({ at: now, x: motion.x, steering });
+      continue;
     }
     motion = stepSledMotion(motion, {
       server: snapshot,
@@ -211,6 +248,36 @@ test('a wide correction is applied to the lane being steered, not the one in the
   assert.ok(
     Math.abs(clientX() - serverX()) < steerDeadZone(CONFIG.steeringSpeed),
     `expected agreement once the key is released, client ${clientX()} vs server ${serverX()}`,
+  );
+});
+
+test('a reconnect takes the lane the server raced without us, and steers on from there', () => {
+  // The key is released just before the socket dies, so the release is lost and the
+  // server keeps turning through the blackout: on the way back the client's own
+  // lane is stale by everything that happened while it was gone.
+  const OUTAGE = { at: 300, ms: 400 };
+  const { lanes, serverX, clientX } = race({
+    durationMs: 1_600, oneWayMs: 70, keyAt: (now) => (now < 250 ? 1 : 0), outage: OUTAGE,
+  });
+  const during = lanes.filter((lane) => lane.at >= OUTAGE.at && lane.at < OUTAGE.at + OUTAGE.ms);
+  for (const lane of during) {
+    assert.equal(lane.x, during[0]!.x, `the lane drifted to ${lane.x} at ${lane.at}ms while dropped`);
+  }
+  // Back on the server's lane within a round trip of the link returning, without
+  // being dragged back later by a snapshot from before the drop.
+  const back = lanes.filter((lane) => lane.at > OUTAGE.at + OUTAGE.ms + 150);
+  for (const [index, lane] of back.entries()) {
+    if (index === 0) continue;
+    assert.ok(
+      Math.abs(lane.x - back[index - 1]!.x) < 6,
+      `expected steady steering after the reconnect, jumped ${lane.x - back[index - 1]!.x} at ${lane.at}ms`,
+    );
+  }
+  // The server turns for one more tick before the re-sent release reaches it, and a
+  // difference that small is inside the dead zone the reconciler leaves alone.
+  assert.ok(
+    Math.abs(clientX() - serverX()) <= steerDeadZone(CONFIG.steeringSpeed) + 0.5,
+    `expected the reconnected client on the server's lane, client ${clientX()} vs server ${serverX()}`,
   );
 });
 

@@ -6,7 +6,7 @@ import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
 import { characterDepth, propDepth } from '../systems/depth';
-import { isInteractSuppressed, isUiBlocked, requestLeave } from '../systems/nav';
+import { isInteractSuppressed, isPointerUiBlocked, isUiBlocked, requestLeave } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, type CameraZoom } from '../systems/cameraZoom';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
@@ -182,6 +182,8 @@ export class ShoreScene extends Phaser.Scene {
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
+      // Typing a message: a click must not walk off, open a menu or change scene.
+      if (isPointerUiBlocked()) return;
       if (this.joystick.owns(pointer) || this.cameraZoom.ownsPointer(pointer)) return;
       if (this.cameraZoom.isPinching()) return;
       if (this.dockImg.getBounds().contains(pointer.worldX, pointer.worldY)) {

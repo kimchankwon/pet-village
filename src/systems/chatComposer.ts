@@ -5,7 +5,9 @@
  * game's UI (see HUD / Menu / Prompt) rather than as a DOM input, so it reads
  * keystrokes itself — `chat.ts` decides what each one means. While it is open the
  * scene's own input is held off through nav.blockUi(), which is the same latch
- * menus use, so WASD, E/Space, I, P and Escape all stay out of the way.
+ * menus use, so WASD, E/Space, I, P and Escape all stay out of the way, plus
+ * nav.blockPointerUi() so a click cannot open a menu that would answer to the
+ * same Enter and Escape this composer is reading.
  */
 
 import Phaser from 'phaser';
@@ -19,7 +21,7 @@ import {
   CHAT_MAX_LENGTH,
 } from './chat';
 import { markAsUi } from './cameraZoom';
-import { blockUi, unblockUi } from './nav';
+import { blockPointerUi, blockUi, unblockPointerUi, unblockUi } from './nav';
 
 /** Above toasts (1500) and the bottom buttons (1450), below menus (2000). */
 const COMPOSER_DEPTH = 1600;
@@ -119,6 +121,9 @@ export class ChatComposer {
     this.opened = true;
     this.draft = '';
     blockUi();
+    // Clicks too: a menu opened mid-sentence would answer to Enter and Escape
+    // alongside the composer, and a door would carry the draft to another scene.
+    blockPointerUi();
     this.line.setVisible(true);
     this.hint.setVisible(true);
     this.render();
@@ -137,6 +142,7 @@ export class ChatComposer {
     this.draft = '';
     this.line.setVisible(false);
     this.hint.setVisible(false);
+    unblockPointerUi();
     unblockUi();
     // Keys pressed while composing left their Phaser Key objects down; without
     // this the next frame reads them as a fresh press (a typed 'i' would open

@@ -41,7 +41,7 @@ import { feetDepth } from './depth';
 import { localDisplayName } from './localProfile';
 import { State } from './GameState';
 import { toast } from './UI';
-import { isUiBlocked } from './nav';
+import { isPointerUiBlocked, isUiBlocked } from './nav';
 import { ChatComposer } from './chatComposer';
 import { chatBubbleAlpha, chatBubbleDurationMs, isNewChat } from './chat';
 import { phaserWorldSceneKey, translateWorldCoordinates } from './worldCoordinates';
@@ -510,6 +510,7 @@ export class WorldMultiplayer {
       lastChatId: row.chatId,
     };
     player.on('pointerdown', (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
+      if (isPointerUiBlocked()) return;
       handleRemotePlayerPointerDown(event, this.cancelLocalMovement, () => this.waveTo(row.sessionId));
     });
     this.remotes.set(row.sessionId, remote);
