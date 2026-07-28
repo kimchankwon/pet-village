@@ -10,14 +10,16 @@ import {
   TownState,
   isGameActivity,
   isWorldScene,
+  sanitizeChatText,
   type ActivityPayload,
   type AdmissionClaims,
+  type ChatPayload,
   type ProfileRefreshPayload,
   type ProfileRefreshResult,
   type WavePayload,
   type WorldScene,
 } from '@pet-village/multiplayer-protocol';
-import { canTransitionWorldScene, canWave, isApprovedWorldSpawn, TOWN_SPAWNS, validateMove } from './policy.ts';
+import { canChat, canTransitionWorldScene, canWave, isApprovedWorldSpawn, TOWN_SPAWNS, validateMove } from './policy.ts';
 import { TownNpcSimulation } from './npcSimulation.ts';
 
 function secret() {
@@ -74,7 +76,7 @@ const PENGUIN_COLORS = new Set([
 ]);
 
 // Four ticket versions are retained by the rolling-compatibility policy.
-const SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([3, 4, 5, PROTOCOL_VERSION]);
+const SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([4, 5, 6, PROTOCOL_VERSION]);
 
 export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
   const { payload } = await jwtVerify(token, secret(), {
@@ -132,6 +134,7 @@ export class TownRoom extends Room<{ state: TownState }> {
       void this.refreshProfile(client, payload);
     });
     this.onMessage('wave', (client, payload: WavePayload) => this.wave(client, payload));
+    this.onMessage('chat', (client, payload: ChatPayload) => this.chat(client, payload));
   }
 
   onJoin(client: Client, _options: unknown, claims: AdmissionClaims) {
@@ -356,5 +359,21 @@ export class TownRoom extends Room<{ state: TownState }> {
     }
     player.waveId = `${now}:${crypto.randomUUID()}`;
     player.waveTarget = payload.targetSessionId;
+  }
+
+  /**
+   * Say something over your penguin's head. Whoever shares the scene sees it, so
+   * the text is sanitized here rather than trusted from the sender, and the id
+   * carries the send time — that is what rate-limits the next one.
+   */
+  private chat(client: Client, payload: ChatPayload) {
+    const player = this.state.players.get(client.sessionId);
+    if (!player || !player.active) return;
+    const text = sanitizeChatText(payload?.text);
+    const now = Date.now();
+    const lastChatAt = Number(player.chatId.split(':')[0]) || 0;
+    if (!text || !canChat({ lastChatAt }, now)) return;
+    player.chatText = text;
+    player.chatId = `${now}:${crypto.randomUUID()}`;
   }
 }

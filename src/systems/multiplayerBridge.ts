@@ -32,6 +32,9 @@ export type RemotePresence = {
   updatedAt: number;
   waveId?: string;
   waveTarget?: string;
+  /** Changes on every message sent, which is how a new bubble is spotted. */
+  chatId?: string;
+  chatText?: string;
 };
 
 export type RemoteNpc = {
@@ -73,6 +76,7 @@ type Actions = {
   updateProfile: (ticket: string) => void;
   leave: () => void;
   wave: (id: string) => void;
+  chat: (text: string) => void;
   /** Re-snapshot peers now — scene filtering changed, so cached rows are stale. */
   resync?: () => void;
 };
@@ -281,5 +285,8 @@ export const multiplayerBridge = {
   },
   wave(id: string) {
     actions?.wave(id);
+  },
+  chat(text: string) {
+    actions?.chat(text);
   },
 };

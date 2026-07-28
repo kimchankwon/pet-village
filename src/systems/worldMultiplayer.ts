@@ -41,6 +41,9 @@ import { feetDepth } from './depth';
 import { localDisplayName } from './localProfile';
 import { State } from './GameState';
 import { toast } from './UI';
+import { isUiBlocked } from './nav';
+import { ChatComposer } from './chatComposer';
+import { chatBubbleAlpha, chatBubbleDurationMs, isNewChat, CHAT_SEND_INTERVAL_MS } from './chat';
 import { phaserWorldSceneKey, translateWorldCoordinates } from './worldCoordinates';
 import {
   ACCESSORIES,
@@ -65,6 +68,15 @@ type RemoteAvatar = {
   accessoryRetryAt: number;
   lastWaveId?: string;
   waveStartedAt: number | null;
+  chat: ChatBubble;
+  lastChatId?: string;
+};
+
+/** One speech bubble and how long it still has to live. */
+type ChatBubble = {
+  text: Phaser.GameObjects.Text;
+  startedAt: number | null;
+  durationMs: number;
 };
 
 export type RemoteInteractable = {
@@ -106,6 +118,55 @@ function labelStyle(color = '#ffffff'): Phaser.Types.GameObjects.Text.TextStyle 
   };
 }
 
+/**
+ * Speech bubbles sit above the nametag and are deliberately louder than it:
+ * wider, brighter, and centred, because a message is the thing you are meant to
+ * read. Wrapping keeps a long line from spilling across the scene.
+ */
+function chatBubbleStyle(): Phaser.Types.GameObjects.Text.TextStyle {
+  return {
+    fontFamily: 'monospace',
+    fontSize: '12px',
+    color: '#ffffff',
+    backgroundColor: '#2b2145ee',
+    padding: { x: 7, y: 5 },
+    align: 'center',
+    wordWrap: { width: 176 },
+    stroke: '#101426',
+    strokeThickness: 3,
+  };
+}
+
+function createChatBubble(scene: Phaser.Scene, x: number, y: number): ChatBubble {
+  return {
+    text: scene.add.text(x, y, '', chatBubbleStyle()).setOrigin(0.5, 1).setVisible(false),
+    startedAt: null,
+    durationMs: 0,
+  };
+}
+
+/** Start a bubble's stay on screen; longer messages get longer. */
+function showChatBubble(bubble: ChatBubble, text: string, now: number) {
+  bubble.text.setText(text).setVisible(true).setAlpha(1);
+  bubble.startedAt = now;
+  bubble.durationMs = chatBubbleDurationMs(text);
+}
+
+/**
+ * Keep a bubble over its owner's nametag, or retire it once its time is up.
+ * `labelTop` is the top edge of the nametag, so the two never overlap.
+ */
+function drawChatBubble(bubble: ChatBubble, x: number, labelTop: number, depth: number, now: number) {
+  if (bubble.startedAt === null) return;
+  const alpha = chatBubbleAlpha(now - bubble.startedAt, bubble.durationMs);
+  if (alpha === null) {
+    bubble.startedAt = null;
+    bubble.text.setVisible(false);
+    return;
+  }
+  bubble.text.setPosition(x, labelTop - 2).setAlpha(alpha).setDepth(depth);
+}
+
 /** Shared multiplayer renderer/controller for every free-roaming world scene. */
 export class WorldMultiplayer {
   private readonly scene: Phaser.Scene;
@@ -120,6 +181,9 @@ export class WorldMultiplayer {
   private readonly depthFor: (sprite: Phaser.GameObjects.Sprite) => number;
   private readonly localMarker: Phaser.GameObjects.Ellipse;
   private readonly localPlayerLabel: Phaser.GameObjects.Text;
+  private readonly localChat: ChatBubble;
+  private readonly chatComposer: ChatComposer;
+  private lastChatSentAt = -Infinity;
   private readonly remotes = new Map<string, RemoteAvatar>();
   private readonly unsubscribe: () => void;
   private readonly releaseWorld: () => void;
@@ -155,6 +219,13 @@ export class WorldMultiplayer {
     this.localPlayerLabel = scene.add
       .text(this.localPlayer.x, this.localPlayer.y, localDisplayName(), labelStyle('#ffe066'))
       .setOrigin(0.5, 1);
+    this.localChat = createChatBubble(scene, this.localPlayer.x, this.localPlayer.y);
+    // T is claimed here rather than in each scene: every world scene builds one
+    // of these, so chat arrives everywhere at once.
+    this.chatComposer = new ChatComposer(scene, {
+      canOpen: () => !this.disposed && !isUiBlocked(),
+      onSend: (text) => this.say(text),
+    });
 
     const pose = this.currentPose('down', false);
     this.lastPose = { ...pose, sentAt: scene.time.now };
@@ -226,6 +297,14 @@ export class WorldMultiplayer {
       )
       .setDepth(this.depthFor(this.localPlayer) - 1);
     this.updateLocalLabel();
+    this.chatComposer.update(now);
+    drawChatBubble(
+      this.localChat,
+      this.localPlayer.x,
+      this.localPlayerLabel.y - this.localPlayerLabel.height,
+      this.depthFor(this.localPlayer) + 3,
+      now,
+    );
     this.applyLocalWave(now);
     for (const remote of this.remotes.values()) this.updateRemote(remote, now, deltaMs);
     this.updatePendingWave(now);
@@ -236,6 +315,26 @@ export class WorldMultiplayer {
       .setText(localDisplayName())
       .setPosition(this.localPlayer.x, this.localPlayer.y - this.localPlayer.displayHeight / 2 - 4)
       .setDepth(this.depthFor(this.localPlayer) + 2);
+  }
+
+  /** True while the chat composer has the keyboard. */
+  isChatting() {
+    return this.chatComposer.isOpen();
+  }
+
+  /**
+   * Send what the composer collected. Peers see it through the room state; the
+   * sender's own bubble is shown here, because the local session is filtered out
+   * of the presence snapshot. Refusing on our own cooldown (wider than the
+   * server's) keeps that bubble honest — the server would have dropped it.
+   */
+  private say(text: string) {
+    const now = this.scene.time.now;
+    if (now - this.lastChatSentAt < CHAT_SEND_INTERVAL_MS) return false;
+    this.lastChatSentAt = now;
+    multiplayerBridge.chat(text);
+    showChatBubble(this.localChat, text, now);
+    return true;
   }
 
   playLocalWave() {
@@ -410,6 +509,8 @@ export class WorldMultiplayer {
       accessoryRetryAt: 0,
       lastWaveId: row.waveId,
       waveStartedAt: null,
+      chat: createChatBubble(this.scene, local.x, local.y),
+      lastChatId: row.chatId,
     };
     player.on('pointerdown', (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
       handleRemotePlayerPointerDown(event, this.cancelLocalMovement, () => this.waveTo(row.sessionId));
@@ -420,6 +521,7 @@ export class WorldMultiplayer {
 
   private refreshRemote(remote: RemoteAvatar, row: RemotePresence) {
     const previousWaveId = remote.lastWaveId;
+    const previousChatId = remote.lastChatId;
     remote.row = row;
     const presentation = remotePlayerPresentation(row);
     remote.playerLabel.setText(presentation.playerLabel).setColor(presentation.labelColor);
@@ -450,6 +552,13 @@ export class WorldMultiplayer {
       toast(this.scene, remote.player.x, remote.player.y - remote.player.displayHeight / 2, `${row.name} waves hello!`, '#bfe6ff');
     }
     remote.lastWaveId = row.waveId;
+
+    // A message shows once: the id changes per send, so a state patch about
+    // someone walking must not replay the bubble they posted a minute ago.
+    if (isNewChat(previousChatId, row.chatId) && row.chatText) {
+      showChatBubble(remote.chat, row.chatText, this.scene.time.now);
+    }
+    remote.lastChatId = row.chatId;
   }
 
   private refreshRemoteAccessories(remote: RemoteAvatar) {
@@ -542,6 +651,13 @@ export class WorldMultiplayer {
     remote.petLabel
       .setPosition(remote.pet.x, remote.pet.y - remote.pet.displayHeight / 2 - 3)
       .setDepth(this.depthFor(remote.pet) + 2);
+    drawChatBubble(
+      remote.chat,
+      remote.player.x,
+      remote.playerLabel.y - remote.playerLabel.height,
+      this.depthFor(remote.player) + 3,
+      now,
+    );
   }
 
   private localPresence(row: RemotePresence): RemotePresence {
@@ -554,6 +670,7 @@ export class WorldMultiplayer {
     remote.pet.destroy();
     remote.playerLabel.destroy();
     remote.petLabel.destroy();
+    remote.chat.text.destroy();
     this.remotes.delete(sessionId);
   }
 
@@ -566,8 +683,10 @@ export class WorldMultiplayer {
     this.unsubscribe();
     this.releaseWorld();
     this.pendingWave = null;
+    this.chatComposer.dispose();
     this.localMarker.destroy();
     this.localPlayerLabel.destroy();
+    this.localChat.text.destroy();
     for (const [sessionId, remote] of this.remotes) this.destroyRemote(sessionId, remote);
   }
 }

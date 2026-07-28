@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateMove, canTransitionWorldScene, canWave, MAX_PET_DISTANCE } from '../src/policy.ts';
+import { validateMove, canChat, canTransitionWorldScene, canWave, MAX_PET_DISTANCE } from '../src/policy.ts';
 
 const player = { x: 100, y: 100, lastSeq: 4, lastMoveAt: 1000, lastWaveAt: 0 };
 test('move policy enforces monotonic sequence, town bounds and speed plus slack', () => {
@@ -47,6 +47,13 @@ test('world scene transitions follow the map portal graph', () => {
   assert.equal(canTransitionWorldScene('daniels-shop', 'town'), true);
   assert.equal(canTransitionWorldScene('west-green', 'east-green'), false);
   assert.equal(canTransitionWorldScene('shore', 'cafe-cinnamon'), false);
+});
+test('chat policy keeps a floor between two messages from the same player', () => {
+  assert.equal(canChat({ lastChatAt: 0 }, 600), true);
+  assert.equal(canChat({ lastChatAt: 0 }, 599), false);
+  assert.equal(canChat({ lastChatAt: 1_000 }, 1_000), false);
+  // A player who has never spoken carries no timestamp, so nothing holds them up.
+  assert.equal(canChat({ lastChatAt: 0 }, Date.now()), true);
 });
 test('wave policy enforces proximity and cooldown', () => {
   assert.equal(canWave(player, {x:150,y:100}, 2000), true);

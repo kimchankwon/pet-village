@@ -1,6 +1,6 @@
 import { MapSchema, Schema, defineTypes } from '@colyseus/schema';
 
-export const PROTOCOL_VERSION = 6 as const;
+export const PROTOCOL_VERSION = 7 as const;
 export const TICKET_ISSUER = 'pet-village-convex';
 export const TICKET_AUDIENCE = 'pet-village-multiplayer';
 export const ROOM_NAME = 'town_default';
@@ -72,6 +72,10 @@ export const MAX_SPEED = 220;
 export const MOVE_SLACK = 48;
 export const WAVE_RADIUS = 300;
 export const WAVE_COOLDOWN_MS = 1_000;
+/** A chat message is one line over someone's head, not a paragraph. */
+export const CHAT_MAX_LENGTH = 120;
+/** The server's floor between two messages from the same player. */
+export const CHAT_COOLDOWN_MS = 600;
 export type Facing = 'up' | 'down' | 'side';
 export const GAME_ACTIVITIES = ['fishing', 'get', 'bump', 'skip-rope', 'paper-toss', 'sled-run'] as const;
 export type GameActivity = (typeof GAME_ACTIVITIES)[number];
@@ -82,6 +86,7 @@ export type PositionCorrection = { scene: WorldScene; x: number; y: number; petX
 export type ProfileRefreshPayload = { ticket: string; requestId?: string };
 export type ProfileRefreshResult = { ok: boolean; requestId?: string; retryAfterMs?: number };
 export type WavePayload = { targetSessionId: string };
+export type ChatPayload = { text: string };
 export type TownPositionClaim = { x: number; y: number; facing: Facing };
 export type EquippedAccessoriesClaim = {
   headLeft?: string;
@@ -120,6 +125,42 @@ export function isGameActivity(value: unknown): value is GameActivity {
 
 export function isWorldScene(value: unknown): value is WorldScene {
   return typeof value === 'string' && (WORLD_SCENES as readonly string[]).includes(value);
+}
+
+/**
+ * Control, separator and bidi-override characters, which a paste can carry in.
+ * A chat bubble is one line of text drawn over a penguin's head: a newline would
+ * grow it into the scene, and a direction override could dress a message up as
+ * someone else's. Both become an ordinary space.
+ */
+const CHAT_UNSAFE_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x00, 0x1f], [0x7f, 0x9f], [0x2028, 0x2029],
+  [0x200e, 0x200f], [0x202a, 0x202e], [0x2066, 0x2069],
+];
+
+function isChatUnsafe(character: string) {
+  const codePoint = character.codePointAt(0) ?? 0;
+  return CHAT_UNSAFE_RANGES.some(([from, to]) => codePoint >= from && codePoint <= to);
+}
+
+/** Whether one typed character may go into a message (a space may). */
+export function isChatCharacter(character: string) {
+  return Array.from(character).length === 1 && !isChatUnsafe(character);
+}
+
+/**
+ * What a chat message is allowed to be: printable, single-line, collapsed,
+ * trimmed and capped. Returns null when there is nothing left to say, so
+ * whitespace alone cannot post an empty bubble.
+ */
+export function sanitizeChatText(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > CHAT_MAX_LENGTH * 8) return null;
+  const flattened = Array.from(value, (character) => (isChatUnsafe(character) ? ' ' : character))
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // Capped by character, not by code unit, so the cut cannot land inside an emoji.
+  return flattened.length === 0 ? null : Array.from(flattened).slice(0, CHAT_MAX_LENGTH).join('');
 }
 
 function moveFields(value: unknown) {
@@ -274,6 +315,9 @@ export class PlayerState extends Schema {
   declare accessoryHeadRight: string;
   declare accessoryBody: string;
   declare accessoryExtra: string;
+  /** Stamped `${sentAt}:${uuid}` — how peers spot a message they have not shown. */
+  declare chatId: string;
+  declare chatText: string;
 
   constructor() {
     super();
@@ -299,9 +343,13 @@ export class PlayerState extends Schema {
     this.accessoryHeadRight = '';
     this.accessoryBody = '';
     this.accessoryExtra = '';
+    this.chatId = '';
+    this.chatText = '';
   }
 }
-defineTypes(PlayerState, {userId:'string',displayName:'string',petName:'string',petSpecies:'string',penguinColor:'string',x:'number',y:'number',petX:'number',petY:'number',facing:'string',moving:'boolean',active:'boolean',seq:'number',updatedAt:'number',waveId:'string',waveTarget:'string',activity:'string',scene:'string',accessoryHeadLeft:'string',accessoryHeadRight:'string',accessoryBody:'string',accessoryExtra:'string'});
+// Field order is the wire format: new fields are appended so clients on an older
+// protocol keep decoding the ones they know.
+defineTypes(PlayerState, {userId:'string',displayName:'string',petName:'string',petSpecies:'string',penguinColor:'string',x:'number',y:'number',petX:'number',petY:'number',facing:'string',moving:'boolean',active:'boolean',seq:'number',updatedAt:'number',waveId:'string',waveTarget:'string',activity:'string',scene:'string',accessoryHeadLeft:'string',accessoryHeadRight:'string',accessoryBody:'string',accessoryExtra:'string',chatId:'string',chatText:'string'});
 
 export class NpcState extends Schema {
   declare id: string;
