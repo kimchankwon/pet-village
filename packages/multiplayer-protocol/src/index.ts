@@ -163,6 +163,12 @@ export type SledCourseItem = {
 export type SledInputPayload = { steering: -1 | 0 | 1; seq: number };
 export const SLED_MAX_PLAYERS = 4;
 export const SLED_COUNTDOWN_MS = 3_000;
+/**
+ * The race simulation's tick. A tick integrates a whole step at whatever steering
+ * it holds when it runs, so this is also how precisely the server can place a
+ * sled — the client's reconciliation reads it as the width of a fair disagreement.
+ */
+export const SLED_TICK_MS = 50;
 export const SLED_RACER_RADIUS = 24;
 export const SLED_PROGRESS_TO_PIXELS = 0.56;
 export const SLED_EFFECTS = {

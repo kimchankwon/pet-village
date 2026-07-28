@@ -20,8 +20,9 @@ import {
   type SledRunConnection,
   type SledRunSnapshot,
 } from '../systems/sledRunClient';
+import { SteerAckClock, SteerTrace } from '../systems/sledRunLatency';
 import { shouldSendSteer, steerAxisFrom } from '../systems/sledRunPolicy';
-import { stepSledMotion, type SledMotion } from '../systems/sledRunPrediction';
+import { reconcileLocalX, stepSledMotion, type SledMotion } from '../systems/sledRunPrediction';
 import { sledRunReward } from '../systems/sledRunRewards';
 import { State } from '../systems/GameState';
 
@@ -42,6 +43,12 @@ export class SledRunScene extends Phaser.Scene {
   private racerViews = new Map<string, Phaser.GameObjects.Container>();
   /** Predicted motion per racer, so steering shows up before the server agrees. */
   private motions = new Map<string, SledMotion>();
+  /** Round trip measured from the input echoes, for aligning snapshots in time. */
+  private ackClock = new SteerAckClock();
+  /** The lanes we predicted, so a snapshot is judged against its own moment. */
+  private steerTrace = new SteerTrace();
+  /** When the newest snapshot landed, so followers know how stale it is. */
+  private snapshotAt = 0;
   private courseGraphics!: Phaser.GameObjects.Graphics;
   private queueText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
@@ -79,6 +86,9 @@ export class SledRunScene extends Phaser.Scene {
     this.courseKey = '';
     this.racerViews.clear();
     this.motions.clear();
+    this.ackClock = new SteerAckClock();
+    this.steerTrace = new SteerTrace();
+    this.snapshotAt = 0;
     this.previousPhase = '';
     this.previousRound = -1;
     this.rewardText = '';
@@ -134,6 +144,10 @@ export class SledRunScene extends Phaser.Scene {
         } else if (state === 'connected') {
           this.disconnected = false;
           this.lastSteerSentAt = Number.NEGATIVE_INFINITY;
+          // Inputs sent into the drop were never applied, and the lanes we traced
+          // through it were never seen: resync against the first snapshot back.
+          this.ackClock.clearPending();
+          this.steerTrace.clear();
         } else {
           const interrupted = this.snapshot?.phase === 'countdown' || this.snapshot?.phase === 'racing';
           this.connection = undefined;
@@ -170,7 +184,8 @@ export class SledRunScene extends Phaser.Scene {
       countdownAt: 0, startedAt: 0, serverTime: Date.now(), round: 0,
       racers: [{
         sessionId: 'solo', userId: 'solo', displayName: 'You', penguinColor: 'blue',
-        x: 0, progress: 0, speed: 0, effect: '', effectUntil: 0, rank: 0, finishedAt: 0,
+        x: 0, progress: 0, speed: 0, steering: 0, inputSeq: 0,
+        effect: '', effectUntil: 0, rank: 0, finishedAt: 0,
       }],
     };
     this.snapshot = snapshot;
@@ -179,6 +194,7 @@ export class SledRunScene extends Phaser.Scene {
 
   private acceptSnapshot(snapshot: SledRunSnapshot) {
     this.snapshot = snapshot;
+    this.snapshotAt = this.time.now;
     const nextCourseKey = `${snapshot.seed}:${snapshot.difficulty}:${snapshot.round}`;
     if (snapshot.seed && nextCourseKey !== this.courseKey) {
       this.courseKey = nextCourseKey;
@@ -190,6 +206,8 @@ export class SledRunScene extends Phaser.Scene {
         // Fresh run: drop last run's predicted positions instead of blending
         // every sled all the way back from the finish line.
         this.motions.clear();
+        this.steerTrace.clear();
+        this.ackClock.clearPending();
         this.localCountdownEnd = this.time.now + Math.max(0, snapshot.countdownAt - snapshot.serverTime);
         this.previousSteering = 0;
         this.lastSteerSentAt = Number.NEGATIVE_INFINITY;
@@ -204,8 +222,34 @@ export class SledRunScene extends Phaser.Scene {
       this.previousPhase = snapshot.phase;
       this.previousRound = snapshot.round;
     }
+    this.reconcileLocalSled(snapshot);
     this.syncRacerViews();
     this.refreshUi();
+  }
+
+  /**
+   * Judge a snapshot against the lane we predicted at the moment it was made —
+   * one round trip back — and absorb only what is left over. The latency between
+   * the key and the server cancels out here, so a held key is never dragged short
+   * and a released one never creeps onward; what survives is real disagreement,
+   * such as an input the server's rate limit refused.
+   */
+  private reconcileLocalSled(snapshot: SledRunSnapshot) {
+    if (this.solo) return;
+    const local = snapshot.racers.find((racer) => racer.sessionId === snapshot.localSessionId);
+    if (!local) return;
+    this.ackClock.acked(local.inputSeq, this.snapshotAt);
+    const motion = this.motions.get(local.sessionId);
+    if (this.disconnected || snapshot.phase !== 'racing' || local.rank > 0 || !motion) return;
+    // Without a measured round trip there is no moment to compare against.
+    if (!this.ackClock.measured) return;
+    const traced = this.steerTrace.sample(this.snapshotAt - this.ackClock.roundTripMs);
+    if (traced === undefined) return;
+    const { steeringSpeed, trackHalfWidth } = sledDifficultyConfig(snapshot.difficulty);
+    this.motions.set(local.sessionId, {
+      ...motion,
+      x: reconcileLocalX(motion.x, local.x, traced, steeringSpeed, trackHalfWidth),
+    });
   }
 
   /** Where the crest is: above this the mountain, below it the run itself. */
@@ -459,10 +503,11 @@ export class SledRunScene extends Phaser.Scene {
   }
 
   /**
-   * Advance every sled's predicted motion by a frame. The local sled replays its
-   * own steering right away — the server's answer is a fifth of a second behind —
-   * and every sled coasts on its last reported speed, all of it blended back
-   * toward the snapshot so nothing can drift.
+   * Advance every sled's predicted motion by a frame. The local sled steers on
+   * the key that is down right now, with no snapshot pulling at it — snapshots
+   * reach it through `reconcileLocalSled`. Everyone else, and every sled's
+   * progress, follows the snapshot carried forward by its own age, so a follow
+   * aims at where the server is now instead of settling a round trip short.
    */
   private stepMotions(deltaMs: number, steering: -1 | 0 | 1) {
     const snapshot = this.snapshot;
@@ -471,6 +516,11 @@ export class SledRunScene extends Phaser.Scene {
     // Solo runs already integrate locally, and outside a race nobody is moving:
     // in both cases the snapshot is exactly what should be drawn.
     const authoritative = this.solo || this.disconnected || snapshot.phase !== 'racing';
+    // Everything a snapshot decides — how fast each sled is going, who was
+    // bumped, how far down the hill they are — is drawn in the snapshot's own
+    // time frame, so the hill still scrolls past the sled exactly as the server
+    // scored it. Only our lane runs ahead, in the time frame of our input.
+    const ageMs = Math.max(0, this.time.now - this.snapshotAt);
     for (const racer of snapshot.racers) {
       if (authoritative) {
         this.motions.set(racer.sessionId, { x: racer.x, progress: racer.progress });
@@ -483,8 +533,11 @@ export class SledRunScene extends Phaser.Scene {
         trackHalfWidth: config.trackHalfWidth,
         courseLength: config.courseLength,
         deltaMs,
+        ageMs,
       }));
     }
+    const local = this.motions.get(snapshot.localSessionId);
+    if (local && !authoritative) this.steerTrace.record(this.time.now, local.x);
   }
 
   private updateSolo(deltaMs: number, steering: -1 | 0 | 1) {
@@ -548,7 +601,7 @@ export class SledRunScene extends Phaser.Scene {
       width: this.scale.width,
     });
     if ((this.snapshot.phase === 'countdown' || this.snapshot.phase === 'racing') && shouldSendSteer(this.previousSteering, steering, this.time.now, this.lastSteerSentAt)) {
-      this.connection?.sendSteer(steering);
+      this.ackClock.sent(this.connection?.sendSteer(steering) ?? 0, this.time.now);
       this.previousSteering = steering;
       this.lastSteerSentAt = this.time.now;
     }

@@ -1,4 +1,5 @@
 import { Client, type Room } from '@colyseus/sdk';
+import { PROTOCOL_VERSION } from '@pet-village/multiplayer-protocol';
 import { SignJWT } from 'jose';
 
 // Run the multiplayer server with the same MULTIPLAYER_TICKET_SECRET, then run
@@ -10,7 +11,7 @@ if (!ticketSecret) throw new Error('MULTIPLAYER_TICKET_SECRET is required for th
 const secret = new TextEncoder().encode(ticketSecret);
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function ticket(id: string, color: string, protocolVersion = 4) {
+async function ticket(id: string, color: string, protocolVersion = PROTOCOL_VERSION) {
   return new SignJWT({
     displayName: id, petName: `${id}-pet`, petSpecies: 'dog', penguinColor: color, protocolVersion,
   })

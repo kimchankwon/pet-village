@@ -15,7 +15,8 @@ test('sled client projects authoritative room state into immutable renderer data
   const racer = new SledPlayerState();
   Object.assign(racer, {
     userId: 'user-a', displayName: 'Alice', penguinColor: 'pink', x: 42,
-    progress: 900, speed: 430, effect: 'ice', effectUntil: 1_500, rank: 0,
+    progress: 900, speed: 430, steering: -1, inputSeq: 12,
+    effect: 'ice', effectUntil: 1_500, rank: 0,
   });
   state.racers.set('a', racer);
 
@@ -26,8 +27,8 @@ test('sled client projects authoritative room state into immutable renderer data
   assert.equal(snapshot.serverTime, 12_345);
   assert.deepEqual(snapshot.racers[0], {
     sessionId: 'a', userId: 'user-a', displayName: 'Alice', penguinColor: 'pink',
-    x: 42, progress: 900, speed: 430, effect: 'ice', effectUntil: 1_500,
-    rank: 0, finishedAt: 0,
+    x: 42, progress: 900, speed: 430, steering: -1, inputSeq: 12,
+    effect: 'ice', effectUntil: 1_500, rank: 0, finishedAt: 0,
   });
 
   racer.progress = 1_000;
