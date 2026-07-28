@@ -56,11 +56,11 @@ test('row scan only keeps outline runs that separate two filled runs', () => {
   assert.equal(rows[12].first, 5);
 });
 
-test('finds the flipper band and pivots on the shoulder, ignoring the belly border', () => {
+test('finds the flipper band and pivots on the outer corner, ignoring the belly border', () => {
   const image = fakePlate();
   const band = findFlipperBand(image);
   assert.ok(band);
-  assert.deepEqual(band.pivot, { x: 11, y: 10 }, 'top of the shared outline');
+  assert.deepEqual(band.pivot, { x: 5, y: 10 }, "the flipper's own top-outer pixel");
   assert.equal(band.rows[0].y, 10);
   assert.equal(band.rows[band.rows.length - 1].y, 26);
   assert.ok(
@@ -75,28 +75,58 @@ test('finds the flipper band and pivots on the shoulder, ignoring the belly bord
 test('rotating by zero degrees reproduces the plate', () => {
   const image = fakePlate();
   const band = findFlipperBand(image);
-  const same = raiseFlipper(image, band, 0, { brush: 1 });
+  const same = raiseFlipper(image, band, 0);
   assert.deepEqual(Buffer.from(same.data), Buffer.from(image.data));
 });
 
 test('raising the flipper clears the resting art and lands it above the shoulder', () => {
   const image = fakePlate();
   const band = findFlipperBand(image);
-  const raised = raiseFlipper(image, band, 180, { brush: 1 });
+  const raised = raiseFlipper(image, band, 180, { stub: 0 });
 
   assert.equal(pixelAt(raised, 7, 20)[3], 0, 'resting flipper is erased');
   assert.deepEqual(pixelAt(raised, 25, 20), WHITE, 'the body is untouched');
 
-  // A half turn about the shoulder mirrors every flipper pixel through the pivot.
+  // A half turn about the pivot mirrors every flipper pixel through it.
   const mirrored = band.pixels
     .map((pixel) => ({ x: 2 * band.pivot.x - pixel.x, y: 2 * band.pivot.y - pixel.y }))
-    .filter((point) => point.y >= 0 && point.x < image.width);
+    .filter((point) => point.y >= 0 && point.x >= 0 && point.x < image.width);
   assert.ok(mirrored.length > 20, 'the fake plate keeps part of the arc on canvas');
   assert.ok(mirrored.every((point) => pixelAt(raised, point.x, point.y)[3] > 0));
 });
 
+test('the shoulder stub stays welded to the body', () => {
+  const image = fakePlate();
+  const band = findFlipperBand(image);
+  // Without a stub the raised flipper detaches: a half turn carries the joint
+  // away from the body and leaves a dent in the silhouette.
+  const raised = raiseFlipper(image, band, 180, { stub: 0.3 });
+  const stubRows = band.rows.slice(0, Math.round(band.rows.length * 0.3));
+
+  assert.ok(stubRows.length > 0);
+  for (const row of stubRows) {
+    for (let x = row.first; x < row.sep; x++) {
+      assert.deepEqual(pixelAt(raised, x, row.y), pixelAt(image, x, row.y), `stub row ${row.y}`);
+    }
+  }
+  assert.equal(pixelAt(raised, 7, 25)[3], 0, 'the flipper below the stub still lifts');
+});
+
+test('each frame starts from the untouched plate', () => {
+  const image = fakePlate();
+  const band = findFlipperBand(image);
+  const first = raiseFlipper(image, band, 120);
+  const second = raiseFlipper(image, band, 120);
+  // pngjs hands over a Buffer, whose `slice` aliases the source: without a real
+  // copy the frames stack and the penguin grows one flipper per angle.
+  assert.deepEqual(Buffer.from(second.data), Buffer.from(first.data));
+  assert.deepEqual(Buffer.from(image.data), Buffer.from(fakePlate().data));
+});
+
 test('wave angles keep the flipper on the plate', () => {
   assert.equal(WAVE_ANGLES.length, 3, 'frames 1-3 of the wave sequence');
-  assert.ok(WAVE_ANGLES.every((angle) => angle >= 120 && angle <= 160));
+  // Near a half turn about the outer corner is the only band that keeps the whole
+  // flipper on a 477px plate — shallower raises swing the tip off the left edge.
+  assert.ok(WAVE_ANGLES.every((angle) => angle >= 160 && angle <= 180));
   assert.deepEqual([...WAVE_ANGLES].sort((a, b) => a - b), WAVE_ANGLES, 'monotonic raise');
 });
