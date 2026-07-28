@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { WORLD_SCENE_BOUNDS, worldSceneSpawn } from '@pet-village/multiplayer-protocol';
 import { phaserWorldSceneKey, translateWorldCoordinates } from './worldCoordinates';
 
 test('screen-centred interiors use stable network coordinates across viewport offsets', () => {
@@ -19,6 +20,20 @@ test('screen-centred interiors use stable network coordinates across viewport of
     petY: 508,
   });
   assert.deepEqual(translateWorldCoordinates(network, 362, 0), local);
+});
+
+test('cafe spawn remains inside server bounds with no vertical network offset', () => {
+  const spawn = worldSceneSpawn('cafe-cinnamon', 'from-town');
+  const network = translateWorldCoordinates({
+    sceneId: 'cafe-cinnamon',
+    x: spawn.x,
+    y: spawn.y,
+    petX: spawn.x - 30,
+    petY: spawn.y + 10,
+  }, 0, 0);
+  assert.equal(network.y, spawn.y);
+  assert.ok(network.y <= WORLD_SCENE_BOUNDS['cafe-cinnamon'].height);
+  assert.ok(network.petY <= WORLD_SCENE_BOUNDS['cafe-cinnamon'].height);
 });
 
 test('multiplayer world ids map to registered Phaser scene keys', () => {

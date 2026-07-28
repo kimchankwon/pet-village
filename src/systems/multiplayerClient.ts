@@ -18,6 +18,9 @@ import {
 import { dedupeRemotePlayers, isVisibleRemotePlayer } from './multiplayerPresentation';
 import { isAccessoryId, type AccessoryId, type AccessorySlot } from './accessories';
 
+const MAX_PROFILE_RETRIES = 3;
+const MAX_PROFILE_RETRY_DELAY_MS = 30_000;
+
 function snapshotAccessories(player: PlayerState) {
   const equipped: Partial<Record<AccessorySlot, AccessoryId>> = {};
   const slots = [
@@ -113,6 +116,8 @@ export async function connectMultiplayer(
   let finished = false;
   let profileRequestSeq = 0;
   let profileRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  let profileRetryTicket: string | null = null;
+  let profileRetryAttempts = 0;
   const profileRequests = new Map<string, string>();
   const closed = new Promise<void>((resolve) => {
     resolveClosed = resolve;
@@ -148,6 +153,10 @@ export async function connectMultiplayer(
     setScene: ({ sceneId, ...pose }) => room.send('active', { active: true, scene: sceneId, pose }),
     setActivity: (activity) => room.send('activity', activity),
     updateProfile: (profileTicket) => {
+      if (profileRetryTicket !== profileTicket) {
+        profileRetryTicket = profileTicket;
+        profileRetryAttempts = 0;
+      }
       const requestId = `${room.sessionId}:${++profileRequestSeq}`;
       profileRequests.set(requestId, profileTicket);
       while (profileRequests.size > 16) {
@@ -174,16 +183,24 @@ export async function connectMultiplayer(
     if (profileTicket) {
       const ok = result.ok === true;
       multiplayerBridge.profileRefreshResult(connectionId, profileTicket, ok);
-      if (ok && profileRetryTimer) {
-        clearTimeout(profileRetryTimer);
+      if (ok && profileRetryTicket === profileTicket) {
+        if (profileRetryTimer) clearTimeout(profileRetryTimer);
         profileRetryTimer = null;
+        profileRetryTicket = null;
+        profileRetryAttempts = 0;
       }
-      if (!ok && Number.isFinite(result.retryAfterMs) && result.retryAfterMs! > 0) {
+      if (
+        !ok &&
+        profileRetryTicket === profileTicket &&
+        Number.isFinite(result.retryAfterMs) &&
+        result.retryAfterMs! > 0 &&
+        ++profileRetryAttempts <= MAX_PROFILE_RETRIES
+      ) {
         if (profileRetryTimer) clearTimeout(profileRetryTimer);
         profileRetryTimer = setTimeout(() => {
           profileRetryTimer = null;
           if (!finished) multiplayerBridge.retryProfile(connectionId, profileTicket);
-        }, Math.min(1_000, result.retryAfterMs!));
+        }, Math.min(MAX_PROFILE_RETRY_DELAY_MS, Math.max(1, result.retryAfterMs!)));
       }
     }
   });

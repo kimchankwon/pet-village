@@ -134,16 +134,16 @@ export class WorldMultiplayer {
   }
 
   private currentPose(facing: WorldPose['facing'], moving: boolean): WorldPose {
+    const pose: WorldPose = {
+      x: this.localPlayer.x,
+      y: this.localPlayer.y,
+      petX: this.pet.sprite.x,
+      petY: this.pet.sprite.y,
+      facing,
+      moving,
+    };
     return translateWorldCoordinates(
-      {
-        sceneId: this.sceneId,
-        x: this.localPlayer.x,
-        y: this.localPlayer.y,
-        petX: this.pet.sprite.x,
-        petY: this.pet.sprite.y,
-        facing,
-        moving,
-      } as WorldPose,
+      pose,
       -this.networkOffsetX,
       -this.networkOffsetY,
     );
@@ -269,7 +269,7 @@ export class WorldMultiplayer {
   private createRemote(row: RemotePresence) {
     const local = this.localPresence(row);
     ensureRemotePenguinTextures(this.scene, row.penguinColor);
-    const color = row.penguinColor;
+    const color = normalizeColor(row.penguinColor);
     const petSpecies = migratePetSpecies(row.petSpecies);
     const player = this.scene.add
       .sprite(local.x, local.y, remotePenguinTextureKey(row.facing, color), 0)

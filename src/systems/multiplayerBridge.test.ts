@@ -34,9 +34,13 @@ test('stale connection cleanup cannot uninstall or update the current bridge', (
   multiplayerBridge.setPositionCorrection(firstId, { sceneId: 'town', x: 9, y: 9, petX: 9, petY: 9 });
   assert.equal(multiplayerBridge.consumePositionCorrection(), null);
   multiplayerBridge.send(pose);
-  multiplayerBridge.send(pose);
   assert.deepEqual(first, []);
+  assert.deepEqual(second, []);
+  const releaseTown = multiplayerBridge.activateWorld('town', pose);
+  multiplayerBridge.send(pose);
+  multiplayerBridge.send(pose);
   assert.deepEqual(second, [1, 2]);
+  releaseTown();
   assert.equal(seen[seen.length - 1]?.length, 0);
 
   multiplayerBridge.setRemote(secondId, [remote]);
@@ -251,4 +255,26 @@ test('profile tickets replay on reconnect until the matching server acknowledgem
 
   release();
   multiplayerBridge.uninstall(id);
+});
+
+test('expired profile tickets are neither replayed nor acknowledged', () => {
+  const originalNow = Date.now;
+  let now = 1_000;
+  Date.now = () => now;
+  try {
+    const tickets: string[] = [];
+    const id = multiplayerBridge.install({
+      ...actions([]),
+      updateProfile: (ticket: string) => tickets.push(ticket),
+    });
+    multiplayerBridge.updateProfile('expiring-ticket');
+    now += 60_000;
+    assert.equal(multiplayerBridge.retryProfile(id, 'expiring-ticket'), false);
+    assert.equal(multiplayerBridge.profileRefreshResult(id, 'expiring-ticket', true), false);
+    multiplayerBridge.republish(id);
+    assert.deepEqual(tickets, ['expiring-ticket']);
+    multiplayerBridge.uninstall(id);
+  } finally {
+    Date.now = originalNow;
+  }
 });

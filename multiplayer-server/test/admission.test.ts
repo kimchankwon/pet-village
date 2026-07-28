@@ -77,8 +77,13 @@ test('profile refresh applies same-user ticket claims without replacing authorit
   room.state.players.set('session-a', player);
   const replies: unknown[] = [];
   const client = { sessionId: 'session-a', send: (_type: string, payload: unknown) => replies.push(payload) } as never;
+  type RoomInternals = {
+    refreshProfile: (_client: never, payload: { ticket: string; requestId?: string }) => Promise<void>;
+    lastProfileRefreshAt: Map<string, number>;
+  };
+  const internals = room as unknown as RoomInternals;
 
-  await (room as any).refreshProfile(client, {
+  await internals.refreshProfile(client, {
     requestId: 'profile-1',
     ticket: await ticket({
       displayName: 'Alicia', petName: 'Kuchi', petSpecies: 'kuchipatchi', penguinColor: 'red',
@@ -100,14 +105,16 @@ test('profile refresh applies same-user ticket claims without replacing authorit
   );
   assert.deepEqual(replies, [{ ok: true, requestId: 'profile-1' }]);
 
-  await (room as any).refreshProfile(client, {
+  // An immediate refresh is rate-limited and tells the client when to retry.
+  await internals.refreshProfile(client, {
     ticket: await ticket({ subject: 'user-b', displayName: 'Mallory' }),
   });
   assert.equal(player.displayName, 'Alicia');
   assert.equal((replies[1] as { ok: boolean }).ok, false);
   assert.ok(((replies[1] as { retryAfterMs?: number }).retryAfterMs ?? 0) > 0);
-  (room as any).lastProfileRefreshAt.clear();
-  await (room as any).refreshProfile(client, {
+  internals.lastProfileRefreshAt.clear();
+  // Once outside the rate limit, a mismatched ticket subject is rejected.
+  await internals.refreshProfile(client, {
     ticket: await ticket({ subject: 'user-b', displayName: 'Mallory' }),
   });
   assert.deepEqual(replies[2], { ok: false });

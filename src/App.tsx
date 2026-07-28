@@ -120,6 +120,7 @@ function NamesModal({
 
 function PlayChrome({
   userLabel,
+  initialPlayerName = '',
   onLeave,
   leaveLabel,
   exitNote,
@@ -129,6 +130,7 @@ function PlayChrome({
   children,
 }: {
   userLabel: string;
+  initialPlayerName?: string;
   onLeave: () => void;
   leaveLabel: string;
   exitNote: string;
@@ -253,7 +255,7 @@ function PlayChrome({
       )}
       {panel === 'names' && onRename && (
         <NamesModal
-          initialPlayerName={userLabel}
+          initialPlayerName={initialPlayerName}
           onSave={onRename}
           onBack={() => setPanel('menu')}
         />
@@ -517,7 +519,8 @@ function CloudGame() {
 
   return (
     <PlayChrome
-      userLabel={viewer?.name ?? viewer?.email ?? 'Signed in'}
+      userLabel={viewer?.name ?? 'Signed in'}
+      initialPlayerName={viewer?.name ?? ''}
       leaveLabel="Sign out"
       exitNote="Your village is synced to the cloud."
       onLeave={() => {

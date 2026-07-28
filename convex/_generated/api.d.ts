@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
+import type * as lib_admissionProfile from "../lib/admissionProfile.js";
 import type * as lib_profileNames from "../lib/profileNames.js";
 import type * as lib_validators from "../lib/validators.js";
 import type * as multiplayer from "../multiplayer.js";
@@ -27,6 +28,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   http: typeof http;
+  "lib/admissionProfile": typeof lib_admissionProfile;
   "lib/profileNames": typeof lib_profileNames;
   "lib/validators": typeof lib_validators;
   multiplayer: typeof multiplayer;

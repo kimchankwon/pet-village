@@ -55,7 +55,7 @@ export const WORLD_SCENE_NAMED_SPAWNS = {
 
 export function worldSceneSpawn(scene: WorldScene, name = 'default'): WorldSpawn {
   const spawns = WORLD_SCENE_NAMED_SPAWNS[scene] as Record<string, WorldSpawn>;
-  return spawns[name] ?? spawns.default;
+  return Object.prototype.hasOwnProperty.call(spawns, name) && spawns[name] ? spawns[name] : spawns.default;
 }
 
 export const WORLD_SCENE_SPAWNS: Record<WorldScene, readonly WorldSpawn[]> = {
@@ -89,7 +89,30 @@ export type EquippedAccessoriesClaim = {
   body?: string;
   extra?: string;
 };
-export type AdmissionClaims = {sub:string;displayName:string;petName:string;petSpecies:string;penguinColor:string;equippedAccessories?:EquippedAccessoriesClaim;townPosition?:TownPositionClaim;protocolVersion:number;jti:string;iat:number;exp:number;iss:string;aud:string|string[]};
+export type AdmissionClaims = {
+  sub: string;
+  displayName: string;
+  petName: string;
+  petSpecies: string;
+  penguinColor: string;
+  equippedAccessories?: EquippedAccessoriesClaim;
+  townPosition?: TownPositionClaim;
+  protocolVersion: number;
+  jti: string;
+  iat: number;
+  exp: number;
+  iss: string;
+  aud: string | string[];
+};
+export type AdmissionProfile = {
+  identity: string;
+  displayName: string;
+  petName: string;
+  petSpecies: string;
+  penguinColor: string;
+  equippedAccessories?: EquippedAccessoriesClaim;
+  townPosition?: TownPositionClaim;
+};
 
 export function isGameActivity(value: unknown): value is GameActivity {
   return typeof value === 'string' && (GAME_ACTIVITIES as readonly string[]).includes(value);

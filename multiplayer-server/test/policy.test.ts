@@ -40,6 +40,7 @@ test('move policy validates positions against the selected world scene', () => {
   assert.equal(validateMove(current, {scene:'shore',x:900,y:100,petX:870,petY:110,facing:'side',moving:true,seq:5}, 1100).ok, false);
   assert.equal(validateMove(current, {scene:'east-green',x:76.8,y:288,petX:50,petY:298,facing:'side',moving:false,seq:5}, 1100).ok, false);
   assert.equal(validateMove(current, {scene:'east-green',x:76.8,y:288,petX:50,petY:298,facing:'side',moving:false,seq:5}, 1100, true).ok, true);
+  assert.equal(validateMove(current, {x:120,y:100,petX:90,petY:110,facing:'side',moving:true,seq:5}, 1100).ok, true);
 });
 test('world scene transitions follow the map portal graph', () => {
   assert.equal(canTransitionWorldScene('town', 'shore'), true);

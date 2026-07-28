@@ -713,6 +713,7 @@ export class GameStateStore {
       await this.adoptionSaver?.(this.snapshot());
     } catch (error) {
       this.data = previous;
+      this.persistLocal();
       throw error;
     }
     this.save();

@@ -101,17 +101,17 @@ test('initial activation does not turn a late first move into a Town re-entry', 
   assert.deepEqual(corrections, []);
 });
 
-test('same-scene activation accepts a restored Town pose away from a portal spawn', () => {
+test('same-scene activation preserves the server-authoritative Town position', () => {
   const room = roomWithPlayer();
   const client = { sessionId: 'session-a' } as never;
   const player = room.state.players.get('session-a')!;
   Object.assign(player, {
     active: false,
     scene: 'town',
-    x: 740,
-    y: 510,
-    petX: 710,
-    petY: 520,
+    x: 700,
+    y: 480,
+    petX: 670,
+    petY: 490,
   });
 
   (room as any).setActive(client, {
@@ -123,7 +123,7 @@ test('same-scene activation accepts a restored Town pose away from a portal spaw
   assert.equal(player.active, true);
   assert.deepEqual(
     { x: player.x, y: player.y, petX: player.petX, petY: player.petY },
-    { x: 740, y: 510, petX: 710, petY: 520 },
+    { x: 700, y: 480, petX: 670, petY: 490 },
   );
 });
 

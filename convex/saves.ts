@@ -130,7 +130,7 @@ async function availableDisplayName(ctx: MutationCtx, userId: Id<'users'>, rawNa
   }
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const suffix = attempt === 0 ? '' : `-${attempt + 1}`;
-    const candidate = `${truncateForSuffix(base, 20 - suffix.length)}${suffix}`;
+    const candidate = `${truncateForSuffix(base, 20 - suffix.length).trimEnd()}${suffix}`;
     const owner = await ctx.db
       .query('multiplayerNames')
       .withIndex('by_display_name', (q) => q.eq('displayNameKey', profileNameKey(candidate)))
@@ -214,7 +214,7 @@ export async function upsertCanonicalSave(
           ? ownNames?.legacyPetNameKey
           : undefined;
     }
-    if (!provisioningLegacySave && !replayingLegacyName) {
+    if (!provisioningLegacySave && !replayingLegacyName && !retainingExistingCanonicalName) {
       const reservedPet = await ctx.db
         .query("multiplayerNames")
         .withIndex("by_pet_name", (q) => q.eq("petNameKey", petNameKey!))

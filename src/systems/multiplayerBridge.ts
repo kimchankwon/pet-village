@@ -9,6 +9,7 @@ import type { EquippedAccessories } from './GameState';
 
 export const WORLD_SCENE_IDS = WORLD_SCENES;
 export type WorldSceneId = WorldScene;
+const PROFILE_TICKET_LIFETIME_MS = 60_000;
 
 export type RemotePresence = {
   userId: string;
@@ -85,6 +86,15 @@ let gameActivation: { token: symbol; activity: GameActivity } | null = null;
 let moveSeq = 0;
 let correction: PositionCorrectionPayload | null = null;
 let pendingProfileTicket: string | null = null;
+let pendingProfileTicketIssuedAt = 0;
+
+function currentPendingProfileTicket() {
+  if (pendingProfileTicket && Date.now() - pendingProfileTicketIssuedAt >= PROFILE_TICKET_LIFETIME_MS) {
+    pendingProfileTicket = null;
+    pendingProfileTicketIssuedAt = 0;
+  }
+  return pendingProfileTicket;
+}
 
 function clearRemote() {
   rows = [];
@@ -179,6 +189,7 @@ export const multiplayerBridge = {
     moveSeq = 0;
     correction = null;
     pendingProfileTicket = null;
+    pendingProfileTicketIssuedAt = 0;
     clearRemote();
     publishPresence();
     return id;
@@ -186,7 +197,8 @@ export const multiplayerBridge = {
   republish(id: ConnectionId) {
     if (connectionId !== id || !actions) return false;
     publishPresence();
-    if (pendingProfileTicket) actions.updateProfile(pendingProfileTicket);
+    const profileTicket = currentPendingProfileTicket();
+    if (profileTicket) actions.updateProfile(profileTicket);
     return true;
   },
   uninstall(id: ConnectionId) {
@@ -195,14 +207,17 @@ export const multiplayerBridge = {
     actions = null;
     correction = null;
     pendingProfileTicket = null;
+    pendingProfileTicketIssuedAt = 0;
     clearRemote();
     return true;
   },
   send(pose: OutboundMove) {
     if (!actions) return;
+    const sceneId = pose.sceneId ?? worldActivation?.payload.sceneId;
+    if (!sceneId) return;
     actions.send({
       ...pose,
-      sceneId: pose.sceneId ?? worldActivation?.payload.sceneId ?? 'town',
+      sceneId,
       seq: ++moveSeq,
     });
   },
@@ -242,15 +257,17 @@ export const multiplayerBridge = {
   },
   updateProfile(ticket: string) {
     pendingProfileTicket = ticket;
+    pendingProfileTicketIssuedAt = Date.now();
     actions?.updateProfile(ticket);
   },
   profileRefreshResult(id: ConnectionId, ticket: string, ok: boolean) {
-    if (connectionId !== id || !ok || pendingProfileTicket !== ticket) return false;
+    if (connectionId !== id || !ok || currentPendingProfileTicket() !== ticket) return false;
     pendingProfileTicket = null;
+    pendingProfileTicketIssuedAt = 0;
     return true;
   },
   retryProfile(id: ConnectionId, ticket: string) {
-    if (connectionId !== id || pendingProfileTicket !== ticket || !actions) return false;
+    if (connectionId !== id || currentPendingProfileTicket() !== ticket || !actions) return false;
     actions.updateProfile(ticket);
     return true;
   },

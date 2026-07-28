@@ -42,6 +42,21 @@ describe('canonical cloud saves', () => {
     expect(docs.names).toMatchObject({ petName: 'Mochi', petNameKey: 'mochi' });
   });
 
+  test('generated display-name suffixes do not retain trailing whitespace', async () => {
+    const t = convexTest(schema, modules);
+    const base = '12345678901234567 AB';
+    const [firstUser, secondUser] = await t.run(async (ctx) => [
+      await ctx.db.insert('users', { name: base }),
+      await ctx.db.insert('users', { name: base }),
+    ] as const);
+    await t.mutation((ctx) => upsertCanonicalSave(ctx, firstUser, save('Mochi')));
+    await t.mutation((ctx) => upsertCanonicalSave(ctx, secondUser, save('Mame')));
+
+    const names = await t.run((ctx) => ctx.db
+      .query('multiplayerNames').withIndex('by_user', (q) => q.eq('userId', secondUser)).unique());
+    expect(names?.displayName).toBe('12345678901234567-2');
+  });
+
   test('a duplicate adoption rejects without writing a save', async () => {
     const t = convexTest(schema, modules);
     const [firstUser, secondUser] = await t.run(async (ctx) => [

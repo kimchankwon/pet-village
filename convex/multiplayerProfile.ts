@@ -1,5 +1,6 @@
 import { getAuthUserId } from '@convex-dev/auth/server';
 import { internalQuery } from './_generated/server';
+import { sanitizeEquippedAccessories } from './lib/admissionProfile';
 
 export const admissionProfile = internalQuery({
   args: {},
@@ -19,7 +20,7 @@ export const admissionProfile = internalQuery({
       petName: canonical.petName,
       petSpecies: save.petSpecies ?? 'mametchi',
       penguinColor: save.penguinColor ?? 'blue',
-      equippedAccessories: save.equippedAccessories ?? {},
+      equippedAccessories: sanitizeEquippedAccessories(save.equippedAccessories),
       townPosition: save.townPosition,
     };
   },

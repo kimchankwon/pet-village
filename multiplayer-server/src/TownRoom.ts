@@ -261,6 +261,8 @@ export class TownRoom extends Room<{ state: TownState }> {
     } else if (restoringSameScene) {
       this.reentrySessions.delete(client.sessionId);
     }
+    // Activation poses are transition-only. Reapplying a same-scene pose would
+    // create an unrestricted teleport path around the movement policy.
     if (changingScene) {
       player.scene = payload.scene;
       const defaultSpawn = WORLD_SCENE_SPAWNS[payload.scene][0];

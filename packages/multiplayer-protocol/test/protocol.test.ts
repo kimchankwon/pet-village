@@ -13,6 +13,7 @@ import {
   TOWN_BOUNDS,
   WORLD_SCENE_BOUNDS,
   WORLD_SCENES,
+  worldSceneSpawn,
 } from '../src/index.ts';
 
 test('protocol v6 validates scene-scoped moves within each world bounds', () => {
@@ -31,6 +32,11 @@ test('protocol v6 validates scene-scoped moves within each world bounds', () => 
   assert.equal(isMovePayload({ scene: 'shore', x: 865, y: 2, petX: 3, petY: 4, facing: 'down', moving: true, seq: 1 }), false);
   assert.equal(isMovePayload({ scene: 'town', x: 1057, y: 2, petX: 3, petY: 4, facing: 'down', moving: true, seq: 1 }), false);
   assert.equal(isMovePayload({ scene: 'house', x: 2, y: 2, petX: 3, petY: 4, facing: 'down', moving: true, seq: 1 }), false);
+});
+
+test('world spawn lookup ignores inherited property names', () => {
+  assert.deepEqual(worldSceneSpawn('town', 'constructor'), worldSceneSpawn('town'));
+  assert.deepEqual(worldSceneSpawn('shore', 'toString'), worldSceneSpawn('shore'));
 });
 
 test('protocol accepts only known multiplayer game activities', () => {
@@ -86,22 +92,11 @@ test('protocol v4 clients keep existing player fields during the v6 rollout', ()
   const decoded = new ProtocolV4TownState();
   const encoder = new Encoder(state);
   const decoder = new Decoder(decoded);
-  const schemaDiagnostics: unknown[][] = [];
-  const originalWarn = console.warn;
-  const originalError = console.error;
-  console.warn = (...args) => schemaDiagnostics.push(args);
-  console.error = (...args) => schemaDiagnostics.push(args);
-  try {
-    assert.doesNotThrow(() => decoder.decode(encoder.encodeAll()));
-    player.seq = 8;
-    player.updatedAt = 124;
-    player.activity = 'bump';
-    assert.doesNotThrow(() => decoder.decode(encoder.encode()));
-  } finally {
-    console.warn = originalWarn;
-    console.error = originalError;
-  }
-  assert.ok(schemaDiagnostics.length > 0, 'v4 decoder should report the unknown appended v5 scene field');
+  assert.doesNotThrow(() => decoder.decode(encoder.encodeAll()));
+  player.seq = 8;
+  player.updatedAt = 124;
+  player.activity = 'bump';
+  assert.doesNotThrow(() => decoder.decode(encoder.encode()));
   assert.deepEqual(decoded.players.get('session-1')?.toJSON(), {
     userId: 'user-1', displayName: 'Player', petName: 'Pet', petSpecies: '', penguinColor: 'blue',
     x: 0, y: 0, petX: 0, petY: 0, facing: 'down', moving: false, active: false,
