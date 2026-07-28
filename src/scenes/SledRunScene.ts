@@ -21,6 +21,7 @@ import {
   type SledRunSnapshot,
 } from '../systems/sledRunClient';
 import { shouldSendSteer, steerAxisFrom } from '../systems/sledRunPolicy';
+import { stepSledMotion, type SledMotion } from '../systems/sledRunPrediction';
 import { sledRunReward } from '../systems/sledRunRewards';
 import { State } from '../systems/GameState';
 
@@ -39,6 +40,8 @@ export class SledRunScene extends Phaser.Scene {
   private course: SledCourseItem[] = [];
   private courseKey = '';
   private racerViews = new Map<string, Phaser.GameObjects.Container>();
+  /** Predicted motion per racer, so steering shows up before the server agrees. */
+  private motions = new Map<string, SledMotion>();
   private courseGraphics!: Phaser.GameObjects.Graphics;
   private queueText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
@@ -75,6 +78,7 @@ export class SledRunScene extends Phaser.Scene {
     this.course = [];
     this.courseKey = '';
     this.racerViews.clear();
+    this.motions.clear();
     this.previousPhase = '';
     this.previousRound = -1;
     this.rewardText = '';
@@ -183,6 +187,9 @@ export class SledRunScene extends Phaser.Scene {
     if (snapshot.phase !== this.previousPhase || snapshot.round !== this.previousRound) {
       if (snapshot.phase === 'countdown') {
         this.rewardText = '';
+        // Fresh run: drop last run's predicted positions instead of blending
+        // every sled all the way back from the finish line.
+        this.motions.clear();
         this.localCountdownEnd = this.time.now + Math.max(0, snapshot.countdownAt - snapshot.serverTime);
         this.previousSteering = 0;
         this.lastSteerSentAt = Number.NEGATIVE_INFINITY;
@@ -201,10 +208,30 @@ export class SledRunScene extends Phaser.Scene {
     this.refreshUi();
   }
 
+  /** Where the crest is: above this the mountain, below it the run itself. */
+  private get trackTopY() {
+    return 112;
+  }
+
+  /** The sled sits high up, because the run scrolls toward the bottom of the screen. */
+  private get playerY() {
+    return this.scale.height * 0.44;
+  }
+
+  /** Half-width of the drawn snow path at a screen row — it widens as it nears us. */
+  private trackEdgeAt(y: number) {
+    const top = this.trackTopY;
+    const ratio = (y - top) / Math.max(1, this.scale.height - top);
+    return 265 + Phaser.Math.Clamp(ratio, 0, 1) * 105;
+  }
+
   private drawMountain() {
     const width = this.scale.width;
     const height = this.scale.height;
     const center = width / 2;
+    const top = this.trackTopY;
+    const topEdge = this.trackEdgeAt(top);
+    const bottomEdge = this.trackEdgeAt(height);
     const graphics = this.add.graphics().setDepth(-20);
     graphics.fillStyle(0x79bee7).fillRect(0, 0, width, height);
     graphics.fillStyle(0xa9d2e8, 1);
@@ -215,23 +242,22 @@ export class SledRunScene extends Phaser.Scene {
     graphics.fillTriangle(center - 65, 92, center, 18, center + 64, 92);
     graphics.fillTriangle(center * 0.35 - 35, 92, center * 0.35, 42, center * 0.35 + 40, 98);
     graphics.fillStyle(0x6f91a8, 1);
-    graphics.fillTriangle(0, height, center - 205, 112, center - 335, height);
-    graphics.fillTriangle(width, height, center + 205, 112, center + 335, height);
+    graphics.fillTriangle(0, height, center - topEdge, top, center - bottomEdge, height);
+    graphics.fillTriangle(width, height, center + topEdge, top, center + bottomEdge, height);
     graphics.fillStyle(0xf2f8fc, 1);
     graphics.fillPoints([
-      new Phaser.Geom.Point(center - 205, 112), new Phaser.Geom.Point(center + 205, 112),
-      new Phaser.Geom.Point(center + 335, height), new Phaser.Geom.Point(center - 335, height),
+      new Phaser.Geom.Point(center - topEdge, top), new Phaser.Geom.Point(center + topEdge, top),
+      new Phaser.Geom.Point(center + bottomEdge, height), new Phaser.Geom.Point(center - bottomEdge, height),
     ], true);
     graphics.lineStyle(5, 0xd0e5f1, 1).strokePoints([
-      new Phaser.Geom.Point(center - 205, 112), new Phaser.Geom.Point(center - 335, height),
+      new Phaser.Geom.Point(center - topEdge, top), new Phaser.Geom.Point(center - bottomEdge, height),
     ]).strokePoints([
-      new Phaser.Geom.Point(center + 205, 112), new Phaser.Geom.Point(center + 335, height),
+      new Phaser.Geom.Point(center + topEdge, top), new Phaser.Geom.Point(center + bottomEdge, height),
     ]);
     for (let index = 0; index < 14; index += 1) {
       const y = 155 + index * 42;
-      const spread = 220 + index * 10;
-      this.drawPine(graphics, center - spread, y, 0.65 + (index % 3) * 0.08);
-      this.drawPine(graphics, center + spread, y + 16, 0.65 + ((index + 1) % 3) * 0.08);
+      this.drawPine(graphics, center - this.trackEdgeAt(y) - 30, y, 0.65 + (index % 3) * 0.08);
+      this.drawPine(graphics, center + this.trackEdgeAt(y + 16) + 30, y + 16, 0.65 + ((index + 1) % 3) * 0.08);
     }
   }
 
@@ -314,7 +340,7 @@ export class SledRunScene extends Phaser.Scene {
     if (!this.snapshot) return;
     const live = new Set(this.snapshot.racers.map((racer) => racer.sessionId));
     for (const [id, view] of this.racerViews) {
-      if (!live.has(id)) { view.destroy(); this.racerViews.delete(id); }
+      if (!live.has(id)) { view.destroy(); this.racerViews.delete(id); this.motions.delete(id); }
     }
     for (const racer of this.snapshot.racers) {
       if (this.racerViews.has(racer.sessionId)) continue;
@@ -360,10 +386,12 @@ export class SledRunScene extends Phaser.Scene {
   private renderCourse(localProgress: number) {
     const graphics = this.courseGraphics.clear();
     const center = this.scale.width / 2;
-    const playerY = this.scale.height * 0.68;
+    const playerY = this.playerY;
     for (const item of this.course) {
-      const y = playerY - (item.progress - localProgress) * SLED_PROGRESS_TO_PIXELS;
-      if (y < 88 || y > this.scale.height + 65) continue;
+      // The sled runs toward the bottom of the screen, so the course scrolls
+      // upward: whatever is still ahead sits *below* the player.
+      const y = playerY + (item.progress - localProgress) * SLED_PROGRESS_TO_PIXELS;
+      if (y < this.trackTopY || y > this.scale.height + 65) continue;
       const x = center + item.x;
       if (item.kind === 'ice') {
         graphics.fillStyle(0x72d9ee, 0.72).fillEllipse(x, y, 88, 40);
@@ -384,31 +412,65 @@ export class SledRunScene extends Phaser.Scene {
       }
     }
     const finish = this.snapshot ? sledDifficultyConfig(this.snapshot.difficulty).courseLength : 0;
-    const finishY = playerY - (finish - localProgress) * SLED_PROGRESS_TO_PIXELS;
-    if (finishY > 90 && finishY < this.scale.height) {
-      graphics.fillStyle(0x1d3347).fillRect(center - 245, finishY - 8, 490, 16);
-      for (let x = center - 245; x < center + 245; x += 28) {
-        graphics.fillStyle((Math.floor((x - center + 245) / 28) % 2) ? 0xffffff : 0x1d3347).fillRect(x, finishY - 8, 14, 16);
+    const finishY = playerY + (finish - localProgress) * SLED_PROGRESS_TO_PIXELS;
+    if (finishY > this.trackTopY && finishY < this.scale.height + 20) {
+      const half = Math.round(this.trackEdgeAt(finishY));
+      graphics.fillStyle(0x1d3347).fillRect(center - half, finishY - 8, half * 2, 16);
+      for (let x = center - half; x < center + half; x += 28) {
+        graphics.fillStyle((Math.floor((x - center + half) / 28) % 2) ? 0xffffff : 0x1d3347).fillRect(x, finishY - 8, 14, 16);
       }
     }
   }
 
-  private renderRacers() {
+  private renderRacers(localProgress: number) {
     const snapshot = this.snapshot;
     if (!snapshot) return;
-    const local = snapshot.racers.find((racer) => racer.sessionId === snapshot.localSessionId) ?? snapshot.racers[0];
-    const localProgress = local?.progress ?? 0;
     const center = this.scale.width / 2;
-    const playerY = this.scale.height * 0.68;
+    const playerY = this.playerY;
     snapshot.racers.forEach((racer, index) => {
       const view = this.racerViews.get(racer.sessionId);
       if (!view) return;
+      const motion = this.motionFor(racer);
       const lobby = snapshot.phase === 'lobby' || snapshot.phase === 'countdown';
-      const x = center + racer.x;
-      const y = lobby ? 225 + (index % 2) * 58 : playerY - (racer.progress - localProgress) * SLED_PROGRESS_TO_PIXELS;
+      const x = center + motion.x;
+      const y = lobby ? playerY + (index % 2) * 46 : playerY + (motion.progress - localProgress) * SLED_PROGRESS_TO_PIXELS;
+      // Sleds nearer the bottom are nearer the camera, so they draw in front.
       view.setPosition(x, y).setAlpha(racer.rank > 0 ? 0.7 : 1).setDepth(50 + Math.round(y));
       view.setAngle(racer.effect === 'obstacle' ? Math.sin(this.time.now * 0.03) * 10 : racer.effect === 'ice' ? Math.sin(this.time.now * 0.02) * 3 : 0);
     });
+  }
+
+  private motionFor(racer: SledRacerSnapshot): SledMotion {
+    return this.motions.get(racer.sessionId) ?? { x: racer.x, progress: racer.progress };
+  }
+
+  /**
+   * Advance every sled's predicted motion by a frame. The local sled replays its
+   * own steering right away — the server's answer is a fifth of a second behind —
+   * and every sled coasts on its last reported speed, all of it blended back
+   * toward the snapshot so nothing can drift.
+   */
+  private stepMotions(deltaMs: number, steering: -1 | 0 | 1) {
+    const snapshot = this.snapshot;
+    if (!snapshot) return;
+    const config = sledDifficultyConfig(snapshot.difficulty);
+    // Solo runs already integrate locally, and outside a race nobody is moving:
+    // in both cases the snapshot is exactly what should be drawn.
+    const authoritative = this.solo || this.disconnected || snapshot.phase !== 'racing';
+    for (const racer of snapshot.racers) {
+      if (authoritative) {
+        this.motions.set(racer.sessionId, { x: racer.x, progress: racer.progress });
+        continue;
+      }
+      this.motions.set(racer.sessionId, stepSledMotion(this.motionFor(racer), {
+        server: racer,
+        steering: racer.sessionId === snapshot.localSessionId ? steering : null,
+        steeringSpeed: config.steeringSpeed,
+        trackHalfWidth: config.trackHalfWidth,
+        courseLength: config.courseLength,
+        deltaMs,
+      }));
+    }
   }
 
   private updateSolo(deltaMs: number, steering: -1 | 0 | 1) {
@@ -477,9 +539,11 @@ export class SledRunScene extends Phaser.Scene {
       this.lastSteerSentAt = this.time.now;
     }
     this.updateSolo(delta, steering);
+    this.stepMotions(delta, steering);
     const local = this.snapshot.racers.find((racer) => racer.sessionId === this.snapshot!.localSessionId);
-    this.renderCourse(local?.progress ?? 0);
-    this.renderRacers();
+    const localProgress = local ? this.motionFor(local).progress : 0;
+    this.renderCourse(localProgress);
+    this.renderRacers(localProgress);
     if (!this.disconnected && this.snapshot.phase === 'countdown') {
       const seconds = Math.max(1, Math.ceil((this.localCountdownEnd - this.time.now) / 1_000));
       this.statusText.setText(`${seconds}…  Everyone starts together!`);

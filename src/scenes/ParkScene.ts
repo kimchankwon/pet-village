@@ -180,6 +180,9 @@ export class ParkScene extends Phaser.Scene {
         this.clickMove.clear();
         this.player.setVelocity(0, 0);
       },
+      // Clicking a distant penguin walks you over there first.
+      moveLocalTo: (x, y) => this.clickMove.setTarget(x, y),
+      isLocalMoving: () => this.clickMove.target !== null,
     });
 
     bottomButtons(

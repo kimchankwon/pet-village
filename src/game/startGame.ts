@@ -14,6 +14,7 @@ import { EastParkScene, WestParkScene } from '../scenes/ParkScene';
 import { BumpScene } from '../scenes/BumpScene';
 import { SledRunScene } from '../scenes/SledRunScene';
 import { State } from '../systems/GameState';
+import { registerKeyboardCapture } from '../systems/textEntry';
 import { BASE_HEIGHT, BASE_WIDTH, designSizeForHost } from './viewport';
 
 function applyHostAspect(game: Phaser.Game, parent: HTMLElement) {
@@ -80,6 +81,12 @@ export function startGame(parent: HTMLElement, options: StartGameOptions = {}): 
     ],
   });
 
+  // Shell modals with a text field borrow the keyboard back from Phaser's
+  // global key capture; the manager only exists once the game has booted.
+  game.events.once(Phaser.Core.Events.READY, () => {
+    registerKeyboardCapture(game.input.keyboard ?? null);
+  });
+
   const onResize = () => applyHostAspect(game, parent);
   window.addEventListener('resize', onResize);
   game.events.once(Phaser.Core.Events.READY, () => applyHostAspect(game, parent));
@@ -107,6 +114,7 @@ export function startGame(parent: HTMLElement, options: StartGameOptions = {}): 
   window.addEventListener('pagehide', persistNow);
   document.addEventListener('visibilitychange', onHide);
   game.events.once(Phaser.Core.Events.DESTROY, () => {
+    registerKeyboardCapture(null);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('beforeunload', persistNow);
     window.removeEventListener('pagehide', persistNow);
