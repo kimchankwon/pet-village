@@ -6,6 +6,7 @@ import {
 } from '@pet-village/multiplayer-protocol';
 
 import { CHAT_SEND_INTERVAL_MS } from './chat';
+import { noteChatLogPresence, resetChatLogPresence } from './chatLog';
 import type { EquippedAccessories } from './GameState';
 
 export const WORLD_SCENE_IDS = WORLD_SCENES;
@@ -112,6 +113,9 @@ function currentPendingProfileTicket() {
 function clearRemote() {
   rows = [];
   npcRows = [];
+  // The roster is emptied here by a teardown, not by everybody walking out, so
+  // the log must not read it as one.
+  resetChatLogPresence();
   listeners.forEach((fn) => fn([]));
   npcListeners.forEach((fn) => fn([]));
 }
@@ -178,6 +182,9 @@ export const multiplayerBridge = {
   setRemote(id: ConnectionId, next: RemotePresence[]) {
     if (connectionId !== id) return;
     rows = next;
+    // Everyone on the server, not just this scene — a neighbour who walks into
+    // the shop has not left, and the log should not say they have.
+    noteChatLogPresence(rows, performance.now());
     listeners.forEach((fn) => fn(rows));
   },
   setPositionCorrection(id: ConnectionId, next: IncomingPositionCorrection) {

@@ -1,10 +1,11 @@
 /**
- * Village chat: what the keys mean, and how long a bubble stays up.
+ * Village chat: what you are allowed to type, and how long a bubble stays up.
  *
- * The composer is drawn on the canvas like the rest of the game's UI, so it has
- * to interpret raw keystrokes itself. Everything here is pure — the Phaser side
- * (`chatComposer`) and the renderer (`worldMultiplayer`) only draw what these
- * functions decide.
+ * The composer is drawn on the canvas like the rest of the game's UI, but the
+ * typing itself goes through a real text field the browser owns — otherwise a
+ * phone never raises its keyboard and an IME has nothing to compose into.
+ * Everything here is pure: the Phaser side (`chatComposer`) and the renderer
+ * (`worldMultiplayer`) only draw what these functions decide.
  */
 
 import {
@@ -33,42 +34,98 @@ export const CHAT_BUBBLE_FADE_MS = 500;
 /** Caret half-period, so an idle composer still looks like it wants typing. */
 export const CHAT_CARET_BLINK_MS = 480;
 
-export type ChatKeyAction = 'send' | 'cancel' | 'backspace' | 'type' | 'ignore';
+export type ChatKeyAction = 'send' | 'cancel' | 'ignore';
 
 /**
- * What a keystroke means to an open composer. Modified keys are left alone so
- * browser shortcuts (copy, reload, tab away) still work while typing.
+ * What a keystroke means to an open composer.
+ *
+ * Only the two that end the message are read: the text field is the one being
+ * typed into, so every other key is already its business, and modified keys are
+ * left alone so browser shortcuts (copy, reload, tab away) keep working.
+ *
+ * `isComposing` is the one that matters for a language with an IME. Mid-word,
+ * Enter accepts the candidate you are looking at — it is not the Enter that
+ * sends. The field is still assembling a character, so the composer keeps its
+ * hands off and waits for the next one.
  */
 export function chatComposerAction(event: {
   key: string;
   ctrlKey?: boolean;
   metaKey?: boolean;
   altKey?: boolean;
+  isComposing?: boolean;
+  keyCode?: number;
 }): ChatKeyAction {
+  // 229 is what a browser reports for a keystroke an IME has swallowed; some
+  // send it without ever setting isComposing.
+  if (event.isComposing || event.keyCode === 229) return 'ignore';
+  if (event.ctrlKey || event.metaKey || event.altKey) return 'ignore';
   if (event.key === 'Enter') return 'send';
   if (event.key === 'Escape') return 'cancel';
-  if (event.ctrlKey || event.metaKey || event.altKey) return 'ignore';
-  if (event.key === 'Backspace') return 'backspace';
-  // Single printable characters only — 'Shift', 'F5' and friends are not text.
-  return isChatCharacter(event.key) ? 'type' : 'ignore';
+  return 'ignore';
 }
 
-/** Add a keystroke to the draft, stopping at the length the server accepts. */
-export function appendChatInput(draft: string, key: string) {
-  if (!isChatCharacter(key) || Array.from(draft).length >= CHAT_MAX_LENGTH) return draft;
-  return draft + key;
-}
-
-export function backspaceChatInput(draft: string) {
-  // Split by code point so a backspace over an emoji removes the emoji.
-  const characters = Array.from(draft);
-  characters.pop();
-  return characters.join('');
+/**
+ * A draft made of whatever the text field currently holds.
+ *
+ * The field is the browser's, so it can arrive with things the game's own key
+ * reader never had to consider: a pasted paragraph, a newline, a tab, more
+ * characters than the server will take. Unsafe characters become spaces rather
+ * than vanishing, so a paste keeps its word boundaries, and the cap counts
+ * characters rather than code units so it cannot cut an emoji in half.
+ *
+ * Runs of whitespace are left alone — collapsing them here would fight the
+ * person typing "hello  " on the way to a second word. `chatDraftToSend` tidies
+ * that up at the end.
+ */
+export function clipChatDraft(value: string): string {
+  const safe = Array.from(value, (character) => (isChatCharacter(character) ? character : ' '));
+  return safe.slice(0, CHAT_MAX_LENGTH).join('');
 }
 
 /** Whether this draft has anything the server would accept. */
 export function chatDraftToSend(draft: string) {
   return sanitizeChatText(draft);
+}
+
+/**
+ * How far above the bottom of the screen the composer line sits, at rest.
+ *
+ * Clear of the bottom button bar (see UI.bottomButtons), which the line used to
+ * run straight through. That was only ugly while the line was painted on the
+ * canvas; now that a real text field is laid over it, an overlap would also mean
+ * the field swallowing taps meant for the Chat and Pet buttons underneath.
+ */
+export const CHAT_COMPOSER_BOTTOM_PAD = 62;
+
+/**
+ * How much of the screen a phone's keyboard is covering, in CSS pixels.
+ *
+ * The layout viewport does not shrink when a soft keyboard slides up on iOS, so
+ * the page has no idea anything happened; the visual viewport does. Zero on a
+ * desktop, and zero on the Androids that resize the page instead — there the
+ * canvas has already shrunk and the line moved with it.
+ */
+export function softKeyboardInset(
+  viewport: { height: number; offsetTop: number } | null | undefined,
+  windowHeight: number,
+): number {
+  if (!viewport) return 0;
+  return Math.max(0, windowHeight - (viewport.height + viewport.offsetTop));
+}
+
+/**
+ * Where to draw the composer line, as a distance up from the bottom edge.
+ *
+ * A keyboard that covers the bottom of the screen covers the line you are
+ * typing into, which is the whole difficulty with a canvas text field on a
+ * phone. Lift it clear — but never so far that it climbs off the top, which a
+ * short landscape screen under a tall keyboard would otherwise do.
+ */
+export function composerBottomOffset(insetGamePx: number, cameraHeight: number): number {
+  const lifted = CHAT_COMPOSER_BOTTOM_PAD + Math.max(0, insetGamePx);
+  const highest = Math.max(CHAT_COMPOSER_BOTTOM_PAD, cameraHeight - 56);
+  return Math.min(lifted, highest);
 }
 
 /** Long messages need longer on screen; short ones still outlast a toast. */

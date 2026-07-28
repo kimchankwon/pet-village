@@ -43,6 +43,8 @@ import { State } from './GameState';
 import { toast } from './UI';
 import { isPointerUiBlocked, isUiBlocked } from './nav';
 import { ChatComposer } from './chatComposer';
+import { ChatLogView } from './chatLogView';
+import { appendChatLog } from './chatLog';
 import { chatBubbleAlpha, chatBubbleDurationMs, isNewChat } from './chat';
 import { phaserWorldSceneKey, translateWorldCoordinates } from './worldCoordinates';
 import {
@@ -183,6 +185,7 @@ export class WorldMultiplayer {
   private readonly localPlayerLabel: Phaser.GameObjects.Text;
   private readonly localChat: ChatBubble;
   private readonly chatComposer: ChatComposer;
+  private readonly chatLog: ChatLogView;
   private readonly remotes = new Map<string, RemoteAvatar>();
   private readonly unsubscribe: () => void;
   private readonly releaseWorld: () => void;
@@ -225,6 +228,9 @@ export class WorldMultiplayer {
       canOpen: () => !this.disposed && !isUiBlocked(),
       onSend: (text) => this.say(text),
     });
+    // Built here for the same reason: every world scene has one, so the log is
+    // wherever you are.
+    this.chatLog = new ChatLogView(scene);
 
     const pose = this.currentPose('down', false);
     this.lastPose = { ...pose, sentAt: scene.time.now };
@@ -297,6 +303,7 @@ export class WorldMultiplayer {
       .setDepth(this.depthFor(this.localPlayer) - 1);
     this.updateLocalLabel();
     this.chatComposer.update(now);
+    this.chatLog.update();
     drawChatBubble(
       this.localChat,
       this.localPlayer.x,
@@ -336,6 +343,7 @@ export class WorldMultiplayer {
   private say(text: string) {
     if (!multiplayerBridge.chat(text)) return false;
     showChatBubble(this.localChat, text, this.scene.time.now);
+    appendChatLog({ kind: 'message', name: localDisplayName(), text, at: performance.now() });
     return true;
   }
 
@@ -560,6 +568,9 @@ export class WorldMultiplayer {
     // someone walking must not replay the bubble they posted a minute ago.
     if (isNewChat(previousChatId, row.chatId) && row.chatText) {
       showChatBubble(remote.chat, row.chatText, this.scene.time.now);
+      // The log keeps what the bubble lets go of, and keeps exactly what the
+      // bubble showed: someone two scenes away is not in earshot either way.
+      appendChatLog({ kind: 'message', name: row.name, text: row.chatText, at: performance.now() });
     }
     remote.lastChatId = row.chatId;
   }
@@ -687,6 +698,7 @@ export class WorldMultiplayer {
     this.releaseWorld();
     this.pendingWave = null;
     this.chatComposer.dispose();
+    this.chatLog.dispose();
     this.localMarker.destroy();
     this.localPlayerLabel.destroy();
     this.localChat.text.destroy();
