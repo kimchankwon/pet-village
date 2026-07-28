@@ -3,15 +3,19 @@
   "private": true,
   "version": "1.20.0",
   "type": "module",
-  "workspaces": ["packages/*", "multiplayer-server"],
+  "workspaces": [
+    "packages/*",
+    "multiplayer-server"
+  ],
   "scripts": {
     "dev": "convex dev --start vite",
     "dev:frontend": "vite",
     "dev:multiplayer": "npm run dev -w multiplayer-server",
     "build": "npm run build -w @pet-village/multiplayer-protocol && npm run build -w multiplayer-server && tsc && vite build",
     "preview": "vite preview",
-    "test": "npx tsx --test scripts/lib/*.test.mjs src/systems/*.test.ts && npm test -w @pet-village/multiplayer-protocol && npm test -w multiplayer-server",
+    "test": "vitest run && npx tsx --test scripts/lib/*.test.mjs src/systems/*.test.ts && npm test -w @pet-village/multiplayer-protocol && npm test -w multiplayer-server",
     "smoke:sled": "tsx scripts/sled-smoke.mts",
+    "smoke:worlds": "tsx scripts/smoke-multiplayer-worlds.mts",
     "sprite:repair": "node scripts/repair-sprite-outline.mjs",
     "sprite:miniteen": "tsx scripts/imagine-to-miniteen.mts",
     "sprite:puffles": "tsx scripts/imagine-to-puffles.mts",
@@ -39,13 +43,16 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.7.0",
+    "convex-test": "^0.0.54",
     "playwright": "^1.51.0",
     "pngjs": "^7.0.0",
     "tsx": "^4.23.1",
     "typescript": "^5.6.0",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^4.0.18"
   }
 }

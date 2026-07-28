@@ -1,10 +1,18 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import type { ObjectType } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import {
   equippedAccessoriesValidator,
   petSpeciesValidator,
 } from "./lib/validators";
+import {
+  assertProfileNamesAvailable,
+  profileNameKey,
+  validateDisplayName,
+  validatePetName,
+} from "./lib/profileNames";
 
 const petStats = v.object({
   hunger: v.number(),
@@ -53,6 +61,8 @@ const saveFields = {
   townPosition: v.optional(townPosition),
 };
 
+type SaveFields = ObjectType<typeof saveFields>;
+
 const saveDoc = v.object({
   _id: v.id("saves"),
   _creationTime: v.number(),
@@ -60,6 +70,83 @@ const saveDoc = v.object({
   ...saveFields,
   updatedAt: v.number(),
 });
+
+function truncateForSuffix(value: string, maxLength: number) {
+  let result = '';
+  for (const char of value) {
+    if (result.length + char.length > maxLength) break;
+    result += char;
+  }
+  return result;
+}
+
+function legacyPetBase(rawName: string) {
+  const cleaned = rawName
+    .normalize('NFKC')
+    .replace(/[^\p{L}\p{N} _'-]+/gu, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/^[^\p{L}\p{N}]+/u, '');
+  return truncateForSuffix(cleaned, 16) || 'Pet';
+}
+
+function stableUserSuffix(userId: Id<'users'>, salt: number) {
+  let hash = 0xcbf29ce484222325n;
+  for (const char of `${userId}:${salt}`) {
+    hash ^= BigInt(char.codePointAt(0) ?? 0);
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return hash.toString(36).padStart(13, '0').slice(-13);
+}
+
+async function availablePetName(ctx: MutationCtx, userId: Id<'users'>, rawName: string) {
+  const base = legacyPetBase(rawName);
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const suffix = attempt === 0 ? '' : `-${attempt + 1}`;
+    const candidate = `${truncateForSuffix(base, 16 - suffix.length).trimEnd()}${suffix}`;
+    const owner = await ctx.db
+      .query('multiplayerNames')
+      .withIndex('by_pet_name', (q) => q.eq('petNameKey', profileNameKey(candidate)))
+      .unique();
+    if (!owner || owner.userId === userId) return candidate;
+  }
+  for (let salt = 0; salt < 100; salt += 1) {
+    const candidate = `P-${stableUserSuffix(userId, salt)}`;
+    const owner = await ctx.db
+      .query('multiplayerNames')
+      .withIndex('by_pet_name', (q) => q.eq('petNameKey', profileNameKey(candidate)))
+      .unique();
+    if (!owner || owner.userId === userId) return candidate;
+  }
+  throw new Error('Could not allocate a unique pet name');
+}
+
+async function availableDisplayName(ctx: MutationCtx, userId: Id<'users'>, rawName: string | undefined) {
+  let base = 'Player';
+  try {
+    base = validateDisplayName(rawName ?? base);
+  } catch {
+    // OAuth display names are not guaranteed to satisfy the in-game name rules.
+  }
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const suffix = attempt === 0 ? '' : `-${attempt + 1}`;
+    const candidate = `${truncateForSuffix(base, 20 - suffix.length)}${suffix}`;
+    const owner = await ctx.db
+      .query('multiplayerNames')
+      .withIndex('by_display_name', (q) => q.eq('displayNameKey', profileNameKey(candidate)))
+      .unique();
+    if (!owner || owner.userId === userId) return candidate;
+  }
+  for (let salt = 0; salt < 100; salt += 1) {
+    const candidate = `Player-${stableUserSuffix(userId, salt)}`;
+    const owner = await ctx.db
+      .query('multiplayerNames')
+      .withIndex('by_display_name', (q) => q.eq('displayNameKey', profileNameKey(candidate)))
+      .unique();
+    if (!owner || owner.userId === userId) return candidate;
+  }
+  throw new Error('Could not allocate a unique player name');
+}
 
 export const getMine = query({
   args: {},
@@ -74,31 +161,100 @@ export const getMine = query({
   },
 });
 
+export async function upsertCanonicalSave(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+  args: SaveFields,
+  options: { allowPetNameChange?: boolean } = {},
+) {
+  if (args.townPosition && !isSafeTownPosition(args.townPosition.x, args.townPosition.y)) {
+    throw new Error("Town position is outside the safe playable map");
+  }
+
+  const [existing, ownNames, user] = await Promise.all([
+    ctx.db.query("saves").withIndex("by_user", (q) => q.eq("userId", userId)).unique(),
+    ctx.db.query("multiplayerNames").withIndex("by_user", (q) => q.eq("userId", userId)).unique(),
+    ctx.db.get(userId),
+  ]);
+  let petName = args.petName;
+  let petNameKey: string | null = null;
+  let legacyPetNameKey: string | undefined;
+  let displayName = ownNames?.displayName;
+  let displayNameKey = ownNames?.displayNameKey;
+  if (args.adopted) {
+    const incomingPetNameKey = profileNameKey(args.petName);
+    const retainingExistingCanonicalName = Boolean(
+      existing?.adopted && ownNames && !options.allowPetNameChange,
+    );
+    const provisioningLegacySave = Boolean(
+      existing?.adopted &&
+      !ownNames &&
+      profileNameKey(existing.petName) === incomingPetNameKey,
+    );
+    const replayingLegacyName = Boolean(
+      ownNames?.legacyPetNameKey && ownNames.legacyPetNameKey === incomingPetNameKey,
+    );
+    if (retainingExistingCanonicalName && ownNames) {
+      petName = ownNames.petName;
+      petNameKey = ownNames.petNameKey;
+      legacyPetNameKey = ownNames.legacyPetNameKey;
+    } else if (replayingLegacyName && ownNames) {
+      petName = ownNames.petName;
+      petNameKey = ownNames.petNameKey;
+      legacyPetNameKey = ownNames.legacyPetNameKey;
+    } else {
+      petName = provisioningLegacySave
+        ? await availablePetName(ctx, userId, args.petName)
+        : validatePetName(args.petName);
+      petNameKey = profileNameKey(petName);
+      const retainingCanonicalName = ownNames?.petNameKey === petNameKey;
+      legacyPetNameKey = provisioningLegacySave && incomingPetNameKey !== petNameKey
+        ? incomingPetNameKey
+        : retainingCanonicalName
+          ? ownNames?.legacyPetNameKey
+          : undefined;
+    }
+    if (!provisioningLegacySave && !replayingLegacyName) {
+      const reservedPet = await ctx.db
+        .query("multiplayerNames")
+        .withIndex("by_pet_name", (q) => q.eq("petNameKey", petNameKey!))
+        .unique();
+      assertProfileNamesAvailable(userId, undefined, reservedPet?.userId);
+    }
+    if (!displayName || !displayNameKey) {
+      displayName = await availableDisplayName(ctx, userId, user?.name);
+      displayNameKey = profileNameKey(displayName);
+    }
+  }
+
+  const now = Date.now();
+  const payload = { ...args, petName, userId, updatedAt: now };
+  const saveId = existing?._id ?? await ctx.db.insert("saves", payload);
+  if (existing) await ctx.db.patch(existing._id, payload);
+  if (args.adopted && petNameKey && displayName && displayNameKey) {
+    const namesPayload = {
+      displayName,
+      displayNameKey,
+      petName,
+      petNameKey,
+      legacyPetNameKey,
+      updatedAt: now,
+    };
+    if (ownNames) {
+      await ctx.db.patch(ownNames._id, namesPayload);
+    } else {
+      await ctx.db.insert("multiplayerNames", { userId, ...namesPayload });
+    }
+  }
+  return { saveId, petName };
+}
+
 export const upsertMine = mutation({
   args: saveFields,
-  returns: v.id("saves"),
+  returns: v.object({ saveId: v.id("saves"), petName: v.string() }),
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
-    if (args.townPosition && !isSafeTownPosition(args.townPosition.x, args.townPosition.y)) {
-      throw new Error("Town position is outside the safe playable map");
-    }
-
-    const existing = await ctx.db
-      .query("saves")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-
-    const payload = {
-      ...args,
-      userId,
-      updatedAt: Date.now(),
-    };
-
-    if (existing) {
-      await ctx.db.patch(existing._id, payload);
-      return existing._id;
-    }
-    return await ctx.db.insert("saves", payload);
+    return await upsertCanonicalSave(ctx, userId, args);
   },
 });

@@ -14,6 +14,7 @@ import { clampToMovementBounds, type MovementBounds } from './movementBounds';
  */
 export class Pet {
   sprite: Phaser.GameObjects.Sprite;
+  private readonly nameLabel: Phaser.GameObjects.Text;
   private scene: Phaser.Scene;
   private followX: number;
   private followY: number;
@@ -53,6 +54,15 @@ export class Pet {
     this.sprite = scene.add
       .sprite(x, y, this.tex('idle1'))
       .setScale(petDrawScale(scene, this.species()));
+    this.nameLabel = scene.add
+      .text(x, y, State.data.petName || 'Pet', {
+        fontFamily: 'monospace',
+        fontSize: '11px',
+        color: '#ffffff',
+        stroke: '#101826',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 0);
     const world = movementBounds ?? scene.physics.world.bounds;
     this.movementBounds = { x: world.x, y: world.y, width: world.width, height: world.height };
     const start = this.confinedPoint(x, y);
@@ -142,6 +152,12 @@ export class Pet {
       img.setVisible(this.sprite.visible);
       img.setAlpha(this.sprite.alpha);
     }
+    this.nameLabel
+      .setText(State.data.petName || 'Pet')
+      .setPosition(this.sprite.x, this.sprite.y + this.sprite.displayHeight / 2 + 3)
+      .setDepth(this.ownDepth() + 2)
+      .setVisible(this.sprite.visible)
+      .setAlpha(this.sprite.alpha);
   }
 
   /**

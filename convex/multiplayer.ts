@@ -25,6 +25,8 @@ export const issueTicket = action({
       petName: string;
       petSpecies: string;
       penguinColor: string;
+      equippedAccessories?: { headLeft?: string; headRight?: string; body?: string; extra?: string };
+      townPosition?: { x: number; y: number; facing: 'up' | 'down' | 'side' };
     } = await ctx.runQuery(internal.multiplayerProfile.admissionProfile, {});
     const secret = process.env.MULTIPLAYER_TICKET_SECRET;
     if (!secret || secret.length < 32) {
@@ -38,6 +40,8 @@ export const issueTicket = action({
       penguinColor: PENGUIN_COLORS.has(args.penguinColor)
         ? args.penguinColor
         : profile.penguinColor,
+      equippedAccessories: profile.equippedAccessories,
+      townPosition: profile.townPosition,
       protocolVersion: PROTOCOL_VERSION,
     })
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })

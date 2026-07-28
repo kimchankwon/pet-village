@@ -8,6 +8,12 @@ import {
   isRemotePlayerInteractable,
   remotePlayerPresentation,
   remotePenguinTextureKey,
+  remotePenguinWalkAnimKey,
+  remoteMovementDecision,
+  remotePetMovementDecision,
+  stepRemotePosition,
+  waveAnimationFrame,
+  canInitiateWave,
 } from './multiplayerPresentation';
 
 test('filters every connection belonging to the local authenticated user', () => {
@@ -43,19 +49,65 @@ test('gameplay ghosts cannot be targeted by pointer or keyboard interactions', (
   assert.equal(isRemotePlayerInteractable({ active: false, activity: '' }), false);
 });
 
-test('renders a clear non-interactive status for players inside a game', () => {
+test('keeps player and pet names in separate labels', () => {
   assert.deepEqual(remotePlayerPresentation({ name: 'Da2el', petName: 'Mame', activity: 'fishing' }), {
-    label: 'Da2el · Playing Fishing',
+    playerLabel: 'Da2el · Playing Fishing',
+    petLabel: 'Mame',
     alpha: 0.6,
     interactive: false,
     labelColor: '#ffe26f',
   });
   assert.deepEqual(remotePlayerPresentation({ name: 'Da2el', petName: 'Mame', activity: '' }), {
-    label: 'Da2el · Mame',
+    playerLabel: 'Da2el',
+    petLabel: 'Mame',
     alpha: 1,
     interactive: true,
     labelColor: '#ffffff',
   });
+});
+
+test('remote interpolation is frame-rate independent and snaps teleports', () => {
+  const once = stepRemotePosition({ x: 0, y: 0 }, { x: 100, y: 40 }, 100);
+  const half = stepRemotePosition({ x: 0, y: 0 }, { x: 100, y: 40 }, 50);
+  const twice = stepRemotePosition(half, { x: 100, y: 40 }, 50);
+  assert.ok(Math.abs(once.x - twice.x) < 0.0001);
+  assert.ok(Math.abs(once.y - twice.y) < 0.0001);
+  assert.deepEqual(stepRemotePosition({ x: 0, y: 0 }, { x: 500, y: 20 }, 16), { x: 500, y: 20 });
+});
+
+test('remote penguin walk decisions preserve facing and horizontal flip', () => {
+  assert.deepEqual(remoteMovementDecision({ x: 20, y: 10 }, { x: 4, y: 11 }, 'side', true, false), {
+    facing: 'side', walking: true, flipX: true,
+  });
+  assert.deepEqual(remoteMovementDecision({ x: 4, y: 10 }, { x: 4, y: 30 }, 'down', false, true), {
+    facing: 'down', walking: false, flipX: true,
+  });
+  assert.equal(remotePenguinWalkAnimKey('side', 'red'), 'penguin-remote-red-walk-side');
+});
+
+test('remote pets walk and face their horizontal travel direction', () => {
+  assert.deepEqual(remotePetMovementDecision({ x: 10, y: 2 }, { x: 5, y: 3 }, false), {
+    walking: true, flipX: true,
+  });
+  assert.deepEqual(remotePetMovementDecision({ x: 5, y: 3 }, { x: 5.1, y: 3.1 }, true), {
+    walking: false, flipX: true,
+  });
+});
+
+test('wave gating requires an active nearby player', () => {
+  assert.equal(canInitiateWave({ x: 0, y: 0 }, { x: 92, y: 0 }, true, 92), true);
+  assert.equal(canInitiateWave({ x: 0, y: 0 }, { x: 93, y: 0 }, true, 92), false);
+  assert.equal(canInitiateWave({ x: 0, y: 0 }, { x: 1, y: 0 }, false, 92), false);
+});
+
+test('wave timing selects authored frames and ends cleanly', () => {
+  assert.equal(waveAnimationFrame(0), 0);
+  assert.equal(waveAnimationFrame(130), 1);
+  assert.equal(waveAnimationFrame(260), 2);
+  assert.equal(waveAnimationFrame(390), 3);
+  assert.equal(waveAnimationFrame(520), 2);
+  assert.equal(waveAnimationFrame(650), 1);
+  assert.equal(waveAnimationFrame(780), null);
 });
 
 test('prefers an active Town session over a newer game session for the same user', () => {

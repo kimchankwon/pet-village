@@ -15,6 +15,7 @@ import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
 import { movementFacing } from '../systems/movementFacing';
+import { bedTuckAvailability } from '../systems/housePetActions';
 
 const TILE = 48;
 const COLS = 12;
@@ -373,7 +374,7 @@ export class HouseScene extends Phaser.Scene {
 
   private openPetMenuInHouse() {
     this.menuOpen = true;
-    const hasBed = State.data.placed.some((p) => p.id === 'bed');
+    const bedTuck = bedTuckAvailability(State.data.placed, this.petTucking);
     const options = [
       {
         label: `Chat with ${State.data.petName}`,
@@ -394,9 +395,9 @@ export class HouseScene extends Phaser.Scene {
         onFed: () => this.hud.refresh(),
       }),
       {
-        label: hasBed ? 'Tuck into bed (full energy!)' : 'Tuck into bed (needs a Dream Bed)',
+        label: bedTuck.label,
         icon: 'item-bed',
-        disabled: !hasBed || this.petTucking,
+        disabled: bedTuck.disabled,
         onSelect: () => {
           this.menuOpen = false;
           this.tuckPetIntoBed();

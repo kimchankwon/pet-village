@@ -28,6 +28,19 @@ export default defineSchema({
   ...authTables,
 
   // Cloud save per authenticated user (mirrors client SaveData).
+  multiplayerNames: defineTable({
+    userId: v.id("users"),
+    displayName: v.string(),
+    displayNameKey: v.string(),
+    petName: v.string(),
+    petNameKey: v.string(),
+    legacyPetNameKey: v.optional(v.string()),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_display_name", ["displayNameKey"])
+    .index("by_pet_name", ["petNameKey"]),
+
   saves: defineTable({
     userId: v.id("users"),
     version: v.number(),

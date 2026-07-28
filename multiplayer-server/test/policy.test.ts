@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateMove, canWave, MAX_PET_DISTANCE } from '../src/policy.ts';
+import { validateMove, canTransitionWorldScene, canWave, MAX_PET_DISTANCE } from '../src/policy.ts';
 
 const player = { x: 100, y: 100, lastSeq: 4, lastMoveAt: 1000, lastWaveAt: 0 };
 test('move policy enforces monotonic sequence, town bounds and speed plus slack', () => {
@@ -27,8 +27,25 @@ test('first move accepts the current Town position when multiplayer connects lat
   const awayFromSpawn = {x:900,y:650,petX:870,petY:660,facing:'down' as const,moving:true,seq:1};
   assert.equal(validateMove(fresh, approvedSpawn, 1001).ok, true);
   assert.equal(validateMove(fresh, awayFromSpawn, 1001).ok, true);
+  assert.equal(
+    validateMove(fresh, {...approvedSpawn, scene: 'shore'}, 1001).ok,
+    false,
+  );
   assert.equal(validateMove(fresh, awayFromSpawn, 1001, true).ok, false);
   assert.equal(validateMove(fresh, approvedSpawn, 1001, true).ok, true);
+});
+test('move policy validates positions against the selected world scene', () => {
+  const current = { ...player, scene: 'shore' as const };
+  assert.equal(validateMove(current, {scene:'shore',x:120,y:100,petX:90,petY:110,facing:'side',moving:true,seq:5}, 1100).ok, true);
+  assert.equal(validateMove(current, {scene:'shore',x:900,y:100,petX:870,petY:110,facing:'side',moving:true,seq:5}, 1100).ok, false);
+  assert.equal(validateMove(current, {scene:'east-green',x:76.8,y:288,petX:50,petY:298,facing:'side',moving:false,seq:5}, 1100).ok, false);
+  assert.equal(validateMove(current, {scene:'east-green',x:76.8,y:288,petX:50,petY:298,facing:'side',moving:false,seq:5}, 1100, true).ok, true);
+});
+test('world scene transitions follow the map portal graph', () => {
+  assert.equal(canTransitionWorldScene('town', 'shore'), true);
+  assert.equal(canTransitionWorldScene('daniels-shop', 'town'), true);
+  assert.equal(canTransitionWorldScene('west-green', 'east-green'), false);
+  assert.equal(canTransitionWorldScene('shore', 'cafe-cinnamon'), false);
 });
 test('wave policy enforces proximity and cooldown', () => {
   assert.equal(canWave(player, {x:150,y:100}, 2000), true);
