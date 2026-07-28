@@ -105,8 +105,11 @@ export function steerDeadZone(steeringSpeed: number) {
  * we predicted the sled was when that snapshot was made — one round trip ago —
  * so the difference is desync we cannot explain away, not the latency the
  * prediction exists to hide. Differences inside the server's own resolution are
- * left alone, and a wide one means we mispredicted something outright, so the
- * server's lane is simply taken.
+ * left alone. A wide one means we mispredicted something outright — a collision,
+ * a clamp — so the whole error is applied at once instead of being eased in; it
+ * is still applied *to the current prediction*, never by jumping to `serverX`,
+ * which is a lane from one round trip ago and would throw away every steer made
+ * since.
  */
 export function reconcileLocalX(
   predictedX: number,
@@ -118,7 +121,7 @@ export function reconcileLocalX(
   const error = serverX - tracedX;
   if (Math.abs(error) <= steerDeadZone(steeringSpeed)) return predictedX;
   const corrected = Math.abs(error) >= SLED_X_SNAP
-    ? serverX
+    ? predictedX + error
     : predictedX + error * SLED_X_CORRECTION_GAIN;
   return clamp(corrected, -trackHalfWidth, trackHalfWidth);
 }

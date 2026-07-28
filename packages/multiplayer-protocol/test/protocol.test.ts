@@ -115,6 +115,21 @@ test('chat text is a single printable line, capped and never empty', () => {
   assert.equal(sanitizeChatText('one\ntwo'), 'one two');
   assert.equal(sanitizeChatText('one‮two'), 'one two');
   assert.equal(sanitizeChatText('   '), null);
+  // Invisible characters cannot post a bubble with nothing in it.
+  const ZERO_WIDTH_SPACE = String.fromCodePoint(0x200b);
+  const SOFT_HYPHEN = String.fromCodePoint(0x00ad);
+  const WORD_JOINER = String.fromCodePoint(0x2060);
+  const BYTE_ORDER_MARK = String.fromCodePoint(0xfeff);
+  assert.equal(sanitizeChatText(ZERO_WIDTH_SPACE), null);
+  assert.equal(sanitizeChatText(`${SOFT_HYPHEN}${WORD_JOINER}${BYTE_ORDER_MARK}`), null);
+  assert.equal(sanitizeChatText(`one${ZERO_WIDTH_SPACE}two`), 'one two');
+  // Zero-width joiners and variation selectors stay: they are how emoji are built.
+  const ZERO_WIDTH_JOINER = String.fromCodePoint(0x200d);
+  const VARIATION_SELECTOR = String.fromCodePoint(0xfe0f);
+  assert.equal(sanitizeChatText(`${ZERO_WIDTH_JOINER}${VARIATION_SELECTOR}`), null);
+  const family = ['\u{1f468}', '\u{1f469}', '\u{1f467}'].join(ZERO_WIDTH_JOINER);
+  assert.equal(sanitizeChatText(`family ${family}`), `family ${family}`);
+  assert.equal(sanitizeChatText(`love \u2764${VARIATION_SELECTOR}`), `love \u2764${VARIATION_SELECTOR}`);
   assert.equal(sanitizeChatText('\n\t'), null);
   assert.equal(sanitizeChatText(''), null);
   assert.equal(sanitizeChatText(42), null);
@@ -134,6 +149,8 @@ test('a typed chat character may be a space, but never a control key name', () =
   assert.equal(isChatCharacter('🐧'), true);
   assert.equal(isChatCharacter('Shift'), false);
   assert.equal(isChatCharacter('\n'), false);
+  assert.equal(isChatCharacter(String.fromCodePoint(0x200b)), false);
+  assert.equal(isChatCharacter(String.fromCodePoint(0xfeff)), false);
   assert.equal(isChatCharacter(''), false);
 });
 

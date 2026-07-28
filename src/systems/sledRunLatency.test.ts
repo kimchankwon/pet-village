@@ -53,3 +53,14 @@ test('the trace answers for the lane we predicted at a past moment', () => {
   trace.clear();
   assert.equal(trace.sample(400), undefined);
 });
+
+test('a correction moves the whole trace, so snapshots in flight do not repeat it', () => {
+  const trace = new SteerTrace(1_000);
+  trace.record(0, 0);
+  trace.record(100, 20);
+  trace.shift(-50);
+  assert.equal(trace.sample(0), -50);
+  assert.equal(trace.sample(100), -30, 'the shape of the history survives the shift');
+  trace.shift(0);
+  assert.equal(trace.sample(100), -30);
+});

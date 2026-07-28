@@ -90,8 +90,15 @@ test('reconciling ignores the server tick and folds in real desync', () => {
   );
   const corrected = reconcileLocalX(120, 90, 60, 260, 250);
   assert.ok(corrected > 120 && corrected < 150, `expected a partial correction, got ${corrected}`);
-  // Wider than the snap distance means we mispredicted outright.
-  assert.equal(reconcileLocalX(120, 60 + SLED_X_SNAP, 60, 260, 250), 60 + SLED_X_SNAP);
+  // Wider than the snap distance means we mispredicted outright: the whole error
+  // lands at once, but on the lane we are steering now, not the one the snapshot
+  // was made in — the 60px steered since that snapshot survives the correction.
+  assert.equal(reconcileLocalX(120, 60 + SLED_X_SNAP, 60, 260, 250), 120 + SLED_X_SNAP);
+  assert.equal(
+    reconcileLocalX(-40, -60 - SLED_X_SNAP, -60, 260, 250),
+    -40 - SLED_X_SNAP,
+    'a wide correction to the left is applied the same way',
+  );
   assert.equal(reconcileLocalX(249, 400, 250, 260, 250), 250, 'corrections stay on the track');
 });
 

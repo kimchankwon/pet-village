@@ -107,6 +107,18 @@ export class SteerTrace {
     return last.x;
   }
 
+  /**
+   * Move the whole history by a correction that has just been applied. Without
+   * this, every snapshot still in flight is compared against lanes recorded
+   * before the correction, so the same disagreement is answered once per
+   * snapshot for a full round trip — harmless when a fraction is eased in,
+   * an oscillation when a wide error is absorbed in one go.
+   */
+  shift(delta: number) {
+    if (delta === 0) return;
+    for (const sample of this.samples) sample.x += delta;
+  }
+
   clear() {
     this.samples.length = 0;
   }

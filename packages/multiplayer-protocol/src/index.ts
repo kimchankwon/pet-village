@@ -136,11 +136,35 @@ export function isWorldScene(value: unknown): value is WorldScene {
 const CHAT_UNSAFE_RANGES: ReadonlyArray<readonly [number, number]> = [
   [0x00, 0x1f], [0x7f, 0x9f], [0x2028, 0x2029],
   [0x200e, 0x200f], [0x202a, 0x202e], [0x2066, 0x2069],
+  // Invisible on their own and meaningless in a sentence: a soft hyphen,
+  // zero-width space, the word joiner and its invisible operators, and a BOM.
+  [0x00ad, 0x00ad], [0x200b, 0x200b], [0x2060, 0x2064], [0xfeff, 0xfeff],
 ];
 
-function isChatUnsafe(character: string) {
+/**
+ * Invisible too, but they do a job between two other characters: a family emoji
+ * is several emoji glued with a zero-width joiner, and a variation selector is
+ * what makes ❤️ red. They stay, so {@link hasVisibleCharacter} is what stops a
+ * message made of nothing but glue.
+ */
+const CHAT_INVISIBLE_JOINER_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x200c, 0x200d], [0xfe00, 0xfe0f],
+];
+
+function inRanges(character: string, ranges: ReadonlyArray<readonly [number, number]>) {
   const codePoint = character.codePointAt(0) ?? 0;
-  return CHAT_UNSAFE_RANGES.some(([from, to]) => codePoint >= from && codePoint <= to);
+  return ranges.some(([from, to]) => codePoint >= from && codePoint <= to);
+}
+
+function isChatUnsafe(character: string) {
+  return inRanges(character, CHAT_UNSAFE_RANGES);
+}
+
+/** Whether a message would draw anything at all, or is only spaces and glue. */
+function hasVisibleCharacter(value: string) {
+  return Array.from(value).some(
+    (character) => character !== ' ' && !inRanges(character, CHAT_INVISIBLE_JOINER_RANGES),
+  );
 }
 
 /** Whether one typed character may go into a message (a space may). */
@@ -159,8 +183,9 @@ export function sanitizeChatText(value: unknown): string | null {
     .join('')
     .replace(/\s+/g, ' ')
     .trim();
+  if (!hasVisibleCharacter(flattened)) return null;
   // Capped by character, not by code unit, so the cut cannot land inside an emoji.
-  return flattened.length === 0 ? null : Array.from(flattened).slice(0, CHAT_MAX_LENGTH).join('');
+  return Array.from(flattened).slice(0, CHAT_MAX_LENGTH).join('');
 }
 
 function moveFields(value: unknown) {

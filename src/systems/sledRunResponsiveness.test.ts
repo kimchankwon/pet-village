@@ -8,7 +8,12 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SLED_COUNTDOWN_MS, SledRunState, sledDifficultyConfig } from '@pet-village/multiplayer-protocol';
+import {
+  SLED_COUNTDOWN_MS,
+  SLED_TICK_MS,
+  SledRunState,
+  sledDifficultyConfig,
+} from '@pet-village/multiplayer-protocol';
 import { SledRaceSimulation } from '../../multiplayer-server/src/sledSimulation';
 import { SteerAckClock, SteerTrace } from './sledRunLatency';
 import { reconcileLocalX, steerDeadZone, stepSledMotion, type SledMotion } from './sledRunPrediction';
@@ -17,7 +22,9 @@ import { shouldSendSteer } from './sledRunPolicy';
 const DIFFICULTY = 'easy';
 const CONFIG = sledDifficultyConfig(DIFFICULTY);
 const FRAME_MS = 16;
-const TICK_MS = 50;
+// The server's own step: the dead zone is a tick of travel, so a harness that
+// stepped at anything else would stop modelling the thing being asserted.
+const TICK_MS = SLED_TICK_MS;
 
 type Race = {
   /** Lane the client is drawing, sampled once per frame. */
@@ -36,6 +43,8 @@ function race(options: {
   keyAt: (nowMs: number) => -1 | 0 | 1;
   /** Sequence number to lose in transit, as the server's rate limit would. */
   dropSeq?: number;
+  /** Shove the server's sled sideways at `at`, the way a collision would. */
+  knock?: { at: number; by: number };
   seed?: string;
 }): Race {
   const { durationMs, oneWayMs, keyAt } = options;
@@ -61,6 +70,7 @@ function race(options: {
   const lanes: Race['lanes'] = [];
 
   for (let now = 0; now <= durationMs; now += 1) {
+    if (options.knock && now === options.knock.at) racer.x += options.knock.by;
     while (toServer.length && toServer[0]!.at <= now) {
       const input = toServer.shift()!;
       if (input.seq === options.dropSeq) continue;
@@ -72,10 +82,9 @@ function race(options: {
       ackClock.acked(snapshot.inputSeq, now);
       const traced = ackClock.measured ? trace.sample(now - ackClock.roundTripMs) : undefined;
       if (traced !== undefined) {
-        motion = {
-          ...motion,
-          x: reconcileLocalX(motion.x, snapshot.x, traced, CONFIG.steeringSpeed, CONFIG.trackHalfWidth),
-        };
+        const x = reconcileLocalX(motion.x, snapshot.x, traced, CONFIG.steeringSpeed, CONFIG.trackHalfWidth);
+        trace.shift(x - motion.x);
+        motion = { ...motion, x };
       }
     }
     if (now % TICK_MS === 0 && now > 0) {
@@ -169,6 +178,39 @@ test('the client ends the run where the server has it, having led it all the way
   assert.ok(
     Math.abs(clientX() - serverX()) < steerDeadZone(CONFIG.steeringSpeed),
     `expected agreement once the input settles, client ${clientX()} vs server ${serverX()}`,
+  );
+});
+
+test('a wide correction is applied to the lane being steered, not the one in the snapshot', () => {
+  // A shove the client had no way to predict, while the key stays held down. The
+  // correction has to be worth the whole shove: a snapshot describes the lane the
+  // server held one round trip ago, so taking it literally would also undo the
+  // steering done since and leave the player short by an RTT of travel.
+  const KNOCK = -150;
+  const released = 900;
+  const { lanes, serverX, clientX } = race({
+    durationMs: 1_600,
+    oneWayMs: 70,
+    keyAt: (now) => (now < released ? 1 : 0),
+    knock: { at: 400, by: KNOCK },
+  });
+  const deltas = lanes.slice(1).map((lane, index) => lane.x - lanes[index]!.x);
+  const jump = deltas.reduce((widest, delta) => (Math.abs(delta) > Math.abs(widest) ? delta : widest), 0);
+  assert.ok(
+    Math.abs(jump - KNOCK) < steerDeadZone(CONFIG.steeringSpeed),
+    `expected the whole ${KNOCK}px shove in one correction, got ${Math.round(jump)}`,
+  );
+  // One correction, then straight back to steering at the rate the key asks for —
+  // and only one, because the trace moves with it.
+  const steeringAfter = lanes.filter((lane) => lane.at > 700 && lane.at <= released);
+  for (const [index, lane] of steeringAfter.entries()) {
+    if (index === 0) continue;
+    const speed = (lane.x - steeringAfter[index - 1]!.x) / (FRAME_MS / 1_000);
+    assert.ok(speed > CONFIG.steeringSpeed * 0.98, `lane speed dipped to ${Math.round(speed)} at ${lane.at}ms`);
+  }
+  assert.ok(
+    Math.abs(clientX() - serverX()) < steerDeadZone(CONFIG.steeringSpeed),
+    `expected agreement once the key is released, client ${clientX()} vs server ${serverX()}`,
   );
 });
 

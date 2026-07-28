@@ -246,10 +246,11 @@ export class SledRunScene extends Phaser.Scene {
     const traced = this.steerTrace.sample(this.snapshotAt - this.ackClock.roundTripMs);
     if (traced === undefined) return;
     const { steeringSpeed, trackHalfWidth } = sledDifficultyConfig(snapshot.difficulty);
-    this.motions.set(local.sessionId, {
-      ...motion,
-      x: reconcileLocalX(motion.x, local.x, traced, steeringSpeed, trackHalfWidth),
-    });
+    const x = reconcileLocalX(motion.x, local.x, traced, steeringSpeed, trackHalfWidth);
+    // Snapshots already in flight were made before this correction, so the trace
+    // they will be compared against has to move with it.
+    this.steerTrace.shift(x - motion.x);
+    this.motions.set(local.sessionId, { ...motion, x });
   }
 
   /** Where the crest is: above this the mountain, below it the run itself. */

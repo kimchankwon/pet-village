@@ -43,7 +43,7 @@ import { State } from './GameState';
 import { toast } from './UI';
 import { isUiBlocked } from './nav';
 import { ChatComposer } from './chatComposer';
-import { chatBubbleAlpha, chatBubbleDurationMs, isNewChat, CHAT_SEND_INTERVAL_MS } from './chat';
+import { chatBubbleAlpha, chatBubbleDurationMs, isNewChat } from './chat';
 import { phaserWorldSceneKey, translateWorldCoordinates } from './worldCoordinates';
 import {
   ACCESSORIES,
@@ -183,7 +183,6 @@ export class WorldMultiplayer {
   private readonly localPlayerLabel: Phaser.GameObjects.Text;
   private readonly localChat: ChatBubble;
   private readonly chatComposer: ChatComposer;
-  private lastChatSentAt = -Infinity;
   private readonly remotes = new Map<string, RemoteAvatar>();
   private readonly unsubscribe: () => void;
   private readonly releaseWorld: () => void;
@@ -325,15 +324,13 @@ export class WorldMultiplayer {
   /**
    * Send what the composer collected. Peers see it through the room state; the
    * sender's own bubble is shown here, because the local session is filtered out
-   * of the presence snapshot. Refusing on our own cooldown (wider than the
-   * server's) keeps that bubble honest — the server would have dropped it.
+   * of the presence snapshot. The bridge owns the cooldown and the connection
+   * check and says whether the message really went out, so the bubble is never
+   * shown for one the server would have dropped.
    */
   private say(text: string) {
-    const now = this.scene.time.now;
-    if (now - this.lastChatSentAt < CHAT_SEND_INTERVAL_MS) return false;
-    this.lastChatSentAt = now;
-    multiplayerBridge.chat(text);
-    showChatBubble(this.localChat, text, now);
+    if (!multiplayerBridge.chat(text)) return false;
+    showChatBubble(this.localChat, text, this.scene.time.now);
     return true;
   }
 
