@@ -1,7 +1,7 @@
 {
   "name": "pet-village",
   "private": true,
-  "version": "1.19.0",
+  "version": "1.20.0",
   "type": "module",
   "workspaces": ["packages/*", "multiplayer-server"],
   "scripts": {
@@ -11,6 +11,7 @@
     "build": "npm run build -w @pet-village/multiplayer-protocol && npm run build -w multiplayer-server && tsc && vite build",
     "preview": "vite preview",
     "test": "npx tsx --test scripts/lib/*.test.mjs src/systems/*.test.ts && npm test -w @pet-village/multiplayer-protocol && npm test -w multiplayer-server",
+    "smoke:sled": "tsx scripts/sled-smoke.mts",
     "sprite:repair": "node scripts/repair-sprite-outline.mjs",
     "sprite:miniteen": "tsx scripts/imagine-to-miniteen.mts",
     "sprite:puffles": "tsx scripts/imagine-to-puffles.mts",
@@ -30,7 +31,7 @@
     "@auth/core": "^0.41.1",
     "@colyseus/sdk": "0.17.43",
     "@convex-dev/auth": "^0.0.94",
-    "@pet-village/multiplayer-protocol": "1.19.0",
+    "@pet-village/multiplayer-protocol": "1.20.0",
     "convex": "^1.42.1",
     "jose": "^6.1.0",
     "phaser": "^3.90.0",

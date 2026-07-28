@@ -1222,6 +1222,26 @@ const SKIPROPE_BOOTH: Grid = [
   '................',
 ];
 
+/** Snowy mountain gate for the Sled Run attraction. */
+const SLED_HILL: Grid = [
+  '................',
+  '.......W........',
+  '......WWW.......',
+  '.....WWWWW......',
+  '....WWwwwWW.....',
+  '...WWwwwwwWW....',
+  '..WWwwLLLwwWW...',
+  '.WWwwLLLLLwwWW..',
+  'WWwwLLLLLLLwwWW.',
+  '...krr....rrk...',
+  '...krr....rrk...',
+  '..kkkkkkkkkkkk..',
+  '..kbbkkkkppkkk..',
+  '..kbbkkkkppkkk..',
+  '...kkkkkkkkkk...',
+  '................',
+];
+
 /** Bump arena — red canopy over a tan platform, two sparring blobs. */
 const BUMP_ARENA: Grid = [
   '................',
@@ -1777,6 +1797,7 @@ export function generateTextures(scene: Phaser.Scene) {
     makeTexture(scene, 'arcade', [ARCADE]);
     makeTexture(scene, 'get-arcade', [GET_ARCADE]);
     if (!scene.textures.exists('skiprope-booth')) makeTexture(scene, 'skiprope-booth', [SKIPROPE_BOOTH]);
+    if (!scene.textures.exists('sled-hill')) makeTexture(scene, 'sled-hill', [SLED_HILL]);
     makeTexture(scene, 'paperball', [PAPERBALL]);
     makeTexture(scene, 'bin', [BIN]);
     makeTexture(scene, 'music-note-crotchet', [MUSIC_NOTE_CROTCHET]);
@@ -1823,6 +1844,7 @@ export function generateTextures(scene: Phaser.Scene) {
   if (!scene.textures.exists('poop')) makeTexture(scene, 'poop', [POOP]);
   if (!scene.textures.exists('catch-bowl')) makeTexture(scene, 'catch-bowl', [CATCH_BOWL]);
   if (!scene.textures.exists('skiprope-booth')) makeTexture(scene, 'skiprope-booth', [SKIPROPE_BOOTH]);
+  if (!scene.textures.exists('sled-hill')) makeTexture(scene, 'sled-hill', [SLED_HILL]);
 
   // Outdoor tiles / buildings / props: create only when missing. Never remove
   // shared keys while live Game Objects may still reference them (scenes call

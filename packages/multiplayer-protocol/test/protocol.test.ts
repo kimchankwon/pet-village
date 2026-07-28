@@ -13,7 +13,7 @@ import {
 } from '../src/index.ts';
 
 test('protocol validates finite sequenced moves within actual town bounds', () => {
-  assert.equal(PROTOCOL_VERSION, 3);
+  assert.equal(PROTOCOL_VERSION, 4);
   assert.deepEqual(TOWN_BOUNDS, { width: 1056, height: 768 });
   assert.equal(isMovePayload({ x: 1, y: 2, petX: 3, petY: 4, facing: 'down', moving: true, seq: 1 }), true);
   assert.equal(isMovePayload({ x: Infinity, y: 2, petX: 3, petY: 4, facing: 'down', moving: true, seq: 1 }), false);
@@ -22,7 +22,7 @@ test('protocol validates finite sequenced moves within actual town bounds', () =
 });
 
 test('protocol accepts only known multiplayer game activities', () => {
-  assert.deepEqual(GAME_ACTIVITIES, ['fishing', 'get', 'bump', 'skip-rope', 'paper-toss']);
+  assert.deepEqual(GAME_ACTIVITIES, ['fishing', 'get', 'bump', 'skip-rope', 'paper-toss', 'sled-run']);
   assert.equal(isGameActivity('fishing'), true);
   assert.equal(isGameActivity('not-a-game'), false);
   assert.equal(isGameActivity(''), false);

@@ -11,6 +11,7 @@ import { blockUi, resetUiBlock, setLeaveHandler, unblockUi } from './systems/nav
 import type Phaser from 'phaser';
 import { APP_VERSION } from './appVersion';
 import { connectMultiplayer, type MultiplayerConnection } from './systems/multiplayerClient';
+import { setMultiplayerTicketIssuer } from './systems/multiplayerTickets';
 
 // Game-styled confirmation dialog. ESC cancels via a capture-phase listener
 // with stopPropagation so Phaser's own window keydown listener doesn't also
@@ -291,6 +292,11 @@ function CloudGame() {
       State.setCloudSaver(null);
     };
   }, [upsert]);
+
+  useEffect(() => {
+    setMultiplayerTicketIssuer(() => issueTicket({ penguinColor: State.data.penguinColor ?? 'blue' }));
+    return () => setMultiplayerTicketIssuer(null);
+  }, [issueTicket]);
 
   useEffect(() => {
     if (!hydrated || !import.meta.env.VITE_MULTIPLAYER_URL) return;

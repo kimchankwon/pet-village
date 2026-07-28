@@ -48,6 +48,7 @@ const GAME_ACTIVITY_LABELS: Record<GameActivity, string> = {
   bump: 'Bump',
   'skip-rope': 'Skip Rope',
   'paper-toss': 'Paper Toss',
+  'sled-run': 'Sled Run',
 };
 
 export function isRemotePlayerInteractable(player: {
