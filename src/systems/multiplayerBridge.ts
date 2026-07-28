@@ -182,10 +182,18 @@ export const multiplayerBridge = {
   setRemote(id: ConnectionId, next: RemotePresence[]) {
     if (connectionId !== id) return;
     rows = next;
-    // Everyone on the server, not just this scene — a neighbour who walks into
-    // the shop has not left, and the log should not say they have.
-    noteChatLogPresence(rows, performance.now());
     listeners.forEach((fn) => fn(rows));
+  },
+  /**
+   * The unfiltered server roster, for the log's comings and goings.
+   *
+   * Kept apart from `setRemote`, whose rows are filtered to the scene being
+   * drawn: diffing those would announce a neighbour walking into the shop as
+   * having left the village, and never mention anyone standing anywhere else.
+   */
+  setRoster(id: ConnectionId, next: ReadonlyArray<{ sessionId: string; name: string }>) {
+    if (connectionId !== id) return;
+    noteChatLogPresence(next, performance.now());
   },
   setPositionCorrection(id: ConnectionId, next: IncomingPositionCorrection) {
     if (connectionId !== id) return;

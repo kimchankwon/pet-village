@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { NpcState, PlayerState, TownState } from '@pet-village/multiplayer-protocol';
-import { snapshotNpcs, snapshotPlayers } from './multiplayerClient';
+import { snapshotNpcs, snapshotPlayers, snapshotRoster } from './multiplayerClient';
 
 test('multiplayer client tolerates an initial or older state without an NPC map', () => {
   assert.deepEqual(snapshotNpcs({ npcs: undefined } as unknown as TownState), []);
@@ -65,4 +65,53 @@ test('multiplayer client projects synchronized NPC schema into renderer snapshot
   assert.deepEqual(snapshotNpcs(state), [
     { id: 'bongbongee', x: 360, y: 456, facing: 'left', moving: true, updatedAt: 123 },
   ]);
+});
+
+test('the roster is everyone on the server, whatever scene they are standing in', () => {
+  const state = new TownState();
+  const shore = new PlayerState();
+  Object.assign(shore, { userId: 'shore-user', displayName: 'Shore User', active: true, activity: '', updatedAt: 2, scene: 'shore' });
+  const town = new PlayerState();
+  Object.assign(town, { userId: 'town-user', displayName: 'Town User', active: true, activity: '', updatedAt: 4, scene: 'town' });
+  const resting = new PlayerState();
+  Object.assign(resting, { userId: 'away-user', displayName: 'Away User', active: false, activity: '', updatedAt: 3, scene: 'shore' });
+  const self = new PlayerState();
+  Object.assign(self, { userId: 'local-user', displayName: 'Me', active: true, activity: '', updatedAt: 5, scene: 'town' });
+  state.players.set('shore-session', shore);
+  state.players.set('town-session', town);
+  state.players.set('away-session', resting);
+  state.players.set('local-session', self);
+
+  // The rendering snapshot is filtered to one scene, and has to stay that way —
+  // it is what draws the avatars standing in front of you.
+  assert.deepEqual(
+    snapshotPlayers(state, 'local-session', 'local-user', 'shore').map((row) => row.sessionId),
+    ['shore-session'],
+  );
+  // The roster is not: a villager in another scene is still in the village, and
+  // walking from Town to the Shore must not read as leaving and rejoining.
+  assert.deepEqual(
+    snapshotRoster(state, 'local-session', 'local-user').map((row) => row.name).sort(),
+    ['Away User', 'Shore User', 'Town User'],
+  );
+});
+
+test('the roster leaves out yourself, however many sessions you are holding', () => {
+  const state = new TownState();
+  // A reconnect inside the grace window leaves the old session behind for a
+  // moment; one player is one villager, not an arrival.
+  const stale = new PlayerState();
+  Object.assign(stale, { userId: 'local-user', displayName: 'Me', active: false, updatedAt: 1, scene: 'town' });
+  const fresh = new PlayerState();
+  Object.assign(fresh, { userId: 'local-user', displayName: 'Me', active: true, updatedAt: 9, scene: 'shore' });
+  const other = new PlayerState();
+  Object.assign(other, { userId: 'other-user', displayName: 'Bo', active: true, updatedAt: 2, scene: 'town' });
+  state.players.set('stale-session', stale);
+  state.players.set('local-session', fresh);
+  state.players.set('other-session', other);
+
+  assert.deepEqual(
+    snapshotRoster(state, 'local-session', 'local-user').map((row) => row.name),
+    ['Bo'],
+  );
 });

@@ -40,6 +40,8 @@ export class ChatLogView {
   private disposed = false;
   /** Entry id in each slot, so unchanged lines are not re-laid out every frame. */
   private readonly drawn: number[] = [];
+  /** The width those lines were wrapped to, which a rotation changes. */
+  private wrappedTo = -1;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -57,6 +59,7 @@ export class ChatLogView {
         .setDepth(CHAT_LOG_DEPTH)
         .setVisible(false);
       this.lines.push(line);
+      this.drawn.push(-1);
     }
     markAsUi(scene, ...this.lines);
     // A line arriving has to redraw immediately; the fade can wait for a frame.
@@ -76,6 +79,13 @@ export class ChatLogView {
     const visible = chatLogEntries().filter((entry) => chatLogAlpha(entry, now) > 0);
     const camera = this.scene.cameras.main;
     const maxWidth = Math.round(Math.min(380, Math.max(180, camera.width - PAD * 2)));
+    // Lines already on screen were wrapped to the old width, and skipping them
+    // for being unchanged would leave a rotated phone showing the last screen's
+    // line breaks until they faded out.
+    if (maxWidth !== this.wrappedTo) {
+      this.wrappedTo = maxWidth;
+      this.drawn.fill(-1);
+    }
     // Stacked by measured height rather than a fixed step: a long message wraps
     // onto a second row, and the line under it has to start below all of it.
     let y = PAD;
