@@ -199,7 +199,7 @@ export class ClothesShopScene extends Phaser.Scene {
         { label: '[ Inventory · I ]', onTap: () => this.openInventory() },
         { label: '[ Pet · P ]', onTap: () => this.openPetMenu() },
         // Same composer T opens, for a player who is tapping rather than typing.
-        { label: '[ Chat · T ]', onTap: () => this.worldMultiplayer.openChat() },
+        { label: '[ Chat · T ]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.openChat(); } },
       ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;

@@ -34,6 +34,12 @@ export type LocalSled = {
   effect: SledEffect;
   /** Scene-clock moment the current effect wears off. */
   effectUntil: number;
+  /**
+   * The item the current effect came from. The server checks a report against the
+   * racer's steering history and can refuse it, and this is how the sled knows
+   * which effect to drop when it does.
+   */
+  effectItem: string;
 };
 
 export type LocalSledStep = {
@@ -43,7 +49,13 @@ export type LocalSledStep = {
 };
 
 export function newLocalSled(x: number): LocalSled {
-  return { x, progress: 0, speed: 0, effect: '', effectUntil: 0 };
+  return { x, progress: 0, speed: 0, effect: '', effectUntil: 0, effectItem: '' };
+}
+
+/** Drop an effect the server refused, if it is still the one the sled is under. */
+export function clearRejectedEffect(sled: LocalSled, itemId: string): LocalSled {
+  if (sled.effectItem !== itemId) return sled;
+  return { ...sled, effect: '', effectUntil: 0, effectItem: '' };
 }
 
 /** How fast the sled settles onto the speed its current effect asks for. */
@@ -91,6 +103,7 @@ export function stepLocalSled(
   const seconds = predictionStepSeconds(deltaMs);
   let effect: SledEffect = sled.effect && now >= sled.effectUntil ? '' : sled.effect;
   let effectUntil = effect ? sled.effectUntil : 0;
+  let effectItem = effect ? sled.effectItem : '';
   const multiplier = effect ? SLED_EFFECTS[effect].multiplier : 1;
   let speed = sled.speed + (config.baseSpeed * multiplier - sled.speed)
     * Math.min(1, seconds * SLED_SPEED_BLEND_RATE);
@@ -103,8 +116,9 @@ export function stepLocalSled(
   for (const item of hits) {
     effect = item.kind === 'ice' ? 'ice' : 'obstacle';
     effectUntil = now + SLED_EFFECTS[effect].durationMs;
+    effectItem = item.id;
     speed = config.baseSpeed * SLED_EFFECTS[effect].multiplier;
   }
 
-  return { sled: { x, progress, speed, effect, effectUntil }, hits };
+  return { sled: { x, progress, speed, effect, effectUntil, effectItem }, hits };
 }

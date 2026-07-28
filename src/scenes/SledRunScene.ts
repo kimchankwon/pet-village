@@ -20,7 +20,7 @@ import {
   type SledRunSnapshot,
 } from '../systems/sledRunClient';
 import { SteerAckClock, SteerTrace } from '../systems/sledRunLatency';
-import { newLocalSled, stepLocalSled, type LocalSled } from '../systems/sledLocalSled';
+import { clearRejectedEffect, newLocalSled, stepLocalSled, type LocalSled } from '../systems/sledLocalSled';
 import { shouldSendSteer, steerAxisFrom } from '../systems/sledRunPolicy';
 import {
   reconcileLocalProgress,
@@ -151,6 +151,13 @@ export class SledRunScene extends Phaser.Scene {
       connection.onState((snapshot) => {
         if (this.sceneEpoch !== epoch) return;
         this.acceptSnapshot(snapshot);
+      });
+      connection.onHitRejected((itemId) => {
+        if (this.sceneEpoch !== epoch) return;
+        // The server checked the report against our own steering history and did
+        // not keep it. The item stays claimed — re-reporting would only be
+        // refused again — but the effect it gave us goes.
+        this.localSled = clearRejectedEffect(this.localSled, itemId);
       });
       connection.onConnectionState((state) => {
         if (this.sceneEpoch !== epoch) return;
@@ -285,7 +292,16 @@ export class SledRunScene extends Phaser.Scene {
         speed: local.speed,
         effect: local.effect,
         effectUntil: local.effect ? this.time.now + Math.max(0, local.effectUntil - snapshot.serverTime) : 0,
+        // Whatever the server has us under was settled while we were away, so
+        // there is no local report for it to be taken back from.
+        effectItem: '',
       };
+      // The hill we missed is the server's to have resolved: claim everything
+      // behind the lane we have been handed, or prediction will report items the
+      // race already went past as fresh hits.
+      for (const item of this.course) {
+        if (item.progress - item.radius <= local.progress) this.claimedItems.add(item.id);
+      }
       this.steerTrace.clear();
       this.ackClock.clearPending();
       return;
@@ -315,12 +331,17 @@ export class SledRunScene extends Phaser.Scene {
     return this.solo || this.disconnected || this.reconnecting || this.snapshot?.phase !== 'racing';
   }
 
-  /** The effect the player is under — ours is called here, not sent to us. */
+  /**
+   * The effect the player is under — ours is called here, not sent to us, right
+   * up until we cross the line. A finished sled stops being simulated locally, so
+   * from then on the snapshot is the only thing still keeping the effect current.
+   */
   private get localEffect(): SledEffect {
     const snapshot = this.snapshot;
     if (!snapshot) return '';
-    if (!this.authoritativeView) return this.localSled.effect;
-    return snapshot.racers.find((racer) => racer.sessionId === snapshot.localSessionId)?.effect ?? '';
+    const local = snapshot.racers.find((racer) => racer.sessionId === snapshot.localSessionId);
+    if (!this.authoritativeView && !(local && local.rank > 0)) return this.localSled.effect;
+    return local?.effect ?? '';
   }
 
   /** Where the crest is: above this the mountain, below it the run itself. */

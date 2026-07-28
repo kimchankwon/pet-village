@@ -3,6 +3,7 @@ import {
   SLED_RUN_ROOM,
   type SledDifficulty,
   type SledEffect,
+  type SledHitRejectedPayload,
   type SledPhase,
   type SledRunState,
 } from '@pet-village/multiplayer-protocol';
@@ -50,8 +51,17 @@ export type SledRunConnection = {
   sendSteer: (steering: -1 | 0 | 1) => number;
   /** Tells the room about a collision this client called on its own lane. */
   sendHit: (itemId: string) => void;
+  /** Items the server would not stand behind, so the effect can be dropped here too. */
+  onHitRejected: (listener: (itemId: string) => void) => () => void;
   disconnect: () => Promise<void>;
 };
+
+/**
+ * How many unsent collision reports to hold across a drop. A whole course is
+ * under forty items, so this covers any realistic outage without letting a long
+ * one grow unbounded.
+ */
+const SLED_PENDING_HIT_LIMIT = 48;
 
 export function snapshotSledRun(state: SledRunState, localSessionId: string): SledRunSnapshot {
   const racers: SledRacerSnapshot[] = [];
@@ -142,6 +152,10 @@ export async function connectSledRun(
 
   const listeners = new Set<(snapshot: SledRunSnapshot) => void>();
   const connectionListeners = new Set<(state: SledConnectionState) => void>();
+  const hitRejectedListeners = new Set<(itemId: string) => void>();
+  // Reports made while dropped: the room's own queue is switched off, and a lost
+  // report is a bump or a boost the rest of the race never sees.
+  const pendingHits = new Set<string>();
   let latest: SledRunSnapshot | undefined;
   let seq = 0;
   let closed = false;
@@ -157,7 +171,19 @@ export async function connectSledRun(
     connectionListeners.forEach((listener) => listener(state));
   };
 
+  const flushPendingHits = () => {
+    if (!connected || closed) return;
+    for (const itemId of pendingHits) room.send('sled:hit', { itemId });
+    pendingHits.clear();
+  };
+
   room.onStateChange(sync);
+  room.onMessage('sled:hit:rejected', (payload: SledHitRejectedPayload) => {
+    const itemId = payload?.itemId;
+    if (typeof itemId !== 'string') return;
+    pendingHits.delete(itemId);
+    hitRejectedListeners.forEach((listener) => listener(itemId));
+  });
   room.onError((_code, message) => console.warn('Sled Run connection error', message));
   room.onDrop(() => {
     connected = false;
@@ -170,6 +196,7 @@ export async function connectSledRun(
       return;
     }
     connected = true;
+    flushPendingHits();
     emitConnectionState('connected');
     sync();
   });
@@ -181,6 +208,8 @@ export async function connectSledRun(
     }
     listeners.clear();
     connectionListeners.clear();
+    hitRejectedListeners.clear();
+    pendingHits.clear();
   });
   sync();
 
@@ -205,8 +234,16 @@ export async function connectSledRun(
       return sent;
     },
     sendHit: (itemId) => {
-      if (!connected || closed) return;
+      if (closed) return;
+      if (!connected) {
+        if (pendingHits.size < SLED_PENDING_HIT_LIMIT) pendingHits.add(itemId);
+        return;
+      }
       room.send('sled:hit', { itemId });
+    },
+    onHitRejected(listener) {
+      hitRejectedListeners.add(listener);
+      return () => hitRejectedListeners.delete(listener);
     },
     disconnect: async () => {
       if (closed) return;
@@ -216,6 +253,8 @@ export async function connectSledRun(
       room.reconnection.enqueuedMessages.length = 0;
       listeners.clear();
       connectionListeners.clear();
+      hitRejectedListeners.clear();
+      pendingHits.clear();
       if (room.connection?.isOpen) await room.leave();
     },
   };

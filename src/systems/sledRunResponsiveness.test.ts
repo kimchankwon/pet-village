@@ -15,6 +15,7 @@ import {
   SledRunState,
   generateSledCourse,
   sledDifficultyConfig,
+  sledLaneJudgementReach,
   type SledCourseItem,
   type SledEffect,
 } from '@pet-village/multiplayer-protocol';
@@ -62,6 +63,8 @@ function race(options: {
   knock?: { at: number; by: number };
   /** Cut the link for a while, the way a dropped socket does before it reconnects. */
   outage?: { at: number; ms: number };
+  /** Send no collision reports at all, the way a lost link or a doctored client would. */
+  silent?: boolean;
   seed?: string;
 }): Race {
   const { durationMs, oneWayMs, keyAt } = options;
@@ -131,7 +134,10 @@ function race(options: {
       snapshots.push({ at: now, speed: snapshot.speed, effect: snapshot.effect });
       if (resync) {
         resync = false;
-        sled = { x: snapshot.x, progress: snapshot.progress, speed: snapshot.speed, effect: '', effectUntil: 0 };
+        sled = {
+          x: snapshot.x, progress: snapshot.progress, speed: snapshot.speed,
+          effect: '', effectUntil: 0, effectItem: '',
+        };
         trace.clear();
         continue;
       }
@@ -188,7 +194,7 @@ function race(options: {
     };
     for (const item of step.hits) {
       claimed.add(item.id);
-      hitsToServer.push({ at: now + oneWayMs, itemId: item.id });
+      if (!options.silent) hitsToServer.push({ at: now + oneWayMs, itemId: item.id });
     }
     trace.record(now, sled.x);
     lanes.push({ at: now, x: sled.x, steering });
@@ -211,6 +217,15 @@ function firstItemInTheWay(): SledCourseItem {
   const item = generateSledCourse(SEED, DIFFICULTY)
     .find((candidate) => Math.abs(candidate.x) <= candidate.radius);
   assert.ok(item, `seed ${SEED} has nothing in the middle of the track to collide with`);
+  return item;
+}
+
+/** The first rock or stump in the way — the kind the server goes looking for. */
+function firstObstacleInTheWay(): SledCourseItem {
+  const item = generateSledCourse(SEED, DIFFICULTY).find((candidate) => (
+    candidate.kind !== 'ice' && Math.abs(candidate.x) <= candidate.radius + SLED_RACER_RADIUS
+  ));
+  assert.ok(item, `seed ${SEED} has no obstacle in the middle of the track`);
   return item;
 }
 
@@ -414,5 +429,52 @@ test('an input the server never applied is reconciled away, without a lurch', ()
   assert.ok(
     Math.abs(clientX() - serverX()) < steerDeadZone(CONFIG.steeringSpeed),
     `expected the prediction to give way, client ${clientX()} vs server ${serverX()}`,
+  );
+});
+
+test('a rock nobody reported still catches up with the racer who drove through it', () => {
+  const obstacle = firstObstacleInTheWay();
+  const { snapshots, serverLanes } = race({
+    durationMs: 6_000, oneWayMs: LAG_MS, keyAt: () => 0, silent: true,
+  });
+  const settled = obstacle.progress + sledLaneJudgementReach(obstacle, CONFIG);
+  assert.ok(
+    serverLanes[serverLanes.length - 1]!.progress > settled,
+    'the server never got far enough past the rock to settle it',
+  );
+  // Reports make the bump prompt; they are not what makes it happen. Held dead
+  // straight through the rock, the racer is slowed whether they own up or not.
+  assert.ok(
+    snapshots.some((snapshot) => snapshot.effect === 'obstacle'),
+    'a racer who reported nothing was never slowed by the rock they drove through',
+  );
+});
+
+test('a last-moment dodge survives the server settling the rock behind it', () => {
+  const obstacle = firstObstacleInTheWay();
+  const straight = race({ durationMs: 6_000, oneWayMs: LAG_MS, keyAt: () => 0 });
+  const contact = straight.frames.find((frame) => frame.sled.effectItem === obstacle.id);
+  assert.ok(contact, 'the straight run never reached the rock');
+  const side: -1 | 1 = obstacle.x > 0 ? -1 : 1;
+  const clearBy = obstacle.radius + SLED_RACER_RADIUS - Math.abs(obstacle.x) + 10;
+  const dodgeAt = contact.at - Math.ceil((clearBy / CONFIG.steeringSpeed) * 1_000);
+  const { frames, snapshots, serverLanes } = race({
+    durationMs: 6_000, oneWayMs: LAG_MS, keyAt: (now) => (now < dodgeAt ? 0 : side),
+  });
+  const settled = obstacle.progress + sledLaneJudgementReach(obstacle, CONFIG);
+  assert.ok(
+    serverLanes[serverLanes.length - 1]!.progress > settled,
+    'the server never got far enough past the rock to settle it',
+  );
+  // The dodge is late enough that the server's own copy of the lane was still
+  // pointed at the rock when it went past. Its steering history is not, and that
+  // is the whole point: the racer keeps the dodge they watched themselves make.
+  assert.ok(
+    frames.every((frame) => frame.sled.effectItem !== obstacle.id),
+    'the sled that dodged called a hit on itself',
+  );
+  assert.ok(
+    snapshots.every((snapshot) => snapshot.effect !== 'obstacle'),
+    'the server settled the rock against the racer who had already steered clear',
   );
 });

@@ -6,7 +6,7 @@ import {
   sledDifficultyConfig,
   type SledCourseItem,
 } from '@pet-village/multiplayer-protocol';
-import { newLocalSled, sledCourseHits, stepLocalSled } from './sledLocalSled';
+import { clearRejectedEffect, newLocalSled, sledCourseHits, stepLocalSled } from './sledLocalSled';
 
 const CONFIG = sledDifficultyConfig('easy');
 const FRAME_MS = 16;
@@ -109,4 +109,25 @@ test('hits are looked for across the whole span travelled, not just where the sl
   // Already claimed, or in another lane: nothing to report.
   assert.deepEqual(sledCourseHits([rock], new Set(['rock-0']), 400, 600, 0), []);
   assert.deepEqual(sledCourseHits([rock], new Set(), 400, 600, 200), []);
+});
+
+test('an effect remembers the item it came from, so a refused claim can be undone', () => {
+  const ice = item({ id: 'ice-4', kind: 'ice', x: 0, progress: 500, radius: 44 });
+  const { sled } = run(racing(0, 400), { course: [ice], frames: 12 });
+  assert.equal(sled.effect, 'ice');
+  assert.equal(sled.effectItem, 'ice-4');
+
+  // The server checked the report against our own steering history and would not
+  // keep it: the boost goes, and the sled settles back to the hill's own speed.
+  const dropped = clearRejectedEffect(sled, 'ice-4');
+  assert.equal(dropped.effect, '');
+  assert.equal(dropped.effectUntil, 0);
+  assert.equal(dropped.effectItem, '');
+  // A refusal for something else, or one that arrives after the effect has moved
+  // on, leaves the sled alone.
+  assert.equal(clearRejectedEffect(sled, 'rock-9'), sled);
+  assert.equal(clearRejectedEffect(dropped, 'ice-4'), dropped);
+  // Once it wears off there is nothing left attributed to it either.
+  const after = run(dropped, { frames: 4 });
+  assert.equal(after.sled.effectItem, '');
 });

@@ -234,6 +234,13 @@ export type SledInputPayload = { steering: -1 | 0 | 1; seq: number };
  * did not. The server keeps the verdict for everyone else to watch.
  */
 export type SledHitPayload = { itemId: string };
+/**
+ * A claim the server would not stand behind, sent back to the client that made
+ * it. Either it failed its checks on arrival, or the racer's own steering history
+ * later showed they were never near the item. The client drops the effect it
+ * applied so the two sides do not drift apart for the rest of the run.
+ */
+export type SledHitRejectedPayload = { itemId: string };
 export const SLED_MAX_PLAYERS = 4;
 export const SLED_COUNTDOWN_MS = 3_000;
 /**
@@ -350,6 +357,119 @@ export function isSledHitPlausible(
     Math.abs(item.progress - racer.progress) <= alongTrack &&
     Math.abs(item.x - racer.x) <= acrossTrack
   );
+}
+
+/**
+ * Where the server had a racer's lane at one point on the hill. The server writes
+ * one of these per tick from the steering it has accepted, so the trail is the
+ * racer's own input history laid out along the track rather than along the clock —
+ * which is what a course item has to be judged against.
+ */
+export type SledLaneSample = { progress: number; x: number };
+
+/** Half the span of track over which a sled and an item are touching. */
+function crossingHalfWidth(item: { radius: number }): number {
+  return item.radius + SLED_RACER_RADIUS;
+}
+
+/** The widest thing `generateSledCourse` puts on a hill, for sizing the trail. */
+const SLED_WIDEST_ITEM_RADIUS = 44;
+
+/**
+ * How far along the track the client's copy of the racer may be from the
+ * server's. The client leads by a round trip and its report costs another half
+ * one, so a crossing the client saw sits somewhere inside this much of track.
+ */
+function lagDistance(config: SledDifficultyConfig): number {
+  return config.baseSpeed * SLED_EFFECTS.ice.multiplier * (SLED_HIT_TOLERANCE_MS / 1_000);
+}
+
+/**
+ * How far past an item a racer has to be before their lane trail can settle what
+ * happened there: the whole span the crossing could have fallen in, plus the
+ * crossing itself.
+ */
+export function sledLaneJudgementReach(item: { radius: number }, config: SledDifficultyConfig): number {
+  return lagDistance(config) + crossingHalfWidth(item);
+}
+
+/**
+ * How much lane the server keeps behind a racer. An item is judged once the sled
+ * is a reach past it, and the window reaches back that far again, so the trail
+ * has to hold two reaches — sized off the widest item on any course.
+ */
+export function sledLaneTrailSpan(config: SledDifficultyConfig): number {
+  const slack = config.baseSpeed * SLED_EFFECTS.ice.multiplier * 0.25;
+  return 2 * sledLaneJudgementReach({ radius: SLED_WIDEST_ITEM_RADIUS }, config) + slack;
+}
+
+/**
+ * The stretch of the racer's lane that could contain the crossing, provided the
+ * trail covers the whole of it. An incomplete trail — a racer who joined mid-race
+ * or whose samples have been pruned — yields nothing, and nothing is judged.
+ */
+function laneWindow(
+  item: SledCourseItem,
+  trail: readonly SledLaneSample[],
+  config: SledDifficultyConfig,
+): SledLaneSample[] {
+  const reach = sledLaneJudgementReach(item, config);
+  const from = item.progress - reach;
+  const to = item.progress + reach;
+  if (trail.length < 2 || trail[0]!.progress > from || trail[trail.length - 1]!.progress < to) return [];
+  return trail.filter((sample) => sample.progress >= from && sample.progress <= to);
+}
+
+function overlaps(sample: SledLaneSample, item: SledCourseItem): boolean {
+  return Math.abs(sample.x - item.x) <= crossingHalfWidth(item);
+}
+
+/**
+ * Whether the racer's own steering left them no way past this item — the check
+ * that keeps the race from being the client's to decide. A client that simply
+ * never reports the rocks it hits still gets slowed by the ones its own accepted
+ * steering drove straight through.
+ *
+ * A dodge is any stretch of the racer's lane, long enough to have been the
+ * crossing, that is clear of the item. Finding one settles it in the racer's
+ * favour: the server cannot say when in the window the crossing really happened,
+ * so it does not get to say the sled was somewhere it might not have been.
+ */
+export function isSledHitUnavoidable(
+  item: SledCourseItem,
+  trail: readonly SledLaneSample[],
+  config: SledDifficultyConfig,
+): boolean {
+  const window = laneWindow(item, trail, config);
+  if (!window.length) return false;
+  const crossing = 2 * crossingHalfWidth(item);
+  let clearFrom: number | undefined;
+  for (const sample of window) {
+    if (overlaps(sample, item)) {
+      clearFrom = undefined;
+      continue;
+    }
+    if (clearFrom === undefined) clearFrom = sample.progress;
+    if (sample.progress - clearFrom >= crossing) return false;
+  }
+  return true;
+}
+
+/**
+ * Whether a reported collision is one the racer's own steering rules out: at no
+ * point in the whole window did their lane come near this item. This is what
+ * stops a client picking an ice boost out of a part of the course it never
+ * visited — the arrival-time check only knows roughly where the racer is, while
+ * the trail knows the lane they held at the item itself.
+ */
+export function isSledClaimContradicted(
+  item: SledCourseItem,
+  trail: readonly SledLaneSample[],
+  config: SledDifficultyConfig,
+): boolean {
+  const window = laneWindow(item, trail, config);
+  if (!window.length) return false;
+  return !window.some((sample) => overlaps(sample, item));
 }
 
 export class PlayerState extends Schema {
