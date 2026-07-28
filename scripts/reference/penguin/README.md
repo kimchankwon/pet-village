@@ -37,11 +37,29 @@ profile matches the same chunky Club Penguin pixel look (white eye + black
 pupil, short beak, flippers by the body). Sources live under
 `imagine-side-v3/`; game inputs under `poses/side-{0,1,2}.png`.
 
+## Wave (Imagine)
+
+Multiplayer wave uses front-facing raised-flipper frames `wave-{1,2,3}.png`
+(frame 0 is still `down-0` idle). Prefer Grok Imagine sources:
+
+```text
+scripts/reference/penguin/imagine-wave/wave-{1,2,3}-source.png
+```
+
+```bash
+npm run sprite:penguin-wave
+```
+
+If Imagine sources are missing, the script falls back to the procedural
+`raiseFlipper` path on `down-0.png` (unit-tested in `scripts/lib/penguin-wave.test.mjs`).
+
 ## Refresh
 
 ```bash
 # Put pose plates under poses/ then:
 npm run sprite:penguin
+# Wave plates (Imagine preferred):
+npm run sprite:penguin-wave
 ```
 
 Poses:
