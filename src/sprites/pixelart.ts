@@ -1547,6 +1547,9 @@ export const PENGUIN_DISPLAY_HEIGHT = 20 * SCALE;
 /** Boot loads Imagine plates under this key prefix when present. */
 export const PENGUIN_PLATE_KEY = (facing: 'down' | 'up' | 'side', frame: 0 | 1 | 2) =>
   `penguin-plate-${facing}-${frame}`;
+/** Raised-flipper wave poses; frame 0 of the wave is the idle down plate. */
+export const PENGUIN_WAVE_PLATE_KEY = (frame: 1 | 2 | 3) => `penguin-plate-wave-${frame}`;
+const PENGUIN_WAVE_PLATE_FRAMES = [1, 2, 3] as const;
 
 const PENGUIN_FACINGS = ['down', 'up', 'side'] as const;
 /** 0 = idle plant (stop); 1–2 = alternating mid-stride walk. */
@@ -1556,6 +1559,14 @@ const PENGUIN_FRAME_COUNT = 3;
 export function hasPenguinPlates(scene: Phaser.Scene): boolean {
   return PENGUIN_FACINGS.every((facing) =>
     ([0, 1, 2] as const).every((frame) => scene.textures.exists(PENGUIN_PLATE_KEY(facing, frame))),
+  );
+}
+
+/** True when Boot preloaded the plate-resolution wave poses. */
+export function hasPenguinWavePlates(scene: Phaser.Scene): boolean {
+  return (
+    hasPenguinPlates(scene) &&
+    PENGUIN_WAVE_PLATE_FRAMES.every((frame) => scene.textures.exists(PENGUIN_WAVE_PLATE_KEY(frame)))
   );
 }
 
@@ -1736,6 +1747,73 @@ function makePenguinFromPlates(scene: Phaser.Scene) {
   });
 }
 
+/**
+ * Wave spritesheet from Imagine plates: frame 0 is the idle down plate, 1–3 the
+ * raised-flipper plates. Same source art, same resolution and recolour/clothes
+ * pipeline as the walk sheets, so the flipper lifts instead of the sprite
+ * dissolving into 26px blocks.
+ */
+function makeWaveTextureFromPlates(
+  scene: Phaser.Scene,
+  key: string,
+  color: string,
+  includeClothes: boolean,
+) {
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  const palette = PENGUIN_COLORS[normalizePenguinColor(color)] ?? PENGUIN_COLORS.blue!;
+  const body = hexToRgb(palette.v);
+  const shade = hexToRgb(palette.V);
+  const hi = hexToRgb(palette.u);
+  const frameKeys = [
+    PENGUIN_PLATE_KEY('down', 0),
+    ...PENGUIN_WAVE_PLATE_FRAMES.map((frame) => PENGUIN_WAVE_PLATE_KEY(frame)),
+  ];
+  const first = scene.textures.get(frameKeys[0]!).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+  const fw = first.width;
+  const fh = first.height;
+  const sheet = document.createElement('canvas');
+  sheet.width = fw * frameKeys.length;
+  sheet.height = fh;
+  const sctx = sheet.getContext('2d')!;
+  const previous = { v: PALETTE.v!, V: PALETTE.V!, u: PALETTE.u! };
+  setPenguinPalette(normalizePenguinColor(color));
+  frameKeys.forEach((frameKey, index) => {
+    const source = scene.textures.get(frameKey).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    const tmp = document.createElement('canvas');
+    tmp.width = fw;
+    tmp.height = fh;
+    const tctx = tmp.getContext('2d')!;
+    tctx.imageSmoothingEnabled = false;
+    tctx.drawImage(source as CanvasImageSource, 0, 0, fw, fh);
+    const image = tctx.getImageData(0, 0, fw, fh);
+    recolorPenguinPlateData(image.data, body, shade, hi);
+    tctx.putImageData(image, 0, 0);
+    if (includeClothes) stampClothesOnPlate(tctx, 'down', fw, fh);
+    sctx.drawImage(tmp, index * fw, 0);
+  });
+  Object.assign(PALETTE, previous);
+  scene.textures.addSpriteSheet(key, sheet as unknown as HTMLImageElement, {
+    frameWidth: fw,
+    frameHeight: fh,
+  });
+  scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+}
+
+/** Plate wave poses when Boot loaded them; hand-authored grids otherwise. */
+function makeWaveTexture(
+  scene: Phaser.Scene,
+  key: string,
+  color: string,
+  referenceKey: string,
+  includeClothes: boolean,
+) {
+  if (hasPenguinWavePlates(scene)) {
+    makeWaveTextureFromPlates(scene, key, color, includeClothes);
+    return;
+  }
+  makeAuthoredWaveTexture(scene, key, color, referenceKey, includeClothes);
+}
+
 function makeAuthoredWaveTexture(
   scene: Phaser.Scene,
   key: string,
@@ -1835,7 +1913,7 @@ export function ensureRemotePenguinTextures(scene: Phaser.Scene, requestedColor:
       });
     }
   }
-  makeAuthoredWaveTexture(
+  makeWaveTexture(
     scene,
     remotePenguinWaveTextureKey(color),
     color,
@@ -1847,7 +1925,7 @@ export function ensureRemotePenguinTextures(scene: Phaser.Scene, requestedColor:
 function makePenguin(scene: Phaser.Scene) {
   if (hasPenguinPlates(scene)) {
     makePenguinFromPlates(scene);
-    makeAuthoredWaveTexture(
+    makeWaveTexture(
       scene,
       LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
       State.data.penguinColor ?? 'blue',
@@ -1866,7 +1944,7 @@ function makePenguin(scene: Phaser.Scene) {
     anims.create({ key: 'walk-up', frames: anims.generateFrameNumbers('penguin-up', { start: 1, end: 2 }), frameRate: 6, repeat: -1 });
     anims.create({ key: 'walk-side', frames: anims.generateFrameNumbers('penguin-side', { start: 1, end: 2 }), frameRate: 6, repeat: -1 });
   }
-  makeAuthoredWaveTexture(
+  makeWaveTexture(
     scene,
     LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
     State.data.penguinColor ?? 'blue',

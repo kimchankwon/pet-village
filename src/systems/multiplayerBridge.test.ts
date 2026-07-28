@@ -88,6 +88,23 @@ test('authoritative scene recovery survives the wrong scene and is consumed by t
   multiplayerBridge.uninstall(id);
 });
 
+test('entering a world re-snapshots peers instead of waiting for the next patch', () => {
+  const resyncs: string[] = [];
+  const id = multiplayerBridge.install({
+    ...actions([]),
+    resync: () => resyncs.push(multiplayerBridge.activeSceneId() ?? 'none'),
+  });
+
+  const releaseTown = multiplayerBridge.activateWorld('town', pose);
+  const releaseShore = multiplayerBridge.activateWorld('shore', { ...pose, x: 500, y: 600 });
+  // The snapshot is filtered by the *new* scene, so it must run after the switch.
+  assert.deepEqual(resyncs, ['town', 'shore']);
+
+  releaseShore();
+  releaseTown();
+  multiplayerBridge.uninstall(id);
+});
+
 test('NPC snapshots are connection-scoped and cleared on uninstall', () => {
   const npc: RemoteNpc = { id: 'bongbongee', x: 360, y: 456, facing: 'right', moving: true, updatedAt: 1 };
   const seen: RemoteNpc[][] = [];

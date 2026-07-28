@@ -42,6 +42,22 @@ describe('canonical cloud saves', () => {
     expect(docs.names).toMatchObject({ petName: 'Mochi', petNameKey: 'mochi' });
   });
 
+  test('adoption stores the canonical display name on the account', async () => {
+    const t = convexTest(schema, modules);
+    // Password sign-ups arrive with no provider name at all.
+    const userId = await t.run((ctx) => ctx.db.insert('users', { email: 'nameless@example.com' }));
+
+    await t.mutation((ctx) => upsertCanonicalSave(ctx, userId, save('Mochi')));
+
+    const docs = await t.run(async (ctx) => ({
+      user: await ctx.db.get(userId),
+      names: await ctx.db
+        .query('multiplayerNames').withIndex('by_user', (q) => q.eq('userId', userId)).unique(),
+    }));
+    expect(docs.names?.displayName).toBe('Player');
+    expect(docs.user?.name).toBe(docs.names?.displayName);
+  });
+
   test('generated display-name suffixes do not retain trailing whitespace', async () => {
     const t = convexTest(schema, modules);
     const base = '12345678901234567 AB';

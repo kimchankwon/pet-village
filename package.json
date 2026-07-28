@@ -21,6 +21,7 @@
     "sprite:puffles": "tsx scripts/imagine-to-puffles.mts",
     "sprite:bongbongee": "tsx scripts/imagine-to-bongbongee.mts",
     "sprite:penguin": "python3 scripts/extract-kirby-gif-frames.py && python3 scripts/kirby-from-tenor-gif.py",
+    "sprite:penguin-wave": "tsx scripts/penguin-wave-plates.mts",
     "sprite:mametchi": "tsx scripts/generate-mametchi.mts",
     "sprite:kuchipatchi": "tsx scripts/generate-kuchipatchi.mts",
     "sprite:mimitchi": "tsx scripts/generate-mimitchi.mts",

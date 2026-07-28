@@ -10,13 +10,19 @@ export function isVisibleRemotePlayer(
   return sessionId !== ownSessionId && (!ownUserId || userId !== ownUserId);
 }
 
+/** Any fresh wave — bystanders see the animation, not just the person waved at. */
+export function isNewWave(previousWaveId: string | undefined, nextWaveId: string | undefined) {
+  return Boolean(nextWaveId && nextWaveId !== previousWaveId);
+}
+
+/** Only the player being waved at gets the toast. */
 export function isNewWaveForLocalPlayer(
   previousWaveId: string | undefined,
   nextWaveId: string | undefined,
   waveTarget: string | undefined,
   localSessionId: string,
 ) {
-  return Boolean(nextWaveId && nextWaveId !== previousWaveId && waveTarget === localSessionId);
+  return isNewWave(previousWaveId, nextWaveId) && waveTarget === localSessionId;
 }
 
 const PENGUIN_COLOR_IDS = new Set([
@@ -142,6 +148,27 @@ export function remotePlayerPresentation(player: {
     interactive: !inGame,
     labelColor: inGame ? '#ffe26f' : '#ffffff',
   };
+}
+
+/**
+ * Rows a world scene should render: same scene, and either actively roaming or
+ * parked in a minigame (those stay visible, dimmed, so the world isn't empty).
+ */
+export function visibleSceneRows<T extends {
+  sceneId: string;
+  active: boolean;
+  activity: GameActivity | '';
+}>(rows: readonly T[], sceneId: string) {
+  return rows.filter((row) => row.sceneId === sceneId && (row.active || Boolean(row.activity)));
+}
+
+/** What a server position correction means for the scene that consumed it. */
+export function positionCorrectionAction(
+  correction: { sceneId: string } | null | undefined,
+  sceneId: string,
+): 'ignore' | 'switch-scene' | 'snap' {
+  if (!correction) return 'ignore';
+  return correction.sceneId === sceneId ? 'snap' : 'switch-scene';
 }
 
 export function dedupeRemotePlayers<T extends {

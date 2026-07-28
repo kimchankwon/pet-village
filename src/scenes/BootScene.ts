@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { generateTextures, PENGUIN_PLATE_KEY } from '../sprites/pixelart';
+import { generateTextures, PENGUIN_PLATE_KEY, PENGUIN_WAVE_PLATE_KEY } from '../sprites/pixelart';
 import {
   ACCESSORY_LIST,
   accessoryAssetPath,
@@ -168,6 +168,14 @@ export class BootScene extends Phaser.Scene {
           `assets/player/penguin/${facing}-${frame}.png`,
         );
       }
+    }
+    // Raised-flipper wave poses at plate resolution (npm run sprite:penguin-wave).
+    // Wave frame 0 is the idle down plate, so only 1–3 are files.
+    for (const frame of [1, 2, 3] as const) {
+      this.load.image(
+        PENGUIN_WAVE_PLATE_KEY(frame),
+        `assets/player/penguin/wave-${frame}.png`,
+      );
     }
     // The Skip Rope booth PNG placeholder lives under public/assets/misc/ —
     // pixelart generates the matching key until it's replaced with final art

@@ -73,6 +73,8 @@ type Actions = {
   updateProfile: (ticket: string) => void;
   leave: () => void;
   wave: (id: string) => void;
+  /** Re-snapshot peers now — scene filtering changed, so cached rows are stale. */
+  resync?: () => void;
 };
 
 let rows: RemotePresence[] = [];
@@ -239,6 +241,9 @@ export const multiplayerBridge = {
     if (!(correction?.recoverScene && correction.sceneId === sceneId)) correction = null;
     worldActivation = { token, payload: { sceneId, ...pose } };
     publishPresence();
+    // Peers are filtered by the active scene, so without this the new scene
+    // waits for the next server patch before anyone pops in.
+    actions?.resync?.();
     let released = false;
     return () => {
       if (released) return;

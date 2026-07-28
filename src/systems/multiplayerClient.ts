@@ -152,6 +152,7 @@ export async function connectMultiplayer(
     setActive: (active) => room.send('active', active),
     setScene: ({ sceneId, ...pose }) => room.send('active', { active: true, scene: sceneId, pose }),
     setActivity: (activity) => room.send('activity', activity),
+    resync: () => sync(),
     updateProfile: (profileTicket) => {
       if (profileRetryTicket !== profileTicket) {
         profileRetryTicket = profileTicket;

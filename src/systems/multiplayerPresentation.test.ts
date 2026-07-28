@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  isNewWave,
   isNewWaveForLocalPlayer,
+  positionCorrectionAction,
+  visibleSceneRows,
   isVisibleRemotePlayer,
   dedupeRemotePlayers,
   handleRemotePlayerPointerDown,
@@ -26,6 +29,45 @@ test('shows a new wave only to its intended local session', () => {
   assert.equal(isNewWaveForLocalPlayer(undefined, 'wave-1', 'session-a', 'session-a'), true);
   assert.equal(isNewWaveForLocalPlayer(undefined, 'wave-1', 'session-b', 'session-a'), false);
   assert.equal(isNewWaveForLocalPlayer('wave-1', 'wave-1', 'session-a', 'session-a'), false);
+});
+
+test('bystanders see the wave animation even when someone else is the target', () => {
+  assert.equal(isNewWave(undefined, 'wave-1'), true);
+  assert.equal(isNewWave('wave-1', 'wave-2'), true);
+  assert.equal(isNewWave('wave-1', 'wave-1'), false);
+  assert.equal(isNewWave('wave-1', undefined), false);
+});
+
+const presence = (over: Partial<{ sessionId: string; sceneId: string; active: boolean; activity: '' | 'fishing' }>) => ({
+  sessionId: 'session-a',
+  sceneId: 'town',
+  active: true,
+  activity: '' as '' | 'fishing',
+  ...over,
+});
+
+test('a world scene renders only its own scene, keeping players parked in minigames', () => {
+  const rows = [
+    presence({ sessionId: 'roaming-town' }),
+    presence({ sessionId: 'roaming-cafe', sceneId: 'cafe-cinnamon' }),
+    presence({ sessionId: 'fishing-town', active: false, activity: 'fishing' }),
+    presence({ sessionId: 'idle-town', active: false }),
+    presence({ sessionId: 'fishing-cafe', sceneId: 'cafe-cinnamon', active: false, activity: 'fishing' }),
+  ];
+  assert.deepEqual(
+    visibleSceneRows(rows, 'town').map((row) => row.sessionId),
+    ['roaming-town', 'fishing-town'],
+  );
+  assert.deepEqual(
+    visibleSceneRows(rows, 'cafe-cinnamon').map((row) => row.sessionId),
+    ['roaming-cafe', 'fishing-cafe'],
+  );
+});
+
+test('a correction for another scene switches scenes instead of snapping in place', () => {
+  assert.equal(positionCorrectionAction(null, 'town'), 'ignore');
+  assert.equal(positionCorrectionAction({ sceneId: 'town' }, 'town'), 'snap');
+  assert.equal(positionCorrectionAction({ sceneId: 'cafe-cinnamon' }, 'town'), 'switch-scene');
 });
 
 test('uses validated colour-specific remote penguin textures', () => {

@@ -10,7 +10,10 @@ import {
 import {
   handleRemotePlayerPointerDown,
   canInitiateWave,
+  isNewWave,
   isNewWaveForLocalPlayer,
+  normalizePenguinColor,
+  positionCorrectionAction,
   LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
   remoteMovementDecision,
   remotePetMovementDecision,
@@ -19,6 +22,7 @@ import {
   remotePenguinWalkAnimKey,
   remotePenguinWaveTextureKey,
   stepRemotePosition,
+  visibleSceneRows,
   waveAnimationFrame,
 } from './multiplayerPresentation';
 import { shouldSendPresence, type PresencePose } from './multiplayerPolicy';
@@ -151,8 +155,9 @@ export class WorldMultiplayer {
 
   applyCorrection() {
     const correction = multiplayerBridge.consumePositionCorrection(this.sceneId);
-    if (!correction) return false;
-    if (correction.sceneId !== this.sceneId) {
+    const action = positionCorrectionAction(correction, this.sceneId);
+    if (action === 'ignore' || !correction) return false;
+    if (action === 'switch-scene') {
       this.cancelLocalMovement();
       this.scene.scene.start(phaserWorldSceneKey(correction.sceneId));
       return true;
@@ -241,6 +246,11 @@ export class WorldMultiplayer {
     };
   }
 
+  /** True while the local wave one-shot is playing (scenes suppress input). */
+  isWaving() {
+    return this.localWaveStartedAt !== null;
+  }
+
   private applyLocalWave(now: number) {
     if (this.localWaveStartedAt === null) return;
     const frame = waveAnimationFrame(now - this.localWaveStartedAt);
@@ -248,14 +258,16 @@ export class WorldMultiplayer {
       this.localWaveStartedAt = null;
       return;
     }
+    // Scene movement runs before this, so hold the penguin still every frame —
+    // otherwise the wave plays while the player slides.
+    this.localPlayer.setVelocity(0, 0);
     this.localPlayer.stop().setFlipX(false).setTexture(LOCAL_PENGUIN_WAVE_TEXTURE_KEY, frame);
   }
 
   private syncRows(rows: RemotePresence[]) {
     if (this.disposed) return;
     const visible = new Set<string>();
-    for (const row of rows) {
-      if (row.sceneId !== this.sceneId || (!row.active && !row.activity)) continue;
+    for (const row of visibleSceneRows(rows, this.sceneId)) {
       visible.add(row.sessionId);
       const existing = this.remotes.get(row.sessionId);
       if (!existing) this.createRemote(row);
@@ -269,7 +281,7 @@ export class WorldMultiplayer {
   private createRemote(row: RemotePresence) {
     const local = this.localPresence(row);
     ensureRemotePenguinTextures(this.scene, row.penguinColor);
-    const color = normalizeColor(row.penguinColor);
+    const color = normalizePenguinColor(row.penguinColor);
     const petSpecies = migratePetSpecies(row.petSpecies);
     const player = this.scene.add
       .sprite(local.x, local.y, remotePenguinTextureKey(row.facing, color), 0)
@@ -284,7 +296,7 @@ export class WorldMultiplayer {
       .setOrigin(0.5, 1);
     const petLabel = this.scene.add
       .text(local.petX, local.petY, presentation.petLabel, labelStyle('#bfe6ff'))
-      .setOrigin(0.5, 0);
+      .setOrigin(0.5, 1);
     const remote: RemoteAvatar = {
       row,
       player,
@@ -319,7 +331,7 @@ export class WorldMultiplayer {
     if (presentation.interactive) remote.player.setInteractive({ useHandCursor: true });
     else remote.player.disableInteractive();
 
-    const color = normalizeColor(row.penguinColor);
+    const color = normalizePenguinColor(row.penguinColor);
     if (color !== remote.color) {
       ensureRemotePenguinTextures(this.scene, color);
       remote.color = color;
@@ -332,8 +344,9 @@ export class WorldMultiplayer {
     }
     this.refreshRemoteAccessories(remote);
 
+    // Everyone nearby sees the flipper go up; only the target gets the toast.
+    if (isNewWave(previousWaveId, row.waveId)) remote.waveStartedAt = this.scene.time.now;
     if (isNewWaveForLocalPlayer(previousWaveId, row.waveId, row.waveTarget, row.localSessionId)) {
-      remote.waveStartedAt = this.scene.time.now;
       toast(this.scene, remote.player.x, remote.player.y - remote.player.displayHeight / 2, `${row.name} waves hello!`, '#bfe6ff');
     }
     remote.lastWaveId = row.waveId;
@@ -427,7 +440,7 @@ export class WorldMultiplayer {
       .setPosition(remote.player.x, remote.player.y - remote.player.displayHeight / 2 - 4)
       .setDepth(this.depthFor(remote.player) + 2);
     remote.petLabel
-      .setPosition(remote.pet.x, remote.pet.y + remote.pet.displayHeight / 2 + 3)
+      .setPosition(remote.pet.x, remote.pet.y - remote.pet.displayHeight / 2 - 3)
       .setDepth(this.depthFor(remote.pet) + 2);
   }
 
@@ -464,8 +477,3 @@ function remotePetCanWear(species: PetSpecies, id: AccessoryId) {
   return species === wear;
 }
 
-function normalizeColor(color: string) {
-  // ensureRemotePenguinTextures and texture-key helpers apply the same fallback;
-  // deriving it from the final key avoids exporting palette internals here.
-  return remotePenguinTextureKey('down', color).split('-')[2] ?? 'blue';
-}

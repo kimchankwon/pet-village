@@ -245,6 +245,9 @@ export async function upsertCanonicalSave(
     } else {
       await ctx.db.insert("multiplayerNames", { userId, ...namesPayload });
     }
+    // Password sign-ups have no provider name, so `viewer.name` would stay
+    // undefined until a rename and the topbar would disagree with the nametag.
+    if (user && user.name !== displayName) await ctx.db.patch(userId, { name: displayName });
   }
   return { saveId, petName };
 }

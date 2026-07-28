@@ -62,7 +62,7 @@ export class Pet {
         stroke: '#101826',
         strokeThickness: 3,
       })
-      .setOrigin(0.5, 0);
+      .setOrigin(0.5, 1);
     const world = movementBounds ?? scene.physics.world.bounds;
     this.movementBounds = { x: world.x, y: world.y, width: world.width, height: world.height };
     const start = this.confinedPoint(x, y);
@@ -154,7 +154,7 @@ export class Pet {
     }
     this.nameLabel
       .setText(State.data.petName || 'Pet')
-      .setPosition(this.sprite.x, this.sprite.y + this.sprite.displayHeight / 2 + 3)
+      .setPosition(this.sprite.x, this.sprite.y - this.sprite.displayHeight / 2 - 3)
       .setDepth(this.ownDepth() + 2)
       .setVisible(this.sprite.visible)
       .setAlpha(this.sprite.alpha);
