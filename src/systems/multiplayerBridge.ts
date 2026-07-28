@@ -6,6 +6,7 @@ import {
 } from '@pet-village/multiplayer-protocol';
 
 import { CHAT_SEND_INTERVAL_MS } from './chat';
+import { noteChatLogPresence, resetChatLogPresence } from './chatLog';
 import type { EquippedAccessories } from './GameState';
 
 export const WORLD_SCENE_IDS = WORLD_SCENES;
@@ -112,6 +113,9 @@ function currentPendingProfileTicket() {
 function clearRemote() {
   rows = [];
   npcRows = [];
+  // The roster is emptied here by a teardown, not by everybody walking out, so
+  // the log must not read it as one.
+  resetChatLogPresence();
   listeners.forEach((fn) => fn([]));
   npcListeners.forEach((fn) => fn([]));
 }
@@ -179,6 +183,17 @@ export const multiplayerBridge = {
     if (connectionId !== id) return;
     rows = next;
     listeners.forEach((fn) => fn(rows));
+  },
+  /**
+   * The unfiltered server roster, for the log's comings and goings.
+   *
+   * Kept apart from `setRemote`, whose rows are filtered to the scene being
+   * drawn: diffing those would announce a neighbour walking into the shop as
+   * having left the village, and never mention anyone standing anywhere else.
+   */
+  setRoster(id: ConnectionId, next: ReadonlyArray<{ sessionId: string; name: string }>) {
+    if (connectionId !== id) return;
+    noteChatLogPresence(next, performance.now());
   },
   setPositionCorrection(id: ConnectionId, next: IncomingPositionCorrection) {
     if (connectionId !== id) return;

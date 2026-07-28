@@ -54,6 +54,35 @@ export function snapshotNpcs(state: TownState): RemoteNpc[] {
   return npcs;
 }
 
+/**
+ * Everyone on the server, whatever scene they are standing in.
+ *
+ * Deliberately not `snapshotPlayers`, which filters to the scene being drawn:
+ * that is the right roster for avatars and bubbles and the wrong one entirely
+ * for "who is here", where walking into the shop would read as leaving. Self and
+ * a reconnect's leftover duplicate session are still left out — one player is
+ * one villager — but a scene the client never draws is not an absence.
+ */
+export function snapshotRoster(
+  state: TownState,
+  localSessionId: string,
+  ownUserId: string | undefined,
+): Array<{ sessionId: string; userId: string; name: string; active: boolean; updatedAt: number }> {
+  const rows: Array<{ sessionId: string; userId: string; name: string; active: boolean; updatedAt: number }> = [];
+  if (!state?.players) return rows;
+  state.players.forEach((player, sessionId) => {
+    if (!isVisibleRemotePlayer(sessionId, player.userId, localSessionId, ownUserId)) return;
+    rows.push({
+      sessionId,
+      userId: player.userId,
+      name: player.displayName,
+      active: player.active,
+      updatedAt: player.updatedAt,
+    });
+  });
+  return dedupeRemotePlayers(rows);
+}
+
 export function snapshotPlayers(
   state: TownState,
   localSessionId: string,
@@ -145,6 +174,12 @@ export async function connectMultiplayer(
         ownUserId,
         multiplayerBridge.activeSceneId() ?? 'town',
       ),
+    );
+    // Separate from the scene-filtered rows above: comings and goings are about
+    // the server, not the room you happen to be standing in.
+    multiplayerBridge.setRoster(
+      connectionId,
+      snapshotRoster(room.state, room.sessionId, ownUserId),
     );
     multiplayerBridge.setNpcs(connectionId, snapshotNpcs(room.state));
   };
