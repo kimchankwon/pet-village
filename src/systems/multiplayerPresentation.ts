@@ -124,9 +124,18 @@ export type PendingWaveDecision = 'wave' | 'retarget' | 'walking' | 'cancel';
 /** How long to chase someone before giving up on the queued wave. */
 export const WAVE_APPROACH_TIMEOUT_MS = 12_000;
 
+/** How far the target must have drifted to be worth walking another leg. */
+export const WAVE_RETARGET_MIN_MOVE_PX = 24;
+
 /**
  * What to do with a queued wave on this frame: the target may have walked off,
  * left the scene, started a minigame, or simply not be reached yet.
+ *
+ * `targetMovedPx` is how far the target has drifted since the last leg was
+ * aimed. Once the walk has ended without arriving, that number is the only way
+ * to tell "they wandered off, chase them" from "the walk was cancelled" — a
+ * blocking collider, or the player taking the controls back with WASD, both of
+ * which should drop the queued wave rather than re-aim it every frame.
  */
 export function pendingWaveDecision(input: {
   present: boolean;
@@ -135,12 +144,14 @@ export function pendingWaveDecision(input: {
   radius: number;
   walking: boolean;
   elapsedMs: number;
+  targetMovedPx: number;
   timeoutMs?: number;
 }): PendingWaveDecision {
   if (!input.present || !input.active) return 'cancel';
   if (input.distance <= input.radius) return 'wave';
   if (input.elapsedMs >= (input.timeoutMs ?? WAVE_APPROACH_TIMEOUT_MS)) return 'cancel';
-  return input.walking ? 'walking' : 'retarget';
+  if (input.walking) return 'walking';
+  return input.targetMovedPx >= WAVE_RETARGET_MIN_MOVE_PX ? 'retarget' : 'cancel';
 }
 
 /** Returns the authored wave frame, or null once the one-shot is complete. */

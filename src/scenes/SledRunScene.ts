@@ -225,6 +225,19 @@ export class SledRunScene extends Phaser.Scene {
     return 265 + Phaser.Math.Clamp(ratio, 0, 1) * 105;
   }
 
+  /**
+   * Screen x for a track offset on a given row. The painted path narrows toward
+   * the crest, so lane offsets have to narrow with it — drawn at a fixed scale, a
+   * sled at full lock rides the snow bank up top and floats well inside the path
+   * lower down. Everything on a row shares the scale, so a hit still looks like
+   * one at the moment the server calls it.
+   */
+  private laneX(offset: number, y: number, trackHalfWidth: number) {
+    const inset = 30;
+    const usable = Math.max(1, this.trackEdgeAt(y) - inset);
+    return this.scale.width / 2 + (offset / Math.max(1, trackHalfWidth)) * usable;
+  }
+
   private drawMountain() {
     const width = this.scale.width;
     const height = this.scale.height;
@@ -387,12 +400,13 @@ export class SledRunScene extends Phaser.Scene {
     const graphics = this.courseGraphics.clear();
     const center = this.scale.width / 2;
     const playerY = this.playerY;
+    const config = sledDifficultyConfig(this.snapshot?.difficulty ?? 'easy');
     for (const item of this.course) {
       // The sled runs toward the bottom of the screen, so the course scrolls
       // upward: whatever is still ahead sits *below* the player.
       const y = playerY + (item.progress - localProgress) * SLED_PROGRESS_TO_PIXELS;
       if (y < this.trackTopY || y > this.scale.height + 65) continue;
-      const x = center + item.x;
+      const x = this.laneX(item.x, y, config.trackHalfWidth);
       if (item.kind === 'ice') {
         graphics.fillStyle(0x72d9ee, 0.72).fillEllipse(x, y, 88, 40);
         graphics.lineStyle(3, 0xd9fbff, 0.9).strokeEllipse(x, y, 76, 30);
@@ -411,7 +425,7 @@ export class SledRunScene extends Phaser.Scene {
         graphics.lineStyle(3, 0x6a3d22).strokeEllipse(x, y - 18, 27, 10);
       }
     }
-    const finish = this.snapshot ? sledDifficultyConfig(this.snapshot.difficulty).courseLength : 0;
+    const finish = this.snapshot ? config.courseLength : 0;
     const finishY = playerY + (finish - localProgress) * SLED_PROGRESS_TO_PIXELS;
     if (finishY > this.trackTopY && finishY < this.scale.height + 20) {
       const half = Math.round(this.trackEdgeAt(finishY));
@@ -425,15 +439,15 @@ export class SledRunScene extends Phaser.Scene {
   private renderRacers(localProgress: number) {
     const snapshot = this.snapshot;
     if (!snapshot) return;
-    const center = this.scale.width / 2;
     const playerY = this.playerY;
+    const config = sledDifficultyConfig(snapshot.difficulty);
     snapshot.racers.forEach((racer, index) => {
       const view = this.racerViews.get(racer.sessionId);
       if (!view) return;
       const motion = this.motionFor(racer);
       const lobby = snapshot.phase === 'lobby' || snapshot.phase === 'countdown';
-      const x = center + motion.x;
       const y = lobby ? playerY + (index % 2) * 46 : playerY + (motion.progress - localProgress) * SLED_PROGRESS_TO_PIXELS;
+      const x = this.laneX(motion.x, y, config.trackHalfWidth);
       // Sleds nearer the bottom are nearer the camera, so they draw in front.
       view.setPosition(x, y).setAlpha(racer.rank > 0 ? 0.7 : 1).setDepth(50 + Math.round(y));
       view.setAngle(racer.effect === 'obstacle' ? Math.sin(this.time.now * 0.03) * 10 : racer.effect === 'ice' ? Math.sin(this.time.now * 0.02) * 3 : 0);

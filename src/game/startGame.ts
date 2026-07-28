@@ -14,7 +14,7 @@ import { EastParkScene, WestParkScene } from '../scenes/ParkScene';
 import { BumpScene } from '../scenes/BumpScene';
 import { SledRunScene } from '../scenes/SledRunScene';
 import { State } from '../systems/GameState';
-import { registerKeyboardCapture } from '../systems/textEntry';
+import { isTextEntryOpen, registerKeyboardCapture, syncKeyboardCapture } from '../systems/textEntry';
 import { BASE_HEIGHT, BASE_WIDTH, designSizeForHost } from './viewport';
 
 function applyHostAspect(game: Phaser.Game, parent: HTMLElement) {
@@ -87,6 +87,15 @@ export function startGame(parent: HTMLElement, options: StartGameOptions = {}): 
     registerKeyboardCapture(game.input.keyboard ?? null);
   });
 
+  // Releasing the capture once is not enough: Phaser recomputes preventDefault
+  // in addCapture/removeCapture, which every scene's addKey/createCursorKeys
+  // calls — so a scene starting behind an open name field re-arms it mid-word.
+  // Re-assert each frame, but only while a field is actually open.
+  const keepKeyboardReleased = () => {
+    if (isTextEntryOpen()) syncKeyboardCapture();
+  };
+  game.events.on(Phaser.Core.Events.PRE_STEP, keepKeyboardReleased);
+
   const onResize = () => applyHostAspect(game, parent);
   window.addEventListener('resize', onResize);
   game.events.once(Phaser.Core.Events.READY, () => applyHostAspect(game, parent));
@@ -114,6 +123,7 @@ export function startGame(parent: HTMLElement, options: StartGameOptions = {}): 
   window.addEventListener('pagehide', persistNow);
   document.addEventListener('visibilitychange', onHide);
   game.events.once(Phaser.Core.Events.DESTROY, () => {
+    game.events.off(Phaser.Core.Events.PRE_STEP, keepKeyboardReleased);
     registerKeyboardCapture(null);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('beforeunload', persistNow);

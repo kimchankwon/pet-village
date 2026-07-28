@@ -144,7 +144,7 @@ export class TownScene extends Phaser.Scene {
         this.player.setVelocity(0, 0);
       },
       // Clicking a distant penguin walks you over there first.
-      moveLocalTo: (x, y) => this.clickMove.setTarget(x, y),
+      moveLocalTo: (x, y, quiet) => this.clickMove.setTarget(x, y, quiet),
       isLocalMoving: () => this.clickMove.target !== null,
     });
     // Tap/click your pet to hear what's on its mind.

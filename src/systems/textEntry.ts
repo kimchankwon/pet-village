@@ -15,20 +15,39 @@ export type KeyboardCaptureTarget = { preventDefault: boolean };
 let target: KeyboardCaptureTarget | null = null;
 let openFields = 0;
 
+/**
+ * Push the current open-field count onto the manager.
+ *
+ * Phaser recomputes `preventDefault` inside addCapture/removeCapture, which run
+ * whenever a scene calls addKey or createCursorKeys — so a scene starting behind
+ * an open modal re-arms the capture and starts eating keystrokes again. Callers
+ * re-assert through here instead of setting the flag once.
+ */
+export function syncKeyboardCapture() {
+  if (target) target.preventDefault = openFields === 0;
+}
+
+/** Registers the live manager; passing null (teardown) forgets the state too. */
 export function registerKeyboardCapture(manager: KeyboardCaptureTarget | null) {
   target = manager;
-  openFields = 0;
+  if (!manager) {
+    openFields = 0;
+    return;
+  }
+  // A modal can outlive the canvas it was opened over (a remount keeps the React
+  // tree), so hand the new manager the state the open fields already asked for.
+  syncKeyboardCapture();
 }
 
 /** Nested modals are counted, so the inner one closing does not re-arm capture. */
 export function beginTextEntry() {
   openFields += 1;
-  if (target) target.preventDefault = false;
+  syncKeyboardCapture();
 }
 
 export function endTextEntry() {
   openFields = Math.max(0, openFields - 1);
-  if (openFields === 0 && target) target.preventDefault = true;
+  syncKeyboardCapture();
 }
 
 export function isTextEntryOpen() {

@@ -109,8 +109,9 @@ function NamesModal({
         }}
         onKeyDown={(event) => {
           const action = textEntryKeyAction(event.key);
-          // Escape belongs to the panel's own handler; everything else is typing
-          // and must not reach the menu's window listener.
+          // Escape belongs to the panel's own capture-phase handler, which has
+          // already run by the time this fires — let it through. Everything else
+          // is typing, so keep it from bubbling out to the shell's listeners.
           if (action === 'close') return;
           event.stopPropagation();
           if (action !== 'save') return;

@@ -7,6 +7,15 @@
  * integrates its own steering immediately (the same maths the server runs), every
  * sled coasts forward on its last known speed, and both values are blended back
  * toward the authoritative snapshot so the prediction can never drift away.
+ *
+ * The blend is a damped correction, not a replay of un-acked input: while a key is
+ * held, the pull toward a snapshot that is one round-trip old holds the predicted
+ * lane a little short of a full-rate steer, so the sled settles somewhere between
+ * the server's position and where pure local integration would put it. That costs
+ * a few pixels of travel at steady state and buys the first frame of response,
+ * which is the half the player can feel. Replaying an input buffer against each
+ * snapshot would close the gap, and needs the server to ack input sequence
+ * numbers — a protocol change this deliberately stops short of.
  */
 
 export type SledMotion = { x: number; progress: number };

@@ -84,7 +84,12 @@ export class ClickMove {
   }
 
   private hideMarker() {
-    this.marker?.destroy();
+    if (this.marker) {
+      // Kill the fade first: the tween would otherwise keep ticking a destroyed
+      // ring until its onComplete.
+      this.scene.tweens.killTweensOf(this.marker);
+      this.marker.destroy();
+    }
     this.marker = null;
   }
 }
