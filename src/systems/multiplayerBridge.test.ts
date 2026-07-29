@@ -297,33 +297,51 @@ test('expired profile tickets are neither replayed nor acknowledged', () => {
   }
 });
 
-test('chat reports whether a message really went out, and is paced across world transitions', () => {
+test('chat reports what became of a message, and is paced across world transitions', () => {
   const originalNow = Date.now;
   let now = 10_000;
   Date.now = () => now;
   try {
     const said: string[] = [];
-    // Offline: nothing was sent, so the sender must not be shown their own bubble.
-    assert.equal(multiplayerBridge.chat('anyone there?'), false);
+    // No connection: nothing travels, but the line is still the player's own —
+    // 'offline', not a refusal, or Enter does nothing for a whole single-player
+    // session and reads as a broken key.
+    assert.equal(multiplayerBridge.chat('anyone there?'), 'offline');
+    now += 1_000;
     const id = multiplayerBridge.install({ ...actions([]), chat: (text: string) => said.push(text) });
-    // Connected but standing in no world — the server refuses this one too.
-    assert.equal(multiplayerBridge.chat('anyone there?'), false);
+    // Connected but standing in no world — still nowhere to send it.
+    assert.equal(multiplayerBridge.chat('anyone there?'), 'offline');
+    now += 1_000;
 
     const releaseTown = multiplayerBridge.activateWorld('town', pose);
-    assert.equal(multiplayerBridge.chat('hello town'), true);
-    assert.equal(multiplayerBridge.chat('again'), false, 'the cooldown holds');
+    assert.equal(multiplayerBridge.chat('hello town'), 'sent');
+    assert.equal(multiplayerBridge.chat('again'), 'cooldown', 'the cooldown holds');
 
     // A world transition builds a new scene, but the server is still counting
     // from the last message, so the pacing cannot live in the scene.
     releaseTown();
     const releaseShore = multiplayerBridge.activateWorld('shore', pose);
     now += 300;
-    assert.equal(multiplayerBridge.chat('hello shore'), false);
+    assert.equal(multiplayerBridge.chat('hello shore'), 'cooldown');
     now += 700;
-    assert.equal(multiplayerBridge.chat('hello shore'), true);
+    assert.equal(multiplayerBridge.chat('hello shore'), 'sent');
     assert.deepEqual(said, ['hello town', 'hello shore']);
     releaseShore();
     multiplayerBridge.uninstall(id);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test('an offline line is still paced, so a lone player cannot spam their own bubble', () => {
+  const originalNow = Date.now;
+  let now = 50_000;
+  Date.now = () => now;
+  try {
+    assert.equal(multiplayerBridge.chat('first'), 'offline');
+    assert.equal(multiplayerBridge.chat('second'), 'cooldown');
+    now += 1_000;
+    assert.equal(multiplayerBridge.chat('second'), 'offline');
   } finally {
     Date.now = originalNow;
   }

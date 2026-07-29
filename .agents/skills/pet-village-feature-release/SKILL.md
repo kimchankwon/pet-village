@@ -24,11 +24,42 @@ local verification, playable Netlify app, and Netlify explanation as required de
    - how a reviewer can try it;
    - the exact verification performed;
    - the PR link when available.
+   Write it in the theme of the game — see "Explanation page theme" below. A
+   plain white developer changelog is not an acceptable deliverable.
 7. Build a root-hosted Netlify preview with `npm run build -- --base=/ --outDir=/tmp/pet-village-pr-{N}-app --emptyOutDir`. This is separate from, and does not replace, the regular production build in step 4.
 8. Also deploy the app on Netlify as `pet-village-pr-{N}.netlify.app`: create or reuse a site named exactly `pet-village-pr-{N}`, then deploy the preview directory. Production URL must be `https://pet-village-pr-{N}.netlify.app` (for example, PR 70 → `https://pet-village-pr-70.netlify.app`).
 9. Deploy only the temp explanation directory to a separate Netlify site named `pet-village-pr-{N}-explain`.
 10. Confirm both live URLs respond successfully, then put both in the PR body, clearly labeled **Playable app** and **Feature explanation**.
 11. Confirm no explanation-page, Netlify state, or build artifact is tracked in the working tree.
+
+## Explanation page theme
+
+The explanation is a page about Pet Village, so it should look like it belongs
+to Pet Village. A reviewer should recognise it as the same product before they
+read a word of it.
+
+- **Type and palette come from the game.** Monospace throughout, matching the
+  canvas UI. Build the palette from the values already in `src/` rather than
+  inventing one: the winter-night grounds (`#0f1a26`, `#1a2838`, `#2e4258`),
+  ice (`#d8e6f2`), and the accent trio the HUD and menus already use — coin
+  yellow `#ffe066` for headings, mint `#a8e6cf` for affirmatives and links,
+  rose `#ffb3d1` for the "before" or negative side.
+- **Frame it like the running game.** Open with the shell's own top bar — the
+  mint `Menu` chip, "Pet Village", the shipped version — and lay the content out
+  in bordered panels with the chunky offset shadow the in-game menus use.
+- **Show, using the game's own art.** Copy the relevant sprites out of the build
+  into the temp directory and render them at their true relative sizes with
+  `image-rendering: pixelated`. A before/after drawn with real sprites explains a
+  visual change in a way prose cannot. For non-visual changes, prefer a small
+  diagram or a table over a wall of text.
+- **A touch of the game's weather** (drifting snow, a subtle gradient sky) is
+  welcome; keep it behind `prefers-reduced-motion` and never let it obscure text.
+- **Write in the game's register.** Name things the way the village does —
+  villagers, puffles, the Shore, Cafe Cinnamon — not "NPC entities" and
+  "scene 3". Keep the engineering facts exact; only the voice is playful.
+- **It still has to work as a document.** Responsive down to a phone, readable
+  contrast, wide tables and diagrams scrolling inside their own container rather
+  than the page. Everything inline and self-contained — no CDN, no remote fonts.
 
 ## Netlify constraints
 
@@ -42,4 +73,4 @@ local verification, playable Netlify app, and Netlify explanation as required de
 
 ## Completion report
 
-Report the shipped version, test/build results, browser verification, playable app URL, live explanation URL, and any remaining limitation. Do not describe a feature as complete if any required step failed.
+Report the shipped version, test/build results, browser verification, playable app URL, live explanation URL, and any remaining limitation. Do not describe a feature as complete if any required step failed. Say plainly which claims were verified by running the thing and which rest on reasoning alone.

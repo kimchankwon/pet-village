@@ -37,6 +37,17 @@ export const CHAT_CARET_BLINK_MS = 480;
 export type ChatKeyAction = 'send' | 'cancel' | 'ignore';
 
 /**
+ * What became of a line the moment Enter was pressed.
+ *
+ * `offline` is not a failure. Most of the village is played with no server in
+ * reach — a guest save, a dropped connection, the multiplayer host simply not
+ * running — and a message typed then is still the player's own line: it gets
+ * their bubble and their log entry, it just has nobody to travel to. Only
+ * `cooldown` holds the draft back, and only for the moment it takes to pass.
+ */
+export type ChatSendResult = 'sent' | 'offline' | 'cooldown';
+
+/**
  * What a keystroke means to an open composer.
  *
  * Only the two that end the message are read: the text field is the one being

@@ -16,9 +16,10 @@ test('every NPC stands penguin-tall', () => {
   assert.equal(NPC_DISPLAY_HEIGHT, CHARACTER_PENGUIN_DISPLAY_HEIGHT);
 });
 
-test('pets draw at half the penguin height', () => {
-  assert.equal(PET_HEIGHT_RATIO, 0.5);
-  assert.equal(PET_DISPLAY_HEIGHT, CHARACTER_PENGUIN_DISPLAY_HEIGHT / 2);
+test('pets draw at two thirds of the penguin height', () => {
+  assert.equal(PET_HEIGHT_RATIO, 2 / 3);
+  assert.equal(PET_DISPLAY_HEIGHT, 40);
+  assert.equal(PET_DISPLAY_HEIGHT, Math.round(CHARACTER_PENGUIN_DISPLAY_HEIGHT * PET_HEIGHT_RATIO));
 });
 
 test('all miniteen plate heights land at penguin display height', () => {
@@ -44,12 +45,14 @@ test('pets of different native heights draw at the same size', () => {
   }
 });
 
-test('a pet is half as tall as the NPC standing next to it', () => {
+test('a pet is PET_HEIGHT_RATIO as tall as the NPC standing next to it', () => {
   const petScale = scaleToDisplayHeight(32, PET_DISPLAY_HEIGHT, 32);
   const npcScale = scaleToDisplayHeight(
     MINITEEN_NATIVE_HEIGHT,
     NPC_DISPLAY_HEIGHT,
     MINITEEN_NATIVE_HEIGHT,
   );
-  assert.equal((32 * petScale) / (MINITEEN_NATIVE_HEIGHT * npcScale), PET_HEIGHT_RATIO);
+  const drawnRatio = (32 * petScale) / (MINITEEN_NATIVE_HEIGHT * npcScale);
+  // PET_DISPLAY_HEIGHT is rounded to whole pixels, so allow sub-pixel drift.
+  assert.ok(Math.abs(drawnRatio - PET_HEIGHT_RATIO) < 0.01, `drawn ratio ${drawnRatio}`);
 });
