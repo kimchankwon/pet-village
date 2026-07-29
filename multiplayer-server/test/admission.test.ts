@@ -89,7 +89,7 @@ test('profile refresh applies same-user ticket claims without replacing authorit
     requestId: 'profile-1',
     ticket: await ticket({
       displayName: 'Alicia', petName: 'Kuchi', petSpecies: 'kuchipatchi', penguinColor: 'red',
-      equippedAccessories: { headLeft: 'mint-pom', body: 'blue-tee' },
+      equippedAccessories: { headLeft: 'aqua-clip', body: 'diamond-tee' },
     }),
   });
 
@@ -99,7 +99,7 @@ test('profile refresh applies same-user ticket claims without replacing authorit
   );
   assert.deepEqual(
     { headLeft: player.accessoryHeadLeft, headRight: player.accessoryHeadRight, body: player.accessoryBody, extra: player.accessoryExtra },
-    { headLeft: 'mint-pom', headRight: '', body: 'blue-tee', extra: '' },
+    { headLeft: 'aqua-clip', headRight: '', body: 'diamond-tee', extra: '' },
   );
   assert.deepEqual(
     { scene: player.scene, x: player.x, y: player.y, petX: player.petX, petY: player.petY, seq: player.seq },

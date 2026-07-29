@@ -59,7 +59,7 @@ export interface SaveData {
   biggestCatch: number;
   /** Best consecutive jumps in Skip Rope. */
   bestSkipRope: number;
-  /** Accessory ids gifted by Bongbongee (or granted on adopting them). */
+  /** Accessory ids bought at Cafe Cinnamon (or granted on adopting Bongbongee). */
   ownedAccessories: AccessoryId[];
   /** One equipped accessory per slot. */
   equippedAccessories: EquippedAccessories;
@@ -698,12 +698,13 @@ export class GameStateStore {
     // Fresh needs for the new companion — village progress is untouched.
     this.data.pet = { hunger: 80, happiness: 80, energy: 90 };
     if (species === 'bongbongee') {
+      // Starter outfit for a newly adopted Bongbongee — further pieces are
+      // sold at Cafe Cinnamon (the town NPC no longer gifts clothes).
       this.grantAllBongbongeeAccessories();
-      // Signature plush look from the official CARAT merch.
       this.data.equippedAccessories = {
-        headLeft: 'mint-pom',
-        headRight: 'carat-diamond',
-        body: 'blue-tee',
+        headLeft: 'aqua-clip',
+        headRight: 'mint-puff',
+        body: 'diamond-tee',
       };
     } else {
       // Drop anything the previous pet was wearing that this one can't.

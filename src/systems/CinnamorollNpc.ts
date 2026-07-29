@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { Menu, toast, type MenuOption } from './UI';
 import { State } from './GameState';
 import {
+  BONGBONGEE_SHOP_ITEMS,
   CINNA_SHOP_ITEMS,
   PENGUIN_SHOP_ITEMS,
   PET_BOUTIQUE_ITEMS,
@@ -23,6 +24,7 @@ const LINES = [
   'I floated here on a cloud… then I opened this little shop. Is that okay…?',
   'My ears go flap-flap when I’m happy. Oh — shopping counts as happy.',
   'Puffle dig finds? I keep those on a soft shelf… puffles only, please.',
+  'Bongbongee outfits too… gem clips and soft tees. They only fit Bong pets.',
   'Um… I stock penguin things too. Scarves, toques… they only fit you, though.',
 ];
 
@@ -57,6 +59,19 @@ export class CinnamorollNpc extends WandererNpc {
           onSelect: () => {
             cbs.keepMenuOpen();
             this.openShop(cbs, CINNA_SHOP_ITEMS, 'Cinnamoroll Clothes');
+          },
+        },
+        {
+          label: 'Browse Bongbongee clothes',
+          icon: 'acc-aqua-clip',
+          onSelect: () => {
+            cbs.keepMenuOpen();
+            this.openShop(
+              cbs,
+              BONGBONGEE_SHOP_ITEMS,
+              'Bongbongee Outfits',
+              'Bongbongee pets only · equip with P → Pet clothes',
+            );
           },
         },
         {
