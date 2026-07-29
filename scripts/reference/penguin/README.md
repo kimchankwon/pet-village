@@ -22,20 +22,20 @@ When the player stops, scenes set texture frame **0** — standing idle, not a
 mid-walk hop. Walk anims cycle frames **1↔2** so feet truly alternate (never
 plant + one-foot hop, which reads as sliding on one foot).
 
-## Back walk depth (up-1 / up-2)
+## Side facing (v4)
 
-Back-facing walk plates step **away from the camera**: the raised foot sits
-**in front of** the penguin (partially hidden under the body), and the planted
-foot is fully visible at the bottom (toward the camera). Sources:
-`imagine-back-walk-v2/` (up-2 from Imagine; up-1 is a horizontal mirror).
+Side idle + walk plates regenerated with Grok Imagine from the front idle
+(`down-0`) so the profile matches the same chunky Club Penguin pixel look
+(white eye + black pupil, short beak, flippers by the body, clean torso with
+no diagonal seam artifacts). Sources under `imagine-side-v4/`; game inputs
+`poses/side-{0,1,2}.png`.
 
-## Side facing (v3)
+## Back facing (v3)
 
-Side idle + walk plates were regenerated with Grok Imagine using the current
-front (`down-*`) and back (`up-*`) game sprites as style references so the
-profile matches the same chunky Club Penguin pixel look (white eye + black
-pupil, short beak, flippers by the body). Sources live under
-`imagine-side-v3/`; game inputs under `poses/side-{0,1,2}.png`.
+Back idle + walk plates regenerated from the same front idle anchor. Walk
+steps **away from the camera** (raised foot partially under the body; planted
+foot toward the camera). Sources under `imagine-back-v3/`. Pipeline always
+runs `repairExternalOutline` so every facing shares a clean 1px exterior rim.
 
 ## Wave (Imagine)
 
