@@ -126,7 +126,18 @@ function clone(src: InstanceType<typeof PNG>) {
 function jpgToPngBuffer(jpgPath: string): Buffer {
   fs.mkdirSync(TMP, { recursive: true });
   const tmpPng = path.join(TMP, `${path.basename(jpgPath, path.extname(jpgPath))}.raw.png`);
-  execFileSync('sips', ['-s', 'format', 'png', jpgPath, '--out', tmpPng], { stdio: 'pipe' });
+  try {
+    execFileSync('sips', ['-s', 'format', 'png', jpgPath, '--out', tmpPng], { stdio: 'pipe' });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Failed to convert ${jpgPath} with sips (macOS Image Events). ` +
+        `Install/use macOS sips or convert the file to PNG manually. ${msg}`,
+    );
+  }
+  if (!fs.existsSync(tmpPng)) {
+    throw new Error(`sips did not write ${tmpPng} — is sips available on PATH?`);
+  }
   return fs.readFileSync(tmpPng);
 }
 
@@ -147,6 +158,8 @@ function removeExterior(src: InstanceType<typeof PNG>): InstanceType<typeof PNG>
   const exterior = new Uint8Array(w * h);
   const queue: number[] = [];
   const corners = [get(src, 2, 2), get(src, w - 3, 2), get(src, 2, h - 3), get(src, w - 3, h - 3)];
+  // Precompute once — bgLike is called per flood-fill pixel.
+  const cornerAvg = corners.reduce((s, b) => s + (b[0]! + b[1]! + b[2]!) / 3, 0) / corners.length;
   const bgLike = (c: RGBA) => {
     if (c[3]! < 20) return true;
     // Lime / pure green key (#00FF00) — preferred; does not eat pink art.
@@ -159,10 +172,9 @@ function removeExterior(src: InstanceType<typeof PNG>): InstanceType<typeof PNG>
     for (const bg of corners) {
       if (Math.hypot(c[0]! - bg[0]!, c[1]! - bg[1]!, c[2]! - bg[2]!) < 38) return true;
     }
-    const avg = corners.reduce((s, b) => s + (b[0]! + b[1]! + b[2]!) / 3, 0) / corners.length;
     const lum = (c[0]! + c[1]! + c[2]!) / 3;
     const sat = Math.max(c[0]!, c[1]!, c[2]!) - Math.min(c[0]!, c[1]!, c[2]!);
-    if (sat < 18 && Math.abs(lum - avg) < 28 && lum > 190) return true;
+    if (sat < 18 && Math.abs(lum - cornerAvg) < 28 && lum > 190) return true;
     return false;
   };
   const enq = (x: number, y: number) => {
@@ -436,17 +448,29 @@ const only = onlyArg
   : null;
 const want = (name: string) => !only || only.has(name);
 
+function tryProcess(label: string, fn: () => void) {
+  try {
+    fn();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`failed ${label}: ${msg}`);
+  }
+}
+
+try {
 // Tiles
 for (const t of TILE_KEYS) {
-  if (want(t)) processTile(t);
+  if (want(t)) tryProcess(t, () => processTile(t));
 }
 
 // Existing singles + new singles
 for (const name of Object.keys(PROP_TARGETS)) {
   if (!want(name)) continue;
   // Skip names that only come from sheets unless a single file exists
-  const single = loadRef(name);
-  if (single) processSingleProp(name);
+  tryProcess(name, () => {
+    const single = loadRef(name);
+    if (single) processSingleProp(name);
+  });
 }
 
 // Sheets (always process if sheet file exists and any name wanted)
@@ -555,3 +579,11 @@ function namesWantedAny(names: string[]) {
 }
 
 console.log('done');
+} finally {
+  // Best-effort cleanup of sips intermediate files.
+  try {
+    if (fs.existsSync(TMP)) fs.rmSync(TMP, { recursive: true, force: true });
+  } catch {
+    /* ignore */
+  }
+}
