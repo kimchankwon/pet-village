@@ -81,7 +81,7 @@ export function openClothesMenu(
 
   if (options.length === 0) {
     options.push({
-      label: 'No clothes yet — visit Cafe Cinnamon or Bongbongee!',
+      label: 'No clothes yet — visit Cafe Cinnamon!',
       disabled: true,
       onSelect: () => undefined,
     });

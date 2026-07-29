@@ -160,10 +160,10 @@ test('town state serializes player scene, activity, and server-owned NPC maps fo
   player.activity = 'fishing';
   player.scene = 'shore';
   Object.assign(player, {
-    accessoryHeadLeft: 'mint-pom',
+    accessoryHeadLeft: 'aqua-clip',
     accessoryHeadRight: 'ear-cloud',
-    accessoryBody: 'blue-tee',
-    accessoryExtra: 'carat-diamond',
+    accessoryBody: 'diamond-tee',
+    accessoryExtra: 'carat-sash',
     chatId: '123:chat-1',
     chatText: 'hello village',
   });
@@ -185,7 +185,7 @@ test('town state serializes player scene, activity, and server-owned NPC maps fo
       body: decoded.players.get('session-1')?.accessoryBody,
       extra: decoded.players.get('session-1')?.accessoryExtra,
     },
-    { headLeft: 'mint-pom', headRight: 'ear-cloud', body: 'blue-tee', extra: 'carat-diamond' },
+    { headLeft: 'aqua-clip', headRight: 'ear-cloud', body: 'diamond-tee', extra: 'carat-sash' },
   );
   assert.deepEqual(
     decoded.npcs.get('bongbongee')?.toJSON(),

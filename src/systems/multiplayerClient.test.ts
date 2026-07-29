@@ -13,7 +13,7 @@ test('multiplayer client excludes disconnected and wrong-scene peers', () => {
   Object.assign(shorePlayer, {
     userId: 'shore-user', displayName: 'Shore User', petName: 'Mame', petSpecies: 'mametchi',
     x: 10, y: 20, petX: 5, petY: 25, activity: '', active: true, updatedAt: 2,
-    scene: 'shore', accessoryHeadLeft: 'mint-pom', accessoryBody: 'blue-tee',
+    scene: 'shore', accessoryHeadLeft: 'mini-crown', accessoryBody: 'ribbon-tie',
   });
   const awayPlayer = new PlayerState();
   Object.assign(awayPlayer, { userId: 'away-user', active: false, activity: '', updatedAt: 3, scene: 'shore' });
@@ -25,7 +25,7 @@ test('multiplayer client excludes disconnected and wrong-scene peers', () => {
 
   assert.deepEqual(snapshotPlayers(state, 'local-session', 'local-user', 'shore'), [{
     userId: 'shore-user', sessionId: 'shore-session', localSessionId: 'local-session', name: 'Shore User',
-    petName: 'Mame', petSpecies: 'mametchi', penguinColor: 'blue', equippedAccessories: { headLeft: 'mint-pom', body: 'blue-tee' }, x: 10, y: 20, petX: 5, petY: 25,
+    petName: 'Mame', petSpecies: 'mametchi', penguinColor: 'blue', equippedAccessories: { headLeft: 'mini-crown', body: 'ribbon-tie' }, x: 10, y: 20, petX: 5, petY: 25,
     facing: 'down', moving: false, active: true, activity: '', sceneId: 'shore', updatedAt: 2, waveId: undefined,
     waveTarget: undefined, chatId: undefined, chatText: undefined,
   }]);

@@ -49,8 +49,7 @@ import { chatBubbleAlpha, chatBubbleDurationMs, isNewChat } from './chat';
 import { phaserWorldSceneKey, translateWorldCoordinates } from './worldCoordinates';
 import {
   ACCESSORIES,
-  ACCESSORY_LAYOUT,
-  SPECIES_ACCESSORY_NUDGE,
+  accessoryDrawPose,
   accessoryWearable,
   type AccessoryId,
 } from './accessories';
@@ -611,17 +610,16 @@ export class WorldMultiplayer {
     const frameIndex = sprite.anims.currentFrame?.index ?? 0;
     const walking = sprite.anims.currentAnim?.key.endsWith('-walk') && sprite.anims.isPlaying;
     const bob = walking && frameIndex % 2 === 1 ? sprite.scaleY : 0;
-    const speciesNudges = SPECIES_ACCESSORY_NUDGE[remote.petSpecies];
     for (const { id, image } of remote.accessories) {
-      const layout = ACCESSORY_LAYOUT[id];
-      const nudge = speciesNudges?.[id];
-      const nx = ((layout?.offsetX ?? 0) + (nudge?.x ?? 0)) * sprite.scaleX;
-      const ny = ((layout?.offsetY ?? 0) + (nudge?.y ?? 0)) * sprite.scaleX;
-      const ox = nx * (sprite.flipX ? -1 : 1);
-      const oy = ny;
+      const pose = accessoryDrawPose(
+        id,
+        sprite.displayHeight,
+        remote.petSpecies,
+        sprite.flipX,
+      );
       image
-        .setPosition(sprite.x + ox, sprite.y + oy + bob)
-        .setScale(sprite.scaleX * (layout?.scale ?? 1))
+        .setPosition(sprite.x + pose.offsetX, sprite.y + pose.offsetY + bob)
+        .setScale(pose.scale)
         .setFlipX(sprite.flipX)
         .setVisible(sprite.visible)
         .setAlpha(sprite.alpha)

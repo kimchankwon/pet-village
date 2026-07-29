@@ -4,7 +4,13 @@ import { toast } from './UI';
 import { characterDepth } from './depth';
 import { petAnimKey, petDrawScale, petTextureKey, type PetPose } from './pets';
 import { petLine } from './petDialog';
-import { ACCESSORIES, ACCESSORY_LAYOUT, SPECIES_ACCESSORY_NUDGE, type AccessoryId } from './accessories';
+import {
+  ACCESSORIES,
+  ACCESSORY_LAYOUT,
+  accessoryDrawPose,
+  accessoryWorldScale,
+  type AccessoryId,
+} from './accessories';
 import { clampToMovementBounds, type MovementBounds } from './movementBounds';
 
 /**
@@ -106,7 +112,8 @@ export class Pet {
       if (!def) continue;
       if (!this.scene.textures.exists(def.texture)) continue;
       const layout = ACCESSORY_LAYOUT[id];
-      const scale = this.sprite.scaleX * (layout?.scale ?? 1);
+      // 32×32 overlay canvas → pet display height (not pet texture scale).
+      const scale = accessoryWorldScale(this.sprite.displayHeight, layout?.scale ?? 1);
       const img = this.scene.add
         .image(this.sprite.x, this.sprite.y, def.texture)
         .setScale(scale)
@@ -132,21 +139,21 @@ export class Pet {
 
   private syncAccessories() {
     const depth = this.ownDepth() + 1;
-    const nudges = SPECIES_ACCESSORY_NUDGE[this.species()];
     const accessoryBob = this.accessoryBobPx();
     for (let i = 0; i < this.accessorySprites.length; i++) {
       const img = this.accessorySprites[i]!;
       const id = this.accessoryIds[i]!;
-      const layout = ACCESSORY_LAYOUT[id];
-      // Layout offset and per-species nudge are both native px; scale to world px.
-      const nudge = nudges?.[id];
-      const nx = ((layout?.offsetX ?? 0) + (nudge?.x ?? 0)) * this.sprite.scaleX;
-      const ny = ((layout?.offsetY ?? 0) + (nudge?.y ?? 0)) * this.sprite.scaleX;
-      const ox = nx * (this.facingLeft ? -1 : 1);
-      const oy = ny;
-      const scale = this.sprite.scaleX * (layout?.scale ?? 1);
-      img.setPosition(this.sprite.x + ox, this.sprite.y + oy + accessoryBob);
-      img.setScale(scale);
+      const pose = accessoryDrawPose(
+        id,
+        this.sprite.displayHeight,
+        this.species(),
+        this.facingLeft,
+      );
+      img.setPosition(
+        this.sprite.x + pose.offsetX,
+        this.sprite.y + pose.offsetY + accessoryBob,
+      );
+      img.setScale(pose.scale);
       img.setFlipX(this.facingLeft);
       img.setDepth(depth);
       img.setVisible(this.sprite.visible);

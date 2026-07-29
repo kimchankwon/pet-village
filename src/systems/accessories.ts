@@ -1,9 +1,18 @@
 /**
- * Equippable clothes — Bongbongee gifts, Cinnamoroll cafe + puffle dig finds,
- * plus Club Penguin-style gear only the player's penguin can wear.
+ * Equippable clothes — Bongbongee outfits (sold at Cafe Cinnamon),
+ * Cinnamoroll cafe + puffle dig finds, plus Club Penguin-style gear only
+ * the player's penguin can wear.
+ *
+ * Pet overlays are authored on a 32×32 canvas (same native space as classic
+ * pet plates). Phaser scale must use PET display height / 32, not the pet
+ * texture's own scale — hi-res plates like Kirby would otherwise shrink
+ * clothes to a tiny speck.
  */
 
 export type AccessorySlot = 'headLeft' | 'headRight' | 'body' | 'extra';
+
+/** Classic overlay canvas size accessories are drawn against. */
+export const ACCESSORY_CANVAS = 32;
 
 export const PENGUIN_ACCESSORY_IDS = [
   'red-scarf',
@@ -16,14 +25,17 @@ export const PENGUIN_ACCESSORY_IDS = [
 export type PenguinAccessoryId = (typeof PENGUIN_ACCESSORY_IDS)[number];
 
 export type AccessoryId =
-  | 'mint-pom'
-  | 'carat-diamond'
-  | 'blue-tee'
-  | 'deco-band'
+  // Bongbongee — Imagine-authored set that fits the pink-cap diamond plush
+  | 'aqua-clip'
+  | 'mint-puff'
+  | 'diamond-tee'
+  | 'carat-sash'
+  // Cinnamoroll cafe
   | 'cloud-bow'
   | 'ear-cloud'
   | 'cafe-apron'
   | 'cinnamon-scarf'
+  // Puffle dig
   | 'puffle-tee'
   | 'puffle-cape'
   | 'feather-boa'
@@ -34,6 +46,7 @@ export type AccessoryId =
   | 'brown-goggles'
   | 'big-sunglasses'
   | PenguinAccessoryId
+  // Pet boutique
   | 'chef-toque'
   | 'star-band'
   | 'top-bow'
@@ -88,40 +101,45 @@ export function accessoryWearable(def: AccessoryDef): AccessoryWearable {
 }
 
 export const ACCESSORIES: Record<AccessoryId, AccessoryDef> = {
-  'mint-pom': {
-    id: 'mint-pom',
-    name: 'Mint Pom',
-    blurb: 'Fluffy mint ball · left of the pink cap',
+  // Bongbongee — sold at Cafe Cinnamon (not gifted by the town NPC).
+  'aqua-clip': {
+    id: 'aqua-clip',
+    name: 'Aqua Gem Clip',
+    blurb: 'Crystal diamond clip · sits on the pink cap',
     slot: 'headLeft',
-    texture: 'acc-mint-pom',
+    texture: 'acc-aqua-clip',
     owner: 'bongbongee',
+    price: 22,
     wearable: 'bongbongee',
   },
-  'carat-diamond': {
-    id: 'carat-diamond',
-    name: 'Carat Diamond',
-    blurb: 'Aqua gem · CARAT lightstick sparkle',
+  'mint-puff': {
+    id: 'mint-puff',
+    name: 'Mint Cap Puff',
+    blurb: 'Fluffy mint pom · right of the pink cap',
     slot: 'headRight',
-    texture: 'acc-carat-diamond',
+    texture: 'acc-mint-puff',
     owner: 'bongbongee',
+    price: 18,
     wearable: 'bongbongee',
   },
-  'blue-tee': {
-    id: 'blue-tee',
-    name: 'NEW Tee',
-    blurb: 'Baby-blue shirt with cursive NEW',
+  'diamond-tee': {
+    id: 'diamond-tee',
+    name: 'Diamond Tee',
+    blurb: 'Baby-blue soft tee with a little diamond badge',
     slot: 'body',
-    texture: 'acc-blue-tee',
+    texture: 'acc-diamond-tee',
     owner: 'bongbongee',
+    price: 26,
     wearable: 'bongbongee',
   },
-  'deco-band': {
-    id: 'deco-band',
-    name: 'CARAT Deco Band',
-    blurb: 'Sky-blue band from CARAT LAND',
+  'carat-sash': {
+    id: 'carat-sash',
+    name: 'Carat Sash',
+    blurb: 'Aqua-and-pink sash with a diamond charm',
     slot: 'extra',
-    texture: 'acc-deco-band',
+    texture: 'acc-carat-sash',
     owner: 'bongbongee',
+    price: 24,
     wearable: 'bongbongee',
   },
   'cloud-bow': {
@@ -372,6 +390,8 @@ export const ACCESSORIES: Record<AccessoryId, AccessoryDef> = {
 
 export const ACCESSORY_LIST = Object.values(ACCESSORIES);
 
+export const BONGBONGEE_SHOP_ITEMS = ACCESSORY_LIST.filter((a) => a.owner === 'bongbongee');
+
 export const CINNA_SHOP_ITEMS = ACCESSORY_LIST.filter((a) => a.owner === 'cinnamoroll');
 
 export const PUFFLE_SHOP_ITEMS = ACCESSORY_LIST.filter((a) => a.owner === 'puffle-dig');
@@ -387,10 +407,10 @@ export const PET_BOUTIQUE_ITEMS = ACCESSORY_LIST.filter((a) => a.owner === 'pet-
 type NonPenguinAccessoryId = Exclude<AccessoryId, PenguinAccessoryId>;
 
 export const ACCESSORY_ASSET_PATH: Record<NonPenguinAccessoryId, string> = {
-  'mint-pom': 'assets/accessories/mint-pom.png',
-  'carat-diamond': 'assets/accessories/carat-diamond.png',
-  'blue-tee': 'assets/accessories/blue-tee.png',
-  'deco-band': 'assets/accessories/deco-band.png',
+  'aqua-clip': 'assets/accessories/aqua-clip.png',
+  'mint-puff': 'assets/accessories/mint-puff.png',
+  'diamond-tee': 'assets/accessories/diamond-tee.png',
+  'carat-sash': 'assets/accessories/carat-sash.png',
   'cloud-bow': 'assets/accessories/cloud-bow.png',
   'ear-cloud': 'assets/accessories/ear-cloud.png',
   'cafe-apron': 'assets/accessories/cafe-apron.png',
@@ -423,44 +443,95 @@ export function isAccessoryId(value: unknown): value is AccessoryId {
   return typeof value === 'string' && value in ACCESSORIES;
 }
 
-/** Per-item draw tweaks when layered on the pet sprite (same 32×32 canvas). */
+/**
+ * Phaser scale so a 32×32 accessory draws at the same on-screen height as the
+ * pet. Prefer this over `pet.scaleX` so hi-res plates (Kirby) stay correct.
+ */
+export function accessoryWorldScale(
+  petDisplayHeight: number,
+  layoutScale = 1,
+  canvas = ACCESSORY_CANVAS,
+): number {
+  if (!(petDisplayHeight > 0) || !(canvas > 0)) return layoutScale;
+  return (petDisplayHeight / canvas) * layoutScale;
+}
+
+/** World-space pose for drawing an accessory on a pet (local or remote). */
+export type AccessoryDrawPose = {
+  /** World px relative to the pet centre (already flipped for facing). */
+  offsetX: number;
+  offsetY: number;
+  /** Phaser scale for the overlay image. */
+  scale: number;
+};
+
+/**
+ * Shared layout math for local pets and remote multiplayer pets so a future
+ * nudge/scale tweak cannot diverge between the two paths.
+ */
+export function accessoryDrawPose(
+  id: AccessoryId,
+  petDisplayHeight: number,
+  species: string,
+  flipX: boolean,
+): AccessoryDrawPose {
+  const layout = ACCESSORY_LAYOUT[id];
+  const nudge = SPECIES_ACCESSORY_NUDGE[species]?.[id];
+  const unit = accessoryWorldScale(petDisplayHeight, 1);
+  const nx = ((layout?.offsetX ?? 0) + (nudge?.x ?? 0)) * unit;
+  const ny = ((layout?.offsetY ?? 0) + (nudge?.y ?? 0)) * unit;
+  return {
+    offsetX: nx * (flipX ? -1 : 1),
+    offsetY: ny,
+    scale: accessoryWorldScale(petDisplayHeight, layout?.scale ?? 1),
+  };
+}
+
+/** Per-item draw tweaks when layered on the pet sprite (32×32 canvas units). */
 export type AccessoryLayout = {
   /**
-   * Native sprite pixels, multiplied by the pet's scale at render time so the
-   * fit holds at any pet size (positive = down / right).
+   * Native accessory-canvas pixels, multiplied by accessoryWorldScale at
+   * render time so the fit holds for any pet plate resolution.
    */
   offsetX?: number;
   offsetY?: number;
-  /** Multiplier on the pet's scale. */
+  /** Multiplier on the accessory world scale. */
   scale?: number;
 };
 
 export const ACCESSORY_LAYOUT: Partial<Record<AccessoryId, AccessoryLayout>> = {
-  // Slim neck wrap — slightly smaller than full pet scale.
-  'cinnamon-scarf': { scale: 0.92, offsetY: 0.7 },
-  // Bib sits on the lower body; tiny nudge keeps straps under the chin.
-  'cafe-apron': { offsetY: 0.7 },
-  // Sit the shades a touch lower so they rest on the puffle's eyes.
-  'big-sunglasses': { offsetY: 2 },
+  'cinnamon-scarf': { scale: 0.95, offsetY: 0.5 },
+  'cafe-apron': { offsetY: 0.5 },
+  'big-sunglasses': { offsetY: 1.5 },
+  'diamond-tee': { offsetY: 0.5 },
+  'carat-sash': { scale: 0.95 },
 };
 
 /**
- * Per-species position nudges in native sprite pixels (multiplied by the pet's
- * scale at render time). The classic Tamagotchi faces put their eyes and mouths
- * at different heights, so a single centred accessory can't fit them all —
- * e.g. the ribbon lands on Mimitchi's mouth and rides into Mametchi's eyes
- * without these offsets.
+ * Per-species position nudges in accessory-canvas pixels. Classic Tamagotchi
+ * faces put eyes and mouths at different heights, so a single centred
+ * accessory can't fit them all.
  */
 export const SPECIES_ACCESSORY_NUDGE: Partial<
   Record<string, Partial<Record<AccessoryId, { x?: number; y?: number }>>>
 > = {
-  mametchi: { 'ribbon-tie': { y: 3 } },
-  kuchipatchi: { 'ribbon-tie': { y: 2 } },
-  mimitchi: { 'ribbon-tie': { y: 4 } },
-  flowetchi: { 'ribbon-tie': { y: 2 } },
-  gozarutchi: { 'ribbon-tie': { y: 3 } },
-  memetchi: { 'ribbon-tie': { y: 4 } },
-  mamekitty: { 'ribbon-tie': { y: 3 } },
+  mametchi: { 'ribbon-tie': { y: 2 } },
+  kuchipatchi: { 'ribbon-tie': { y: 1 } },
+  mimitchi: { 'ribbon-tie': { y: 3 } },
+  flowetchi: { 'ribbon-tie': { y: 1 } },
+  gozarutchi: { 'ribbon-tie': { y: 2 } },
+  memetchi: { 'ribbon-tie': { y: 3 } },
+  mamekitty: { 'ribbon-tie': { y: 2 } },
+  bongbongee: {
+    'aqua-clip': { x: -1, y: -1 },
+    'mint-puff': { x: 1, y: -1 },
+    'diamond-tee': { y: 1 },
+  },
+  kirby: {
+    'kirby-bowtie': { y: 2 },
+    'chef-toque': { y: -1 },
+    'top-bow': { y: -1 },
+  },
 };
 
 export function accessoryTextureKey(id: AccessoryId): string {

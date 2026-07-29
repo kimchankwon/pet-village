@@ -1,21 +1,20 @@
 import Phaser from 'phaser';
-import { Menu, toast } from './UI';
-import { State } from './GameState';
-import { ACCESSORY_LIST } from './accessories';
+import { Menu } from './UI';
 import { miniteenDrawScale } from './miniteen';
 import { WandererNpc, type NpcTalkCallbacks } from './WandererNpc';
 
 const LINES = [
   'Hihi~ I’m Bongbongee! CARATs call me the little diamond friend.',
   'Pink on top, white below, and “17” on my cheeks — that’s me!',
-  'Want my mint pom? Or the aqua Carat diamond? Dress your pet cute!',
-  'My blue NEW tee is soft… like a hug from CARAT LAND.',
+  'Cafe Cinnamon has outfits that fit me — gem clips, mint puffs… sparkly!',
   'Bong! Bong! Let’s sparkle together.',
   'Mingyu drew me for CARATLAND 2018. I’m basically art.',
+  'Visit Cafe Cinnamon if you want diamond clothes for a Bongbongee pet!',
 ];
 
 /**
- * SEVENTEEN CARAT mascot NPC. Wanders town and gifts pet accessories.
+ * SEVENTEEN CARAT mascot NPC. Wanders town and chats — outfits are sold at
+ * Cafe Cinnamon (not gifted here).
  */
 export class BongbongeeNpc extends WandererNpc {
   constructor(scene: Phaser.Scene, waypoints: { x: number; y: number }[]) {
@@ -32,24 +31,7 @@ export class BongbongeeNpc extends WandererNpc {
   protected override openTalk(cbs: NpcTalkCallbacks) {
     const line = this.pickLine(LINES);
     this.playBounce();
-    const missing = ACCESSORY_LIST.filter(
-      (a) => a.owner === 'bongbongee' && !State.ownsAccessory(a.id),
-    );
     const options = [
-      {
-        label: missing.length
-          ? `Gift me CARAT clothes (${missing.length} left)`
-          : 'You already have all my clothes!',
-        icon: 'acc-carat-diamond',
-        disabled: missing.length === 0,
-        onSelect: () => {
-          if (missing.length === 0) return;
-          for (const a of missing) State.grantAccessory(a.id);
-          toast(this.scene, this.sprite.x, this.sprite.y - 28, 'Bong! Dress-up time!', '#7ed6ff');
-          this.emote('happy', 1000);
-          cbs.onAccessoriesChanged?.();
-        },
-      },
       {
         label: 'Ask about the diamond',
         onSelect: () => {
@@ -61,6 +43,25 @@ export class BongbongeeNpc extends WandererNpc {
             [{ label: 'Shine on, little diamond.', onSelect: () => undefined }],
             {
               subtitle: 'Every CARAT is a diamond — that’s why I sparkle!',
+              anchor: 'bottom',
+              face: this.faceKey(),
+            },
+          );
+          follow.onClose = cbs.onClose;
+        },
+      },
+      {
+        label: 'Where do I get your outfits?',
+        onSelect: () => {
+          cbs.keepMenuOpen();
+          this.emote('happy', 1000);
+          const follow = new Menu(
+            this.scene,
+            'Bongbongee',
+            [{ label: 'Thanks, Bong!', onSelect: () => undefined }],
+            {
+              subtitle:
+                'Cafe Cinnamon stocks Aqua Gem Clips, Mint Cap Puffs, Diamond Tees, and Carat Sashes — Bongbongee pets only!',
               anchor: 'bottom',
               face: this.faceKey(),
             },
