@@ -2005,11 +2005,12 @@ export function generateTextures(scene: Phaser.Scene) {
       makeTexture(scene, ACCESSORIES[id as AccessoryId].texture, [grid as Grid]);
     }
     makeTexture(scene, 'bunny', [BUNNY]);
-    makeTexture(scene, 'tree', [TREE]);
-    makeTexture(scene, 'house', [HOUSE]);
-    makeTexture(scene, 'cafe', [CAFE]);
-    makeTexture(scene, 'arcade', [ARCADE]);
-    makeTexture(scene, 'get-arcade', [GET_ARCADE]);
+    // Outdoor props may already be Imagine PNGs from BootScene — never clobber.
+    if (!scene.textures.exists('tree')) makeTexture(scene, 'tree', [TREE]);
+    if (!scene.textures.exists('house')) makeTexture(scene, 'house', [HOUSE]);
+    if (!scene.textures.exists('cafe')) makeTexture(scene, 'cafe', [CAFE]);
+    if (!scene.textures.exists('arcade')) makeTexture(scene, 'arcade', [ARCADE]);
+    if (!scene.textures.exists('get-arcade')) makeTexture(scene, 'get-arcade', [GET_ARCADE]);
     if (!scene.textures.exists('skiprope-booth')) makeTexture(scene, 'skiprope-booth', [SKIPROPE_BOOTH]);
     if (!scene.textures.exists('sled-hill')) makeTexture(scene, 'sled-hill', [SLED_HILL]);
     makeTexture(scene, 'paperball', [PAPERBALL]);
@@ -2037,11 +2038,11 @@ export function generateTextures(scene: Phaser.Scene) {
     makeTexture(scene, 'item-lightstick', [LIGHTSTICK]);
 
     // Draft B winter ground tiles (snow + ice paths).
-    makeTile(scene, 'tile-grass', '#e8f0f8', '#d5e2ef', 14);
-    makeTile(scene, 'tile-path', '#b8d4ea', '#9fc4df', 10);
-    makeTile(scene, 'tile-floor', '#d9b380', '#c9a06a', 8);
-    makeTile(scene, 'tile-wall', '#b085c9', '#9e6fbc', 6);
-    makeTile(scene, 'tile-snow', '#eef3f8', '#dde7f0', 8);
+    if (!scene.textures.exists('tile-grass')) makeTile(scene, 'tile-grass', '#e8f0f8', '#d5e2ef', 14);
+    if (!scene.textures.exists('tile-path')) makeTile(scene, 'tile-path', '#b8d4ea', '#9fc4df', 10);
+    if (!scene.textures.exists('tile-floor')) makeTile(scene, 'tile-floor', '#d9b380', '#c9a06a', 8);
+    if (!scene.textures.exists('tile-wall')) makeTile(scene, 'tile-wall', '#b085c9', '#9e6fbc', 6);
+    if (!scene.textures.exists('tile-snow')) makeTile(scene, 'tile-snow', '#eef3f8', '#dde7f0', 8);
   }
 
   if (!scene.textures.exists('cafe')) makeTexture(scene, 'cafe', [CAFE]);
