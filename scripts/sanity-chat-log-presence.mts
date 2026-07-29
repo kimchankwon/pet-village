@@ -35,7 +35,11 @@ import {
 
 const url = process.env.MULTIPLAYER_SMOKE_URL ?? 'ws://127.0.0.1:2567';
 const secretValue = process.env.MULTIPLAYER_TICKET_SECRET;
-if (!secretValue) throw new Error('MULTIPLAYER_TICKET_SECRET is required');
+// The same floor TownRoom.secret() enforces: a shorter key would sign tickets the
+// running server refuses, and the run would fail as an unexplained join error.
+if (!secretValue || secretValue.length < 32) {
+  throw new Error('MULTIPLAYER_TICKET_SECRET must be at least 32 characters');
+}
 const secret = new TextEncoder().encode(secretValue);
 
 /** Tags this run's villagers, so a previous run's stragglers are not ours. */

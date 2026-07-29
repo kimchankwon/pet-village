@@ -30,7 +30,13 @@ MULTIPLAYER_TICKET_SECRET='...' npm run smoke:presence  # who the chat log says 
 ```
 
 `smoke:worlds` and `smoke:presence` default to `ws://127.0.0.1:2567` and take
-`MULTIPLAYER_SMOKE_URL` to point elsewhere; `smoke:sled` uses `SLED_SMOKE_URL`.
+`MULTIPLAYER_SMOKE_URL` to point elsewhere; `smoke:sled` defaults to
+`ws://127.0.0.1:2765` and uses `SLED_SMOKE_URL`, so point it at your port.
+
+`smoke:presence` names its villagers per run and asserts only about those, so it
+is safe to re-run back to back. `smoke:worlds` counts the whole room instead, so
+give the previous run's seats time to clear — a dropped player holds one for
+twenty seconds — before running it again.
 
 ## Deploy
 
