@@ -30,12 +30,25 @@ Side idle + walk plates regenerated with Grok Imagine from the front idle
 no diagonal seam artifacts). Sources under `imagine-side-v4/`; game inputs
 `poses/side-{0,1,2}.png`.
 
+Side walk frames:
+
+| Frame | Pose |
+|-------|------|
+| side-0 | idle — both feet planted |
+| side-1 | mid-stride — one foot stepped |
+| side-2 | plant — feet together (not the opposite raised foot) |
+
+Eyes match across side-0 / side-1 / side-2.
+
 ## Back facing (v3)
 
 Back idle + walk plates regenerated from the same front idle anchor. Walk
 steps **away from the camera** (raised foot partially under the body; planted
 foot toward the camera). Sources under `imagine-back-v3/`. Pipeline always
 runs `repairExternalOutline` so every facing shares a clean 1px exterior rim.
+
+`up-2` is a horizontal mirror of `up-1` so the walk cycle truly alternates
+the other raised leg.
 
 ## Wave (Imagine)
 
