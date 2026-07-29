@@ -5,7 +5,7 @@ import { MIN_GAME_ENERGY, State } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
-import { characterDepth } from '../systems/depth';
+import { characterDepth, propDepth } from '../systems/depth';
 import { isInteractSuppressed, isPointerUiBlocked, isUiBlocked, requestLeave } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, type CameraZoom } from '../systems/cameraZoom';
@@ -15,8 +15,8 @@ import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu
 import {
   LAMP_DISPLAY_H,
   placeGroundTile,
-  plantOutdoorProp,
   PROP_DISPLAY_H,
+  scalePropToHeight,
   SIGN_DISPLAY_H,
   TILE,
   TREE_DISPLAY_H,
@@ -316,12 +316,12 @@ export class ParkScene extends Phaser.Scene {
     }
 
     for (const booth of this.cfg.booths) {
-      // Booth configs use foot anchors (bottom of the attraction on the snow).
-      const img = this.add.image(0, 0, booth.texture);
-      plantOutdoorProp(img, booth.tx * TILE, booth.ty * TILE, booth.displayH);
+      const img = this.add.image(booth.tx * TILE, booth.ty * TILE, booth.texture);
+      scalePropToHeight(img, booth.displayH);
+      img.setDepth(propDepth(img, booth.ty * TILE + 20));
       this.boothImgs.push({ img, booth });
       this.add
-        .text(booth.tx * TILE, booth.ty * TILE - img.displayHeight - 14, booth.label, {
+        .text(booth.tx * TILE, booth.ty * TILE - img.displayHeight / 2 - 14, booth.label, {
           fontFamily: 'monospace',
           fontSize: '13px',
           color: '#ffffff',
@@ -332,7 +332,7 @@ export class ParkScene extends Phaser.Scene {
         .setDepth(900);
       this.interactables.push({
         x: booth.tx * TILE,
-        y: booth.ty * TILE,
+        y: booth.ty * TILE + 24,
         radius: booth.radius,
         label: booth.prompt,
         action: () => this.enterGame(booth.sceneKey),
@@ -342,10 +342,11 @@ export class ParkScene extends Phaser.Scene {
 
     // Signpost at the town-side edge so the way home is obvious.
     const signTx = this.cfg.exitEdge === 'east' ? PARK_MAP_W - 1.4 : 1.4;
-    const sign = this.add.image(0, 0, 'signpost');
-    plantOutdoorProp(sign, signTx * TILE, 6.6 * TILE, SIGN_DISPLAY_H);
+    const sign = this.add.image(signTx * TILE, 6.2 * TILE, 'signpost');
+    scalePropToHeight(sign, SIGN_DISPLAY_H);
+    sign.setDepth(propDepth(sign, 6.2 * TILE + 12));
     this.add
-      .text(signTx * TILE, 6.6 * TILE - sign.displayHeight - 10, this.cfg.exitEdge === 'east' ? 'Town →' : '← Town', {
+      .text(signTx * TILE, 6.2 * TILE - sign.displayHeight / 2 - 10, this.cfg.exitEdge === 'east' ? 'Town →' : '← Town', {
         fontFamily: 'monospace',
         fontSize: '12px',
         color: '#ffe066',
@@ -354,7 +355,7 @@ export class ParkScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(900);
-    this.decoSolids = [{ x: signTx * TILE, y: 6.6 * TILE - 4, w: 28, h: 14 }];
+    this.decoSolids = [{ x: signTx * TILE, y: 6.2 * TILE + 12, w: 28, h: 18 }];
 
     this.scatterDecor();
   }
@@ -371,15 +372,16 @@ export class ParkScene extends Phaser.Scene {
 
   private scatterDecor() {
     for (const spot of this.cfg.decor) {
-      const img = this.add.image(0, 0, spot.tex);
+      const img = this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex);
       const displayH =
         spot.displayH ??
         (spot.tex === 'tree' ? TREE_DISPLAY_H : spot.tex === 'streetlamp' ? LAMP_DISPLAY_H : PROP_DISPLAY_H);
-      const footY = spot.ty * TILE;
-      plantOutdoorProp(img, spot.tx * TILE, footY, displayH);
+      scalePropToHeight(img, displayH);
+      const footY = spot.solid ? spot.ty * TILE + (spot.solid[2] ?? 0) : spot.ty * TILE;
+      img.setDepth(propDepth(img, footY));
       if (spot.solid) {
-        const [sw, sh] = spot.solid;
-        this.decoSolids.push({ x: spot.tx * TILE, y: footY - sh * 0.35, w: sw, h: sh });
+        const [sw, sh, oy = 0] = spot.solid;
+        this.decoSolids.push({ x: spot.tx * TILE, y: spot.ty * TILE + oy, w: sw, h: sh });
       }
     }
   }
@@ -392,8 +394,8 @@ export class ParkScene extends Phaser.Scene {
       solids.push(r);
     };
     for (const booth of this.cfg.booths) {
-      const [sw, sh] = booth.solid;
-      addSolid(booth.tx * TILE, booth.ty * TILE - sh * 0.35, sw, sh);
+      const [sw, sh, oy = 0] = booth.solid;
+      addSolid(booth.tx * TILE, booth.ty * TILE + oy, sw, sh);
     }
     for (const s of this.decoSolids) addSolid(s.x, s.y, s.w, s.h);
     this.physics.add.collider(this.player, solids);
@@ -648,10 +650,10 @@ export class WestParkScene extends ParkScene {
           sceneKey: 'SkipRope',
           spawnId: 'skiprope',
           tx: 5,
-          ty: 5.2,
+          ty: 3.4,
           displayH: BOOTH_DISPLAY_H,
           radius: 110,
-          solid: [120, 70, 0],
+          solid: [160, 100, 24],
         },
         {
           texture: 'bump-arena',
@@ -660,10 +662,10 @@ export class WestParkScene extends ParkScene {
           sceneKey: 'Bump',
           spawnId: 'bump',
           tx: 12,
-          ty: 5.2,
+          ty: 3.4,
           displayH: BOOTH_DISPLAY_H,
           radius: 110,
-          solid: [130, 70, 0],
+          solid: [170, 100, 24],
         },
         {
           texture: 'sled-hill',
@@ -672,10 +674,10 @@ export class WestParkScene extends ParkScene {
           sceneKey: 'SledRun',
           spawnId: 'sled-run',
           tx: 19,
-          ty: 5.2,
+          ty: 3.4,
           displayH: BOOTH_DISPLAY_H,
           radius: 110,
-          solid: [130, 70, 0],
+          solid: [170, 100, 24],
         },
       ],
       decor: [
@@ -714,10 +716,10 @@ export class EastParkScene extends ParkScene {
           sceneKey: 'PaperToss',
           spawnId: 'arcade',
           tx: 7,
-          ty: 5.2,
+          ty: 3.4,
           displayH: BOOTH_DISPLAY_H,
           radius: 110,
-          solid: [120, 70, 0],
+          solid: [150, 100, 24],
         },
         {
           texture: 'get-arcade',
@@ -726,10 +728,10 @@ export class EastParkScene extends ParkScene {
           sceneKey: 'Get',
           spawnId: 'get',
           tx: 16,
-          ty: 5.2,
+          ty: 3.4,
           displayH: BOOTH_DISPLAY_H,
           radius: 110,
-          solid: [120, 70, 0],
+          solid: [150, 100, 24],
         },
       ],
       decor: [
