@@ -1,8 +1,7 @@
 import Phaser from 'phaser';
-import { PENGUIN_DISPLAY_HEIGHT } from '../sprites/pixelart';
 import {
-  bongTextureScale,
   MINITEEN_NATIVE_HEIGHT,
+  NPC_DISPLAY_HEIGHT,
   scaleToDisplayHeight,
 } from './characterScale';
 import { State } from './GameState';
@@ -34,30 +33,19 @@ export interface MiniteenDef {
 
 export { MINITEEN_NATIVE_HEIGHT };
 
-/**
- * Target on-screen height for every MINITEEN villager — matched to the
- * player penguin so town characters read as the same size.
- */
-export const MINITEEN_DISPLAY_HEIGHT = PENGUIN_DISPLAY_HEIGHT;
+/** Classic Bongbongee frames are 32×32, not the 32×42 MINITEEN sheet. */
+const BONG_NATIVE_HEIGHT = 32;
 
 /**
- * Phaser scale so a villager's idle texture draws at a fixed on-screen height.
- *
- * MINITEEN (any prefix other than `bong`) target {@link MINITEEN_DISPLAY_HEIGHT}
- * so plate crops and classic 32×42 frames all match the penguin.
- *
- * Bongbongee reuses this helper with `classicScale` (historically 1.55 on 32px)
- * and is unchanged in target height.
+ * Phaser scale so a villager's idle texture draws at {@link NPC_DISPLAY_HEIGHT},
+ * the player penguin's on-screen height. Classic 32×42 frames, 32×32 Bongbongee
+ * frames and hi-res Imagine plate crops all land on the same size.
  */
-export function miniteenDrawScale(
-  scene: Phaser.Scene,
-  prefix: string,
-  classicScale = 1.5,
-): number {
+export function miniteenDrawScale(scene: Phaser.Scene, prefix: string): number {
   const key = `${prefix}-idle`;
   const h = scene.textures.exists(key) ? (scene.textures.getFrame(key)?.height ?? 0) : 0;
-  if (prefix === 'bong') return bongTextureScale(h, classicScale);
-  return scaleToDisplayHeight(h, MINITEEN_DISPLAY_HEIGHT, MINITEEN_NATIVE_HEIGHT);
+  const native = prefix === 'bong' ? BONG_NATIVE_HEIGHT : MINITEEN_NATIVE_HEIGHT;
+  return scaleToDisplayHeight(h, NPC_DISPLAY_HEIGHT, native);
 }
 
 /** True when the loaded idle texture is a hi-res Imagine plate crop. */

@@ -1,4 +1,9 @@
 import Phaser from 'phaser';
+import {
+  MINITEEN_NATIVE_HEIGHT,
+  NPC_DISPLAY_HEIGHT,
+  scaleToDisplayHeight,
+} from './characterScale';
 import { characterDepth } from './depth';
 import type { RemoteNpc } from './multiplayerBridge';
 import { advanceNpcRenderPose, shouldAdvanceNpcRenderPose } from './networkNpcMotion';
@@ -26,6 +31,7 @@ export interface WandererOptions {
    */
   texPrefix: string;
   waypoints: { x: number; y: number }[];
+  /** Overrides the shared penguin-tall villager height. */
   scale?: number;
   speed?: number;
   pauseMs?: [number, number];
@@ -77,7 +83,11 @@ export class WandererNpc {
     this.speed = opts.speed ?? 50;
     this.pauseMs = opts.pauseMs ?? [1400, 3200];
     const start = opts.waypoints[0] ?? { x: 400, y: 400 };
-    this.sprite = scene.add.sprite(start.x, start.y, `${this.prefix}-idle`).setScale(opts.scale ?? 1.55);
+    this.sprite = scene.add.sprite(start.x, start.y, `${this.prefix}-idle`);
+    // Every villager stands penguin-tall unless a caller overrides the scale.
+    this.sprite.setScale(
+      opts.scale ?? scaleToDisplayHeight(this.sprite.height, NPC_DISPLAY_HEIGHT, MINITEEN_NATIVE_HEIGHT),
+    );
     const world = opts.movementBounds ?? scene.physics.world.bounds;
     this.movementBounds = { x: world.x, y: world.y, width: world.width, height: world.height };
     const halfWidth = this.sprite.displayWidth / 2 + 2;

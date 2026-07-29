@@ -14,9 +14,6 @@ const LINES = [
   'Mingyu drew me for CARATLAND 2018. I’m basically art.',
 ];
 
-/** Classic on-screen scale for 32×32 Bong frames (shared with plate height math). */
-const BONG_CLASSIC_SCALE = 1.55;
-
 /**
  * SEVENTEEN CARAT mascot NPC. Wanders town and gifts pet accessories.
  */
@@ -26,8 +23,8 @@ export class BongbongeeNpc extends WandererNpc {
       name: 'Bongbongee',
       texPrefix: 'bong',
       waypoints,
-      // Reuse shared plate-height scale (native 32 when prefix === 'bong').
-      scale: miniteenDrawScale(scene, 'bong', BONG_CLASSIC_SCALE),
+      // Shared villager height — penguin-tall, like every other NPC.
+      scale: miniteenDrawScale(scene, 'bong'),
       speed: 48,
     });
   }

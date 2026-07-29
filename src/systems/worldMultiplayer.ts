@@ -610,10 +610,10 @@ export class WorldMultiplayer {
     for (const { id, image } of remote.accessories) {
       const layout = ACCESSORY_LAYOUT[id];
       const nudge = speciesNudges?.[id];
-      const nx = (nudge?.x ?? 0) * sprite.scaleX;
-      const ny = (nudge?.y ?? 0) * sprite.scaleX;
-      const ox = ((layout?.offsetX ?? 0) + nx) * (sprite.flipX ? -1 : 1);
-      const oy = (layout?.offsetY ?? 0) + ny;
+      const nx = ((layout?.offsetX ?? 0) + (nudge?.x ?? 0)) * sprite.scaleX;
+      const ny = ((layout?.offsetY ?? 0) + (nudge?.y ?? 0)) * sprite.scaleX;
+      const ox = nx * (sprite.flipX ? -1 : 1);
+      const oy = ny;
       image
         .setPosition(sprite.x + ox, sprite.y + oy + bob)
         .setScale(sprite.scaleX * (layout?.scale ?? 1))

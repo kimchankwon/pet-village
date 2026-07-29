@@ -155,7 +155,7 @@ export class PaperTossScene extends Phaser.Scene {
     // hurls it on release (the ball is the projectile, never the pet).
     this.thrower = this.add
       .sprite(BALL_START.x - 36, GROUND_Y - 26, petTextureKey(State.data.petSpecies, 'idle1'))
-      .setScale(petDrawScale(this, State.data.petSpecies, 70))
+      .setScale(petDrawScale(this, State.data.petSpecies))
       .setDepth(8);
     this.thrower.play(petAnimKey(State.data.petSpecies, 'bounce'));
 

@@ -425,7 +425,10 @@ export function isAccessoryId(value: unknown): value is AccessoryId {
 
 /** Per-item draw tweaks when layered on the pet sprite (same 32×32 canvas). */
 export type AccessoryLayout = {
-  /** Extra world pixels after pet scale (positive = down / right). */
+  /**
+   * Native sprite pixels, multiplied by the pet's scale at render time so the
+   * fit holds at any pet size (positive = down / right).
+   */
   offsetX?: number;
   offsetY?: number;
   /** Multiplier on the pet's scale. */
@@ -434,11 +437,11 @@ export type AccessoryLayout = {
 
 export const ACCESSORY_LAYOUT: Partial<Record<AccessoryId, AccessoryLayout>> = {
   // Slim neck wrap — slightly smaller than full pet scale.
-  'cinnamon-scarf': { scale: 0.92, offsetY: 1 },
+  'cinnamon-scarf': { scale: 0.92, offsetY: 0.7 },
   // Bib sits on the lower body; tiny nudge keeps straps under the chin.
-  'cafe-apron': { offsetY: 1 },
+  'cafe-apron': { offsetY: 0.7 },
   // Sit the shades a touch lower so they rest on the puffle's eyes.
-  'big-sunglasses': { offsetY: 3 },
+  'big-sunglasses': { offsetY: 2 },
 };
 
 /**

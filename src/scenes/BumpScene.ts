@@ -141,7 +141,7 @@ export class BumpScene extends Phaser.Scene {
     this.petSprite = this.add
       .sprite(cx - CHAR_GAP, PLATFORM_Y, petTextureKey(State.data.petSpecies, 'idle1'))
       .setOrigin(0.5, 1)
-      .setScale(petDrawScale(this, State.data.petSpecies, 67))
+      .setScale(petDrawScale(this, State.data.petSpecies))
       .setDepth(10);
     this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
 
@@ -229,8 +229,7 @@ export class BumpScene extends Phaser.Scene {
       : 'bong';
     this.oppName = npcDisplayName(this.oppPrefix);
     const cx = this.cameras.main.width / 2;
-    const oppClassic = this.oppPrefix === 'cinna' ? 1.7 : 2;
-    const oppScale = miniteenDrawScale(this, this.oppPrefix, oppClassic);
+    const oppScale = miniteenDrawScale(this, this.oppPrefix);
     this.oppSprite = this.add
       .sprite(cx + CHAR_GAP, PLATFORM_Y, `${this.oppPrefix}-idle`)
       .setOrigin(0.5, 1)
@@ -253,20 +252,19 @@ export class BumpScene extends Phaser.Scene {
     );
     if (available.length === 0) return;
     Phaser.Utils.Array.Shuffle(available);
-    const slots: { x: number; y: number; flip: boolean; scale: number }[] = [
-      { x: cx - PLATFORM_HALF - 52, y: PLATFORM_Y + 8, flip: false, scale: 1.45 },
-      { x: cx + PLATFORM_HALF + 52, y: PLATFORM_Y + 8, flip: true, scale: 1.45 },
-      { x: cx - PLATFORM_HALF - 98, y: PLATFORM_Y - 18, flip: false, scale: 1.2 },
-      { x: cx + PLATFORM_HALF + 98, y: PLATFORM_Y - 16, flip: true, scale: 1.2 },
-      { x: cx - PLATFORM_HALF - 28, y: PLATFORM_Y - 36, flip: false, scale: 1.1 },
-      { x: cx + PLATFORM_HALF + 28, y: PLATFORM_Y - 34, flip: true, scale: 1.1 },
+    const slots: { x: number; y: number; flip: boolean }[] = [
+      { x: cx - PLATFORM_HALF - 52, y: PLATFORM_Y + 8, flip: false },
+      { x: cx + PLATFORM_HALF + 52, y: PLATFORM_Y + 8, flip: true },
+      { x: cx - PLATFORM_HALF - 98, y: PLATFORM_Y - 18, flip: false },
+      { x: cx + PLATFORM_HALF + 98, y: PLATFORM_Y - 16, flip: true },
+      { x: cx - PLATFORM_HALF - 28, y: PLATFORM_Y - 36, flip: false },
+      { x: cx + PLATFORM_HALF + 28, y: PLATFORM_Y - 34, flip: true },
     ];
     const count = Math.min(slots.length, available.length, Phaser.Math.Between(4, 6));
     for (let i = 0; i < count; i++) {
       const prefix = available[i]!;
       const slot = slots[i]!;
-      const classic = prefix === 'cinna' ? slot.scale * 0.85 : slot.scale;
-      const scale = miniteenDrawScale(this, prefix, classic);
+      const scale = miniteenDrawScale(this, prefix);
       const sprite = this.add
         .sprite(slot.x, slot.y, `${prefix}-idle`)
         .setOrigin(0.5, 1)
@@ -465,7 +463,7 @@ export class BumpScene extends Phaser.Scene {
       this.mash = Math.min(1, this.mash + MASH_GAIN);
       this.tug = Math.min(1.05, this.tug + TAP_IMPULSE_BASE + TAP_IMPULSE_MASH_BONUS * this.mash);
       // A little lunge sells the shove.
-      const base = petDrawScale(this, State.data.petSpecies, 67);
+      const base = petDrawScale(this, State.data.petSpecies);
       this.petSprite.setScale(base * 1.05, base * 0.98);
       this.tweens.add({ targets: this.petSprite, scaleX: base, scaleY: base, duration: 120 });
       return;

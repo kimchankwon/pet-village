@@ -4,25 +4,37 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  bongTextureScale,
   CHARACTER_PENGUIN_DISPLAY_HEIGHT,
   MINITEEN_NATIVE_HEIGHT,
+  NPC_DISPLAY_HEIGHT,
   PET_DISPLAY_HEIGHT,
+  PET_HEIGHT_RATIO,
   scaleToDisplayHeight,
 } from '../../src/systems/characterScale.ts';
 
+test('every NPC stands penguin-tall', () => {
+  assert.equal(NPC_DISPLAY_HEIGHT, CHARACTER_PENGUIN_DISPLAY_HEIGHT);
+});
+
+test('pets draw at half the penguin height', () => {
+  assert.equal(PET_HEIGHT_RATIO, 0.5);
+  assert.equal(PET_DISPLAY_HEIGHT, CHARACTER_PENGUIN_DISPLAY_HEIGHT / 2);
+});
+
 test('all miniteen plate heights land at penguin display height', () => {
-  const target = CHARACTER_PENGUIN_DISPLAY_HEIGHT;
   for (const h of [283, 335, 497, 512, MINITEEN_NATIVE_HEIGHT]) {
-    const scale = scaleToDisplayHeight(h, target, MINITEEN_NATIVE_HEIGHT);
-    assert.equal(Math.round(h * scale), target);
+    const scale = scaleToDisplayHeight(h, NPC_DISPLAY_HEIGHT, MINITEEN_NATIVE_HEIGHT);
+    assert.equal(Math.round(h * scale), NPC_DISPLAY_HEIGHT);
   }
 });
 
-test('bong keeps classic 32×1.55 target', () => {
-  assert.equal(bongTextureScale(32, 1.55), 1.55);
-  assert.equal(bongTextureScale(0, 1.55), 1.55);
-  assert.ok(Math.abs(bongTextureScale(515, 1.55) * 515 - 32 * 1.55) < 0.01);
+test('bong 32px and plate frames land at penguin display height too', () => {
+  for (const h of [32, 515]) {
+    const scale = scaleToDisplayHeight(h, NPC_DISPLAY_HEIGHT, 32);
+    assert.equal(Math.round(h * scale), NPC_DISPLAY_HEIGHT);
+  }
+  // Missing texture falls back to the classic 32px native height.
+  assert.equal(Math.round(32 * scaleToDisplayHeight(0, NPC_DISPLAY_HEIGHT, 32)), NPC_DISPLAY_HEIGHT);
 });
 
 test('pets of different native heights draw at the same size', () => {
@@ -30,4 +42,14 @@ test('pets of different native heights draw at the same size', () => {
     const scale = scaleToDisplayHeight(h, PET_DISPLAY_HEIGHT, 32);
     assert.equal(Math.round(h * scale), PET_DISPLAY_HEIGHT);
   }
+});
+
+test('a pet is half as tall as the NPC standing next to it', () => {
+  const petScale = scaleToDisplayHeight(32, PET_DISPLAY_HEIGHT, 32);
+  const npcScale = scaleToDisplayHeight(
+    MINITEEN_NATIVE_HEIGHT,
+    NPC_DISPLAY_HEIGHT,
+    MINITEEN_NATIVE_HEIGHT,
+  );
+  assert.equal((32 * petScale) / (MINITEEN_NATIVE_HEIGHT * npcScale), PET_HEIGHT_RATIO);
 });
