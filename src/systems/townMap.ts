@@ -6,18 +6,18 @@ export const TOWN_MAP_H = 22;
 export const TOWN_WORLD_W = TOWN_MAP_W * TILE;
 export const TOWN_WORLD_H = TOWN_MAP_H * TILE;
 
-/** Target on-screen height for Imagine building sprites (much larger than the old 24×16 grids). */
-export const BUILDING_DISPLAY_H = 300;
-/** Ice fountain landmark height. */
-export const FOUNTAIN_DISPLAY_H = 200;
-/** Snowy evergreen display height. */
-export const TREE_DISPLAY_H = 170;
-/** Small outdoor props (bench, barrel, lamp, …). */
-export const PROP_DISPLAY_H = 110;
-/** Streetlamp is tall — use a taller target. */
-export const LAMP_DISPLAY_H = 150;
-/** Signpost height. */
-export const SIGN_DISPLAY_H = 100;
+/**
+ * On-screen heights for outdoor Imagine plates.
+ * Keep buildings readable but props near classic grid proportions so benches,
+ * barrels, and lamps don't tower over penguins (~60px tall).
+ */
+export const BUILDING_DISPLAY_H = 200;
+export const FOUNTAIN_DISPLAY_H = 110;
+export const TREE_DISPLAY_H = 100;
+/** Bench, barrel, crate, rock, bush — slightly larger than classic ~40px. */
+export const PROP_DISPLAY_H = 52;
+export const LAMP_DISPLAY_H = 80;
+export const SIGN_DISPLAY_H = 52;
 
 /** Scale an image so its texture height draws at `displayH` world px. */
 export function scalePropToHeight(

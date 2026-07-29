@@ -11,4 +11,4 @@ export const SHORE_OCEAN_ROW = 11;
 /** Dock / fishing-spot anchor in tile coords. */
 export const SHORE_DOCK = { tx: 12, ty: 10 };
 /** Dock display height for the Imagine pier sprite. */
-export const DOCK_DISPLAY_H = 150;
+export const DOCK_DISPLAY_H = 90;

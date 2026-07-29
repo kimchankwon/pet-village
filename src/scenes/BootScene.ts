@@ -18,6 +18,33 @@ import { MINITEEN, miniteenTexPrefix } from '../systems/miniteen';
 
 const NPC_POSES = ['idle', 'walk1', 'walk2', 'happy', 'sad', 'jump'] as const;
 
+/**
+ * Outdoor hub Imagine plates only (buildings, booths, plaza décor).
+ * Floors, furniture, HUD icons, and mini-game props stay on pixel grids —
+ * large photo-style plates look oversized and muddy at UI/inventory sizes.
+ */
+const WORLD_PROP_KEYS = [
+  'house',
+  'shop',
+  'cafe',
+  'fountain',
+  'tree',
+  'bush',
+  'rock',
+  'bench',
+  'streetlamp',
+  'mailbox',
+  'barrel',
+  'crate',
+  'signpost',
+  'dock',
+  'skiprope-booth',
+  'sled-hill',
+  'bump-arena',
+  'arcade',
+  'get-arcade',
+] as const;
+
 const LOAD_BG = 0x0e1a28;
 const LOAD_PANEL = 0x1a2838;
 const LOAD_LINE = 0x3a5068;
@@ -177,28 +204,7 @@ export class BootScene extends Phaser.Scene {
         `assets/player/penguin/wave-${frame}.png`,
       );
     }
-    // Ice-town Imagine world props / tiles / furniture / game sprites.
-    // Loaded before generateTextures so they override the grid fallbacks.
-    const WORLD_PROP_KEYS = [
-      // buildings & booths
-      'house', 'shop', 'cafe', 'fountain',
-      'skiprope-booth', 'sled-hill', 'bump-arena', 'arcade', 'get-arcade',
-      // outdoor décor
-      'tree', 'bush', 'rock', 'bench', 'streetlamp', 'mailbox', 'barrel', 'crate',
-      'signpost', 'dock', 'wildflower', 'mushroom', 'stump', 'fence', 'smoke',
-      // ground tiles
-      'tile-grass', 'tile-snow', 'tile-path', 'tile-plaza', 'tile-sand',
-      'tile-ocean', 'tile-ocean2', 'tile-floor', 'tile-wall',
-      // furniture
-      'item-bed', 'item-chair', 'item-table', 'item-rug', 'item-lamp',
-      'item-bookshelf', 'item-tv', 'item-plant', 'item-flower', 'item-lightstick',
-      'clothes-rack',
-      // games & inventory icons
-      'bin', 'paperball', 'catch-bowl', 'rod', 'bobber', 'ripple',
-      'music-note-crotchet', 'music-note-quaver', 'music-note-double-quaver',
-      'fish', 'bait', 'cookie', 'coin', 'heart', 'poop',
-      'oceanfish-common', 'oceanfish-uncommon', 'oceanfish-rare',
-    ] as const;
+    // Outdoor hub Imagine plates (override grid fallbacks in generateTextures).
     for (const key of WORLD_PROP_KEYS) {
       this.load.image(key, `assets/world/${key}.png`);
     }
@@ -211,21 +217,8 @@ export class BootScene extends Phaser.Scene {
 
     generateTextures(this);
 
-    // Imagine world props / tiles: nearest-neighbour so detailed sprites stay sharp.
-    for (const key of [
-      'house', 'shop', 'cafe', 'fountain', 'tree', 'bush', 'rock', 'bench',
-      'streetlamp', 'mailbox', 'barrel', 'crate', 'signpost', 'dock',
-      'skiprope-booth', 'sled-hill', 'bump-arena', 'arcade', 'get-arcade',
-      'wildflower', 'mushroom', 'stump', 'fence', 'smoke', 'clothes-rack',
-      'tile-grass', 'tile-snow', 'tile-path', 'tile-plaza', 'tile-sand',
-      'tile-ocean', 'tile-ocean2', 'tile-floor', 'tile-wall',
-      'item-bed', 'item-chair', 'item-table', 'item-rug', 'item-lamp',
-      'item-bookshelf', 'item-tv', 'item-plant', 'item-flower', 'item-lightstick',
-      'bin', 'paperball', 'catch-bowl', 'rod', 'bobber', 'ripple',
-      'music-note-crotchet', 'music-note-quaver', 'music-note-double-quaver',
-      'fish', 'bait', 'cookie', 'coin', 'heart', 'poop',
-      'oceanfish-common', 'oceanfish-uncommon', 'oceanfish-rare',
-    ]) {
+    // Imagine outdoor props: nearest-neighbour so detailed plates stay sharp.
+    for (const key of WORLD_PROP_KEYS) {
       if (this.textures.exists(key)) {
         this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
       }

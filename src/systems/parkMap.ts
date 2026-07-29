@@ -3,7 +3,6 @@ import { TILE } from './townMap';
 /**
  * Shared metrics for the two game-park maps flanking town:
  * West Green (Skip Rope + Bump + Sled Run) and East Green (Paper Toss + Get).
- * Expanded so the Imagine game booths read much larger.
  */
 export const PARK_MAP_W = 24;
 export const PARK_MAP_H = 16;
@@ -13,5 +12,5 @@ export const PARK_WORLD_H = PARK_MAP_H * TILE;
 /** Horizontal connecting path rows (tile Y) between town and each park. */
 export const PARK_PATH_TY = [7, 8] as const;
 
-/** Target on-screen height for game booth / attraction sprites. */
-export const BOOTH_DISPLAY_H = 270;
+/** Game booth / attraction height — large but not full-screen. */
+export const BOOTH_DISPLAY_H = 150;

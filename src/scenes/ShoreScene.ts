@@ -355,7 +355,8 @@ export class ShoreScene extends Phaser.Scene {
         spot.displayH ??
         (spot.tex === 'tree' ? TREE_DISPLAY_H : spot.tex === 'streetlamp' ? LAMP_DISPLAY_H : PROP_DISPLAY_H);
       scalePropToHeight(img, displayH);
-      const footY = spot.solid ? spot.ty * TILE + (spot.solid[2] ?? 0) : undefined;
+      // Always pass a ground Y (matches Town/Park) so flower feet sort correctly.
+      const footY = spot.solid ? spot.ty * TILE + (spot.solid[2] ?? 0) : spot.ty * TILE;
       img.setDepth(propDepth(img, footY));
       if (spot.solid) {
         const [sw, sh, oy = 0] = spot.solid;

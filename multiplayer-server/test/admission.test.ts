@@ -47,12 +47,12 @@ test('admission validates issuer, audience, lifetime, and server secret', async 
   process.env.MULTIPLAYER_TICKET_SECRET = secretValue;
   const valid = await ticket();
   assert.equal((await verifyAdmission(valid)).sub, 'user-a');
-  assert.equal((await verifyAdmission(await ticket({ protocolVersion: 6 }))).sub, 'user-a');
-  assert.equal((await verifyAdmission(await ticket({ protocolVersion: 7 }))).sub, 'user-a');
-  assert.equal((await verifyAdmission(await ticket({ protocolVersion: 8 }))).sub, 'user-a');
-  // Four versions are supported at a time, so v9 slid v5 out of the window.
+  // v9 world geometry is not compatible with older clients — exact version only.
+  assert.equal((await verifyAdmission(await ticket({ protocolVersion: PROTOCOL_VERSION }))).sub, 'user-a');
+  await assert.rejects(verifyAdmission(await ticket({ protocolVersion: 8 })));
+  await assert.rejects(verifyAdmission(await ticket({ protocolVersion: 7 })));
+  await assert.rejects(verifyAdmission(await ticket({ protocolVersion: 6 })));
   await assert.rejects(verifyAdmission(await ticket({ protocolVersion: 5 })));
-  await assert.rejects(verifyAdmission(await ticket({ protocolVersion: 4 })));
   // Tickets are short-lived bearer credentials; reconnecting may reuse one until expiry.
   assert.equal((await verifyAdmission(valid)).sub, 'user-a');
   await assert.rejects(verifyAdmission(await ticket({ issuer: 'wrong' })));
@@ -122,12 +122,15 @@ test('profile refresh applies same-user ticket claims without replacing authorit
   assert.deepEqual(replies[2], { ok: false });
 });
 
-test('sled room requires the current protocol while Town keeps rolling compatibility', async () => {
+test('sled room and Town both require the current protocol after the v9 map expand', async () => {
   process.env.MULTIPLAYER_TICKET_SECRET = secretValue;
   const room = new SledRunRoom();
+  // Older protocol tickets are refused at admission (map geometry is not compatible).
   await assert.rejects(
     room.onAuth({} as never, undefined, { token: await ticket({ protocolVersion: PROTOCOL_VERSION - 1 }) }),
-    (error: unknown) => error instanceof Error && error.message.includes('requires protocol'),
+    (error: unknown) =>
+      error instanceof Error &&
+      (error.message.includes('requires protocol') || error.message.includes('Invalid or expired')),
   );
   const claims = await room.onAuth({} as never, undefined, { token: await ticket() });
   assert.equal(claims.protocolVersion, PROTOCOL_VERSION);

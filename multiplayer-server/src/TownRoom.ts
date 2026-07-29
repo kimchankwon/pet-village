@@ -75,8 +75,9 @@ const PENGUIN_COLORS = new Set([
   'orange', 'darkpurple', 'brown', 'peach', 'darkgreen', 'lightblue',
 ]);
 
-// Four ticket versions are retained by the rolling-compatibility policy.
-const SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([6, 7, 8, PROTOCOL_VERSION]);
+// Protocol v9 changed world bounds and spawns — only current-protocol clients.
+// (Older versions would get positions for a map layout they do not have.)
+const SUPPORTED_PROTOCOL_VERSIONS = new Set<number>([PROTOCOL_VERSION]);
 
 export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
   const { payload } = await jwtVerify(token, secret(), {

@@ -142,16 +142,14 @@ export class FishingScene extends Phaser.Scene {
         .setDepth(2);
     }
 
-    this.rod = this.add.image(210, 430, 'rod').setDepth(12).setOrigin(0.2, 0.9);
-    if (this.rod.height > 0) this.rod.setScale(120 / this.rod.height);
+    this.rod = this.add.image(210, 430, 'rod').setScale(2.2).setDepth(12).setOrigin(0.2, 0.9);
     this.petSprite = this.add
       .sprite(168, 448, petTextureKey(State.data.petSpecies, 'idle1'))
       .setScale(petDrawScale(this, State.data.petSpecies))
       .setDepth(11);
     this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
 
-    this.bobber = this.add.image(CAST_ORIGIN.x, CAST_ORIGIN.y, 'bobber').setDepth(15).setVisible(false);
-    if (this.bobber.height > 0) this.bobber.setScale(28 / this.bobber.height);
+    this.bobber = this.add.image(CAST_ORIGIN.x, CAST_ORIGIN.y, 'bobber').setScale(1.6).setDepth(15).setVisible(false);
     this.biteBang = this.add
       .text(0, 0, '!', { ...FONT, fontSize: '36px', color: '#ffe066', stroke: '#1a1a2e', strokeThickness: 5 })
       .setOrigin(0.5)
@@ -429,8 +427,7 @@ export class FishingScene extends Phaser.Scene {
     this.hintText.setText('');
     const land = this.predictLanding(this.castDir.x, this.castDir.y, this.castPower);
     this.bobberHome = { x: land.x, y: land.y };
-    this.bobber.setPosition(CAST_ORIGIN.x, CAST_ORIGIN.y).setVisible(true).setAlpha(1);
-    if (this.bobber.height > 0) this.bobber.setScale(28 / this.bobber.height);
+    this.bobber.setPosition(CAST_ORIGIN.x, CAST_ORIGIN.y).setVisible(true).setAlpha(1).setScale(1.6);
 
     // Toss wind-up: pet hops, rod snaps forward.
     this.petSprite.stop();
@@ -472,7 +469,7 @@ export class FishingScene extends Phaser.Scene {
           duration: 80,
           yoyo: true,
           onComplete: () => {
-            if (this.bobber.height > 0) this.bobber.setScale(28 / this.bobber.height);
+            this.bobber.setScale(1.6);
             if (this.petSprite.active) {
               this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
             }
@@ -664,8 +661,7 @@ export class FishingScene extends Phaser.Scene {
       onUpdate: () => this.drawLineToBobber(),
       onComplete: () => {
         this.lineGfx.clear();
-        this.bobber.setVisible(false);
-        if (this.bobber.height > 0) this.bobber.setScale(28 / this.bobber.height);
+        this.bobber.setVisible(false).setScale(1.6);
         toast(this, this.cameras.main.width / 2, 200, msg, '#8a8a9e');
         if (this.petSprite.active) {
           this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
@@ -769,8 +765,7 @@ export class FishingScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(1601);
-    const fishImg = this.add.image(cx, cy - 28, def.texture).setScrollFactor(0).setDepth(1601);
-    if (fishImg.height > 0) fishImg.setScale(Math.min(2.4, 72 / fishImg.height));
+    const fishImg = this.add.image(cx, cy - 28, def.texture).setScale(3.2).setScrollFactor(0).setDepth(1601);
     const sizeLine = this.add
       .text(cx, cy + 36, `${def.name} — ${size}cm`, { ...FONT, fontSize: '16px' })
       .setOrigin(0.5)
