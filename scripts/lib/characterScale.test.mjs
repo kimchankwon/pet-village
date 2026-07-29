@@ -56,6 +56,3 @@ test('a pet is PET_HEIGHT_RATIO as tall as the NPC standing next to it', () => {
   // PET_DISPLAY_HEIGHT is rounded to whole pixels, so allow sub-pixel drift.
   assert.ok(Math.abs(drawnRatio - PET_HEIGHT_RATIO) < 0.01, `drawn ratio ${drawnRatio}`);
 });
-
-// accessoryWorldScale: 32×32 overlays match pet display height (not plate scale)
-import { ACCESSORY_CANVAS } from '../../src/systems/accessories.ts';
