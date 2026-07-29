@@ -23,8 +23,8 @@ test('move policy tolerates a one-second delivery stall at normal walking speed'
 });
 test('first move accepts the current Town position when multiplayer connects late', () => {
   const fresh = { ...player, lastSeq: 0 };
-  const approvedSpawn = {x:528,y:265,petX:500,petY:275,facing:'down' as const,moving:false,seq:1};
-  const awayFromSpawn = {x:900,y:650,petX:870,petY:660,facing:'down' as const,moving:true,seq:1};
+  const approvedSpawn = {x:768,y:345.6,petX:738,petY:355.6,facing:'down' as const,moving:false,seq:1};
+  const awayFromSpawn = {x:1200,y:800,petX:1170,petY:810,facing:'down' as const,moving:true,seq:1};
   assert.equal(validateMove(fresh, approvedSpawn, 1001).ok, true);
   assert.equal(validateMove(fresh, awayFromSpawn, 1001).ok, true);
   assert.equal(
@@ -37,9 +37,9 @@ test('first move accepts the current Town position when multiplayer connects lat
 test('move policy validates positions against the selected world scene', () => {
   const current = { ...player, scene: 'shore' as const };
   assert.equal(validateMove(current, {scene:'shore',x:120,y:100,petX:90,petY:110,facing:'side',moving:true,seq:5}, 1100).ok, true);
-  assert.equal(validateMove(current, {scene:'shore',x:900,y:100,petX:870,petY:110,facing:'side',moving:true,seq:5}, 1100).ok, false);
-  assert.equal(validateMove(current, {scene:'east-green',x:76.8,y:288,petX:50,petY:298,facing:'side',moving:false,seq:5}, 1100).ok, false);
-  assert.equal(validateMove(current, {scene:'east-green',x:76.8,y:288,petX:50,petY:298,facing:'side',moving:false,seq:5}, 1100, true).ok, true);
+  assert.equal(validateMove(current, {scene:'shore',x:1200,y:100,petX:1170,petY:110,facing:'side',moving:true,seq:5}, 1100).ok, false);
+  assert.equal(validateMove(current, {scene:'east-green',x:96,y:360,petX:66,petY:370,facing:'side',moving:false,seq:5}, 1100).ok, false);
+  assert.equal(validateMove(current, {scene:'east-green',x:96,y:360,petX:66,petY:370,facing:'side',moving:false,seq:5}, 1100, true).ok, true);
   assert.equal(validateMove(current, {x:120,y:100,petX:90,petY:110,facing:'side',moving:true,seq:5}, 1100).ok, true);
 });
 test('world scene transitions follow the map portal graph', () => {

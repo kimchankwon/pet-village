@@ -19,24 +19,24 @@ import {
   worldSceneSpawn,
 } from '../src/index.ts';
 
-test('protocol v8 validates scene-scoped moves within each world bounds', () => {
-  assert.equal(PROTOCOL_VERSION, 8);
-  assert.deepEqual(TOWN_BOUNDS, { width: 1056, height: 768 });
+test('protocol v9 validates scene-scoped moves within each world bounds', () => {
+  assert.equal(PROTOCOL_VERSION, 9);
+  // Expanded ice town: 32×22, parks/shore 24×16.
+  assert.deepEqual(TOWN_BOUNDS, { width: 1536, height: 1056 });
   assert.deepEqual(WORLD_SCENES, [
     'town', 'shore', 'west-green', 'east-green', 'daniels-shop', 'cafe-cinnamon',
   ]);
-  assert.deepEqual(WORLD_SCENE_BOUNDS['west-green'], { width: 768, height: 576 });
+  assert.deepEqual(WORLD_SCENE_BOUNDS['west-green'], { width: 1152, height: 768 });
   assert.deepEqual(WORLD_SCENE_BOUNDS['daniels-shop'], { width: 576, height: 624 });
   assert.equal(isWorldScene('east-green'), true);
   assert.equal(isWorldScene('cafe-cinnamon'), true);
   assert.equal(isWorldScene('house'), false);
   assert.equal(isMovePayload({ scene: 'shore', x: 1, y: 2, petX: 3, petY: 4, facing: 'down', moving: true, seq: 1 }), true);
   assert.equal(isMovePayload({ scene: 'shore', x: Infinity, y: 2, petX: 3, petY: 4, facing: 'down', moving: true, seq: 1 }), false);
-  assert.equal(isMovePayload({ scene: 'shore', x: 865, y: 2, petX: 3, petY: 4, facing: 'down', moving: true, seq: 1 }), false);
-  assert.equal(isMovePayload({ scene: 'town', x: 1057, y: 2, petX: 3, petY: 4, facing: 'down', moving: true, seq: 1 }), false);
+  assert.equal(isMovePayload({ scene: 'shore', x: 1153, y: 2, petX: 3, petY: 4, facing: 'down', moving: true, seq: 1 }), false);
+  assert.equal(isMovePayload({ scene: 'town', x: 1537, y: 2, petX: 3, petY: 4, facing: 'down', moving: true, seq: 1 }), false);
   assert.equal(isMovePayload({ scene: 'house', x: 2, y: 2, petX: 3, petY: 4, facing: 'down', moving: true, seq: 1 }), false);
 });
-
 test('world spawn lookup ignores inherited property names', () => {
   assert.deepEqual(worldSceneSpawn('town', 'constructor'), worldSceneSpawn('town'));
   assert.deepEqual(worldSceneSpawn('shore', 'toString'), worldSceneSpawn('shore'));

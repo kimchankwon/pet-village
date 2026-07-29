@@ -2082,13 +2082,17 @@ export function generateTextures(scene: Phaser.Scene) {
   if (!scene.textures.exists('fountain')) {
     makeTexture(scene, 'fountain', [FOUNTAIN_0, FOUNTAIN_1]);
   }
+  // Only animate multi-frame grid fountains. Imagine PNG is a single still.
   if (!scene.anims.exists('fountain-splash') && scene.textures.exists('fountain')) {
-    scene.anims.create({
-      key: 'fountain-splash',
-      frames: scene.anims.generateFrameNumbers('fountain', { start: 0, end: 1 }),
-      frameRate: 2.5,
-      repeat: -1,
-    });
+    const frameTotal = scene.textures.get('fountain').frameTotal;
+    if (frameTotal > 1) {
+      scene.anims.create({
+        key: 'fountain-splash',
+        frames: scene.anims.generateFrameNumbers('fountain', { start: 0, end: 1 }),
+        frameRate: 2.5,
+        repeat: -1,
+      });
+    }
   }
 
   const outdoor: [string, Grid][] = [

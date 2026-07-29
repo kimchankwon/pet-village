@@ -177,9 +177,32 @@ export class BootScene extends Phaser.Scene {
         `assets/player/penguin/wave-${frame}.png`,
       );
     }
-    // The Skip Rope booth PNG placeholder lives under public/assets/misc/ —
-    // pixelart generates the matching key until it's replaced with final art
-    // (then load it here so it overrides the generated texture).
+    // Ice-town Imagine world props (buildings, booths, outdoor décor).
+    // Loaded before generateTextures so they override the grid fallbacks.
+    const WORLD_PROP_KEYS = [
+      'house',
+      'shop',
+      'cafe',
+      'fountain',
+      'tree',
+      'bush',
+      'rock',
+      'bench',
+      'streetlamp',
+      'mailbox',
+      'barrel',
+      'crate',
+      'signpost',
+      'dock',
+      'skiprope-booth',
+      'sled-hill',
+      'bump-arena',
+      'arcade',
+      'get-arcade',
+    ] as const;
+    for (const key of WORLD_PROP_KEYS) {
+      this.load.image(key, `assets/world/${key}.png`);
+    }
   }
 
   create() {
@@ -188,6 +211,17 @@ export class BootScene extends Phaser.Scene {
     this.loadingUi?.setProgress(1);
 
     generateTextures(this);
+
+    // Imagine world props: nearest-neighbour so big detailed sprites stay sharp.
+    for (const key of [
+      'house', 'shop', 'cafe', 'fountain', 'tree', 'bush', 'rock', 'bench',
+      'streetlamp', 'mailbox', 'barrel', 'crate', 'signpost', 'dock',
+      'skiprope-booth', 'sled-hill', 'bump-arena', 'arcade', 'get-arcade',
+    ]) {
+      if (this.textures.exists(key)) {
+        this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+      }
+    }
 
     // Source-plate frames (≫64px) scale down in-game — force nearest-neighbour
     // so they stay crisp (default linear filtering blurs chunky pixel art).

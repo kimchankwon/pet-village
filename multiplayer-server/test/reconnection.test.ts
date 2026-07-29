@@ -247,15 +247,15 @@ test('reconnect scene changes reset cross-scene coordinates and retain one desti
   (room as any).setActive(client, { active: true, scene: 'shore' });
   assert.deepEqual(
     { scene: player.scene, x: player.x, y: player.y },
-    { scene: 'shore', x: 432, y: 105.6 },
+    { scene: 'shore', x: 12 * 48, y: 2.2 * 48 },
   );
 
   (room as any).move(client, {
-    scene: 'shore', x: 432, y: 290.4, petX: 402, petY: 300.4, facing: 'down', moving: false, seq: 11,
+    scene: 'shore', x: 12 * 48, y: 8.5 * 48, petX: 12 * 48 - 30, petY: 8.5 * 48 + 10, facing: 'down', moving: false, seq: 11,
   });
   assert.deepEqual(
     { scene: player.scene, x: player.x, y: player.y, seq: player.seq },
-    { scene: 'shore', x: 432, y: 290.4, seq: 11 },
+    { scene: 'shore', x: 12 * 48, y: 8.5 * 48, seq: 11 },
   );
   assert.deepEqual(corrections, []);
 });
@@ -268,30 +268,30 @@ test('world-scene activation authorizes one move at an approved destination spaw
     send: (_type: string, payload: unknown) => corrections.push(payload),
   } as never;
   const player = room.state.players.get('session-a')!;
-  Object.assign(player, { active: true, scene: 'town', seq: 10, x: 528, y: 700, updatedAt: Date.now() });
+  Object.assign(player, { active: true, scene: 'town', seq: 10, x: 768, y: 696, updatedAt: Date.now() });
 
   (room as any).setActive(client, false);
   (room as any).setActive(client, {
     active: true,
     scene: 'shore',
-    pose: { x: 432, y: 290.4, petX: 402, petY: 300.4, facing: 'down', moving: false },
+    pose: { x: 576, y: 408, petX: 546, petY: 418, facing: 'down', moving: false },
   });
   assert.deepEqual(
     { scene: player.scene, x: player.x, y: player.y },
-    { scene: 'shore', x: 432, y: 290.4 },
+    { scene: 'shore', x: 576, y: 408 },
   );
   (room as any).move(client, {
-    scene: 'shore', x: 432, y: 290.4, petX: 402, petY: 300.4, facing: 'down', moving: false, seq: 11,
+    scene: 'shore', x: 576, y: 408, petX: 546, petY: 418, facing: 'down', moving: false, seq: 11,
   });
 
-  assert.deepEqual({ scene: player.scene, x: player.x, y: player.y, seq: player.seq }, { scene: 'shore', x: 432, y: 290.4, seq: 11 });
+  assert.deepEqual({ scene: player.scene, x: player.x, y: player.y, seq: player.seq }, { scene: 'shore', x: 576, y: 408, seq: 11 });
   assert.deepEqual(corrections, []);
 
   (room as any).move(client, {
-    scene: 'east-green', x: 76.8, y: 288, petX: 50, petY: 298, facing: 'down', moving: false, seq: 12,
+    scene: 'east-green', x: 96, y: 360, petX: 66, petY: 370, facing: 'down', moving: false, seq: 12,
   });
   assert.equal(player.scene, 'shore');
-  assert.deepEqual(corrections, [{ scene: 'shore', x: 432, y: 290.4, petX: 402, petY: 300.4 }]);
+  assert.deepEqual(corrections, [{ scene: 'shore', x: 576, y: 408, petX: 546, petY: 418 }]);
 });
 
 test('server rejects world transitions that do not follow a map portal', () => {
@@ -302,16 +302,16 @@ test('server rejects world transitions that do not follow a map portal', () => {
     send: (_type: string, payload: unknown) => corrections.push(payload),
   } as never;
   const player = room.state.players.get('session-a')!;
-  Object.assign(player, { active: true, scene: 'shore', seq: 10, x: 432, y: 300, petX: 402, petY: 310 });
+  Object.assign(player, { active: true, scene: 'shore', seq: 10, x: 576, y: 300, petX: 546, petY: 310 });
 
   (room as any).setActive(client, { active: true, scene: 'east-green' });
 
   assert.deepEqual(
     { active: player.active, scene: player.scene, x: player.x, y: player.y },
-    { active: true, scene: 'shore', x: 432, y: 300 },
+    { active: true, scene: 'shore', x: 576, y: 300 },
   );
   assert.deepEqual(corrections, [{
-    scene: 'shore', x: 432, y: 300, petX: 402, petY: 310, recoverScene: true,
+    scene: 'shore', x: 576, y: 300, petX: 546, petY: 310, recoverScene: true,
   }]);
 });
 
@@ -323,21 +323,22 @@ test('inactive to active authorizes exactly one approved Town re-entry spawn', (
     send: (_type: string, payload: unknown) => corrections.push(payload),
   } as never;
   const player = room.state.players.get('session-a')!;
-  Object.assign(player, { active: true, seq: 10, x: 900, y: 600, updatedAt: Date.now() });
+  Object.assign(player, { active: true, seq: 10, x: 1200, y: 800, updatedAt: Date.now() });
 
   (room as any).setActive(client, false);
   (room as any).setActive(client, true);
+  // House spawn on the expanded ice town map.
   (room as any).move(client, {
-    x: 528, y: 266.4, petX: 500, petY: 278, facing: 'down', moving: false, seq: 11,
+    x: 768, y: 345.6, petX: 738, petY: 355.6, facing: 'down', moving: false, seq: 11,
   });
-  assert.equal(player.x, 528);
-  assert.equal(player.y, 266.4);
+  assert.equal(player.x, 768);
+  assert.equal(player.y, 345.6);
   assert.equal(player.seq, 11);
   assert.deepEqual(corrections, []);
 
   (room as any).move(client, {
-    x: 76.8, y: 432, petX: 50, petY: 444, facing: 'down', moving: false, seq: 12,
+    x: 76.8, y: 504, petX: 50, petY: 514, facing: 'down', moving: false, seq: 12,
   });
-  assert.equal(player.x, 528);
+  assert.equal(player.x, 768);
   assert.equal(corrections.length, 1);
 });

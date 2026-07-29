@@ -10,3 +10,4 @@ dist/
 # Vite cache
 .vite/
 .playwright-shots/
+scripts/tmp/

@@ -47,12 +47,12 @@ test('admission validates issuer, audience, lifetime, and server secret', async 
   process.env.MULTIPLAYER_TICKET_SECRET = secretValue;
   const valid = await ticket();
   assert.equal((await verifyAdmission(valid)).sub, 'user-a');
-  assert.equal((await verifyAdmission(await ticket({ protocolVersion: 5 }))).sub, 'user-a');
   assert.equal((await verifyAdmission(await ticket({ protocolVersion: 6 }))).sub, 'user-a');
   assert.equal((await verifyAdmission(await ticket({ protocolVersion: 7 }))).sub, 'user-a');
-  // Four versions are supported at a time, so v8 slid v4 out of the window.
+  assert.equal((await verifyAdmission(await ticket({ protocolVersion: 8 }))).sub, 'user-a');
+  // Four versions are supported at a time, so v9 slid v5 out of the window.
+  await assert.rejects(verifyAdmission(await ticket({ protocolVersion: 5 })));
   await assert.rejects(verifyAdmission(await ticket({ protocolVersion: 4 })));
-  await assert.rejects(verifyAdmission(await ticket({ protocolVersion: 3 })));
   // Tickets are short-lived bearer credentials; reconnecting may reuse one until expiry.
   assert.equal((await verifyAdmission(valid)).sub, 'user-a');
   await assert.rejects(verifyAdmission(await ticket({ issuer: 'wrong' })));

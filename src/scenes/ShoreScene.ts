@@ -14,6 +14,7 @@ import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
 import { TILE } from '../systems/townMap';
 import {
+  DOCK_DISPLAY_H,
   SHORE_DOCK,
   SHORE_MAP_H,
   SHORE_MAP_W,
@@ -21,6 +22,13 @@ import {
   SHORE_WORLD_H,
   SHORE_WORLD_W,
 } from '../systems/shoreMap';
+import {
+  LAMP_DISPLAY_H,
+  PROP_DISPLAY_H,
+  scalePropToHeight,
+  SIGN_DISPLAY_H,
+  TREE_DISPLAY_H,
+} from '../systems/townMap';
 import { MiniteenNpc } from '../systems/miniteen';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { movementFacing } from '../systems/movementFacing';
@@ -260,21 +268,23 @@ export class ShoreScene extends Phaser.Scene {
       }
     }
 
-    // Path from town (north) down to the dock.
+    // Wide ice path from town (north) down to the dock.
     for (let ty = 0; ty <= SHORE_OCEAN_ROW - 2; ty++) {
-      this.add.image(8 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
-      this.add.image(9 * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      for (const tx of [11, 12, 13]) {
+        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      }
     }
-    for (let tx = 7; tx <= 11; tx++) {
+    for (let tx = 9; tx <= 15; tx++) {
       this.add.image(tx * TILE + TILE / 2, (SHORE_OCEAN_ROW - 2) * TILE + TILE / 2, 'tile-path').setDepth(-99);
     }
 
-    this.dockImg = this.add.image(SHORE_DOCK.tx * TILE, SHORE_DOCK.ty * TILE, 'dock').setScale(1.45);
-    this.dockImg.setDepth(propDepth(this.dockImg, SHORE_DOCK.ty * TILE + 6));
+    this.dockImg = this.add.image(SHORE_DOCK.tx * TILE, SHORE_DOCK.ty * TILE, 'dock');
+    scalePropToHeight(this.dockImg, DOCK_DISPLAY_H);
+    this.dockImg.setDepth(propDepth(this.dockImg, SHORE_DOCK.ty * TILE + 10));
     this.add
-      .text(SHORE_DOCK.tx * TILE, SHORE_DOCK.ty * TILE - 48, 'Fishing dock', {
+      .text(SHORE_DOCK.tx * TILE, SHORE_DOCK.ty * TILE - this.dockImg.displayHeight / 2 - 12, 'Fishing dock', {
         fontFamily: 'monospace',
-        fontSize: '12px',
+        fontSize: '13px',
         color: '#ffffff',
         stroke: '#1a1a2e',
         strokeThickness: 3,
@@ -285,22 +295,22 @@ export class ShoreScene extends Phaser.Scene {
     this.interactables.push({
       x: SHORE_DOCK.tx * TILE,
       y: SHORE_DOCK.ty * TILE,
-      radius: 90,
+      radius: 120,
       label: `E / click — Go fishing · bait ${fishingBaitCount(State.data.inventory)}`,
       action: () => this.goFishing(),
       targets: [this.dockImg],
     });
 
     // North edge auto-returns to town (no interactable — walk off the path).
-    // Signpost at the path so the way home is obvious.
-    const townSignTx = 10.4;
-    const townSignTy = 1.6;
-    const townSign = this.add.image(townSignTx * TILE, townSignTy * TILE, 'signpost').setScale(1.3);
-    townSign.setDepth(propDepth(townSign, townSignTy * TILE + 10));
+    const townSignTx = 14.2;
+    const townSignTy = 1.8;
+    const townSign = this.add.image(townSignTx * TILE, townSignTy * TILE, 'signpost');
+    scalePropToHeight(townSign, SIGN_DISPLAY_H);
+    townSign.setDepth(propDepth(townSign, townSignTy * TILE + 12));
     this.add
-      .text(townSignTx * TILE, townSignTy * TILE - 34, '↑ Town', {
+      .text(townSignTx * TILE, townSignTy * TILE - townSign.displayHeight / 2 - 10, '↑ Town', {
         fontFamily: 'monospace',
-        fontSize: '11px',
+        fontSize: '12px',
         color: '#ffe066',
         stroke: '#1a1a2e',
         strokeThickness: 3,
@@ -309,30 +319,42 @@ export class ShoreScene extends Phaser.Scene {
       .setDepth(900);
 
     this.scatterDecor();
-    this.decoSolids.push({ x: townSignTx * TILE, y: townSignTy * TILE + 10, w: 18, h: 12 });
+    this.decoSolids.push({ x: townSignTx * TILE, y: townSignTy * TILE + 12, w: 28, h: 18 });
   }
 
   private scatterDecor() {
-    type Spot = { tex: string; tx: number; ty: number; scale?: number; solid?: [number, number, number?] };
+    type Spot = {
+      tex: string;
+      tx: number;
+      ty: number;
+      displayH?: number;
+      solid?: [number, number, number?];
+    };
     const spots: Spot[] = [
-      { tex: 'tree', tx: 1.5, ty: 2.2, scale: 1.3, solid: [34, 26, 16] },
-      { tex: 'tree', tx: 16.3, ty: 2.4, scale: 1.3, solid: [34, 26, 16] },
-      { tex: 'bush', tx: 5, ty: 3.5, scale: 1.1, solid: [26, 16, 6] },
-      { tex: 'bush', tx: 13, ty: 3.6, scale: 1.1, solid: [26, 16, 6] },
-      { tex: 'wildflower', tx: 3.2, ty: 4.2, scale: 1.15 },
-      { tex: 'wildflower', tx: 14.5, ty: 4.4, scale: 1.15 },
-      { tex: 'rock', tx: 2, ty: 6.6, scale: 1.1, solid: [28, 18, 5] },
-      { tex: 'rock', tx: 15.8, ty: 6.7, scale: 1.1, solid: [28, 18, 5] },
-      { tex: 'bench', tx: 6.5, ty: 5.6, scale: 1.1, solid: [50, 20, 5] },
-      { tex: 'bench', tx: 11.5, ty: 5.6, scale: 1.1, solid: [50, 20, 5] },
-      { tex: 'streetlamp', tx: 7.5, ty: 4.8, scale: 1.25, solid: [16, 14, 18] },
-      { tex: 'streetlamp', tx: 10.5, ty: 4.8, scale: 1.25, solid: [16, 14, 18] },
-      { tex: 'barrel', tx: 7.8, ty: 6.7, scale: 1.1, solid: [26, 22, 4] },
-      { tex: 'crate', tx: 10.3, ty: 6.75, scale: 1.05, solid: [28, 22, 4] },
+      { tex: 'tree', tx: 2, ty: 2.4, displayH: TREE_DISPLAY_H, solid: [48, 36, 22] },
+      { tex: 'tree', tx: 22, ty: 2.6, displayH: TREE_DISPLAY_H, solid: [48, 36, 22] },
+      { tex: 'tree', tx: 3.2, ty: 8.2, displayH: TREE_DISPLAY_H * 0.9, solid: [44, 32, 18] },
+      { tex: 'tree', tx: 20.8, ty: 8.3, displayH: TREE_DISPLAY_H * 0.9, solid: [44, 32, 18] },
+      { tex: 'bush', tx: 6.5, ty: 4.2, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 24, 8] },
+      { tex: 'bush', tx: 17.5, ty: 4.3, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 24, 8] },
+      { tex: 'wildflower', tx: 4.2, ty: 5.4, displayH: 48 },
+      { tex: 'wildflower', tx: 19.5, ty: 5.6, displayH: 48 },
+      { tex: 'rock', tx: 2.5, ty: 9.2, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 28, 6] },
+      { tex: 'rock', tx: 21.5, ty: 9.3, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 28, 6] },
+      { tex: 'bench', tx: 8.5, ty: 7.4, displayH: PROP_DISPLAY_H, solid: [90, 32, 8] },
+      { tex: 'bench', tx: 15.5, ty: 7.4, displayH: PROP_DISPLAY_H, solid: [90, 32, 8] },
+      { tex: 'streetlamp', tx: 9.8, ty: 6.2, displayH: LAMP_DISPLAY_H, solid: [22, 20, 28] },
+      { tex: 'streetlamp', tx: 14.2, ty: 6.2, displayH: LAMP_DISPLAY_H, solid: [22, 20, 28] },
+      { tex: 'barrel', tx: 10.2, ty: 9.1, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 34, 6] },
+      { tex: 'crate', tx: 13.8, ty: 9.15, displayH: PROP_DISPLAY_H * 0.85, solid: [44, 34, 6] },
     ];
     this.decoSolids = [];
     for (const spot of spots) {
-      const img = this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex).setScale(spot.scale ?? 1.3);
+      const img = this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex);
+      const displayH =
+        spot.displayH ??
+        (spot.tex === 'tree' ? TREE_DISPLAY_H : spot.tex === 'streetlamp' ? LAMP_DISPLAY_H : PROP_DISPLAY_H);
+      scalePropToHeight(img, displayH);
       const footY = spot.solid ? spot.ty * TILE + (spot.solid[2] ?? 0) : undefined;
       img.setDepth(propDepth(img, footY));
       if (spot.solid) {
@@ -352,7 +374,7 @@ export class ShoreScene extends Phaser.Scene {
     // Block walking into the ocean — a wall along the shoreline.
     addSolid(SHORE_WORLD_W / 2, SHORE_OCEAN_ROW * TILE + 8, SHORE_WORLD_W, 24);
     // Dock is walkable up to the edge but solid enough to feel planted.
-    addSolid(SHORE_DOCK.tx * TILE, SHORE_DOCK.ty * TILE + 6, 90, 28);
+    addSolid(SHORE_DOCK.tx * TILE, SHORE_DOCK.ty * TILE + 10, 160, 40);
     for (const s of this.decoSolids) addSolid(s.x, s.y, s.w, s.h);
     this.physics.add.collider(this.player, solids);
   }
@@ -549,7 +571,7 @@ export class ShoreScene extends Phaser.Scene {
     for (const npc of this.npcs) npc.update();
 
     // Auto-return near the north path edge.
-    if (!uiOpen && this.player.y < 36 && Math.abs(this.player.x - 9 * TILE) < 70) {
+    if (!uiOpen && this.player.y < 36 && Math.abs(this.player.x - 12 * TILE) < 90) {
       this.scene.start('Town', { spawn: 'shore' });
       return;
     }
