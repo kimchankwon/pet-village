@@ -1488,7 +1488,8 @@ function makeTexture(scene: Phaser.Scene, key: string, grids: Grid[]) {
   }
 }
 
-// Simple flat-color tiles with a touch of noise for texture.
+// Flat ground tiles: soft base + sparse low-contrast flecks so snow doesn't
+// form a harsh grid under large outdoor props.
 function makeTile(scene: Phaser.Scene, key: string, base: string, speck: string, speckCount: number, size = 16) {
   const canvas = document.createElement('canvas');
   canvas.width = size * SCALE;
@@ -1497,17 +1498,21 @@ function makeTile(scene: Phaser.Scene, key: string, base: string, speck: string,
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = speck;
-  // deterministic speckle pattern
+  // deterministic speckle pattern — keep sparse so seams stay invisible
   let seed = key.length * 7 + size;
   const rand = () => {
     seed = (seed * 9301 + 49297) % 233280;
     return seed / 233280;
   };
-  for (let i = 0; i < speckCount; i++) {
+  const flecks = Math.max(3, Math.floor(speckCount * 0.45));
+  for (let i = 0; i < flecks; i++) {
     const x = Math.floor(rand() * size);
     const y = Math.floor(rand() * size);
-    ctx.fillRect(x * SCALE, y * SCALE, SCALE, SCALE);
+    // Single logical pixel flecks (not full SCALE blocks) read softer on snow.
+    ctx.globalAlpha = 0.35 + rand() * 0.25;
+    ctx.fillRect(x * SCALE, y * SCALE, Math.max(1, SCALE - 1), Math.max(1, SCALE - 1));
   }
+  ctx.globalAlpha = 1;
   scene.textures.addCanvas(key, canvas);
 }
 
@@ -2005,11 +2010,12 @@ export function generateTextures(scene: Phaser.Scene) {
       makeTexture(scene, ACCESSORIES[id as AccessoryId].texture, [grid as Grid]);
     }
     makeTexture(scene, 'bunny', [BUNNY]);
-    makeTexture(scene, 'tree', [TREE]);
-    makeTexture(scene, 'house', [HOUSE]);
-    makeTexture(scene, 'cafe', [CAFE]);
-    makeTexture(scene, 'arcade', [ARCADE]);
-    makeTexture(scene, 'get-arcade', [GET_ARCADE]);
+    // Outdoor props may already be Imagine PNGs from BootScene — never clobber.
+    if (!scene.textures.exists('tree')) makeTexture(scene, 'tree', [TREE]);
+    if (!scene.textures.exists('house')) makeTexture(scene, 'house', [HOUSE]);
+    if (!scene.textures.exists('cafe')) makeTexture(scene, 'cafe', [CAFE]);
+    if (!scene.textures.exists('arcade')) makeTexture(scene, 'arcade', [ARCADE]);
+    if (!scene.textures.exists('get-arcade')) makeTexture(scene, 'get-arcade', [GET_ARCADE]);
     if (!scene.textures.exists('skiprope-booth')) makeTexture(scene, 'skiprope-booth', [SKIPROPE_BOOTH]);
     if (!scene.textures.exists('sled-hill')) makeTexture(scene, 'sled-hill', [SLED_HILL]);
     makeTexture(scene, 'paperball', [PAPERBALL]);
@@ -2036,12 +2042,12 @@ export function generateTextures(scene: Phaser.Scene) {
     makeTexture(scene, 'item-flower', [FLOWER]);
     makeTexture(scene, 'item-lightstick', [LIGHTSTICK]);
 
-    // Draft B winter ground tiles (snow + ice paths).
-    makeTile(scene, 'tile-grass', '#e8f0f8', '#d5e2ef', 14);
-    makeTile(scene, 'tile-path', '#b8d4ea', '#9fc4df', 10);
-    makeTile(scene, 'tile-floor', '#d9b380', '#c9a06a', 8);
-    makeTile(scene, 'tile-wall', '#b085c9', '#9e6fbc', 6);
-    makeTile(scene, 'tile-snow', '#eef3f8', '#dde7f0', 8);
+    // Winter ground tiles (soft flecks — remade every cold start with penguin).
+    if (!scene.textures.exists('tile-grass')) makeTile(scene, 'tile-grass', '#e9f1f8', '#dfeaf3', 10);
+    if (!scene.textures.exists('tile-path')) makeTile(scene, 'tile-path', '#c5dcf0', '#b4d0e8', 8);
+    if (!scene.textures.exists('tile-floor')) makeTile(scene, 'tile-floor', '#d9b380', '#c9a06a', 8);
+    if (!scene.textures.exists('tile-wall')) makeTile(scene, 'tile-wall', '#b085c9', '#9e6fbc', 6);
+    if (!scene.textures.exists('tile-snow')) makeTile(scene, 'tile-snow', '#f2f6fa', '#e8eef5', 8);
   }
 
   if (!scene.textures.exists('cafe')) makeTexture(scene, 'cafe', [CAFE]);
@@ -2067,11 +2073,12 @@ export function generateTextures(scene: Phaser.Scene) {
   const ensureTile = (key: string, a: string, b: string, n: number) => {
     if (!scene.textures.exists(key)) makeTile(scene, key, a, b, n);
   };
-  ensureTile('tile-grass', '#e8f0f8', '#d5e2ef', 14);
-  ensureTile('tile-path', '#b8d4ea', '#9fc4df', 10);
-  ensureTile('tile-plaza', '#c5daf0', '#aecce6', 5);
-  ensureTile('tile-snow', '#eef3f8', '#dde7f0', 8);
-  ensureTile('tile-sand', '#e6e0d4', '#d4cdc0', 12);
+  // Soft winter palette — low contrast flecks so ground doesn't "stack" under props.
+  ensureTile('tile-grass', '#e9f1f8', '#dfeaf3', 10);
+  ensureTile('tile-path', '#c5dcf0', '#b4d0e8', 8);
+  ensureTile('tile-plaza', '#d2e4f4', '#c3daf0', 6);
+  ensureTile('tile-snow', '#f2f6fa', '#e8eef5', 8);
+  ensureTile('tile-sand', '#e8e4da', '#ddd6ca', 10);
   ensureTile('tile-ocean', '#4a8fbf', '#3a7aa8', 10);
   ensureTile('tile-ocean2', '#5a9dcb', '#4689b6', 10);
 
@@ -2082,13 +2089,17 @@ export function generateTextures(scene: Phaser.Scene) {
   if (!scene.textures.exists('fountain')) {
     makeTexture(scene, 'fountain', [FOUNTAIN_0, FOUNTAIN_1]);
   }
+  // Only animate multi-frame grid fountains. Imagine PNG is a single still.
   if (!scene.anims.exists('fountain-splash') && scene.textures.exists('fountain')) {
-    scene.anims.create({
-      key: 'fountain-splash',
-      frames: scene.anims.generateFrameNumbers('fountain', { start: 0, end: 1 }),
-      frameRate: 2.5,
-      repeat: -1,
-    });
+    const frameTotal = scene.textures.get('fountain').frameTotal;
+    if (frameTotal > 1) {
+      scene.anims.create({
+        key: 'fountain-splash',
+        frames: scene.anims.generateFrameNumbers('fountain', { start: 0, end: 1 }),
+        frameRate: 2.5,
+        repeat: -1,
+      });
+    }
   }
 
   const outdoor: [string, Grid][] = [

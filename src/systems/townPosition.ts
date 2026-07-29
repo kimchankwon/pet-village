@@ -9,8 +9,10 @@ export interface TownPosition {
 }
 
 export function isSafeTownPosition(x: number, y: number): boolean {
-  const leavesForShore = y > TOWN_WORLD_H - 52 && x > 8.5 * TILE && x < 13.5 * TILE;
-  const onParkGate = y > 8 * TILE && y < 10 * TILE && (x < 36 || x > TOWN_WORLD_W - 36);
+  // South ice path → Shore (center of map).
+  const leavesForShore = y > TOWN_WORLD_H - 52 && x > 14.5 * TILE && x < 17.5 * TILE;
+  // East/west ice paths → game parks (path rows ~10–11).
+  const onParkGate = y > 9.5 * TILE && y < 12 * TILE && (x < 36 || x > TOWN_WORLD_W - 36);
   return x >= 0 && x <= TOWN_WORLD_W && y >= 0 && y <= TOWN_WORLD_H && !leavesForShore && !onParkGate;
 }
 

@@ -69,7 +69,7 @@ export const MINITEEN: MiniteenDef[] = [
       'I did 100 hops this morning. Casually.',
     ],
     gift: 4,
-    home: { tx: 3.2, ty: 8.5 },
+    home: { tx: 4.5, ty: 12 },
     useSourcePlate: true,
   },
   {
@@ -85,7 +85,7 @@ export const MINITEEN: MiniteenDef[] = [
       'I flew here on a blanket. Don’t question it.',
     ],
     gift: 5,
-    home: { tx: 7.2, ty: 10.8 },
+    home: { tx: 10, ty: 14.5 },
     useSourcePlate: true,
   },
   {
@@ -101,7 +101,7 @@ export const MINITEEN: MiniteenDef[] = [
       'A clean path is a happy path, don’t you think?',
     ],
     gift: 3,
-    home: { tx: 8.8, ty: 6.4 },
+    home: { tx: 11.5, ty: 8.5 },
     useSourcePlate: true,
   },
   {
@@ -117,7 +117,7 @@ export const MINITEEN: MiniteenDef[] = [
       'Three cats, one tower. Perfect balance.',
     ],
     gift: 4,
-    home: { tx: 14.2, ty: 5.8 },
+    home: { tx: 20, ty: 8 },
     useSourcePlate: true,
   },
   {
@@ -133,7 +133,7 @@ export const MINITEEN: MiniteenDef[] = [
       'If you see me rolling, join in. That’s the rule.',
     ],
     gift: 5,
-    home: { tx: 18.5, ty: 8.2 },
+    home: { tx: 26.5, ty: 11 },
     useSourcePlate: true,
   },
   {
@@ -149,7 +149,7 @@ export const MINITEEN: MiniteenDef[] = [
       'I catalogued every tree in town. There are sixteen.',
     ],
     gift: 4,
-    home: { tx: 19.2, ty: 11.2 },
+    home: { tx: 27.5, ty: 15 },
     useSourcePlate: true,
   },
   {
@@ -165,7 +165,7 @@ export const MINITEEN: MiniteenDef[] = [
       'Small, dense, reliable. Like good rice.',
     ],
     gift: 4,
-    home: { tx: 7.5, ty: 12.2 },
+    home: { tx: 10, ty: 16.5 },
     useSourcePlate: true,
   },
   {
@@ -181,7 +181,7 @@ export const MINITEEN: MiniteenDef[] = [
       'Your pet smells like a FRIEND!',
     ],
     gift: 3,
-    home: { tx: 13.5, ty: 12.4 },
+    home: { tx: 18.5, ty: 16.8 },
     // High-res Imagine plate frames (npm run sprite:miniteen -- --plate doa)
     useSourcePlate: true,
   },
@@ -198,7 +198,7 @@ export const MINITEEN: MiniteenDef[] = [
       'I grew two millimetres this month. Leadership.',
     ],
     gift: 5,
-    home: { tx: 3.5, ty: 12.5 },
+    home: { tx: 5, ty: 16.5 },
     useSourcePlate: true,
   },
   {
@@ -214,7 +214,7 @@ export const MINITEEN: MiniteenDef[] = [
       'Tea first. Everything else after.',
     ],
     gift: 3,
-    home: { tx: 11, ty: 13.6 },
+    home: { tx: 14.5, ty: 18 },
     useSourcePlate: true,
   },
   {
@@ -230,7 +230,7 @@ export const MINITEEN: MiniteenDef[] = [
       'My leaf? Natural. My shine? Also natural.',
     ],
     gift: 5,
-    home: { tx: 15.2, ty: 14 },
+    home: { tx: 22, ty: 18.2 },
     useSourcePlate: true,
   },
   {
@@ -246,7 +246,7 @@ export const MINITEEN: MiniteenDef[] = [
       'I had a dream about this exact conversation. Weird.',
     ],
     gift: 4,
-    home: { tx: 19.5, ty: 5.6 },
+    home: { tx: 28, ty: 8 },
     useSourcePlate: true,
   },
   {
@@ -262,7 +262,7 @@ export const MINITEEN: MiniteenDef[] = [
       'The future of otter music starts HERE.',
     ],
     gift: 3,
-    home: { tx: 11, ty: 10.2 },
+    home: { tx: 16, ty: 13.5 },
     useSourcePlate: true,
   },
 ];

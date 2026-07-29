@@ -18,6 +18,33 @@ import { MINITEEN, miniteenTexPrefix } from '../systems/miniteen';
 
 const NPC_POSES = ['idle', 'walk1', 'walk2', 'happy', 'sad', 'jump'] as const;
 
+/**
+ * Outdoor hub Imagine plates only (buildings, booths, plaza décor).
+ * Floors, furniture, HUD icons, and mini-game props stay on pixel grids —
+ * large photo-style plates look oversized and muddy at UI/inventory sizes.
+ */
+const WORLD_PROP_KEYS = [
+  'house',
+  'shop',
+  'cafe',
+  'fountain',
+  'tree',
+  'bush',
+  'rock',
+  'bench',
+  'streetlamp',
+  'mailbox',
+  'barrel',
+  'crate',
+  'signpost',
+  'dock',
+  'skiprope-booth',
+  'sled-hill',
+  'bump-arena',
+  'arcade',
+  'get-arcade',
+] as const;
+
 const LOAD_BG = 0x0e1a28;
 const LOAD_PANEL = 0x1a2838;
 const LOAD_LINE = 0x3a5068;
@@ -177,9 +204,10 @@ export class BootScene extends Phaser.Scene {
         `assets/player/penguin/wave-${frame}.png`,
       );
     }
-    // The Skip Rope booth PNG placeholder lives under public/assets/misc/ —
-    // pixelart generates the matching key until it's replaced with final art
-    // (then load it here so it overrides the generated texture).
+    // Outdoor hub Imagine plates (override grid fallbacks in generateTextures).
+    for (const key of WORLD_PROP_KEYS) {
+      this.load.image(key, `assets/world/${key}.png`);
+    }
   }
 
   create() {
@@ -188,6 +216,13 @@ export class BootScene extends Phaser.Scene {
     this.loadingUi?.setProgress(1);
 
     generateTextures(this);
+
+    // Imagine outdoor props: nearest-neighbour so detailed plates stay sharp.
+    for (const key of WORLD_PROP_KEYS) {
+      if (this.textures.exists(key)) {
+        this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+      }
+    }
 
     // Source-plate frames (≫64px) scale down in-game — force nearest-neighbour
     // so they stay crisp (default linear filtering blurs chunky pixel art).

@@ -1,11 +1,12 @@
 import { MapSchema, Schema, defineTypes } from '@colyseus/schema';
 
-export const PROTOCOL_VERSION = 8 as const;
+export const PROTOCOL_VERSION = 9 as const;
 export const TICKET_ISSUER = 'pet-village-convex';
 export const TICKET_AUDIENCE = 'pet-village-multiplayer';
 export const ROOM_NAME = 'town_default';
 export const SLED_RUN_ROOM = 'sled_run';
-export const TOWN_BOUNDS = { width: 22 * 48, height: 16 * 48 } as const;
+/** Expanded ice-town hub (32×22 tiles × 48px). */
+export const TOWN_BOUNDS = { width: 32 * 48, height: 22 * 48 } as const;
 export const WORLD_SCENES = [
   'town',
   'shore',
@@ -17,37 +18,41 @@ export const WORLD_SCENES = [
 export type WorldScene = (typeof WORLD_SCENES)[number];
 export const WORLD_SCENE_BOUNDS: Record<WorldScene, { readonly width: number; readonly height: number }> = {
   town: TOWN_BOUNDS,
-  shore: { width: 18 * 48, height: 12 * 48 },
-  'west-green': { width: 16 * 48, height: 12 * 48 },
-  'east-green': { width: 16 * 48, height: 12 * 48 },
+  shore: { width: 24 * 48, height: 16 * 48 },
+  'west-green': { width: 24 * 48, height: 16 * 48 },
+  'east-green': { width: 24 * 48, height: 16 * 48 },
   'daniels-shop': { width: 12 * 48, height: 13 * 48 },
   'cafe-cinnamon': { width: 12 * 48, height: 13 * 48 },
 };
 type WorldSpawn = { readonly x: number; readonly y: number };
 export const WORLD_SCENE_NAMED_SPAWNS = {
   town: {
-    default: { x: 528, y: 508.8 },
-    house: { x: 528, y: 266.4 },
-    west: { x: 76.8, y: 432 },
-    east: { x: 979.2, y: 432 },
-    shop: { x: 825.6, y: 283.2 },
-    cafe: { x: 230.4, y: 283.2 },
-    shore: { x: 504, y: 662.4 },
+    // Plaza south of the ice fountain (tile 16, 14.5).
+    default: { x: 16 * 48, y: 14.5 * 48 },
+    house: { x: 16 * 48, y: 7.2 * 48 },
+    west: { x: 1.6 * 48, y: 10.5 * 48 },
+    east: { x: 30.4 * 48, y: 10.5 * 48 },
+    shop: { x: 26 * 48, y: 7.6 * 48 },
+    cafe: { x: 6 * 48, y: 7.6 * 48 },
+    shore: { x: 16 * 48, y: 20.5 * 48 },
   },
   shore: {
-    default: { x: 432, y: 105.6 },
-    fishing: { x: 432, y: 290.4 },
+    default: { x: 12 * 48, y: 2.2 * 48 },
+    fishing: { x: 12 * 48, y: 8.5 * 48 },
+    town: { x: 12 * 48, y: 2.2 * 48 },
   },
   'west-green': {
-    default: { x: 691.2, y: 288 },
-    skiprope: { x: 211.2, y: 225.6 },
-    bump: { x: 508.8, y: 225.6 },
-    'sled-run': { x: 638.4, y: 225.6 },
+    default: { x: 22 * 48, y: 7.5 * 48 },
+    town: { x: 22 * 48, y: 7.5 * 48 },
+    skiprope: { x: 5 * 48, y: 4.5 * 48 },
+    bump: { x: 12 * 48, y: 4.5 * 48 },
+    'sled-run': { x: 19 * 48, y: 4.5 * 48 },
   },
   'east-green': {
-    default: { x: 76.8, y: 288 },
-    arcade: { x: 249.6, y: 225.6 },
-    get: { x: 518.4, y: 225.6 },
+    default: { x: 2 * 48, y: 7.5 * 48 },
+    town: { x: 2 * 48, y: 7.5 * 48 },
+    arcade: { x: 7 * 48, y: 4.5 * 48 },
+    get: { x: 16 * 48, y: 4.5 * 48 },
   },
   'daniels-shop': { default: { x: 288, y: 498 } },
   'cafe-cinnamon': { default: { x: 288, y: 498 } },

@@ -12,8 +12,23 @@ import { attachCameraZoom, type CameraZoom } from '../systems/cameraZoom';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
-import { TILE } from '../systems/townMap';
-import { PARK_MAP_H, PARK_MAP_W, PARK_PATH_TY, PARK_WORLD_H, PARK_WORLD_W } from '../systems/parkMap';
+import {
+  LAMP_DISPLAY_H,
+  placeGroundTile,
+  PROP_DISPLAY_H,
+  scalePropToHeight,
+  SIGN_DISPLAY_H,
+  TILE,
+  TREE_DISPLAY_H,
+} from '../systems/townMap';
+import {
+  BOOTH_DISPLAY_H,
+  PARK_MAP_H,
+  PARK_MAP_W,
+  PARK_PATH_TY,
+  PARK_WORLD_H,
+  PARK_WORLD_W,
+} from '../systems/parkMap';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { MiniteenNpc } from '../systems/miniteen';
 import {
@@ -49,13 +64,20 @@ interface ParkBooth {
   spawnId: string;
   tx: number;
   ty: number;
-  scale: number;
+  /** Target on-screen height for the Imagine booth sprite. */
+  displayH: number;
   radius: number;
   /** Collider [w, h, yOffset]. */
   solid: [number, number, number?];
 }
 
-type Spot = { tex: string; tx: number; ty: number; scale?: number; solid?: [number, number, number?] };
+type Spot = {
+  tex: string;
+  tx: number;
+  ty: number;
+  displayH?: number;
+  solid?: [number, number, number?];
+};
 
 interface ParkConfig {
   /** Phaser scene key. */
@@ -269,32 +291,39 @@ export class ParkScene extends Phaser.Scene {
   private buildMap() {
     for (let ty = 0; ty < PARK_MAP_H; ty++) {
       for (let tx = 0; tx < PARK_MAP_W; tx++) {
-        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-grass').setDepth(-100);
+        placeGroundTile(this, tx, ty, 'tile-grass', -100);
       }
     }
 
-    // Connecting path across the park to the town edge.
+    // Ice path across the park to the town edge + a small plaza pad.
     for (const ty of PARK_PATH_TY) {
       for (let tx = 0; tx < PARK_MAP_W; tx++) {
-        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+        placeGroundTile(this, tx, ty, 'tile-path', -99);
+      }
+    }
+    for (let ty = 5; ty <= 6; ty++) {
+      for (let tx = 3; tx < PARK_MAP_W - 3; tx++) {
+        placeGroundTile(this, tx, ty, 'tile-plaza', -99);
       }
     }
     // Short stubs from the path up to each booth front.
     for (const booth of this.cfg.booths) {
       const tx = Math.round(booth.tx - 0.5);
-      for (let ty = Math.round(booth.ty + 1); ty < PARK_PATH_TY[0]; ty++) {
-        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+      for (let ty = Math.round(booth.ty + 1.2); ty < PARK_PATH_TY[0]; ty++) {
+        placeGroundTile(this, tx, ty, 'tile-path', -99);
+        placeGroundTile(this, tx + 1, ty, 'tile-path', -99);
       }
     }
 
     for (const booth of this.cfg.booths) {
-      const img = this.add.image(booth.tx * TILE, booth.ty * TILE, booth.texture).setScale(booth.scale);
-      img.setDepth(propDepth(img, booth.ty * TILE));
+      const img = this.add.image(booth.tx * TILE, booth.ty * TILE, booth.texture);
+      scalePropToHeight(img, booth.displayH);
+      img.setDepth(propDepth(img, booth.ty * TILE + 20));
       this.boothImgs.push({ img, booth });
       this.add
-        .text(booth.tx * TILE, booth.ty * TILE - img.displayHeight / 2 - 12, booth.label, {
+        .text(booth.tx * TILE, booth.ty * TILE - img.displayHeight / 2 - 14, booth.label, {
           fontFamily: 'monospace',
-          fontSize: '12px',
+          fontSize: '13px',
           color: '#ffffff',
           stroke: '#1a1a2e',
           strokeThickness: 3,
@@ -303,7 +332,7 @@ export class ParkScene extends Phaser.Scene {
         .setDepth(900);
       this.interactables.push({
         x: booth.tx * TILE,
-        y: booth.ty * TILE,
+        y: booth.ty * TILE + 24,
         radius: booth.radius,
         label: booth.prompt,
         action: () => this.enterGame(booth.sceneKey),
@@ -312,37 +341,42 @@ export class ParkScene extends Phaser.Scene {
     }
 
     // Signpost at the town-side edge so the way home is obvious.
-    const signTx = this.cfg.exitEdge === 'east' ? PARK_MAP_W - 1.2 : 1.2;
-    const sign = this.add.image(signTx * TILE, 4.2 * TILE, 'signpost').setScale(1.3);
-    sign.setDepth(propDepth(sign, 4.2 * TILE + 10));
+    const signTx = this.cfg.exitEdge === 'east' ? PARK_MAP_W - 1.4 : 1.4;
+    const sign = this.add.image(signTx * TILE, 6.2 * TILE, 'signpost');
+    scalePropToHeight(sign, SIGN_DISPLAY_H);
+    sign.setDepth(propDepth(sign, 6.2 * TILE + 12));
     this.add
-      .text(signTx * TILE, 4.2 * TILE - 34, this.cfg.exitEdge === 'east' ? 'Town →' : '← Town', {
+      .text(signTx * TILE, 6.2 * TILE - sign.displayHeight / 2 - 10, this.cfg.exitEdge === 'east' ? 'Town →' : '← Town', {
         fontFamily: 'monospace',
-        fontSize: '11px',
+        fontSize: '12px',
         color: '#ffe066',
         stroke: '#1a1a2e',
         strokeThickness: 3,
       })
       .setOrigin(0.5)
       .setDepth(900);
-    this.decoSolids = [{ x: signTx * TILE, y: 4.2 * TILE + 10, w: 18, h: 12 }];
+    this.decoSolids = [{ x: signTx * TILE, y: 6.2 * TILE + 12, w: 28, h: 18 }];
 
     this.scatterDecor();
   }
 
   private parkNpcWaypoints(index: number) {
-    const shift = index * 0.5;
+    const shift = index * 0.6;
     return [
-      { x: (3.2 + shift) * TILE, y: 7.4 * TILE },
-      { x: (6.4 + shift) * TILE, y: 8.7 * TILE },
-      { x: (9.5 - shift) * TILE, y: 6.9 * TILE },
-      { x: (12.5 - shift) * TILE, y: 9.1 * TILE },
+      { x: (4 + shift) * TILE, y: 10.2 * TILE },
+      { x: (9 + shift) * TILE, y: 11.8 * TILE },
+      { x: (14 - shift) * TILE, y: 9.6 * TILE },
+      { x: (19 - shift) * TILE, y: 12.2 * TILE },
     ];
   }
 
   private scatterDecor() {
     for (const spot of this.cfg.decor) {
-      const img = this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex).setScale(spot.scale ?? 1.3);
+      const img = this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex);
+      const displayH =
+        spot.displayH ??
+        (spot.tex === 'tree' ? TREE_DISPLAY_H : spot.tex === 'streetlamp' ? LAMP_DISPLAY_H : PROP_DISPLAY_H);
+      scalePropToHeight(img, displayH);
       const footY = spot.solid ? spot.ty * TILE + (spot.solid[2] ?? 0) : spot.ty * TILE;
       img.setDepth(propDepth(img, footY));
       if (spot.solid) {
@@ -615,11 +649,11 @@ export class WestParkScene extends ParkScene {
           prompt: 'E / Space / click — Skip Rope',
           sceneKey: 'SkipRope',
           spawnId: 'skiprope',
-          tx: 4.4,
-          ty: 3.1,
-          scale: 1.55,
-          radius: 72,
-          solid: [52, 40, 0],
+          tx: 5,
+          ty: 3.4,
+          displayH: BOOTH_DISPLAY_H,
+          radius: 110,
+          solid: [160, 100, 24],
         },
         {
           texture: 'bump-arena',
@@ -627,11 +661,11 @@ export class WestParkScene extends ParkScene {
           prompt: 'E / Space / click — Play Bump',
           sceneKey: 'Bump',
           spawnId: 'bump',
-          tx: 10.6,
-          ty: 3.1,
-          scale: 1.6,
-          radius: 72,
-          solid: [58, 38, 4],
+          tx: 12,
+          ty: 3.4,
+          displayH: BOOTH_DISPLAY_H,
+          radius: 110,
+          solid: [170, 100, 24],
         },
         {
           texture: 'sled-hill',
@@ -639,25 +673,27 @@ export class WestParkScene extends ParkScene {
           prompt: 'E / Space / click — Sled Run',
           sceneKey: 'SledRun',
           spawnId: 'sled-run',
-          tx: 13.3,
-          ty: 3.1,
-          scale: 1.55,
-          radius: 72,
-          solid: [52, 40, 0],
+          tx: 19,
+          ty: 3.4,
+          displayH: BOOTH_DISPLAY_H,
+          radius: 110,
+          solid: [170, 100, 24],
         },
       ],
       decor: [
-        { tex: 'tree', tx: 1.4, ty: 1.6, scale: 1.3, solid: [34, 26, 16] },
-        { tex: 'tree', tx: 13.8, ty: 9.8, scale: 1.3, solid: [34, 26, 16] },
-        { tex: 'tree', tx: 1.6, ty: 9.6, scale: 1.25, solid: [34, 26, 16] },
-        { tex: 'bush', tx: 7.6, ty: 1.6, scale: 1.1, solid: [26, 16, 6] },
-        { tex: 'wildflower', tx: 2.6, ty: 4.1, scale: 1.15 },
-        { tex: 'wildflower', tx: 8.2, ty: 8.4, scale: 1.15 },
-        { tex: 'bench', tx: 5.4, ty: 8, scale: 1.1, solid: [50, 20, 5] },
-        { tex: 'bench', tx: 10.6, ty: 8, scale: 1.1, solid: [50, 20, 5] },
-        { tex: 'streetlamp', tx: 7.9, ty: 4.3, scale: 1.25, solid: [16, 14, 18] },
-        { tex: 'mushroom', tx: 3.4, ty: 10.6, scale: 1.15 },
-        { tex: 'stump', tx: 11.8, ty: 10.4, scale: 1.15, solid: [26, 14, 2] },
+        { tex: 'tree', tx: 1.6, ty: 1.8, displayH: TREE_DISPLAY_H, solid: [48, 36, 22] },
+        { tex: 'tree', tx: 22.2, ty: 13.2, displayH: TREE_DISPLAY_H, solid: [48, 36, 22] },
+        { tex: 'tree', tx: 1.8, ty: 13, displayH: TREE_DISPLAY_H * 0.95, solid: [46, 34, 20] },
+        { tex: 'bush', tx: 8.5, ty: 1.7, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 24, 8] },
+        { tex: 'bush', tx: 15.5, ty: 1.7, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 24, 8] },
+        { tex: 'wildflower', tx: 3.2, ty: 5.4, displayH: 48 },
+        { tex: 'wildflower', tx: 11.5, ty: 11.6, displayH: 48 },
+        { tex: 'bench', tx: 7.5, ty: 10.6, displayH: PROP_DISPLAY_H, solid: [90, 32, 8] },
+        { tex: 'bench', tx: 16.5, ty: 10.6, displayH: PROP_DISPLAY_H, solid: [90, 32, 8] },
+        { tex: 'streetlamp', tx: 10.5, ty: 6.2, displayH: LAMP_DISPLAY_H, solid: [22, 20, 28] },
+        { tex: 'mushroom', tx: 4.2, ty: 14.2, displayH: 52 },
+        { tex: 'stump', tx: 20.5, ty: 14, displayH: 70, solid: [36, 22, 4] },
+        { tex: 'rock', tx: 21.5, ty: 5.8, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 28, 6] },
       ],
     });
   }
@@ -679,11 +715,11 @@ export class EastParkScene extends ParkScene {
           prompt: 'E / Space / click — Play Paper Toss',
           sceneKey: 'PaperToss',
           spawnId: 'arcade',
-          tx: 5.2,
-          ty: 3.1,
-          scale: 1.5,
-          radius: 72,
-          solid: [58, 38, 2],
+          tx: 7,
+          ty: 3.4,
+          displayH: BOOTH_DISPLAY_H,
+          radius: 110,
+          solid: [150, 100, 24],
         },
         {
           texture: 'get-arcade',
@@ -691,27 +727,28 @@ export class EastParkScene extends ParkScene {
           prompt: 'E / Space / click — Play Get',
           sceneKey: 'Get',
           spawnId: 'get',
-          tx: 10.8,
-          ty: 3.1,
-          scale: 1.5,
-          radius: 72,
-          solid: [58, 38, 2],
+          tx: 16,
+          ty: 3.4,
+          displayH: BOOTH_DISPLAY_H,
+          radius: 110,
+          solid: [150, 100, 24],
         },
       ],
       decor: [
-        { tex: 'tree', tx: 14.4, ty: 1.6, scale: 1.3, solid: [34, 26, 16] },
-        { tex: 'tree', tx: 2.2, ty: 9.8, scale: 1.3, solid: [34, 26, 16] },
-        { tex: 'tree', tx: 14.2, ty: 9.6, scale: 1.25, solid: [34, 26, 16] },
-        { tex: 'bush', tx: 4.4, ty: 1.7, scale: 1.1, solid: [26, 16, 6] },
-        { tex: 'bush', tx: 11.6, ty: 1.6, scale: 1.1, solid: [26, 16, 6] },
-        { tex: 'wildflower', tx: 3, ty: 4.2, scale: 1.15 },
-        { tex: 'wildflower', tx: 12.8, ty: 4.1, scale: 1.15 },
-        { tex: 'wildflower', tx: 7.4, ty: 8.5, scale: 1.15 },
-        { tex: 'bench', tx: 5.6, ty: 8, scale: 1.1, solid: [50, 20, 5] },
-        { tex: 'bench', tx: 10.4, ty: 8, scale: 1.1, solid: [50, 20, 5] },
-        { tex: 'streetlamp', tx: 8, ty: 4.3, scale: 1.25, solid: [16, 14, 18] },
-        { tex: 'barrel', tx: 13.2, ty: 4.4, scale: 1.1, solid: [26, 22, 4] },
-        { tex: 'rock', tx: 12.6, ty: 10.4, scale: 1.1, solid: [28, 18, 5] },
+        { tex: 'tree', tx: 22.2, ty: 1.8, displayH: TREE_DISPLAY_H, solid: [48, 36, 22] },
+        { tex: 'tree', tx: 2.2, ty: 13.2, displayH: TREE_DISPLAY_H, solid: [48, 36, 22] },
+        { tex: 'tree', tx: 22, ty: 13, displayH: TREE_DISPLAY_H * 0.95, solid: [46, 34, 20] },
+        { tex: 'bush', tx: 4.5, ty: 1.7, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 24, 8] },
+        { tex: 'bush', tx: 11.5, ty: 1.6, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 24, 8] },
+        { tex: 'bush', tx: 18.5, ty: 1.7, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 24, 8] },
+        { tex: 'wildflower', tx: 3.5, ty: 5.4, displayH: 48 },
+        { tex: 'wildflower', tx: 12.5, ty: 5.3, displayH: 48 },
+        { tex: 'wildflower', tx: 10.5, ty: 11.6, displayH: 48 },
+        { tex: 'bench', tx: 7.5, ty: 10.6, displayH: PROP_DISPLAY_H, solid: [90, 32, 8] },
+        { tex: 'bench', tx: 15.5, ty: 10.6, displayH: PROP_DISPLAY_H, solid: [90, 32, 8] },
+        { tex: 'streetlamp', tx: 11.5, ty: 6.2, displayH: LAMP_DISPLAY_H, solid: [22, 20, 28] },
+        { tex: 'barrel', tx: 20.5, ty: 5.8, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 34, 6] },
+        { tex: 'rock', tx: 19.5, ty: 14, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 28, 6] },
       ],
     });
   }

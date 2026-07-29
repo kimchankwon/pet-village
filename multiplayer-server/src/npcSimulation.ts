@@ -19,16 +19,16 @@ function homeWaypoints(tx: number, ty: number, index: number): Point[] {
   ].map(([ox, oy]) => ({ x: (tx + ox!) * TILE, y: (ty + oy!) * TILE }));
 }
 
-/** Bongbongee lives in Town permanently and walks the whole square. */
+/** Bongbongee lives in Town permanently and walks the whole ice plaza. */
 const BONGBONGEE: NpcDefinition = {
   id: 'bongbongee',
   speed: 50,
   waypoints: [
-    { x: 7.5 * TILE, y: 9.5 * TILE },
-    { x: 14 * TILE, y: 7.2 * TILE },
-    { x: 18 * TILE, y: 10 * TILE },
-    { x: 8.5 * TILE, y: 12 * TILE },
-    { x: 14.5 * TILE, y: 11.5 * TILE },
+    { x: 10 * TILE, y: 12.5 * TILE },
+    { x: 20 * TILE, y: 9.5 * TILE },
+    { x: 26 * TILE, y: 13 * TILE },
+    { x: 11 * TILE, y: 16 * TILE },
+    { x: 20 * TILE, y: 15.5 * TILE },
   ],
 };
 
@@ -38,17 +38,16 @@ const BONGBONGEE: NpcDefinition = {
  * and the two Greens are not in here: a villager is only ever in one place.
  */
 const TOWN_RESIDENTS: NpcDefinition[] = [
-  { id: 'shuasumi', speed: 40, waypoints: homeWaypoints(8.8, 6.4, 0) },
-  { id: 'ocl', speed: 46, waypoints: homeWaypoints(14.2, 5.8, 1) },
-  { id: 'tamtam', speed: 52, waypoints: homeWaypoints(18.5, 8.2, 2) },
-  { id: 'foxdungee', speed: 58, waypoints: homeWaypoints(19.2, 11.2, 3) },
-  { id: 'ppyopuli', speed: 42, waypoints: homeWaypoints(7.5, 12.2, 4) },
-  { id: 'doa', speed: 56, waypoints: homeWaypoints(13.5, 12.4, 5) },
-  { id: 'kimja', speed: 38, waypoints: homeWaypoints(3.5, 12.5, 6) },
-  { id: 'bboogyuli', speed: 48, waypoints: homeWaypoints(15.2, 14, 7) },
-  { id: 'nonver', speed: 44, waypoints: homeWaypoints(19.5, 5.6, 8) },
+  { id: 'shuasumi', speed: 40, waypoints: homeWaypoints(11.5, 8.5, 0) },
+  { id: 'ocl', speed: 46, waypoints: homeWaypoints(20, 8, 1) },
+  { id: 'tamtam', speed: 52, waypoints: homeWaypoints(26.5, 11, 2) },
+  { id: 'foxdungee', speed: 58, waypoints: homeWaypoints(27.5, 15, 3) },
+  { id: 'ppyopuli', speed: 42, waypoints: homeWaypoints(10, 16.5, 4) },
+  { id: 'doa', speed: 56, waypoints: homeWaypoints(18.5, 16.8, 5) },
+  { id: 'kimja', speed: 38, waypoints: homeWaypoints(5, 16.5, 6) },
+  { id: 'bboogyuli', speed: 48, waypoints: homeWaypoints(22, 18.2, 7) },
+  { id: 'nonver', speed: 44, waypoints: homeWaypoints(28, 8, 8) },
 ];
-
 /** How many of them are out at once. */
 export const TOWN_RESIDENT_COUNT = 4;
 /**
