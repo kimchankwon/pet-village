@@ -40,9 +40,8 @@ export class CinnamorollNpc extends WandererNpc {
       speed: 42,
       pauseMs: [1800, 3600],
     });
-    // Frames are ~21px tall; sit a notch above the pet's 1.5×32 (~48px)
-    // display height so the shopkeeper reads as a character, not a giant.
-    this.sprite.setScale(56 / this.sprite.height);
+    // Frames are ~21px tall — WandererNpc scales them to the shared
+    // penguin-tall villager height, so no override here.
   }
 
   protected override openTalk(cbs: NpcTalkCallbacks) {

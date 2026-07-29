@@ -40,12 +40,18 @@ import { beginTextEntry, endTextEntry } from './textEntry';
 const COMPOSER_DEPTH = 1600;
 const OPEN_KEY = 't';
 
+const HINT_TEXT = `Enter send · Esc or tap away · ${CHAT_MAX_LENGTH} max`;
+const HINT_COLOR = '#8a8a9e';
+/** Long enough to read, short enough that the hint is back before you retry. */
+const HINT_NUDGE_MS = 1_200;
+
 export type ChatComposerOptions = {
   /** False while a menu owns the keyboard, so T does not steal it. */
   canOpen: () => boolean;
   /**
    * Post a finished line. False means it was refused — the cooldown has not run
-   * out — and the draft is kept so Enter can try again a moment later.
+   * out — and the draft is kept so Enter can try again a moment later. A line
+   * with no server to reach is not a refusal: it is shown locally and sends.
    */
   onSend: (text: string) => boolean;
 };
@@ -94,10 +100,10 @@ export class ChatComposer {
       .setDepth(COMPOSER_DEPTH)
       .setVisible(false);
     this.hint = scene.add
-      .text(0, 0, `Enter send · Esc or tap away · ${CHAT_MAX_LENGTH} max`, {
+      .text(0, 0, HINT_TEXT, {
         fontFamily: 'monospace',
         fontSize: '10px',
-        color: '#8a8a9e',
+        color: HINT_COLOR,
       })
       .setOrigin(0.5, 1)
       .setScrollFactor(0)
@@ -166,6 +172,16 @@ export class ChatComposer {
 
   private onKeyDown(event: KeyboardEvent) {
     if (this.disposed) return;
+    /**
+     * A keystroke the field received is never a request to open.
+     *
+     * Phaser works through its key queue in the scene's update step, long after
+     * the field's own listener has run. So the 't' in "warm hat please" is still
+     * sitting in that queue when Enter sends the line and closes us, and arrives
+     * here a frame later to find the composer shut — and opens it again. Reading
+     * `opened` alone cannot catch it: by then it is already false.
+     */
+    if (event.target === this.field) return;
     // Open is the only thing read from here: once the field has focus it is the
     // one being typed into, and this listener would only see the same keys twice.
     if (this.opened) return;
@@ -239,7 +255,8 @@ export class ChatComposer {
     // the alphabet — the field would be typed into with half the letters missing.
     beginTextEntry();
     this.line.setVisible(true);
-    this.hint.setVisible(true);
+    // A close mid-nudge leaves the flashed text behind; every line starts fresh.
+    this.hint.setText(HINT_TEXT).setColor(HINT_COLOR).setVisible(true);
     this.field.value = '';
     this.field.style.display = 'block';
     this.render();
@@ -251,8 +268,27 @@ export class ChatComposer {
 
   private send() {
     const text = chatDraftToSend(this.draft);
-    if (text && !this.options.onSend(text)) return;
+    if (text && !this.options.onSend(text)) {
+      // Refused, and the draft stays put. Say so on the hint line: an Enter that
+      // changes nothing on screen is indistinguishable from a broken key.
+      this.nudgeHint();
+      return;
+    }
     this.close();
+  }
+
+  /**
+   * Flash the hint line when a message was held back, then put it back.
+   *
+   * Timed through the scene rather than window.setTimeout so leaving the scene
+   * mid-flash cannot restore the hint on a composer that no longer exists.
+   */
+  private nudgeHint() {
+    this.hint.setText('One moment — catching your breath…').setColor('#ffe066');
+    this.scene.time.delayedCall(HINT_NUDGE_MS, () => {
+      if (this.disposed) return;
+      this.hint.setText(HINT_TEXT).setColor(HINT_COLOR);
+    });
   }
 
   close() {
@@ -272,6 +308,7 @@ export class ChatComposer {
     // this the next frame reads them as a fresh press (a typed 'i' would open
     // the inventory the moment the composer closed).
     this.scene.input.keyboard?.resetKeys();
+    dropQueuedKeys(this.scene);
   }
 
   /** Blinks the caret and acts on a tap-away; the scene calls this every frame. */
@@ -310,6 +347,24 @@ export class ChatComposer {
     this.line.destroy();
     this.hint.destroy();
   }
+}
+
+/**
+ * Throw away the keystrokes that piled up while the field had focus.
+ *
+ * Phaser's keyboard manager collects every keydown into a queue its plugin
+ * drains during the scene's input step. While the composer is open that drain
+ * stalls, so closing it hands the scene the entire message at once — including
+ * the `t` that opened the composer in the first place, which promptly opens it
+ * again. Every one of those keys was typed into the field and has already been
+ * dealt with; none of them is the game's to read.
+ *
+ * `queue` is Phaser's own array and is not in the public typings, so it is
+ * reached through a narrow structural cast rather than a blanket `any`.
+ */
+function dropQueuedKeys(scene: Phaser.Scene) {
+  const manager = scene.input.keyboard?.manager as { queue?: unknown[] } | undefined;
+  if (manager?.queue) manager.queue.length = 0;
 }
 
 /**

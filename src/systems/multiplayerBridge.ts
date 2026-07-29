@@ -5,7 +5,7 @@ import {
   type WorldScene,
 } from '@pet-village/multiplayer-protocol';
 
-import { CHAT_SEND_INTERVAL_MS } from './chat';
+import { CHAT_SEND_INTERVAL_MS, type ChatSendResult } from './chat';
 import { noteChatLogPresence, resetChatLogPresence } from './chatLog';
 import type { EquippedAccessories } from './GameState';
 
@@ -309,19 +309,24 @@ export const multiplayerBridge = {
     actions?.wave(id);
   },
   /**
-   * Send a message, and say whether it actually went out. The sender's own
-   * bubble is optimistic, so this is where the two things the server also checks
-   * are checked first: there has to be a connection and a world to stand in, and
-   * the cooldown is kept here rather than in a scene because a world transition
-   * builds a new `WorldMultiplayer` while the server keeps counting from the last
-   * message. Wider than the server's floor so the boundary is never a race.
+   * Send a message, and say what became of it.
+   *
+   * The sender's own bubble is optimistic, so the cooldown is checked here
+   * rather than in a scene: a world transition builds a new `WorldMultiplayer`
+   * while the server keeps counting from the last message. Wider than the
+   * server's floor so the boundary is never a race.
+   *
+   * With no connection or no world to stand in there is nothing to send to, but
+   * the line is still the player's own — `offline` says so, and the caller shows
+   * it locally. Reporting that as a plain failure is what left Enter looking
+   * broken for every single-player session.
    */
-  chat(text: string) {
-    if (!actions || !worldActivation) return false;
+  chat(text: string): ChatSendResult {
     const now = Date.now();
-    if (now - lastChatSentAt < CHAT_SEND_INTERVAL_MS) return false;
+    if (now - lastChatSentAt < CHAT_SEND_INTERVAL_MS) return 'cooldown';
     lastChatSentAt = now;
+    if (!actions || !worldActivation) return 'offline';
     actions.chat(text);
-    return true;
+    return 'sent';
   },
 };

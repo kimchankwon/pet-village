@@ -159,7 +159,7 @@ export class SkipRopeScene extends Phaser.Scene {
     this.petBaseY = PET_GROUND_Y;
     this.petSprite = this.add
       .sprite(this.petX, this.petBaseY, petTextureKey(State.data.petSpecies, 'idle1'))
-      .setScale(petDrawScale(this, State.data.petSpecies, 74))
+      .setScale(petDrawScale(this, State.data.petSpecies))
       .setDepth(10);
     this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
 
@@ -296,8 +296,7 @@ export class SkipRopeScene extends Phaser.Scene {
       const prefix = picks[i]!;
       const baseX = this.petX + (side === 'left' ? -HANDLE_DX : HANDLE_DX);
       const baseY = this.ropeBottomY - 8;
-      const classic = prefix === 'cinna' ? 1.45 : 1.7;
-      const scale = miniteenDrawScale(this, prefix, classic);
+      const scale = miniteenDrawScale(this, prefix);
       const sprite = this.add
         .sprite(baseX, baseY, `${prefix}-idle`)
         .setScale(scale)
@@ -349,38 +348,17 @@ export class SkipRopeScene extends Phaser.Scene {
     Phaser.Utils.Array.Shuffle(available);
     const count = Phaser.Math.Clamp(Phaser.Math.Between(2, 4), 2, Math.min(4, available.length));
     // Farther from the rope than the holders — outer side bleachers.
-    const slots: { x: number; y: number; flip: boolean; scale: number }[] = [
-      {
-        x: this.petX - HANDLE_DX - AUDIENCE_GAP,
-        y: this.ropeBottomY - 6,
-        flip: false,
-        scale: 1.35,
-      },
-      {
-        x: this.petX + HANDLE_DX + AUDIENCE_GAP,
-        y: this.ropeBottomY - 6,
-        flip: true,
-        scale: 1.35,
-      },
-      {
-        x: this.petX - HANDLE_DX - AUDIENCE_GAP - 42,
-        y: this.ropeBottomY - 28,
-        flip: false,
-        scale: 1.15,
-      },
-      {
-        x: this.petX + HANDLE_DX + AUDIENCE_GAP + 42,
-        y: this.ropeBottomY - 26,
-        flip: true,
-        scale: 1.15,
-      },
+    const slots: { x: number; y: number; flip: boolean }[] = [
+      { x: this.petX - HANDLE_DX - AUDIENCE_GAP, y: this.ropeBottomY - 6, flip: false },
+      { x: this.petX + HANDLE_DX + AUDIENCE_GAP, y: this.ropeBottomY - 6, flip: true },
+      { x: this.petX - HANDLE_DX - AUDIENCE_GAP - 42, y: this.ropeBottomY - 28, flip: false },
+      { x: this.petX + HANDLE_DX + AUDIENCE_GAP + 42, y: this.ropeBottomY - 26, flip: true },
     ];
 
     for (let i = 0; i < count; i++) {
       const prefix = available[i]!;
       const slot = slots[i]!;
-      const classic = prefix === 'cinna' ? slot.scale * 0.9 : slot.scale;
-      const scale = miniteenDrawScale(this, prefix, classic);
+      const scale = miniteenDrawScale(this, prefix);
       const sprite = this.add
         .sprite(slot.x, slot.y, `${prefix}-idle`)
         .setScale(scale)

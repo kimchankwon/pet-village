@@ -340,8 +340,13 @@ export class WorldMultiplayer {
    * check and says whether the message really went out, so the bubble is never
    * shown for one the server would have dropped.
    */
+  /**
+   * Post a finished line. False keeps the draft so Enter can try again, which
+   * only the cooldown deserves — with no server in reach the line still gets the
+   * player's own bubble and log entry, because it is still the thing they said.
+   */
   private say(text: string) {
-    if (!multiplayerBridge.chat(text)) return false;
+    if (multiplayerBridge.chat(text) === 'cooldown') return false;
     showChatBubble(this.localChat, text, this.scene.time.now);
     appendChatLog({ kind: 'message', name: localDisplayName(), text, at: performance.now() });
     return true;
@@ -610,10 +615,10 @@ export class WorldMultiplayer {
     for (const { id, image } of remote.accessories) {
       const layout = ACCESSORY_LAYOUT[id];
       const nudge = speciesNudges?.[id];
-      const nx = (nudge?.x ?? 0) * sprite.scaleX;
-      const ny = (nudge?.y ?? 0) * sprite.scaleX;
-      const ox = ((layout?.offsetX ?? 0) + nx) * (sprite.flipX ? -1 : 1);
-      const oy = (layout?.offsetY ?? 0) + ny;
+      const nx = ((layout?.offsetX ?? 0) + (nudge?.x ?? 0)) * sprite.scaleX;
+      const ny = ((layout?.offsetY ?? 0) + (nudge?.y ?? 0)) * sprite.scaleX;
+      const ox = nx * (sprite.flipX ? -1 : 1);
+      const oy = ny;
       image
         .setPosition(sprite.x + ox, sprite.y + oy + bob)
         .setScale(sprite.scaleX * (layout?.scale ?? 1))

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ACCESSORIES, type AccessoryId, type AccessorySlot } from '../systems/accessories';
+import { CHARACTER_PENGUIN_DISPLAY_HEIGHT } from '../systems/characterScale';
 import { State } from '../systems/GameState';
 import {
   LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
@@ -1542,8 +1543,11 @@ function makeCobbleTile(scene: Phaser.Scene, key: string, size = 16) {
   scene.textures.addCanvas(key, canvas);
 }
 
-/** Classic on-screen height (20 grid rows × SCALE). Plate textures scale to this. */
-export const PENGUIN_DISPLAY_HEIGHT = 20 * SCALE;
+/**
+ * Classic on-screen height (20 grid rows × SCALE). Plate textures scale to this.
+ * Re-exported from characterScale so NPC and pet heights derive from one number.
+ */
+export const PENGUIN_DISPLAY_HEIGHT = CHARACTER_PENGUIN_DISPLAY_HEIGHT;
 /** Boot loads Imagine plates under this key prefix when present. */
 export const PENGUIN_PLATE_KEY = (facing: 'down' | 'up' | 'side', frame: 0 | 1 | 2) =>
   `penguin-plate-${facing}-${frame}`;

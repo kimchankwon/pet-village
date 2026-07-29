@@ -120,12 +120,8 @@ export class GetScene extends Phaser.Scene {
 
     this.catcher = this.add
       .sprite(cx, this.floorY - 42, petTextureKey(State.data.petSpecies, 'idle1'))
-      .setScale(petDrawScale(this, State.data.petSpecies, 70))
+      .setScale(petDrawScale(this, State.data.petSpecies))
       .setDepth(12);
-    if (this.catcher.displayHeight > 86) {
-      const scale = this.catcher.scaleX * (86 / this.catcher.displayHeight);
-      this.catcher.setScale(scale);
-    }
     this.catcher.y = this.floorY - this.catcher.displayHeight / 2 - 2;
     this.bowlY = this.catcher.y - this.catcher.displayHeight / 2 - 5;
     this.bowl = this.add.image(cx, this.bowlY, 'catch-bowl').setDepth(14);

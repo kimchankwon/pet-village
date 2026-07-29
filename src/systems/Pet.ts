@@ -138,12 +138,12 @@ export class Pet {
       const img = this.accessorySprites[i]!;
       const id = this.accessoryIds[i]!;
       const layout = ACCESSORY_LAYOUT[id];
-      // Per-species nudge is authored in native px; scale it to world px.
+      // Layout offset and per-species nudge are both native px; scale to world px.
       const nudge = nudges?.[id];
-      const nx = (nudge?.x ?? 0) * this.sprite.scaleX;
-      const ny = (nudge?.y ?? 0) * this.sprite.scaleX;
-      const ox = ((layout?.offsetX ?? 0) + nx) * (this.facingLeft ? -1 : 1);
-      const oy = (layout?.offsetY ?? 0) + ny;
+      const nx = ((layout?.offsetX ?? 0) + (nudge?.x ?? 0)) * this.sprite.scaleX;
+      const ny = ((layout?.offsetY ?? 0) + (nudge?.y ?? 0)) * this.sprite.scaleX;
+      const ox = nx * (this.facingLeft ? -1 : 1);
+      const oy = ny;
       const scale = this.sprite.scaleX * (layout?.scale ?? 1);
       img.setPosition(this.sprite.x + ox, this.sprite.y + oy + accessoryBob);
       img.setScale(scale);
