@@ -161,7 +161,8 @@ export class PaperTossScene extends Phaser.Scene {
 
     this.ball = this.add.image(BALL_START.x, BALL_START.y, 'paperball').setDepth(10);
     this.ball.setTint((this.registry.get(BALL_TINT_KEY) as number | undefined) ?? BALL_TINTS[0]);
-    this.bin = this.add.image(this.binX, GROUND_Y - 36, 'bin').setScale(1.9).setDepth(5);
+    this.bin = this.add.image(this.binX, GROUND_Y - 36, 'bin').setDepth(5);
+    if (this.bin.height > 0) this.bin.setScale(90 / this.bin.height);
 
     this.aimGfx = this.add.graphics().setDepth(20);
     this.windArrow = this.add.graphics().setScrollFactor(0).setDepth(20);

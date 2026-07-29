@@ -1,10 +1,11 @@
 /**
- * Convert Grok Imagine ice-town world props into transparent PNGs for Phaser.
+ * Convert Grok Imagine ice-town assets into transparent / tile PNGs for Phaser.
  *
- * Source: scripts/reference/world-props/*.jpg
+ * Source: scripts/reference/world-props/*
  * Output: public/assets/world/*.png
  *
  *   npx tsx scripts/process-world-props.mts
+ *   npx tsx scripts/process-world-props.mts --only shop,smoke,tile-path
  */
 import fs from 'fs';
 import path from 'path';
@@ -23,8 +24,8 @@ const TMP = path.resolve('scripts/tmp/imagine-world');
 type RGBA = [number, number, number, number];
 const OUTLINE: RGBA = [0, 0, 0, 255];
 
-/** max edge after crop (keeps buildings large for big in-game scale). */
-const TARGETS: Record<string, number> = {
+/** Isolated props: max edge after crop. */
+const PROP_TARGETS: Record<string, number> = {
   house: 320,
   shop: 320,
   cafe: 320,
@@ -44,7 +45,56 @@ const TARGETS: Record<string, number> = {
   signpost: 140,
   rock: 120,
   bush: 130,
+  smoke: 80,
+  wildflower: 120,
+  mushroom: 110,
+  stump: 120,
+  fence: 140,
+  'clothes-rack': 180,
+  // furniture
+  'item-bed': 180,
+  'item-chair': 140,
+  'item-table': 140,
+  'item-rug': 160,
+  'item-lamp': 160,
+  'item-bookshelf': 180,
+  'item-tv': 140,
+  'item-plant': 140,
+  'item-flower': 140,
+  'item-lightstick': 140,
+  // games / items
+  bin: 140,
+  paperball: 80,
+  'catch-bowl': 140,
+  rod: 200,
+  bobber: 64,
+  ripple: 100,
+  'music-note-crotchet': 90,
+  'music-note-quaver': 90,
+  'music-note-double-quaver': 100,
+  fish: 100,
+  bait: 80,
+  cookie: 80,
+  coin: 64,
+  heart: 64,
+  poop: 80,
+  'oceanfish-common': 110,
+  'oceanfish-uncommon': 110,
+  'oceanfish-rare': 110,
 };
+
+const TILE_KEYS = [
+  'tile-grass',
+  'tile-snow',
+  'tile-path',
+  'tile-plaza',
+  'tile-sand',
+  'tile-ocean',
+  'tile-ocean2',
+  'tile-floor',
+  'tile-wall',
+] as const;
+const TILE_SIZE = 48; // matches makeTile(size=16) * SCALE(3)
 
 function blank(w: number, h: number) {
   const png = new PNG({ width: w, height: h });
@@ -73,7 +123,23 @@ function clone(src: InstanceType<typeof PNG>) {
   return out;
 }
 
-/** Magenta / corner-matched exterior key (same idea as penguin plates). */
+function jpgToPngBuffer(jpgPath: string): Buffer {
+  fs.mkdirSync(TMP, { recursive: true });
+  const tmpPng = path.join(TMP, `${path.basename(jpgPath, path.extname(jpgPath))}.raw.png`);
+  execFileSync('sips', ['-s', 'format', 'png', jpgPath, '--out', tmpPng], { stdio: 'pipe' });
+  return fs.readFileSync(tmpPng);
+}
+
+function loadRef(name: string): InstanceType<typeof PNG> | null {
+  for (const ext of ['.jpg', '.jpeg', '.png']) {
+    const p = path.join(REF, name + ext);
+    if (!fs.existsSync(p)) continue;
+    const buf = ext === '.png' ? fs.readFileSync(p) : jpgToPngBuffer(p);
+    return PNG.sync.read(buf);
+  }
+  return null;
+}
+
 function removeExterior(src: InstanceType<typeof PNG>): InstanceType<typeof PNG> {
   const out = clone(src);
   const w = src.width;
@@ -83,9 +149,11 @@ function removeExterior(src: InstanceType<typeof PNG>): InstanceType<typeof PNG>
   const corners = [get(src, 2, 2), get(src, w - 3, 2), get(src, 2, h - 3), get(src, w - 3, h - 3)];
   const bgLike = (c: RGBA) => {
     if (c[3]! < 20) return true;
-    // Solid Imagine magenta / hot-pink key
+    // Magenta / hot pink key
     if (c[0]! > 180 && c[2]! > 140 && c[1]! < 140 && c[0]! - c[1]! > 40) return true;
     if (c[0]! > 200 && c[1]! < 80 && c[2]! > 160) return true;
+    // Near-black exterior (some shop edits)
+    if (c[0]! < 18 && c[1]! < 18 && c[2]! < 18) return true;
     for (const bg of corners) {
       if (Math.hypot(c[0]! - bg[0]!, c[1]! - bg[1]!, c[2]! - bg[2]!) < 42) return true;
     }
@@ -170,7 +238,6 @@ function scaleToMax(src: InstanceType<typeof PNG>, maxSide: number) {
   const w = Math.max(1, Math.round(src.width * scale));
   const h = Math.max(1, Math.round(src.height * scale));
   const out = blank(w, h);
-  // Nearest-neighbour so outlines stay crisp.
   for (let y = 0; y < h; y++) {
     const sy = Math.min(src.height - 1, Math.floor(y / scale));
     for (let x = 0; x < w; x++) {
@@ -181,41 +248,293 @@ function scaleToMax(src: InstanceType<typeof PNG>, maxSide: number) {
   return out;
 }
 
-function jpgToPngBuffer(jpgPath: string): Buffer {
-  fs.mkdirSync(TMP, { recursive: true });
-  const tmpPng = path.join(TMP, `${path.basename(jpgPath, path.extname(jpgPath))}.raw.png`);
-  // sips is available on macOS; converts to PNG without extra deps.
-  execFileSync('sips', ['-s', 'format', 'png', jpgPath, '--out', tmpPng], { stdio: 'pipe' });
-  return fs.readFileSync(tmpPng);
+function scaleExact(src: InstanceType<typeof PNG>, w: number, h: number) {
+  const out = blank(w, h);
+  for (let y = 0; y < h; y++) {
+    const sy = Math.min(src.height - 1, Math.floor((y / h) * src.height));
+    for (let x = 0; x < w; x++) {
+      const sx = Math.min(src.width - 1, Math.floor((x / w) * src.width));
+      set(out, x, y, get(src, sx, sy));
+    }
+  }
+  return out;
 }
 
-function processOne(name: string) {
-  const srcPath = path.join(REF, `${name}.jpg`);
-  if (!fs.existsSync(srcPath)) {
-    console.warn(`skip missing ${name}`);
-    return;
-  }
-  const buf = jpgToPngBuffer(srcPath);
-  let png = PNG.sync.read(buf);
-  // Flatten any residual alpha from sips to opaque pixels first.
-  for (let i = 0; i < png.width * png.height; i++) {
-    const o = i << 2;
-    if (png.data[o + 3]! > 0 && png.data[o + 3]! < 255) png.data[o + 3] = 255;
-  }
-  png = removeExterior(png);
-  png = cropPad(png, 8);
-  const maxSide = TARGETS[name] ?? 200;
-  png = scaleToMax(png, maxSide);
-  // cleanSpriteExterior expects Buffer data.
-  if (!(png.data instanceof Buffer)) png.data = Buffer.from(png.data);
-  cleanSpriteExterior(png, { outline: OUTLINE, tolerance: 48, repairOutline: false });
-  png = repairExternalOutline(png, { outline: OUTLINE, tolerance: 48 });
+function writePng(name: string, png: InstanceType<typeof PNG>) {
   fs.mkdirSync(OUT, { recursive: true });
-  const outPath = path.join(OUT, `${name}.png`);
-  fs.writeFileSync(outPath, PNG.sync.write(png));
+  if (!(png.data instanceof Buffer)) png.data = Buffer.from(png.data);
+  fs.writeFileSync(path.join(OUT, `${name}.png`), PNG.sync.write(png));
   console.log(`wrote ${name}.png ${png.width}×${png.height}`);
 }
 
-const NAMES = Object.keys(TARGETS);
-for (const name of NAMES) processOne(name);
+function finalizeProp(name: string, png: InstanceType<typeof PNG>) {
+  let out = cropPad(png, 8);
+  out = scaleToMax(out, PROP_TARGETS[name] ?? 140);
+  if (!(out.data instanceof Buffer)) out.data = Buffer.from(out.data);
+  cleanSpriteExterior(out, { outline: OUTLINE, tolerance: 48, repairOutline: false });
+  out = repairExternalOutline(out, { outline: OUTLINE, tolerance: 48 });
+  writePng(name, out);
+}
+
+function processSingleProp(name: string) {
+  const src = loadRef(name);
+  if (!src) {
+    console.warn(`skip missing ${name}`);
+    return;
+  }
+  for (let i = 0; i < src.width * src.height; i++) {
+    const o = i << 2;
+    if (src.data[o + 3]! > 0 && src.data[o + 3]! < 255) src.data[o + 3] = 255;
+  }
+  finalizeProp(name, removeExterior(src));
+}
+
+/** Opaque tiles: resize full image to TILE_SIZE (no chroma key). */
+function processTile(name: string) {
+  const src = loadRef(name);
+  if (!src) {
+    console.warn(`skip missing tile ${name}`);
+    return;
+  }
+  // Force opaque
+  for (let i = 0; i < src.width * src.height; i++) {
+    const o = i << 2;
+    src.data[o + 3] = 255;
+  }
+  const out = scaleExact(src, TILE_SIZE, TILE_SIZE);
+  writePng(name, out);
+}
+
+type Component = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  pixels: number[];
+  area: number;
+};
+
+/** Segment opaque islands after magenta keying; largest first then reading order. */
+function segmentComponents(src: InstanceType<typeof PNG>, minArea = 400): Component[] {
+  const keyed = removeExterior(src);
+  const w = keyed.width;
+  const h = keyed.height;
+  const seen = new Uint8Array(w * h);
+  const comps: Component[] = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const start = y * w + x;
+      if (seen[start] || keyed.data[start * 4 + 3]! < 20) continue;
+      const queue = [start];
+      seen[start] = 1;
+      let qi = 0;
+      let minX = x;
+      let minY = y;
+      let maxX = x;
+      let maxY = y;
+      const pixels: number[] = [];
+      while (qi < queue.length) {
+        const i = queue[qi++]!;
+        pixels.push(i);
+        const cx = i % w;
+        const cy = (i / w) | 0;
+        if (cx < minX) minX = cx;
+        if (cy < minY) minY = cy;
+        if (cx > maxX) maxX = cx;
+        if (cy > maxY) maxY = cy;
+        for (const [dx, dy] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ] as const) {
+          const nx = cx + dx;
+          const ny = cy + dy;
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          const ni = ny * w + nx;
+          if (seen[ni] || keyed.data[ni * 4 + 3]! < 20) continue;
+          seen[ni] = 1;
+          queue.push(ni);
+        }
+      }
+      if (pixels.length < minArea) continue;
+      comps.push({ minX, minY, maxX, maxY, pixels, area: pixels.length });
+    }
+  }
+  return comps.map((c) => {
+    const out = blank(src.width, src.height);
+    for (const i of c.pixels) {
+      const o = i << 2;
+      out.data[o] = keyed.data[o]!;
+      out.data[o + 1] = keyed.data[o + 1]!;
+      out.data[o + 2] = keyed.data[o + 2]!;
+      out.data[o + 3] = keyed.data[o + 3]!;
+    }
+    return { ...c, png: out };
+  }) as (Component & { png: InstanceType<typeof PNG> })[];
+}
+
+function readingOrderSort(comps: (Component & { png: InstanceType<typeof PNG> })[]) {
+  // Band by relative height so two rows stay separate.
+  const heights = comps.map((c) => c.maxY - c.minY + 1);
+  const medianH = heights.sort((a, b) => a - b)[Math.floor(heights.length / 2)] ?? 80;
+  const band = Math.max(40, medianH * 0.55);
+  return [...comps].sort((a, b) => {
+    const ay = (a.minY + a.maxY) / 2;
+    const by = (b.minY + b.maxY) / 2;
+    const row = Math.floor(ay / band) - Math.floor(by / band);
+    if (row !== 0) return row;
+    return a.minX - b.minX;
+  });
+}
+
+function processSheet(sheetName: string, names: string[], minArea = 500) {
+  const src = loadRef(sheetName);
+  if (!src) {
+    console.warn(`skip missing sheet ${sheetName}`);
+    return;
+  }
+  let comps = segmentComponents(src, minArea);
+  // Keep the largest N islands (drop sparkle freckles), then reading order.
+  comps = [...comps]
+    .sort((a, b) => b.area - a.area)
+    .slice(0, names.length);
+  comps = readingOrderSort(comps as (Component & { png: InstanceType<typeof PNG> })[]);
+  console.log(`sheet ${sheetName}: using ${comps.length}/${names.length} largest components`);
+  const n = Math.min(comps.length, names.length);
+  for (let i = 0; i < n; i++) {
+    const name = names[i]!;
+    const comp = comps[i]! as Component & { png: InstanceType<typeof PNG> };
+    finalizeProp(name, comp.png);
+  }
+  if (comps.length < names.length) {
+    console.warn(`  missing names: ${names.slice(comps.length).join(', ')}`);
+  }
+}
+
+// --- run ---
+const onlyArg = process.argv.find((a) => a.startsWith('--only='));
+const only = onlyArg
+  ? new Set(onlyArg.slice(7).split(',').map((s) => s.trim()).filter(Boolean))
+  : null;
+const want = (name: string) => !only || only.has(name);
+
+// Tiles
+for (const t of TILE_KEYS) {
+  if (want(t)) processTile(t);
+}
+
+// Existing singles + new singles
+for (const name of Object.keys(PROP_TARGETS)) {
+  if (!want(name)) continue;
+  // Skip names that only come from sheets unless a single file exists
+  const single = loadRef(name);
+  if (single) processSingleProp(name);
+}
+
+// Sheets (always process if sheet file exists and any name wanted)
+if (!only || namesWantedAny(['wildflower', 'mushroom', 'stump', 'fence'])) {
+  processSheet('outdoor-sheet', ['wildflower', 'mushroom', 'stump', 'fence'], 800);
+}
+if (
+  !only ||
+  namesWantedAny([
+    'item-bed',
+    'item-chair',
+    'item-table',
+    'item-rug',
+    'item-lamp',
+    'item-bookshelf',
+    'item-tv',
+    'item-plant',
+    'item-flower',
+    'item-lightstick',
+  ])
+) {
+  processSheet(
+    'furniture-sheet',
+    [
+      'item-bed',
+      'item-chair',
+      'item-table',
+      'item-rug',
+      'item-lamp',
+      'item-bookshelf',
+      'item-tv',
+      'item-plant',
+      'item-flower',
+      'item-lightstick',
+    ],
+    600,
+  );
+}
+if (
+  !only ||
+  namesWantedAny([
+    'bin',
+    'paperball',
+    'catch-bowl',
+    'rod',
+    'music-note-crotchet',
+    'music-note-quaver',
+    'music-note-double-quaver',
+    'ripple',
+    'fish',
+    'bait',
+    'cookie',
+    'coin',
+    'heart',
+    'poop',
+  ])
+) {
+  // Order from visual sheet layout (row-major):
+  // row0: bin, paperball, catch-bowl, rod(+bobber)
+  // row1: notes ×3, ripple (ripple may be under rod)
+  // row2: fish, bait, cookie, coin, heart, poop
+  processSheet(
+    'game-sheet',
+    [
+      'bin',
+      'paperball',
+      'catch-bowl',
+      'rod',
+      'music-note-crotchet',
+      'music-note-quaver',
+      'music-note-double-quaver',
+      'ripple',
+      'fish',
+      'bait',
+      'cookie',
+      'coin',
+      'heart',
+      'poop',
+    ],
+    400,
+  );
+}
+if (!only || namesWantedAny(['oceanfish-common', 'oceanfish-uncommon', 'oceanfish-rare'])) {
+  processSheet('fish-sheet', ['oceanfish-common', 'oceanfish-uncommon', 'oceanfish-rare'], 500);
+}
+
+// Bobber: crop from rod tip if no standalone file — use a small red-white circle fallback from rod sheet component.
+if (want('bobber') && !fs.existsSync(path.join(OUT, 'bobber.png'))) {
+  // Build a simple bobber from scratch if missing (fallback so fishing still works).
+  const b = blank(48, 48);
+  for (let y = 8; y < 40; y++) {
+    for (let x = 14; x < 34; x++) {
+      const dx = x - 24;
+      const dy = y - 20;
+      if (dx * dx + dy * dy > 100) continue;
+      const top = y < 20;
+      set(b, x, y, top ? [220, 50, 60, 255] : [245, 245, 250, 255]);
+    }
+  }
+  // outline
+  finalizeProp('bobber', b);
+}
+
+function namesWantedAny(names: string[]) {
+  return names.some((n) => want(n));
+}
+
 console.log('done');

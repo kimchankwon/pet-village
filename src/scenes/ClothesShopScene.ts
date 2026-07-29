@@ -91,8 +91,8 @@ export class ClothesShopScene extends Phaser.Scene {
     for (let gx = 4; gx <= 7; gx++) {
       const t = this.add
         .image(this.roomX + gx * TILE + TILE / 2, ROOM_Y + 3 * TILE + TILE / 2, 'item-table')
-        .setScale(1.3)
         .setTint(0xffe0c0);
+      if (t.height > 0) t.setScale(64 / t.height);
       t.setDepth(t.y);
     }
 
@@ -103,16 +103,17 @@ export class ClothesShopScene extends Phaser.Scene {
     // CinnamorollNpc scales itself to display height; no override needed.
 
     const dressing: [number, number, string, number?][] = [
-      [1.5, 2.6, 'item-bookshelf', 1.2],
-      [10.5, 2.6, 'item-bookshelf', 1.2],
-      [1.5, 5.5, 'item-plant', 1.2],
-      [10.5, 5.5, 'item-flower', 1.25],
-      [2.2, 3.8, 'clothes-rack', 1.2],
-      [9.8, 3.8, 'clothes-rack', 1.2],
-      [10.5, 4.4, 'item-lamp', 1.1],
+      [1.5, 2.6, 'item-bookshelf', 88],
+      [10.5, 2.6, 'item-bookshelf', 88],
+      [1.5, 5.5, 'item-plant', 68],
+      [10.5, 5.5, 'item-flower', 70],
+      [2.2, 3.8, 'clothes-rack', 90],
+      [9.8, 3.8, 'clothes-rack', 90],
+      [10.5, 4.4, 'item-lamp', 72],
     ];
-    for (const [gx, gy, tex, scale] of dressing) {
-      const img = this.add.image(this.roomX + gx * TILE, ROOM_Y + gy * TILE, tex).setScale(scale ?? 1.2);
+    for (const [gx, gy, tex, targetH = 68] of dressing) {
+      const img = this.add.image(this.roomX + gx * TILE, ROOM_Y + gy * TILE, tex);
+      if (img.height > 0) img.setScale(targetH / img.height);
       img.setDepth(tex === 'item-flower' ? feetDepth(img) : img.y);
     }
 

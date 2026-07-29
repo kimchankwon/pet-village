@@ -368,7 +368,10 @@ export class HouseScene extends Phaser.Scene {
       if (!def) continue;
       const x = this.roomX + p.gx * TILE + TILE / 2;
       const y = ROOM_Y + p.gy * TILE + TILE / 2;
-      const img = this.add.image(x, y, def.texture).setScale(1.2);
+      const img = this.add.image(x, y, def.texture);
+      // Imagine furniture plates are large; draw at a readable cottage scale.
+      const targetH = p.id === 'rug' ? 56 : p.id === 'bed' ? 78 : 68;
+      if (img.height > 0) img.setScale(targetH / img.height);
       img.setData('gx', p.gx).setData('gy', p.gy);
       img.setDepth(p.id === 'rug' ? -50 : feetDepth(img));
       this.furnitureSprites.push(img);
@@ -403,7 +406,11 @@ export class HouseScene extends Phaser.Scene {
   private startPlacing(id: string) {
     this.placing = id;
     blockUi();
-    this.ghost = this.add.image(0, 0, ITEMS[id].texture).setAlpha(0.6).setScale(1.2).setDepth(3000);
+    this.ghost = this.add.image(0, 0, ITEMS[id].texture).setAlpha(0.6).setDepth(3000);
+    {
+      const targetH = id === 'rug' ? 56 : id === 'bed' ? 78 : 68;
+      if (this.ghost.height > 0) this.ghost.setScale(targetH / this.ghost.height);
+    }
   }
 
   private stopPlacing() {

@@ -83,9 +83,12 @@ export class ShopScene extends Phaser.Scene {
 
     // Counter across the middle-top with Daniel behind it
     for (let gx = 4; gx <= 7; gx++) {
-      const t = this.add
-        .image(this.roomX + gx * TILE + TILE / 2, ROOM_Y + 3 * TILE + TILE / 2, 'item-table')
-        .setScale(1.3);
+      const t = this.add.image(
+        this.roomX + gx * TILE + TILE / 2,
+        ROOM_Y + 3 * TILE + TILE / 2,
+        'item-table',
+      );
+      if (t.height > 0) t.setScale(64 / t.height);
       t.setDepth(t.y);
     }
     this.bunny = this.add
@@ -94,15 +97,16 @@ export class ShopScene extends Phaser.Scene {
     this.bunny.setDepth(this.bunny.y);
 
     // Shelf dressing: wares on display
-    const dressing: [number, number, string][] = [
-      [1.5, 2.6, 'item-bookshelf'],
-      [10.5, 2.6, 'item-bookshelf'],
-      [1.5, 5.5, 'item-plant'],
-      [10.5, 5.5, 'item-lamp'],
-      [10.5, 4, 'item-lightstick'],
+    const dressing: [number, number, string, number?][] = [
+      [1.5, 2.6, 'item-bookshelf', 88],
+      [10.5, 2.6, 'item-bookshelf', 88],
+      [1.5, 5.5, 'item-plant', 68],
+      [10.5, 5.5, 'item-lamp', 72],
+      [10.5, 4, 'item-lightstick', 64],
     ];
-    for (const [gx, gy, tex] of dressing) {
-      const img = this.add.image(this.roomX + gx * TILE, ROOM_Y + gy * TILE, tex).setScale(1.2);
+    for (const [gx, gy, tex, targetH = 68] of dressing) {
+      const img = this.add.image(this.roomX + gx * TILE, ROOM_Y + gy * TILE, tex);
+      if (img.height > 0) img.setScale(targetH / img.height);
       img.setDepth(img.y);
     }
 

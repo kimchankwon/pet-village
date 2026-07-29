@@ -569,26 +569,30 @@ export class TownScene extends Phaser.Scene {
     }
   }
 
-  /** Soft smoke rising from Daniel’s shop chimney. */
+  /**
+   * Soft smoke rising from Daniel’s shop chimney.
+   * Imagine shop art: brick chimney sits on the viewer’s-right roof peak
+   * (~+22% width, ~−42% height from sprite center).
+   */
   private startShopChimneySmoke(shop: Phaser.GameObjects.Image) {
     if (!this.textures.exists('smoke')) return;
-    const chimneyX = shop.x - shop.displayWidth * 0.22;
-    const chimneyY = shop.y - shop.displayHeight * 0.48;
-    const depth = propDepth(shop, (SHOP_POS.ty + 0.2) * TILE) + 2;
+    const chimneyX = shop.x + shop.displayWidth * 0.22;
+    const chimneyY = shop.y - shop.displayHeight * 0.42;
+    const depth = propDepth(shop, (SHOP_POS.ty + 0.55) * TILE) + 2;
 
     const puff = () => {
       if (!this.sys.isActive()) return;
       const s = this.add
-        .image(chimneyX + Phaser.Math.Between(-3, 3), chimneyY, 'smoke')
+        .image(chimneyX + Phaser.Math.Between(-2, 2), chimneyY, 'smoke')
         .setScale(0.55)
-        .setAlpha(0.55)
+        .setAlpha(0.6)
         .setDepth(depth);
       this.tweens.add({
         targets: s,
-        y: chimneyY - Phaser.Math.Between(28, 44),
-        x: chimneyX + Phaser.Math.Between(-10, 14),
+        y: chimneyY - Phaser.Math.Between(32, 52),
+        x: chimneyX + Phaser.Math.Between(-6, 12),
         alpha: 0,
-        scale: 1.15,
+        scale: 1.2,
         duration: Phaser.Math.Between(1600, 2400),
         ease: 'Sine.easeOut',
         onComplete: () => s.destroy(),
