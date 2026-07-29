@@ -7,7 +7,7 @@ import { petLine } from './petDialog';
 import {
   ACCESSORIES,
   ACCESSORY_LAYOUT,
-  SPECIES_ACCESSORY_NUDGE,
+  accessoryDrawPose,
   accessoryWorldScale,
   type AccessoryId,
 } from './accessories';
@@ -139,22 +139,21 @@ export class Pet {
 
   private syncAccessories() {
     const depth = this.ownDepth() + 1;
-    const nudges = SPECIES_ACCESSORY_NUDGE[this.species()];
     const accessoryBob = this.accessoryBobPx();
-    // One canvas unit of offset = one native accessory pixel → world px.
-    const unit = accessoryWorldScale(this.sprite.displayHeight, 1);
     for (let i = 0; i < this.accessorySprites.length; i++) {
       const img = this.accessorySprites[i]!;
       const id = this.accessoryIds[i]!;
-      const layout = ACCESSORY_LAYOUT[id];
-      const nudge = nudges?.[id];
-      const nx = ((layout?.offsetX ?? 0) + (nudge?.x ?? 0)) * unit;
-      const ny = ((layout?.offsetY ?? 0) + (nudge?.y ?? 0)) * unit;
-      const ox = nx * (this.facingLeft ? -1 : 1);
-      const oy = ny;
-      const scale = accessoryWorldScale(this.sprite.displayHeight, layout?.scale ?? 1);
-      img.setPosition(this.sprite.x + ox, this.sprite.y + oy + accessoryBob);
-      img.setScale(scale);
+      const pose = accessoryDrawPose(
+        id,
+        this.sprite.displayHeight,
+        this.species(),
+        this.facingLeft,
+      );
+      img.setPosition(
+        this.sprite.x + pose.offsetX,
+        this.sprite.y + pose.offsetY + accessoryBob,
+      );
+      img.setScale(pose.scale);
       img.setFlipX(this.facingLeft);
       img.setDepth(depth);
       img.setVisible(this.sprite.visible);

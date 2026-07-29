@@ -8,6 +8,7 @@
  * overlays sit on head/body correctly when centered on the pet.
  *
  *   npx tsx scripts/process-accessories.mts
+ *   npx tsx scripts/process-accessories.mts --only=aqua-clip,cloud-bow
  *   npx tsx scripts/process-accessories.mts --only aqua-clip,cloud-bow
  */
 import fs from 'fs';
@@ -211,10 +212,20 @@ function processOne(name: string, anchor: Anchor) {
   console.log(`wrote ${name}.png ${SIZE}×${SIZE}`);
 }
 
-const onlyArg = process.argv.find((a) => a.startsWith('--only='));
-const only = onlyArg
-  ? new Set(onlyArg.slice(7).split(',').map((s) => s.trim()).filter(Boolean))
-  : null;
+function parseOnlyArg(argv: string[]): Set<string> | null {
+  const eq = argv.find((a) => a.startsWith('--only='));
+  if (eq) {
+    return new Set(eq.slice(7).split(',').map((s) => s.trim()).filter(Boolean));
+  }
+  const idx = argv.indexOf('--only');
+  const next = idx >= 0 ? argv[idx + 1] : undefined;
+  if (next && !next.startsWith('-')) {
+    return new Set(next.split(',').map((s) => s.trim()).filter(Boolean));
+  }
+  return null;
+}
+
+const only = parseOnlyArg(process.argv);
 
 for (const [name, anchor] of Object.entries(JOBS)) {
   if (only && !only.has(name)) continue;

@@ -456,6 +456,37 @@ export function accessoryWorldScale(
   return (petDisplayHeight / canvas) * layoutScale;
 }
 
+/** World-space pose for drawing an accessory on a pet (local or remote). */
+export type AccessoryDrawPose = {
+  /** World px relative to the pet centre (already flipped for facing). */
+  offsetX: number;
+  offsetY: number;
+  /** Phaser scale for the overlay image. */
+  scale: number;
+};
+
+/**
+ * Shared layout math for local pets and remote multiplayer pets so a future
+ * nudge/scale tweak cannot diverge between the two paths.
+ */
+export function accessoryDrawPose(
+  id: AccessoryId,
+  petDisplayHeight: number,
+  species: string,
+  flipX: boolean,
+): AccessoryDrawPose {
+  const layout = ACCESSORY_LAYOUT[id];
+  const nudge = SPECIES_ACCESSORY_NUDGE[species]?.[id];
+  const unit = accessoryWorldScale(petDisplayHeight, 1);
+  const nx = ((layout?.offsetX ?? 0) + (nudge?.x ?? 0)) * unit;
+  const ny = ((layout?.offsetY ?? 0) + (nudge?.y ?? 0)) * unit;
+  return {
+    offsetX: nx * (flipX ? -1 : 1),
+    offsetY: ny,
+    scale: accessoryWorldScale(petDisplayHeight, layout?.scale ?? 1),
+  };
+}
+
 /** Per-item draw tweaks when layered on the pet sprite (32×32 canvas units). */
 export type AccessoryLayout = {
   /**
