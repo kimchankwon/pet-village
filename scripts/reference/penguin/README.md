@@ -30,13 +30,13 @@ Side idle + walk plates regenerated with Grok Imagine from the front idle
 no diagonal seam artifacts). Sources under `imagine-side-v4/`; game inputs
 `poses/side-{0,1,2}.png`.
 
-Side walk frames:
+Side walk frames (cycle **1↔2** so feet alternate — same rule as front/back):
 
 | Frame | Pose |
 |-------|------|
 | side-0 | idle — both feet planted |
-| side-1 | mid-stride — one foot stepped |
-| side-2 | plant — feet together (not the opposite raised foot) |
+| side-1 | mid-stride — front foot raised |
+| side-2 | mid-stride — rear foot raised (opposite leg) |
 
 Eyes match across side-0 / side-1 / side-2.
 
