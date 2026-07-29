@@ -149,13 +149,15 @@ function removeExterior(src: InstanceType<typeof PNG>): InstanceType<typeof PNG>
   const corners = [get(src, 2, 2), get(src, w - 3, 2), get(src, 2, h - 3), get(src, w - 3, h - 3)];
   const bgLike = (c: RGBA) => {
     if (c[3]! < 20) return true;
-    // Magenta / hot pink key
-    if (c[0]! > 180 && c[2]! > 140 && c[1]! < 140 && c[0]! - c[1]! > 40) return true;
-    if (c[0]! > 200 && c[1]! < 80 && c[2]! > 160) return true;
-    // Near-black exterior (some shop edits)
-    if (c[0]! < 18 && c[1]! < 18 && c[2]! < 18) return true;
+    // Lime / pure green key (#00FF00) — preferred; does not eat pink art.
+    if (c[1]! > 160 && c[1]! - c[0]! > 50 && c[1]! - c[2]! > 50) return true;
+    if (c[1]! > 200 && c[0]! < 90 && c[2]! < 90) return true;
+    // Magenta / hot pink key (legacy plates)
+    if (c[0]! > 180 && c[2]! > 140 && c[1]! < 120 && c[0]! - c[1]! > 50) return true;
+    if (c[0]! > 200 && c[1]! < 70 && c[2]! > 160) return true;
+    // Corner-matched exterior only (do NOT key pure black — eats booth interiors).
     for (const bg of corners) {
-      if (Math.hypot(c[0]! - bg[0]!, c[1]! - bg[1]!, c[2]! - bg[2]!) < 42) return true;
+      if (Math.hypot(c[0]! - bg[0]!, c[1]! - bg[1]!, c[2]! - bg[2]!) < 38) return true;
     }
     const avg = corners.reduce((s, b) => s + (b[0]! + b[1]! + b[2]!) / 3, 0) / corners.length;
     const lum = (c[0]! + c[1]! + c[2]!) / 3;
@@ -195,6 +197,21 @@ function removeExterior(src: InstanceType<typeof PNG>): InstanceType<typeof PNG>
     out.data[o + 1] = 0;
     out.data[o + 2] = 0;
     out.data[o + 3] = 0;
+  }
+  // Green key trapped inside closed outlines (bench plank gaps, booth sides)
+  // must also go transparent so the game snow shows through, not lime green.
+  for (let i = 0; i < w * h; i++) {
+    const o = i << 2;
+    if (out.data[o + 3]! < 20) continue;
+    const r = out.data[o]!;
+    const g = out.data[o + 1]!;
+    const b = out.data[o + 2]!;
+    if (g > 160 && g - r > 50 && g - b > 50) {
+      out.data[o] = 0;
+      out.data[o + 1] = 0;
+      out.data[o + 2] = 0;
+      out.data[o + 3] = 0;
+    }
   }
   return out;
 }
