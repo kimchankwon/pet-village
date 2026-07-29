@@ -170,9 +170,16 @@ export class PaperTossScene extends Phaser.Scene {
       .text(140, 16, 'PAPER TOSS', { ...FONT, fontSize: '18px', color: '#ffe066' })
       .setScrollFactor(0);
     this.statusText = this.add.text(20, 44, '', FONT).setScrollFactor(0);
-    // Wind readout lives at the bottom, over the floor.
+    // Wind readout lives at the bottom, over the pale floor — dark stroke so
+    // soft strength colours stay legible (same trick as toasts / park labels).
     this.windText = this.add
-      .text(cx, 496, '', { ...FONT, fontSize: '16px' })
+      .text(cx, 492, '', {
+        ...FONT,
+        fontSize: '18px',
+        color: '#ffffff',
+        stroke: '#1a1a2e',
+        strokeThickness: 5,
+      })
       .setOrigin(0.5, 0)
       .setScrollFactor(0)
       .setDepth(21);
@@ -573,15 +580,23 @@ export class PaperTossScene extends Phaser.Scene {
     const strength = Math.abs(this.wind);
     const dir = this.wind >= 0 ? 1 : -1;
     const label = `Wind ${dir > 0 ? '→' : '←'} ${(strength / 100).toFixed(1)}`;
-    this.windText.setText(label).setColor(strength > 180 ? '#ff6b6b' : strength > 90 ? '#ffe066' : '#a8e6cf');
+    // Strength tint stays readable on the snow floor thanks to the stroke.
+    this.windText
+      .setText(label)
+      .setColor(strength > 180 ? '#ff8a8a' : strength > 90 ? '#ffe066' : '#b8f0d8');
     this.windArrow.clear();
     const len = (strength / windMax) * 70 + 10;
-    const y = 526;
-    this.windArrow.lineStyle(4, 0x87ceeb, 1);
+    const y = 528;
     const cx = this.cameras.main.width / 2;
+    // Dark outline under a bright cyan shaft so the arrow pops on pale snow.
+    this.windArrow.lineStyle(7, 0x1a1a2e, 1);
     this.windArrow.lineBetween(cx - (dir * len) / 2, y, cx + (dir * len) / 2, y);
-    this.windArrow.fillStyle(0x87ceeb, 1);
+    this.windArrow.lineStyle(4, 0x7ed6ff, 1);
+    this.windArrow.lineBetween(cx - (dir * len) / 2, y, cx + (dir * len) / 2, y);
     const tipX = cx + (dir * len) / 2;
+    this.windArrow.fillStyle(0x1a1a2e, 1);
+    this.windArrow.fillTriangle(tipX + dir * 12, y, tipX - dir * 2, y - 8, tipX - dir * 2, y + 8);
+    this.windArrow.fillStyle(0x7ed6ff, 1);
     this.windArrow.fillTriangle(tipX + dir * 10, y, tipX, y - 6, tipX, y + 6);
   }
 
