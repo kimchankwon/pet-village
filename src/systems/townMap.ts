@@ -29,3 +29,62 @@ export function scalePropToHeight(
   img.setScale(s);
   return s;
 }
+
+/**
+ * Ground tile cells must fill the TILE square exactly. Speckled 48px plates
+ * already match, but forcing display size prevents any filter/scale drift and
+ * stops snow from leaving gaps or double-covering under props.
+ */
+export function placeGroundTile(
+  scene: {
+    add: {
+      image: (
+        x: number,
+        y: number,
+        key: string,
+      ) => {
+        setDisplaySize: (w: number, h: number) => unknown;
+        setDepth: (d: number) => unknown;
+      };
+    };
+  },
+  tx: number,
+  ty: number,
+  key: string,
+  depth = -100,
+): {
+  setDisplaySize: (w: number, h: number) => unknown;
+  setDepth: (d: number) => unknown;
+} {
+  const img = scene.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, key);
+  img.setDisplaySize(TILE, TILE);
+  img.setDepth(depth);
+  return img;
+}
+
+/**
+ * Outdoor props sit on the snow with origin at their feet (bottom-center).
+ * Center-origin Imagine plates were sinking halfway into the ground tiles,
+ * so baked snow on the art double-stacked with the map snow.
+ */
+export function plantOutdoorProp(
+  img: {
+    setOrigin: (x: number, y: number) => unknown;
+    setPosition: (x: number, y: number) => unknown;
+    setDepth: (d: number) => unknown;
+    height: number;
+    setScale: (s: number) => unknown;
+    y: number;
+    displayHeight: number;
+    originY: number;
+  },
+  x: number,
+  footY: number,
+  displayH: number,
+) {
+  img.setOrigin(0.5, 1);
+  img.setPosition(x, footY);
+  scalePropToHeight(img, displayH);
+  // Feet are exactly at footY with originY=1.
+  img.setDepth(footY);
+}

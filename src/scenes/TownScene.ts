@@ -5,7 +5,7 @@ import { State, WELCOME_KEY } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
-import { characterDepth, propDepth } from '../systems/depth';
+import { characterDepth } from '../systems/depth';
 import { isInteractSuppressed, isPointerUiBlocked, isUiBlocked, requestLeave } from '../systems/nav';
 import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, type CameraZoom } from '../systems/cameraZoom';
@@ -19,8 +19,9 @@ import {
   BUILDING_DISPLAY_H,
   FOUNTAIN_DISPLAY_H,
   LAMP_DISPLAY_H,
+  placeGroundTile,
+  plantOutdoorProp,
   PROP_DISPLAY_H,
-  scalePropToHeight,
   SIGN_DISPLAY_H,
   TILE,
   TOWN_MAP_H,
@@ -47,11 +48,14 @@ const WORLD_H = TOWN_WORLD_H;
 const BUILDING_RADIUS = 120;
 const BUILDING_CLICK_NEAR = 160;
 
-/** Building anchors (tile coords) — north of the ice plaza with room for large sprites. */
-const HOUSE_POS = { tx: 16, ty: 4.6 };
-const SHOP_POS = { tx: 26, ty: 5.0 };
-const CAFE_POS = { tx: 6, ty: 5.0 };
-const FOUNTAIN_POS = { tx: 16, ty: 11.5 };
+/**
+ * Building / fountain anchors are FOOT positions (bottom of sprite on the snow).
+ * Imagine plates plant with origin (0.5, 1) so they no longer sink into ground tiles.
+ */
+const HOUSE_POS = { tx: 16, ty: 6.5 };
+const SHOP_POS = { tx: 26, ty: 6.9 };
+const CAFE_POS = { tx: 6, ty: 6.9 };
+const FOUNTAIN_POS = { tx: 16, ty: 12.2 };
 
 /** East/west game-park exits — ice path rows leading off both map edges. */
 const PARK_GATE_TY = [10, 11] as const;
@@ -246,13 +250,14 @@ export class TownScene extends Phaser.Scene {
           this.player.x,
           this.player.y,
           HOUSE_POS.tx * TILE,
-          (HOUSE_POS.ty + 0.55) * TILE,
+          HOUSE_POS.ty * TILE,
         );
         if (d < BUILDING_CLICK_NEAR) {
           this.clickMove.clear();
           this.scene.start('House');
         } else {
-          this.clickMove.setTarget(HOUSE_POS.tx * TILE, (HOUSE_POS.ty + 2.8) * TILE);
+          // Walk to the doorstep (slightly south of the building feet).
+          this.clickMove.setTarget(HOUSE_POS.tx * TILE, (HOUSE_POS.ty + 0.8) * TILE);
         }
         return;
       }
@@ -261,13 +266,13 @@ export class TownScene extends Phaser.Scene {
           this.player.x,
           this.player.y,
           SHOP_POS.tx * TILE,
-          (SHOP_POS.ty + 0.55) * TILE,
+          SHOP_POS.ty * TILE,
         );
         if (d < BUILDING_CLICK_NEAR) {
           this.clickMove.clear();
           this.scene.start('Shop');
         } else {
-          this.clickMove.setTarget(SHOP_POS.tx * TILE, (SHOP_POS.ty + 2.8) * TILE);
+          this.clickMove.setTarget(SHOP_POS.tx * TILE, (SHOP_POS.ty + 0.8) * TILE);
         }
         return;
       }
@@ -276,13 +281,13 @@ export class TownScene extends Phaser.Scene {
           this.player.x,
           this.player.y,
           CAFE_POS.tx * TILE,
-          (CAFE_POS.ty + 0.55) * TILE,
+          CAFE_POS.ty * TILE,
         );
         if (d < BUILDING_CLICK_NEAR) {
           this.clickMove.clear();
           this.scene.start('ClothesShop');
         } else {
-          this.clickMove.setTarget(CAFE_POS.tx * TILE, (CAFE_POS.ty + 2.8) * TILE);
+          this.clickMove.setTarget(CAFE_POS.tx * TILE, (CAFE_POS.ty + 0.8) * TILE);
         }
         return;
       }
@@ -325,40 +330,41 @@ export class TownScene extends Phaser.Scene {
   }
 
   private buildMap() {
-    // Soft snow base across the whole ice town.
+    // Soft snow base — every cell is a full TILE square so ground never
+    // leaves gaps or draws partial snow under prop feet.
     for (let ty = 0; ty < MAP_H; ty++) {
       for (let tx = 0; tx < MAP_W; tx++) {
         const key = ty <= 1 ? 'tile-snow' : 'tile-grass';
-        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, key).setDepth(-100);
+        placeGroundTile(this, tx, ty, key, -100);
       }
     }
 
     // Large ice plaza — Club Penguin town-square feel.
     for (let ty = 8; ty <= 15; ty++) {
       for (let tx = 8; tx <= 24; tx++) {
-        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-plaza').setDepth(-99);
+        placeGroundTile(this, tx, ty, 'tile-plaza', -99);
       }
     }
-    // Inner sparkle ring around the fountain (deeper ice blue).
+    // Inner path ring around the fountain.
     for (let ty = 10; ty <= 13; ty++) {
       for (let tx = 14; tx <= 18; tx++) {
-        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-98);
+        placeGroundTile(this, tx, ty, 'tile-path', -98);
       }
     }
 
     // South ice road → Shore.
     for (let ty = 16; ty < MAP_H; ty++) {
       for (const tx of [15, 16, 17]) {
-        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+        placeGroundTile(this, tx, ty, 'tile-path', -99);
       }
     }
     // East/west ice roads → game parks.
     for (const ty of PARK_GATE_TY) {
       for (let tx = 0; tx < MAP_W; tx++) {
-        this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+        placeGroundTile(this, tx, ty, 'tile-path', -99);
       }
     }
-    // Paths up to each building front.
+    // Paths up to each building front (foot anchors sit on these rows).
     for (const band of [
       { txs: [5, 6, 7], tys: [6, 7] },
       { txs: [15, 16, 17], tys: [6, 7] },
@@ -366,18 +372,17 @@ export class TownScene extends Phaser.Scene {
     ]) {
       for (const tx of band.txs) {
         for (const ty of band.tys) {
-          this.add.image(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 'tile-path').setDepth(-99);
+          placeGroundTile(this, tx, ty, 'tile-path', -99);
         }
       }
     }
 
-    // Player's house — north of the ice plaza (large Imagine sprite).
-    const house = this.add.image(HOUSE_POS.tx * TILE, HOUSE_POS.ty * TILE, 'house');
-    scalePropToHeight(house, BUILDING_DISPLAY_H);
-    house.setDepth(propDepth(house, (HOUSE_POS.ty + 0.55) * TILE));
+    // Player's house — feet planted on the snow (origin bottom).
+    const house = this.add.image(0, 0, 'house');
+    plantOutdoorProp(house, HOUSE_POS.tx * TILE, HOUSE_POS.ty * TILE, BUILDING_DISPLAY_H);
     this.houseImg = house;
     this.add
-      .text(HOUSE_POS.tx * TILE, HOUSE_POS.ty * TILE - house.displayHeight / 2 - 12, 'My House', {
+      .text(HOUSE_POS.tx * TILE, HOUSE_POS.ty * TILE - house.displayHeight - 12, 'My House', {
         fontFamily: 'monospace',
         fontSize: '13px',
         color: '#ffffff',
@@ -388,21 +393,20 @@ export class TownScene extends Phaser.Scene {
       .setDepth(900);
     this.interactables.push({
       x: HOUSE_POS.tx * TILE,
-      y: (HOUSE_POS.ty + 0.55) * TILE,
+      y: HOUSE_POS.ty * TILE,
       radius: BUILDING_RADIUS,
       label: 'E / Space / click — Enter house',
       action: () => this.scene.start('House'),
       targets: [house],
     });
 
-    // Daniel's shop — NE of the plaza (chimney puffs soft smoke).
-    const shop = this.add.image(SHOP_POS.tx * TILE, SHOP_POS.ty * TILE, 'shop');
-    scalePropToHeight(shop, BUILDING_DISPLAY_H);
-    shop.setDepth(propDepth(shop, (SHOP_POS.ty + 0.55) * TILE));
+    // Daniel's shop — chimney puffs soft smoke from the roof peak.
+    const shop = this.add.image(0, 0, 'shop');
+    plantOutdoorProp(shop, SHOP_POS.tx * TILE, SHOP_POS.ty * TILE, BUILDING_DISPLAY_H);
     this.shopImg = shop;
     this.startShopChimneySmoke(shop);
     this.add
-      .text(SHOP_POS.tx * TILE, SHOP_POS.ty * TILE - shop.displayHeight / 2 - 12, "Daniel's Shop", {
+      .text(SHOP_POS.tx * TILE, SHOP_POS.ty * TILE - shop.displayHeight - 12, "Daniel's Shop", {
         fontFamily: 'monospace',
         fontSize: '13px',
         color: '#ffffff',
@@ -413,20 +417,19 @@ export class TownScene extends Phaser.Scene {
       .setDepth(900);
     this.interactables.push({
       x: SHOP_POS.tx * TILE,
-      y: (SHOP_POS.ty + 0.55) * TILE,
+      y: SHOP_POS.ty * TILE,
       radius: BUILDING_RADIUS,
       label: "E / Space / click — Enter Daniel's Shop",
       action: () => this.scene.start('Shop'),
       targets: [shop],
     });
 
-    // Cafe Cinnamon — NW of the plaza.
-    const cafe = this.add.image(CAFE_POS.tx * TILE, CAFE_POS.ty * TILE, 'cafe');
-    scalePropToHeight(cafe, BUILDING_DISPLAY_H);
-    cafe.setDepth(propDepth(cafe, (CAFE_POS.ty + 0.55) * TILE));
+    // Cafe Cinnamon.
+    const cafe = this.add.image(0, 0, 'cafe');
+    plantOutdoorProp(cafe, CAFE_POS.tx * TILE, CAFE_POS.ty * TILE, BUILDING_DISPLAY_H);
     this.cafeImg = cafe;
     this.add
-      .text(CAFE_POS.tx * TILE, CAFE_POS.ty * TILE - cafe.displayHeight / 2 - 12, 'Cafe Cinnamon', {
+      .text(CAFE_POS.tx * TILE, CAFE_POS.ty * TILE - cafe.displayHeight - 12, 'Cafe Cinnamon', {
         fontFamily: 'monospace',
         fontSize: '13px',
         color: '#ffe6f2',
@@ -437,7 +440,7 @@ export class TownScene extends Phaser.Scene {
       .setDepth(900);
     this.interactables.push({
       x: CAFE_POS.tx * TILE,
-      y: (CAFE_POS.ty + 0.55) * TILE,
+      y: CAFE_POS.ty * TILE,
       radius: BUILDING_RADIUS,
       label: 'E / Space / click — Enter Cafe Cinnamon',
       action: () => this.scene.start('ClothesShop'),
@@ -446,16 +449,15 @@ export class TownScene extends Phaser.Scene {
 
     // Gate signs — parks east/west, shore south.
     const gateSigns: { tx: number; ty: number; label: string }[] = [
-      { tx: 1.6, ty: 9.2, label: '← West Green' },
-      { tx: 30.4, ty: 9.2, label: 'East Green →' },
-      { tx: 18.2, ty: 18.2, label: 'The Shore ↓' },
+      { tx: 1.6, ty: 9.6, label: '← West Green' },
+      { tx: 30.4, ty: 9.6, label: 'East Green →' },
+      { tx: 18.2, ty: 18.4, label: 'The Shore ↓' },
     ];
     for (const g of gateSigns) {
-      const sign = this.add.image(g.tx * TILE, g.ty * TILE, 'signpost');
-      scalePropToHeight(sign, SIGN_DISPLAY_H);
-      sign.setDepth(propDepth(sign, g.ty * TILE + 14));
+      const sign = this.add.image(0, 0, 'signpost');
+      plantOutdoorProp(sign, g.tx * TILE, g.ty * TILE, SIGN_DISPLAY_H);
       this.add
-        .text(g.tx * TILE, g.ty * TILE - sign.displayHeight / 2 - 10, g.label, {
+        .text(g.tx * TILE, g.ty * TILE - sign.displayHeight - 10, g.label, {
           fontFamily: 'monospace',
           fontSize: '12px',
           color: '#ffe066',
@@ -469,7 +471,7 @@ export class TownScene extends Phaser.Scene {
     this.scatterTownDecor();
     // Solids after scatterTownDecor — it resets decoSolids.
     for (const g of gateSigns) {
-      this.decoSolids.push({ x: g.tx * TILE, y: g.ty * TILE + 14, w: 28, h: 18 });
+      this.decoSolids.push({ x: g.tx * TILE, y: g.ty * TILE - 4, w: 28, h: 14 });
     }
   }
 
@@ -546,39 +548,35 @@ export class TownScene extends Phaser.Scene {
     for (const spot of [...trees, ...bushes, ...flowers, ...hardscape]) {
       const isFountain = spot.tex === 'fountain';
       const img = isFountain
-        ? this.add.sprite(spot.tx * TILE, spot.ty * TILE, spot.tex)
-        : this.add.image(spot.tx * TILE, spot.ty * TILE, spot.tex);
+        ? this.add.sprite(0, 0, spot.tex)
+        : this.add.image(0, 0, spot.tex);
       const displayH =
         spot.displayH ??
         (spot.tex === 'tree' ? TREE_DISPLAY_H : spot.tex === 'streetlamp' ? LAMP_DISPLAY_H : PROP_DISPLAY_H);
-      scalePropToHeight(img, displayH);
-      // Always pass a ground Y. Flowers have no collider — without this,
-      // padded sprite feet sort south of characters standing in front of them.
-      const footY = spot.solid
-        ? spot.ty * TILE + (spot.solid[2] ?? 0)
-        : spot.ty * TILE;
-      img.setDepth(propDepth(img, footY));
+      const footY = spot.ty * TILE;
+      plantOutdoorProp(img, spot.tx * TILE, footY, displayH);
       if (isFountain && img instanceof Phaser.GameObjects.Sprite) {
         if (this.anims.exists('fountain-splash')) img.play('fountain-splash');
-        this.startFountainRipples(spot.tx * TILE, spot.ty * TILE, footY);
+        this.startFountainRipples(spot.tx * TILE, footY - displayH * 0.35, footY);
       }
       if (spot.solid) {
-        const [sw, sh, oy = 0] = spot.solid;
-        this.decoSolids.push({ x: spot.tx * TILE, y: spot.ty * TILE + oy, w: sw, h: sh });
+        const [sw, sh] = spot.solid;
+        // Collider sits at the feet (origin bottom), not below padded art.
+        this.decoSolids.push({ x: spot.tx * TILE, y: footY - sh * 0.35, w: sw, h: sh });
       }
     }
   }
 
   /**
    * Soft smoke rising from Daniel’s shop chimney.
-   * Imagine shop art: brick chimney sits on the viewer’s-right roof peak
-   * (~+22% width, ~−42% height from sprite center).
+   * Shop is planted with origin at feet; chimney is near the roof peak
+   * (viewer's-right, ~88% up the sprite).
    */
   private startShopChimneySmoke(shop: Phaser.GameObjects.Image) {
     if (!this.textures.exists('smoke')) return;
     const chimneyX = shop.x + shop.displayWidth * 0.22;
-    const chimneyY = shop.y - shop.displayHeight * 0.42;
-    const depth = propDepth(shop, (SHOP_POS.ty + 0.55) * TILE) + 2;
+    const chimneyY = shop.y - shop.displayHeight * 0.88;
+    const depth = shop.y + 2;
 
     const puff = () => {
       if (!this.sys.isActive()) return;
@@ -639,10 +637,10 @@ export class TownScene extends Phaser.Scene {
       this.physics.add.existing(r, true);
       solids.push(r);
     };
-    // Large Imagine buildings — wide base colliders under the snow-capped roofs.
-    addSolid(HOUSE_POS.tx * TILE, (HOUSE_POS.ty + 0.55) * TILE, 210, 110);
-    addSolid(SHOP_POS.tx * TILE, (SHOP_POS.ty + 0.55) * TILE, 220, 110);
-    addSolid(CAFE_POS.tx * TILE, (CAFE_POS.ty + 0.55) * TILE, 210, 110);
+    // Building feet colliders — solid base just above the doorstep.
+    addSolid(HOUSE_POS.tx * TILE, HOUSE_POS.ty * TILE - 36, 180, 72);
+    addSolid(SHOP_POS.tx * TILE, SHOP_POS.ty * TILE - 36, 190, 72);
+    addSolid(CAFE_POS.tx * TILE, CAFE_POS.ty * TILE - 36, 180, 72);
     for (const s of this.decoSolids) addSolid(s.x, s.y, s.w, s.h);
     this.physics.add.collider(this.player, solids);
   }
