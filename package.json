@@ -1,7 +1,7 @@
 {
   "name": "pet-village",
   "private": true,
-  "version": "1.24.5",
+  "version": "1.24.6",
   "type": "module",
   "workspaces": [
     "packages/*",
