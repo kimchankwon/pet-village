@@ -1,6 +1,20 @@
 /** Inventory id consumed once at the start of every fishing cast. */
 export const FISHING_BAIT_ID = 'bait';
 
+/** The three catchable fish, commonest first. */
+export type FishTierId = 'oceanfish-common' | 'oceanfish-uncommon' | 'oceanfish-rare';
+
+/**
+ * Landing a fish cheers the pet then and there — the fish itself is food for
+ * later, so without this a cast would spend energy for nothing immediate. Rarer
+ * fish fight harder, so they cheer more.
+ */
+export const FISHING_CATCH_HAPPINESS: Record<FishTierId, number> = {
+  'oceanfish-common': 4,
+  'oceanfish-uncommon': 7,
+  'oceanfish-rare': 11,
+};
+
 export function fishingBaitCount(inventory: Record<string, number>): number {
   const count = inventory[FISHING_BAIT_ID] ?? 0;
   return Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;

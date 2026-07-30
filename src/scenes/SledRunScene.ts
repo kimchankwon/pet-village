@@ -30,6 +30,7 @@ import {
 } from '../systems/sledRunPrediction';
 import { sledRunReward } from '../systems/sledRunRewards';
 import { State } from '../systems/GameState';
+import { SLED_RUN_ENERGY_COST, tooTiredMessage } from '../systems/gameEnergy';
 
 const COLOR_TINT: Record<string, number> = {
   blue: 0x58a6ff, green: 0x53d769, pink: 0xff7eb6, black: 0x5d6470,
@@ -80,6 +81,11 @@ export class SledRunScene extends Phaser.Scene {
   private reconnecting = false;
   /** Take the next snapshot as the truth rather than reconciling toward it. */
   private resyncFromServer = false;
+  /**
+   * The pet ran out of energy for the run that just started. Nothing about this
+   * race concerns us any more, so the hill is left behind after a beat.
+   */
+  private tooTired = false;
 
   constructor() {
     super('SledRun');
@@ -109,6 +115,7 @@ export class SledRunScene extends Phaser.Scene {
     this.disconnected = false;
     this.reconnecting = false;
     this.resyncFromServer = false;
+    this.tooTired = false;
     this.cameras.main.setBackgroundColor('#79bee7');
     this.drawMountain();
     this.courseGraphics = this.add.graphics().setDepth(20);
@@ -226,6 +233,8 @@ export class SledRunScene extends Phaser.Scene {
 
   private acceptSnapshot(snapshot: SledRunSnapshot) {
     this.snapshot = snapshot;
+    // Sitting this run out: it can no longer charge us, move us or pay us.
+    if (this.tooTired) return;
     this.snapshotAt = this.time.now;
     const nextCourseKey = `${snapshot.seed}:${snapshot.difficulty}:${snapshot.round}`;
     if (snapshot.seed && nextCourseKey !== this.courseKey) {
@@ -234,6 +243,16 @@ export class SledRunScene extends Phaser.Scene {
     }
     if (snapshot.phase !== this.previousPhase || snapshot.round !== this.previousRound) {
       if (snapshot.phase === 'countdown') {
+        // A run down the hill is paid for as the countdown starts, which is the
+        // same moment for the leader and for everyone they started. A pet that
+        // can't cover it doesn't race: the leader is stopped before starting, and
+        // anyone else the leader dragged in walks back to the park.
+        const cost = SLED_RUN_ENERGY_COST[snapshot.difficulty];
+        if (!State.hasEnergy(cost)) {
+          this.bailTooTired(cost);
+          return;
+        }
+        State.spendEnergy(cost);
         this.rewardText = '';
         // Fresh run: drop last run's predicted positions instead of blending
         // every sled all the way back from the finish line.
@@ -469,6 +488,13 @@ export class SledRunScene extends Phaser.Scene {
 
   private startRace() {
     if (!this.snapshot || this.snapshot.leader !== this.snapshot.localSessionId || (this.snapshot.phase !== 'lobby' && this.snapshot.phase !== 'finished')) return;
+    const cost = SLED_RUN_ENERGY_COST[this.snapshot.difficulty];
+    if (!State.hasEnergy(cost)) {
+      // Refuse here rather than at the countdown: the leader's start signal pulls
+      // everyone else down the hill too. refreshUi carries the reason.
+      this.refreshUi();
+      return;
+    }
     if (!this.solo) {
       this.connection?.start();
       return;
@@ -507,6 +533,8 @@ export class SledRunScene extends Phaser.Scene {
   private refreshUi() {
     const snapshot = this.snapshot;
     if (!snapshot) return;
+    // Sitting a run out: bailTooTired owns the screen until the park comes back.
+    if (this.tooTired) return;
     const leader = snapshot.leader === snapshot.localSessionId;
     this.queueText.setText(`${snapshot.racers.length}/${SLED_MAX_PLAYERS} RACERS\n${leader ? '★ You are leader' : 'Waiting for leader'}`);
     const local = snapshot.racers.find((racer) => racer.sessionId === snapshot.localSessionId);
@@ -517,9 +545,15 @@ export class SledRunScene extends Phaser.Scene {
     const speed = local && !local.rank && !this.authoritativeView ? this.localSled.speed : (local?.speed ?? 0);
     const place = local?.rank ? `Finished #${local.rank}` : `${Math.round((progress / config.courseLength) * 100)}%`;
     this.hudText.setText(`${snapshot.difficulty.toUpperCase()}\n${place}\n${Math.round(speed)} speed`);
+    const cost = SLED_RUN_ENERGY_COST[snapshot.difficulty];
+    const rested = State.hasEnergy(cost);
     const showLobby = snapshot.phase === 'lobby' || snapshot.phase === 'finished';
     this.parkButton.setVisible(showLobby || this.disconnected);
-    this.startButton.setVisible(showLobby && leader && !this.disconnected).setText(snapshot.phase === 'finished' ? 'RUN AGAIN' : 'START RUN');
+    this.startButton
+      .setVisible(showLobby && leader && !this.disconnected)
+      .setText(snapshot.phase === 'finished' ? 'RUN AGAIN' : 'START RUN')
+      // Dimmed when the pet can't cover the run the leader has selected.
+      .setAlpha(rested ? 1 : 0.55);
     this.difficultyButtons.forEach((button, index) => {
       const active = SLED_DIFFICULTIES[index] === snapshot.difficulty;
       button.setVisible(snapshot.phase === 'lobby' && !this.disconnected).setAlpha(active ? 1 : 0.55);
@@ -527,12 +561,24 @@ export class SledRunScene extends Phaser.Scene {
     if (this.disconnected) {
       this.statusText.setText('Connection lost • this run ended • return to Park');
     } else if (snapshot.phase === 'lobby') {
-      this.statusText.setText(this.lobbyNote || (leader ? 'Choose a difficulty • start when everyone is ready' : 'Waiting at the top for the leader to start…'));
+      const ready = leader
+        ? 'Choose a difficulty • start when everyone is ready'
+        : 'Waiting at the top for the leader to start…';
+      // The cost rides on its own line, so a solo-practice note can't hide it.
+      this.statusText.setText(
+        rested
+          ? `${this.lobbyNote || ready}\n${cost} energy per run`
+          : tooTiredMessage(State.data.petName, cost),
+      );
     } else if (snapshot.phase === 'finished') {
       const results = snapshot.racers.filter((racer) => racer.rank > 0)
         .sort((a, b) => a.rank - b.rank)
         .map((racer) => `#${racer.rank} ${racer.displayName}`).join('  •  ');
-      this.statusText.setText(`FINISH!  ${results}${this.rewardText}`);
+      const finish = `FINISH!  ${results}${this.rewardText}`;
+      // RUN AGAIN is dimmed when the pet is spent, so say why here.
+      this.statusText.setText(
+        rested ? finish : `${finish}\n${tooTiredMessage(State.data.petName, cost)}`,
+      );
     }
   }
 
@@ -700,6 +746,27 @@ export class SledRunScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * The leader started a run this pet can't pay for. Nothing is charged and no
+   * reward can be earned, so the race is left — after a beat, so the reason can
+   * be read off the hill before the park comes back.
+   */
+  private bailTooTired(cost: number) {
+    if (this.tooTired) return;
+    this.tooTired = true;
+    // Drop out now rather than at the end of the beat below: left connected, our
+    // sled would sit at the top of everyone else's hill until the race timed out.
+    void this.connection?.disconnect();
+    this.connection = undefined;
+    this.startButton.setVisible(false);
+    this.difficultyButtons.forEach((button) => button.setVisible(false));
+    this.parkButton.setVisible(true);
+    this.statusText.setText(`${tooTiredMessage(State.data.petName, cost)}\nSitting this run out • back to the Park`);
+    this.time.delayedCall(2600, () => {
+      if (this.tooTired) this.leave();
+    });
+  }
+
   private leave() {
     this.scene.start('WestPark', { spawn: 'sled-run' });
   }
@@ -709,7 +776,8 @@ export class SledRunScene extends Phaser.Scene {
       this.leave();
       return;
     }
-    if (!this.snapshot) return;
+    // Sitting the run out — no steering to send, no sled of ours to simulate.
+    if (this.tooTired || !this.snapshot) return;
     const pointer = this.input.activePointer;
     const steering = steerAxisFrom({
       left: this.cursors.left.isDown || this.keyA.isDown,

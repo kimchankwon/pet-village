@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { worldSceneSpawn } from '@pet-village/multiplayer-protocol';
 import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
-import { MIN_GAME_ENERGY, State } from '../systems/GameState';
+import { State } from '../systems/GameState';
+import { FISHING_ENERGY_PER_CAST, tooTiredMessage } from '../systems/gameEnergy';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
@@ -393,12 +394,12 @@ export class ShoreScene extends Phaser.Scene {
       );
       return;
     }
-    if (!State.hasEnergy(MIN_GAME_ENERGY)) {
+    if (!State.hasEnergy(FISHING_ENERGY_PER_CAST)) {
       toast(
         this,
         this.player.x,
         this.player.y - 56,
-        `${State.data.petName || 'Your pet'} is too tired to play — needs a nap!`,
+        tooTiredMessage(State.data.petName, FISHING_ENERGY_PER_CAST),
         '#ffb3d1',
       );
       return;

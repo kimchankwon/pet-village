@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
-import { BUMP_ENERGY_COST, MIN_GAME_ENERGY, State, type BumpDifficulty } from '../systems/GameState';
+import { State, type BumpDifficulty } from '../systems/GameState';
+import { BUMP_ENERGY_COST, GAME_MIN_ENERGY, tooTiredMessage } from '../systems/gameEnergy';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { bindGameActivity } from '../systems/multiplayerGameActivity';
@@ -396,9 +397,10 @@ export class BumpScene extends Phaser.Scene {
   private openDifficultyMenu() {
     this.menuOpen = true;
     const option = (d: BumpDifficulty) => {
-      const tired = !State.hasEnergy(BUMP_ENERGY_COST[d]);
+      const cost = BUMP_ENERGY_COST[d];
+      const tired = !State.hasEnergy(cost);
       return {
-        label: `${DIFFICULTY[d].label}${tired ? ' — too tired!' : ''}`,
+        label: `${DIFFICULTY[d].label} · ${cost} energy${tired ? ' — too tired!' : ''}`,
         disabled: tired,
         onSelect: () => this.startBout(d),
       };
@@ -408,7 +410,9 @@ export class BumpScene extends Phaser.Scene {
       'Bump!',
       [option('easy'), option('medium'), option('hard')],
       {
-        subtitle: `Push ${this.oppName} off the platform — harder foes push back harder!`,
+        subtitle: State.hasEnergy(GAME_MIN_ENERGY.Bump)
+          ? `Push ${this.oppName} off the platform — harder foes push back harder!`
+          : `Too tired for even Easy — ${GAME_MIN_ENERGY.Bump} energy needed. Tuck ${State.data.petName || 'your pet'} into bed!`,
         face: `${this.oppPrefix}-idle`,
       },
     );
@@ -424,13 +428,20 @@ export class BumpScene extends Phaser.Scene {
   }
 
   private startBout(d: BumpDifficulty) {
+    const cost = BUMP_ENERGY_COST[d];
+    if (!State.hasEnergy(cost)) {
+      this.menuOpen = false;
+      this.time.delayedCall(0, () => this.openDifficultyMenu());
+      return;
+    }
     this.difficulty = d;
     // Pay the bout's energy up front — walking away doesn't refund it.
-    State.spendEnergy(BUMP_ENERGY_COST[d]);
+    State.spendEnergy(cost);
     this.mode = 'ready';
-    this.diffText.setText(`Difficulty: ${DIFFICULTY[d].label}`);
+    this.diffText.setText(`Difficulty: ${DIFFICULTY[d].label} · ${cost} energy`);
     this.vsText.setText(`${State.data.petName || 'Your pet'}  VS  ${this.oppName}`);
     this.flashFeedback('Get ready…', '#c8c8dc', 0);
+    toast(this, this.cameras.main.width / 2, 126, `-${cost} energy`, '#ffe066');
 
     this.time.delayedCall(900, () => {
       if (this.mode !== 'ready') return;
@@ -663,8 +674,8 @@ export class BumpScene extends Phaser.Scene {
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     again.on('pointerdown', () => {
-      if (!State.hasEnergy(MIN_GAME_ENERGY)) {
-        toast(this, cx, cy - 130, 'Too tired to play — needs a nap!', '#ffb3d1');
+      if (!State.hasEnergy(GAME_MIN_ENERGY.Bump)) {
+        toast(this, cx, cy - 130, tooTiredMessage(State.data.petName, GAME_MIN_ENERGY.Bump), '#ffb3d1');
         return;
       }
       this.scene.restart();

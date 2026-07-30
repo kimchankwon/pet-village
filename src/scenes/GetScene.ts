@@ -5,7 +5,6 @@ import {
   buildGetTrack,
   GET_CATCH_HALF_WIDTH,
   GET_DIFFICULTIES,
-  GET_ENERGY_COST,
   GET_TAP_DISTANCE,
   getGetBowlScaleX,
   getGetNoteTexture,
@@ -13,6 +12,7 @@ import {
   type GetDifficulty,
   type GetEvent,
 } from '../systems/getGameRules';
+import { GAME_MIN_ENERGY, GET_ENERGY_COST, tooTiredMessage } from '../systems/gameEnergy';
 import { petAnimKey, petDrawScale, petTextureKey } from '../systems/pets';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
@@ -267,11 +267,16 @@ export class GetScene extends Phaser.Scene {
         onSelect: () => this.beginRun(difficulty),
       };
     };
+    const rested = State.hasEnergy(GAME_MIN_ENERGY.Get);
     const menu = new Menu(
       this,
       'Get!',
       [option('easy'), option('normal'), option('hard')],
-      { subtitle: 'Energy is spent per run · catch every note · dodge poop' },
+      {
+        subtitle: rested
+          ? 'Energy is spent per run · catch every note · dodge poop'
+          : `Too tired for even Easy — ${GAME_MIN_ENERGY.Get} energy needed. Tuck ${State.data.petName || 'your pet'} into bed!`,
+      },
     );
     menu.onClose = () => {
       this.menuOpen = false;
@@ -408,7 +413,13 @@ export class GetScene extends Phaser.Scene {
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     // Match Bump/Paper Toss: every new run returns to difficulty selection.
-    retry.on('pointerdown', () => this.scene.restart());
+    retry.on('pointerdown', () => {
+      if (!State.hasEnergy(GAME_MIN_ENERGY.Get)) {
+        toast(this, cx, cy - 130, tooTiredMessage(State.data.petName, GAME_MIN_ENERGY.Get), '#ffb3d1');
+        return;
+      }
+      this.scene.restart();
+    });
     const leave = this.add
       .text(cx + 128, cy + 62, '[ Back outside ]', {
         ...FONT,

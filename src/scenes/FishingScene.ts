@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
-import { ITEMS, MIN_GAME_ENERGY, State } from '../systems/GameState';
+import { ITEMS, State } from '../systems/GameState';
+import { FISHING_ENERGY_PER_CAST, tooTiredMessage } from '../systems/gameEnergy';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { bindGameActivity } from '../systems/multiplayerGameActivity';
@@ -12,6 +13,7 @@ import {
   fishingBiteWindowMs,
   fishingFightStrength,
   hasFishingBait,
+  type FishTierId,
 } from '../systems/fishingRules';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
@@ -38,7 +40,7 @@ type Mode =
   | 'done'
   | 'settling';
 
-type FishTier = 'oceanfish-common' | 'oceanfish-uncommon' | 'oceanfish-rare';
+type FishTier = FishTierId;
 
 const FISH_TIERS: {
   id: FishTier;
@@ -310,11 +312,14 @@ export class FishingScene extends Phaser.Scene {
     this.tweens.killTweensOf(this.rod);
     this.rod.setAngle(-18);
     const bait = fishingBaitCount(State.data.inventory);
-    this.statusText.setText(bait > 0 ? 'Ready to cast' : 'Out of bait');
+    const rested = State.hasEnergy(FISHING_ENERGY_PER_CAST);
+    this.statusText.setText(bait > 0 ? (rested ? 'Ready to cast' : 'Too tired to cast') : 'Out of bait');
     this.hintText.setText(
-      bait > 0
-        ? 'Each cast uses 1 bait · Drag opposite the cast · Farther = rarer (and riskier) fish'
-        : 'Back to shore — Daniel sells bait for 3 coins',
+      bait <= 0
+        ? 'Back to shore — Daniel sells bait for 3 coins'
+        : rested
+          ? `Each cast uses 1 bait and ${FISHING_ENERGY_PER_CAST} energy · Drag opposite the cast · Farther = rarer (and riskier) fish`
+          : tooTiredMessage(State.data.petName, FISHING_ENERGY_PER_CAST),
     );
     this.bestText.setText(`Best: ${State.data.biggestCatch || 0}cm · Bait: ${bait}`);
   }
@@ -412,12 +417,21 @@ export class FishingScene extends Phaser.Scene {
 
   private cast() {
     if (this.mode !== 'ready') return;
+    if (!State.hasEnergy(FISHING_ENERGY_PER_CAST)) {
+      // Checked before the bait is spent, so being tired never costs a bait.
+      this.statusText.setText('Too tired to cast');
+      const message = tooTiredMessage(State.data.petName, FISHING_ENERGY_PER_CAST);
+      this.hintText.setText(message);
+      toast(this, this.cameras.main.width / 2, 200, message, '#ffb3d1');
+      return;
+    }
     if (!State.removeItem(FISHING_BAIT_ID)) {
       this.statusText.setText('Out of bait');
       this.hintText.setText('Back to shore — Daniel sells bait for 3 coins');
       toast(this, this.cameras.main.width / 2, 200, 'No bait left!', '#ffe066');
       return;
     }
+    State.spendEnergy(FISHING_ENERGY_PER_CAST);
     this.mode = 'casting';
     this.baitStolen = false;
     this.surgeStart = 0;
@@ -738,6 +752,7 @@ export class FishingScene extends Phaser.Scene {
 
     State.addItem(tier.id);
     const isBest = State.recordCatch(size);
+    const cheer = State.rewardFishingCatch(tier.id);
 
     this.petSprite.stop();
     this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'happy'));
@@ -745,7 +760,13 @@ export class FishingScene extends Phaser.Scene {
       if (this.petSprite.active) this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
     });
 
-    toast(this, this.cameras.main.width / 2, 160, isBest ? 'New best catch!' : 'Nice catch!', '#a8e6cf');
+    toast(
+      this,
+      this.cameras.main.width / 2,
+      160,
+      `${isBest ? 'New best catch!' : 'Nice catch!'} +${cheer} happy`,
+      '#a8e6cf',
+    );
     this.time.delayedCall(420, () => this.showCatchCard(tier.id, size, isBest));
   }
 
@@ -796,11 +817,19 @@ export class FishingScene extends Phaser.Scene {
       .setDepth(1601);
 
     const canCastAgain = hasFishingBait(State.data.inventory);
+    const restedForNextCast = State.hasEnergy(FISHING_ENERGY_PER_CAST);
+    // Out of bait and too tired both read the same way here: greyed, and the
+    // label says which one it is rather than making the player guess.
+    const againLabel = !canCastAgain
+      ? '[ Out of bait ]'
+      : restedForNextCast
+        ? '[ Cast again ]'
+        : '[ Too tired ]';
     const again = this.add
-      .text(cx - 110, cy + 118, canCastAgain ? '[ Cast again ]' : '[ Out of bait ]', {
+      .text(cx - 110, cy + 118, againLabel, {
         ...FONT,
         fontSize: '16px',
-        color: canCastAgain ? '#a8e6cf' : '#8a8a9e',
+        color: canCastAgain && restedForNextCast ? '#a8e6cf' : '#8a8a9e',
         padding: { x: 8, y: 6 },
       })
       .setOrigin(0.5)
@@ -809,8 +838,14 @@ export class FishingScene extends Phaser.Scene {
     if (canCastAgain) {
       again.setInteractive({ useHandCursor: true });
       again.on('pointerdown', () => {
-        if (!State.hasEnergy(MIN_GAME_ENERGY)) {
-          toast(this, cx, cy - 130, 'Too tired to play — needs a nap!', '#ffb3d1');
+        if (!restedForNextCast) {
+          toast(
+            this,
+            cx,
+            cy - 130,
+            tooTiredMessage(State.data.petName, FISHING_ENERGY_PER_CAST),
+            '#ffb3d1',
+          );
           return;
         }
         this.scene.restart();

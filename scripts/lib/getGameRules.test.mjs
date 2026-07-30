@@ -5,7 +5,6 @@ import {
   GET_BOWL_BASE_HALF_WIDTH,
   GET_CATCH_HALF_WIDTH,
   GET_DIFFICULTIES,
-  GET_ENERGY_COST,
   GET_PLAYER_SPEED,
   GET_POOP_HALF_WIDTH,
   GET_SAFE_MARGIN,
@@ -14,6 +13,8 @@ import {
   GET_WIN_REWARDS,
   getGetTravelDistance,
 } from '../../src/systems/getGameRules.ts';
+// Energy costs for every booth live in one place, so Get's comes from there.
+import { GET_ENERGY_COST } from '../../src/systems/gameEnergy.ts';
 
 const FIELD = { minX: 70, maxX: 730, spawnY: 64, catchY: 480 };
 const DIFFICULTIES = ['easy', 'normal', 'hard'];

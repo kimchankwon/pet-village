@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { worldSceneSpawn } from '@pet-village/multiplayer-protocol';
 import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
-import { MIN_GAME_ENERGY, State } from '../systems/GameState';
+import { State } from '../systems/GameState';
+import { GAME_MIN_ENERGY, tooTiredMessage, type MiniGameKey } from '../systems/gameEnergy';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { ClickMove } from '../systems/ClickMove';
@@ -58,8 +59,8 @@ interface ParkBooth {
   label: string;
   /** Interact prompt. */
   prompt: string;
-  /** Mini-game scene started on interact. */
-  sceneKey: string;
+  /** Mini-game scene started on interact — typed, so its energy cost is known. */
+  sceneKey: MiniGameKey;
   /** `spawn` id this park receives when that game exits back here. */
   spawnId: string;
   tx: number;
@@ -401,14 +402,15 @@ export class ParkScene extends Phaser.Scene {
     this.physics.add.collider(this.player, solids);
   }
 
-  /** Start a mini-game — unless the pet is too tired to play. */
-  private enterGame(sceneKey: string) {
-    if (!State.hasEnergy(MIN_GAME_ENERGY)) {
+  /** Start a mini-game — unless the pet is too tired for even its cheapest run. */
+  private enterGame(sceneKey: MiniGameKey) {
+    const cost = GAME_MIN_ENERGY[sceneKey];
+    if (!State.hasEnergy(cost)) {
       toast(
         this,
         this.player.x,
         this.player.y - 56,
-        `${State.data.petName || 'Your pet'} is too tired to play — needs a nap!`,
+        tooTiredMessage(State.data.petName, cost),
         '#ffb3d1',
       );
       return;
