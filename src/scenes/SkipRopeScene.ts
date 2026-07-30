@@ -1,13 +1,13 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
 import {
-  MIN_GAME_ENERGY,
   SKIP_ROPE_MILESTONE_JUMPS,
   SKIP_ROPE_TARGET,
   SKIP_ROPE_WIN_COINS,
   SKIP_ROPE_WIN_HAPPINESS,
   State,
 } from '../systems/GameState';
+import { SKIP_ROPE_ENERGY_COST, tooTiredMessage } from '../systems/gameEnergy';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { bindGameActivity } from '../systems/multiplayerGameActivity';
@@ -255,6 +255,11 @@ export class SkipRopeScene extends Phaser.Scene {
       if (this.cameraZoom.ownsPointer(p) || this.cameraZoom.isPinching()) return;
       if (this.mode === 'playing') this.tryJump();
     });
+
+    // A visit is a run, so the rope is paid for here rather than per jump. Both
+    // ways in — the booth outside and the panel's [ Try again ] — check first.
+    State.spendEnergy(SKIP_ROPE_ENERGY_COST);
+    toast(this, cx, 150, `-${SKIP_ROPE_ENERGY_COST} energy`, '#ffe066');
 
     this.ropeStartsAt = this.time.now + READY_MS;
     this.feedbackText.setText('Get ready…').setColor('#c8c8dc').setAlpha(1);
@@ -794,8 +799,8 @@ export class SkipRopeScene extends Phaser.Scene {
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
     again.on('pointerdown', () => {
-      if (!State.hasEnergy(MIN_GAME_ENERGY)) {
-        toast(this, cx, cy - 130, 'Too tired to play — needs a nap!', '#ffb3d1');
+      if (!State.hasEnergy(SKIP_ROPE_ENERGY_COST)) {
+        toast(this, cx, cy - 130, tooTiredMessage(State.data.petName, SKIP_ROPE_ENERGY_COST), '#ffb3d1');
         return;
       }
       this.scene.restart();

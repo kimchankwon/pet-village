@@ -74,6 +74,17 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   bars decay in real time — including while the game is closed (capped at
   12h so a holiday isn't fatal). Feed it snacks, play with it, and tuck it
   into a bed to restore energy.
+- **Energy gates every mini-game.** Each booth charges up front and refuses a
+  pet that can't cover it: 5–12 for a Bump bout, a Get track or a sled race,
+  10 for a Skip Rope run, 10–18 for a Paper Toss run, and 4 for each fishing
+  cast. The booth outside turns you away, unaffordable difficulties are greyed
+  out where a game has them, and retry buttons say what's needed. Every cost
+  lives in `src/systems/gameEnergy.ts`; the payouts stay with their own games
+  (`GameState`, `getGameRules`, `sledRunRewards`, `fishingRules`), and
+  `gameEnergy.test.ts` holds them against each other — a winning run at the
+  five coin-paying booths is worth roughly 1.2–2.2 coins per energy, so none
+  of them is a better farm than the rest. Fishing is the exception by design:
+  it pays a fish and a cheer rather than coins.
 - **Daniel's Shop** — walk up to the shop building and step inside;
   Daniel the bunny waits at the counter selling food and furniture for
   coins, including the SVT Lightstick VER.3 Anniversary for superfan
@@ -88,8 +99,10 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   (the aim line turns red at max). The bin has real rims — near-misses
   rattle out (or in) — and the paper ball hops off the floor up to twice,
   so a lucky bounce still counts. On the final stage the bin creeps
-  while you aim. Scoring: 3 coins per basket, +1 for a clean swish, +2
-  for banking it off a plank, +2 streak bonus from 3 in a row. Drag
+  while you aim. A run costs 10 / 14 / 18 energy on Easy / Medium / Hard,
+  paid up front for both its levels. Scoring: 1 / 2 / 3 coins per basket by
+  difficulty, +1 for a clean swish, +1 for banking it off a plank, +1
+  streak bonus from 3 in a row, and 2 / 3 / 5 for clearing a level. Drag
   anywhere on screen to slingshot (releasing outside the game still
   throws), and pick your paper-ball colour with the swatches.
 - **Get** sits beside Paper Toss in the East Green: move your pet's bowl with

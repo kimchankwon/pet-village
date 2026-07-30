@@ -23,6 +23,7 @@ import {
   applyPetFoodStats,
   petCanEat,
 } from './petFoodRules';
+import { FISHING_CATCH_HAPPINESS, type FishTierId } from './fishingRules';
 import { GET_WIN_REWARDS, type GetDifficulty } from './getGameRules';
 import { normalizeTownPosition, type TownPosition } from './townPosition';
 import { validatePetName } from './profileNameRules';
@@ -92,15 +93,11 @@ export interface ItemDef {
   catchOnly?: boolean;
 }
 
-/** Flat tip for clearing a Paper Toss level. */
-export const PAPER_TOSS_PARTICIPATION_COINS = 4;
-/** Energy the pet loses per completed Paper Toss throw. */
-export const PAPER_TOSS_ENERGY_PER_THROW = 3;
 /** Happiness gained per throw on absolute stage 1; multiplies by stage number. */
 export const PAPER_TOSS_HAPPINESS_PER_STAGE = 2;
 /** Coins for clearing Skip Rope (25 consecutive jumps). */
 export const SKIP_ROPE_WIN_COINS = 20;
-/** Happiness bump on a Skip Rope clear — no energy cost. */
+/** Happiness bump on a Skip Rope clear. */
 export const SKIP_ROPE_WIN_HAPPINESS = 16;
 /** Consecutive jumps needed to clear Skip Rope. */
 export const SKIP_ROPE_TARGET = 25;
@@ -116,16 +113,8 @@ export const BUMP_REWARDS: Record<BumpDifficulty, { coins: number; happiness: nu
   medium: { coins: 14, happiness: 9 },
   hard: { coins: 26, happiness: 14 },
 };
-/** Energy a Bump bout costs (paid up front), win or lose. */
-export const BUMP_ENERGY_COST: Record<BumpDifficulty, number> = {
-  easy: 5,
-  medium: 8,
-  hard: 12,
-};
 /** Small cheer-up for a lost bout (it was still playtime). */
 export const BUMP_LOSS_HAPPINESS = 2;
-/** Minimum energy the pet needs to start any mini-game. */
-export const MIN_GAME_ENERGY = 5;
 
 /** Paper Toss difficulty — each run is two absolute stages from the table below. */
 export type PaperTossDifficulty = 'easy' | 'medium' | 'hard';
@@ -134,6 +123,21 @@ export const PAPER_TOSS_DIFFICULTY_STAGES: Record<PaperTossDifficulty, readonly 
   easy: [1, 2],
   medium: [2, 3],
   hard: [3, 4],
+};
+/**
+ * Paper Toss pays per basket rather than per clear, so the rate has to rise with
+ * the difficulty or an easy run would out-earn a hard one for less energy.
+ */
+export const PAPER_TOSS_COINS_PER_BASKET: Record<PaperTossDifficulty, number> = {
+  easy: 1,
+  medium: 2,
+  hard: 3,
+};
+/** Tip for clearing one of a run's two levels. */
+export const PAPER_TOSS_LEVEL_CLEAR_COINS: Record<PaperTossDifficulty, number> = {
+  easy: 2,
+  medium: 3,
+  hard: 5,
 };
 
 export const ITEMS: Record<string, ItemDef> = {
@@ -531,7 +535,15 @@ export class GameStateStore {
     return true;
   }
 
-  /** Win rewards for clearing Skip Rope (coins + happiness, no energy loss). */
+  /** Cheer for a landed fish — the fish itself was already added to the bag. */
+  rewardFishingCatch(tier: FishTierId): number {
+    const happiness = FISHING_CATCH_HAPPINESS[tier] ?? 0;
+    this.data.pet.happiness = clamp(this.data.pet.happiness + happiness);
+    this.save();
+    return happiness;
+  }
+
+  /** Win rewards for clearing Skip Rope (energy was paid at the start of the run). */
   rewardSkipRopeWin() {
     this.data.coins += SKIP_ROPE_WIN_COINS;
     this.data.pet.happiness = clamp(this.data.pet.happiness + SKIP_ROPE_WIN_HAPPINESS);
@@ -612,11 +624,11 @@ export class GameStateStore {
   }
 
   /**
-   * Apply mini-game throw costs. Pass `{ persist: false }` to batch many throws
-   * and call `save()` once at stage end.
+   * Playing is its own reward: cheer the pet for a throw or a jump. Energy is
+   * charged up front by the booth, so this only ever adds happiness. Pass
+   * `{ persist: false }` to batch many throws and call `save()` once at stage end.
    */
-  drainEnergyFromPlay(energy = 3, happiness = 2, opts?: { persist?: boolean }) {
-    this.data.pet.energy = clamp(this.data.pet.energy - energy);
+  cheerFromPlay(happiness: number, opts?: { persist?: boolean }) {
     this.data.pet.happiness = clamp(this.data.pet.happiness + happiness);
     if (opts?.persist !== false) this.save();
   }

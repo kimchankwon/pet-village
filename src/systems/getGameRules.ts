@@ -30,13 +30,6 @@ export const GET_WIN_REWARDS: Record<GetDifficulty, { coins: number; happiness: 
   hard: { coins: 26, happiness: 14 },
 };
 
-/** Energy paid at the start of every Get track. */
-export const GET_ENERGY_COST: Record<GetDifficulty, number> = {
-  easy: 5,
-  normal: 8,
-  hard: 12,
-};
-
 export const GET_PLAYER_SPEED = 360;
 export const GET_TAP_DISTANCE = 90;
 /** Half-width of the unscaled bowl artwork. */

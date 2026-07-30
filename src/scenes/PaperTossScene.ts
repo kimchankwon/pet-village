@@ -1,14 +1,19 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../sprites/pixelart';
 import {
-  MIN_GAME_ENERGY,
   State,
-  PAPER_TOSS_ENERGY_PER_THROW,
+  PAPER_TOSS_COINS_PER_BASKET,
   PAPER_TOSS_HAPPINESS_PER_STAGE,
-  PAPER_TOSS_PARTICIPATION_COINS,
+  PAPER_TOSS_LEVEL_CLEAR_COINS,
   PAPER_TOSS_DIFFICULTY_STAGES,
   type PaperTossDifficulty,
 } from '../systems/GameState';
+import {
+  GAME_MIN_ENERGY,
+  PAPER_TOSS_ENERGY_COST,
+  paperTossEnergyCost,
+  tooTiredMessage,
+} from '../systems/gameEnergy';
 import { Menu, toast } from '../systems/UI';
 import { isUiBlocked } from '../systems/nav';
 import { bindGameActivity } from '../systems/multiplayerGameActivity';
@@ -25,7 +30,6 @@ const THROWS_PER_STAGE = 5;
 const BASKETS_TO_CLEAR = 3;
 /** Fail the level as soon as misses exceed this (more than 2). */
 const MAX_MISSES = 2;
-const COINS_PER_BASKET = 2;
 // Slower, floatier flight so the wind has time to bend the arc.
 const GRAVITY = 1100;
 const BALL_R = 12;
@@ -112,6 +116,8 @@ export class PaperTossScene extends Phaser.Scene {
   private trailTimer = 0;
   private roundCoins = 0;
   private menuOpen = false;
+  /** A pick we couldn't afford is reopening the picker — not a dismissal. */
+  private reopeningPicker = false;
   // A click that closes the leave menu must not also start a drag.
   private ignoreClicksUntil = 0;
   private dragStart: { x: number; y: number } | null = null;
@@ -199,16 +205,11 @@ export class PaperTossScene extends Phaser.Scene {
       .setOrigin(1, 0)
       .setScrollFactor(0);
     this.rulesText = this.add
-      .text(
-        cx,
-        574,
-        `Sink ${BASKETS_TO_CLEAR} before ${MAX_MISSES + 1} misses · ${THROWS_PER_STAGE} throws max · Swish +1 · Bank +1 · Streak +1`,
-        {
-          ...FONT,
-          fontSize: '12px',
-          color: '#1a1a2e',
-        },
-      )
+      .text(cx, 574, this.rulesLine(), {
+        ...FONT,
+        fontSize: '12px',
+        color: '#1a1a2e',
+      })
       .setOrigin(0.5)
       .setScrollFactor(0);
 
@@ -317,13 +318,20 @@ export class PaperTossScene extends Phaser.Scene {
     }
   }
 
+  /** The bottom rules line — its coin rate follows the difficulty being played. */
+  private rulesLine() {
+    return `Sink ${BASKETS_TO_CLEAR} before ${MAX_MISSES + 1} misses · ${THROWS_PER_STAGE} throws max · ${PAPER_TOSS_COINS_PER_BASKET[this.difficulty]} per basket · Swish +1 · Bank +1 · Streak +1`;
+  }
+
   private openDifficultyMenu() {
     this.menuOpen = true;
-    const tired = !State.hasEnergy(MIN_GAME_ENERGY);
+    this.reopeningPicker = false;
     const option = (d: PaperTossDifficulty) => {
       const [a, b] = PAPER_TOSS_DIFFICULTY_STAGES[d];
+      const cost = PAPER_TOSS_ENERGY_COST[d];
+      const tired = !State.hasEnergy(cost);
       return {
-        label: `${DIFFICULTY_LABEL[d]} · levels ${a}–${b}${tired ? ' — too tired!' : ''}`,
+        label: `${DIFFICULTY_LABEL[d]} · levels ${a}–${b} · ${cost} energy${tired ? ' — too tired!' : ''}`,
         disabled: tired,
         onSelect: () => this.beginRun(d),
       };
@@ -333,21 +341,41 @@ export class PaperTossScene extends Phaser.Scene {
       'Paper Toss!',
       [option('easy'), option('medium'), option('hard')],
       {
-        subtitle: `Best of ${THROWS_PER_STAGE} per level · clear 2 levels · fail after ${MAX_MISSES + 1} misses`,
+        subtitle: State.hasEnergy(GAME_MIN_ENERGY.PaperToss)
+          ? `Best of ${THROWS_PER_STAGE} per level · clear 2 levels · fail after ${MAX_MISSES + 1} misses`
+          : `Too tired for even Easy — ${GAME_MIN_ENERGY.PaperToss} energy needed. Tuck ${State.data.petName || 'your pet'} into bed!`,
       },
     );
     menu.onClose = () => {
       this.menuOpen = false;
       this.ignoreClicksUntil = this.time.now + 250;
+      // A pick that turned out unaffordable reopens the picker, so it is not a
+      // dismissal — without this it would race the reopen and walk us outside.
       this.time.delayedCall(0, () => {
-        if (this.mode === 'pick') this.scene.start('EastPark', { spawn: 'arcade' });
+        if (this.mode === 'pick' && !this.reopeningPicker) this.leaveToPark();
       });
     };
   }
 
   private beginRun(difficulty: PaperTossDifficulty, data?: RestartData) {
+    const levelIndex = data?.levelIndex ?? 0;
+    const cost = paperTossEnergyCost(difficulty, levelIndex);
+    if (!State.hasEnergy(cost)) {
+      // Too tired for the pick (a stale menu row, or a retry after a nap-less
+      // run): back to the picker, where the row is greyed out with the reason.
+      this.mode = 'pick';
+      this.menuOpen = false;
+      this.reopeningPicker = true;
+      this.ball.setVisible(false);
+      this.statusText.setText('Pick a difficulty');
+      this.time.delayedCall(0, () => this.openDifficultyMenu());
+      return;
+    }
+    // Everything this run will play is paid for here — the throws themselves are
+    // free, so a run is never cut short half-paid.
+    State.spendEnergy(cost);
     this.difficulty = difficulty;
-    this.levelIndex = data?.levelIndex ?? 0;
+    this.levelIndex = levelIndex;
     this.stage = PAPER_TOSS_DIFFICULTY_STAGES[difficulty][this.levelIndex]!;
     this.baskets = data?.baskets ?? 0;
     this.roundCoins = data?.roundCoins ?? 0;
@@ -355,9 +383,17 @@ export class PaperTossScene extends Phaser.Scene {
     this.stageBaskets = 0;
     this.streak = 0;
     this.startStage(data?.seed);
+    this.rulesText.setText(this.rulesLine());
     this.ball.setVisible(true);
     this.mode = 'aiming';
     this.newThrow(true);
+    toast(
+      this,
+      this.cameras.main.width / 2,
+      150,
+      levelIndex >= 1 ? `-${cost} energy for the level` : `-${cost} energy for the run`,
+      '#ffe066',
+    );
   }
 
   // Small colour swatches: tint the paper ball; choice persists via registry.
@@ -524,11 +560,19 @@ export class PaperTossScene extends Phaser.Scene {
     }
   }
 
+  /** Walk out to the park, flushing the happiness batched over this stage. */
+  private leaveToPark() {
+    // Throws cheer the pet without persisting, so an unfinished stage still has
+    // happiness owed. Bank it before the scene goes, or a closed tab loses it.
+    State.save();
+    this.scene.start('EastPark', { spawn: 'arcade' });
+  }
+
   // Round over → leave straight away; mid-round → confirm first, since
   // leaving forfeits the round's remaining throws.
   private requestLeave() {
     if (this.mode === 'done' || this.mode === 'pick') {
-      this.scene.start('EastPark', { spawn: 'arcade' });
+      this.leaveToPark();
       return;
     }
     this.menuOpen = true;
@@ -537,7 +581,7 @@ export class PaperTossScene extends Phaser.Scene {
       'Leave Paper Toss?',
       [
         { label: 'Keep playing', onSelect: () => {} },
-        { label: 'Back outside', onSelect: () => this.scene.start('EastPark', { spawn: 'arcade' }) },
+        { label: 'Back outside', onSelect: () => this.leaveToPark() },
       ],
       'The round ends here — coins earned are yours',
     );
@@ -621,7 +665,11 @@ export class PaperTossScene extends Phaser.Scene {
     // Skill bonuses toned down with the lower base payout.
     const streakBonus = this.streak >= 3 ? 1 : 0;
     const swish = !this.rimTouched && !this.banked && this.floorBounces === 0;
-    const earned = COINS_PER_BASKET + streakBonus + (swish ? 1 : 0) + (this.banked ? 1 : 0);
+    const earned =
+      PAPER_TOSS_COINS_PER_BASKET[this.difficulty] +
+      streakBonus +
+      (swish ? 1 : 0) +
+      (this.banked ? 1 : 0);
     const tags = [
       swish ? 'SWISH!' : '',
       this.banked ? 'BANK!' : '',
@@ -652,13 +700,9 @@ export class PaperTossScene extends Phaser.Scene {
   private endThrow() {
     this.mode = 'settling';
     this.stageThrows++;
-    // Each throw costs a little energy; harder stages cheer the pet more.
-    // Persist once at level clear/fail (not every throw).
-    State.drainEnergyFromPlay(
-      PAPER_TOSS_ENERGY_PER_THROW,
-      PAPER_TOSS_HAPPINESS_PER_STAGE * this.stage,
-      { persist: false },
-    );
+    // The run's energy was paid at the start; a throw just cheers the pet, and
+    // harder stages cheer more. Persist once at level clear/fail (not every throw).
+    State.cheerFromPlay(PAPER_TOSS_HAPPINESS_PER_STAGE * this.stage, { persist: false });
     this.updateStatus();
     this.time.delayedCall(700, () => {
       const misses = this.stageThrows - this.stageBaskets;
@@ -670,17 +714,12 @@ export class PaperTossScene extends Phaser.Scene {
 
   // Sink BASKETS_TO_CLEAR to advance; clearing both levels of the difficulty wins.
   private stageCleared() {
-    // Flush batched throw energy/happiness, then pay the clear bonus.
+    // Flush the batched throw happiness, then pay the clear bonus.
     State.save();
-    State.addCoins(PAPER_TOSS_PARTICIPATION_COINS);
-    this.roundCoins += PAPER_TOSS_PARTICIPATION_COINS;
-    toast(
-      this,
-      this.cameras.main.width / 2,
-      150,
-      `+${PAPER_TOSS_PARTICIPATION_COINS} level clear`,
-      '#a8e6cf',
-    );
+    const clearCoins = PAPER_TOSS_LEVEL_CLEAR_COINS[this.difficulty];
+    State.addCoins(clearCoins);
+    this.roundCoins += clearCoins;
+    toast(this, this.cameras.main.width / 2, 150, `+${clearCoins} level clear`, '#a8e6cf');
     if (this.levelIndex >= 1) {
       this.gameWon();
       return;
@@ -751,9 +790,12 @@ export class PaperTossScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
+    const retryCost = restartData.difficulty
+      ? paperTossEnergyCost(restartData.difficulty, restartData.levelIndex)
+      : GAME_MIN_ENERGY.PaperToss;
     again.on('pointerdown', () => {
-      if (!State.hasEnergy(MIN_GAME_ENERGY)) {
-        toast(this, cx, cy - 130, 'Too tired to play — needs a nap!', '#ffb3d1');
+      if (!State.hasEnergy(retryCost)) {
+        toast(this, cx, cy - 130, tooTiredMessage(State.data.petName, retryCost), '#ffb3d1');
         return;
       }
       this.scene.restart(restartData);
@@ -764,13 +806,13 @@ export class PaperTossScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
-    leave.on('pointerdown', () => this.scene.start('EastPark', { spawn: 'arcade' }));
+    leave.on('pointerdown', () => this.leaveToPark());
     markAsUi(this, panel, heading, summary, best, again, leave);
   }
 
   // Out of throws / too many misses — no participation coins on fail.
   private stageFailed() {
-    State.save(); // persist energy spent during the attempt
+    State.save(); // persist the happiness batched over the attempt
     // The seed rides along so Try again replays the identical combination.
     this.endPanel(`Level ${this.levelIndex + 1} failed!`, '#ff6b6b', 'Try again', {
       difficulty: this.difficulty,
@@ -877,7 +919,7 @@ export class PaperTossScene extends Phaser.Scene {
       this.mode === 'done' &&
       (Phaser.Input.Keyboard.JustDown(this.keyE) || Phaser.Input.Keyboard.JustDown(this.keySpace))
     ) {
-      this.scene.start('EastPark', { spawn: 'arcade' });
+      this.leaveToPark();
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !this.menuOpen && !isUiBlocked()) {
