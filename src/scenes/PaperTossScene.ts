@@ -116,6 +116,8 @@ export class PaperTossScene extends Phaser.Scene {
   private trailTimer = 0;
   private roundCoins = 0;
   private menuOpen = false;
+  /** A pick we couldn't afford is reopening the picker — not a dismissal. */
+  private reopeningPicker = false;
   // A click that closes the leave menu must not also start a drag.
   private ignoreClicksUntil = 0;
   private dragStart: { x: number; y: number } | null = null;
@@ -323,6 +325,7 @@ export class PaperTossScene extends Phaser.Scene {
 
   private openDifficultyMenu() {
     this.menuOpen = true;
+    this.reopeningPicker = false;
     const option = (d: PaperTossDifficulty) => {
       const [a, b] = PAPER_TOSS_DIFFICULTY_STAGES[d];
       const cost = PAPER_TOSS_ENERGY_COST[d];
@@ -346,8 +349,10 @@ export class PaperTossScene extends Phaser.Scene {
     menu.onClose = () => {
       this.menuOpen = false;
       this.ignoreClicksUntil = this.time.now + 250;
+      // A pick that turned out unaffordable reopens the picker, so it is not a
+      // dismissal — without this it would race the reopen and walk us outside.
       this.time.delayedCall(0, () => {
-        if (this.mode === 'pick') this.scene.start('EastPark', { spawn: 'arcade' });
+        if (this.mode === 'pick' && !this.reopeningPicker) this.leaveToPark();
       });
     };
   }
@@ -360,6 +365,7 @@ export class PaperTossScene extends Phaser.Scene {
       // run): back to the picker, where the row is greyed out with the reason.
       this.mode = 'pick';
       this.menuOpen = false;
+      this.reopeningPicker = true;
       this.ball.setVisible(false);
       this.statusText.setText('Pick a difficulty');
       this.time.delayedCall(0, () => this.openDifficultyMenu());
@@ -554,11 +560,19 @@ export class PaperTossScene extends Phaser.Scene {
     }
   }
 
+  /** Walk out to the park, flushing the happiness batched over this stage. */
+  private leaveToPark() {
+    // Throws cheer the pet without persisting, so an unfinished stage still has
+    // happiness owed. Bank it before the scene goes, or a closed tab loses it.
+    State.save();
+    this.scene.start('EastPark', { spawn: 'arcade' });
+  }
+
   // Round over → leave straight away; mid-round → confirm first, since
   // leaving forfeits the round's remaining throws.
   private requestLeave() {
     if (this.mode === 'done' || this.mode === 'pick') {
-      this.scene.start('EastPark', { spawn: 'arcade' });
+      this.leaveToPark();
       return;
     }
     this.menuOpen = true;
@@ -567,7 +581,7 @@ export class PaperTossScene extends Phaser.Scene {
       'Leave Paper Toss?',
       [
         { label: 'Keep playing', onSelect: () => {} },
-        { label: 'Back outside', onSelect: () => this.scene.start('EastPark', { spawn: 'arcade' }) },
+        { label: 'Back outside', onSelect: () => this.leaveToPark() },
       ],
       'The round ends here — coins earned are yours',
     );
@@ -792,7 +806,7 @@ export class PaperTossScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(1601)
       .setInteractive({ useHandCursor: true });
-    leave.on('pointerdown', () => this.scene.start('EastPark', { spawn: 'arcade' }));
+    leave.on('pointerdown', () => this.leaveToPark());
     markAsUi(this, panel, heading, summary, best, again, leave);
   }
 
@@ -905,7 +919,7 @@ export class PaperTossScene extends Phaser.Scene {
       this.mode === 'done' &&
       (Phaser.Input.Keyboard.JustDown(this.keyE) || Phaser.Input.Keyboard.JustDown(this.keySpace))
     ) {
-      this.scene.start('EastPark', { spawn: 'arcade' });
+      this.leaveToPark();
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !this.menuOpen && !isUiBlocked()) {

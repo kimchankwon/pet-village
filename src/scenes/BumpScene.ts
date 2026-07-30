@@ -73,6 +73,8 @@ export class BumpScene extends Phaser.Scene {
   private backBtn!: Phaser.GameObjects.Text;
   private cameraZoom!: CameraZoom;
   private menuOpen = false;
+  /** A pick we couldn't afford is reopening the picker — not a dismissal. */
+  private reopeningPicker = false;
   private ignoreClicksUntil = 0;
   private keySpace!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
@@ -396,6 +398,7 @@ export class BumpScene extends Phaser.Scene {
 
   private openDifficultyMenu() {
     this.menuOpen = true;
+    this.reopeningPicker = false;
     const option = (d: BumpDifficulty) => {
       const cost = BUMP_ENERGY_COST[d];
       const tired = !State.hasEnergy(cost);
@@ -420,9 +423,12 @@ export class BumpScene extends Phaser.Scene {
       this.menuOpen = false;
       this.ignoreClicksUntil = this.time.now + 250;
       // Menu fires onClose BEFORE onSelect — wait a tick so a pick can land;
-      // only leave if the picker really was dismissed without choosing.
+      // only leave if the picker really was dismissed without choosing. A pick
+      // that turned out unaffordable reopens the picker, so it isn't a dismissal.
       this.time.delayedCall(0, () => {
-        if (this.mode === 'pick') this.scene.start('WestPark', { spawn: 'bump' });
+        if (this.mode === 'pick' && !this.reopeningPicker) {
+          this.scene.start('WestPark', { spawn: 'bump' });
+        }
       });
     };
   }
@@ -430,7 +436,10 @@ export class BumpScene extends Phaser.Scene {
   private startBout(d: BumpDifficulty) {
     const cost = BUMP_ENERGY_COST[d];
     if (!State.hasEnergy(cost)) {
+      // The row was affordable when the picker was drawn; idle decay ate the
+      // difference. Show it again rather than letting onClose walk us outside.
       this.menuOpen = false;
+      this.reopeningPicker = true;
       this.time.delayedCall(0, () => this.openDifficultyMenu());
       return;
     }

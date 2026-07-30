@@ -19,6 +19,7 @@ import {
   BUMP_REWARDS,
 } from './GameState';
 import { GET_WIN_REWARDS } from './getGameRules';
+import { FISHING_CATCH_HAPPINESS } from './fishingRules';
 import { sledRunReward } from './sledRunRewards';
 
 test('every mini-game charges energy', () => {
@@ -106,6 +107,25 @@ test('a winning run pays a comparable rate at every booth', () => {
     const clears = 2 * PAPER_TOSS_LEVEL_CLEAR_COINS[difficulty];
     assertInBand(`Paper Toss ${difficulty}`, baskets + clears, PAPER_TOSS_ENERGY_COST[difficulty]);
   }
+});
+
+/**
+ * Fishing is the one booth that pays no coins, so the coins-per-energy band
+ * can't judge it. What a cast owes the player is a fish plus a cheer, and the
+ * cheer has to be worth the 4 energy — otherwise a cast is a pure loss.
+ */
+test('a landed fish pays for its cast in happiness', () => {
+  const tiers = ['oceanfish-common', 'oceanfish-uncommon', 'oceanfish-rare'] as const;
+  const cheers = tiers.map((tier) => FISHING_CATCH_HAPPINESS[tier]);
+  for (const [index, cheer] of cheers.entries()) {
+    assert.ok(cheer > 0, `${tiers[index]} must cheer the pet`);
+    // Roughly the happiness-per-energy the coin booths pay in coins, so a cast
+    // is worth taking; the fish itself is the rest of the payout.
+    const rate = cheer / FISHING_ENERGY_PER_CAST;
+    assert.ok(rate >= 1 && rate <= MAX_RATE + 1, `${tiers[index]} pays ${rate} happy per energy`);
+  }
+  // Rarer fish fight harder, so they must cheer more.
+  assert.deepEqual(cheers, [...cheers].sort((a, b) => a - b));
 });
 
 test('losing pays less per energy than winning', () => {

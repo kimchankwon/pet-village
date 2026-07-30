@@ -74,13 +74,17 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   bars decay in real time — including while the game is closed (capped at
   12h so a holiday isn't fatal). Feed it snacks, play with it, and tuck it
   into a bed to restore energy.
-- **Energy gates every mini-game.** Each booth charges its run up front (4
-  for a fishing cast up to 18 for a hard Paper Toss run) and refuses a pet
-  that can't cover it — the booth outside turns you away, unaffordable
-  difficulties are greyed out, and retry buttons say what's needed. Costs
-  and payouts live in `src/systems/gameEnergy.ts`, which is where the whole
-  economy is balanced: a winning run pays roughly 1.2–2.2 coins per energy
-  at every booth, so no game is a better farm than another.
+- **Energy gates every mini-game.** Each booth charges up front and refuses a
+  pet that can't cover it: 5–12 for a Bump bout, a Get track or a sled race,
+  10 for a Skip Rope run, 10–18 for a Paper Toss run, and 4 for each fishing
+  cast. The booth outside turns you away, unaffordable difficulties are greyed
+  out where a game has them, and retry buttons say what's needed. Every cost
+  lives in `src/systems/gameEnergy.ts`; the payouts stay with their own games
+  (`GameState`, `getGameRules`, `sledRunRewards`, `fishingRules`), and
+  `gameEnergy.test.ts` holds them against each other — a winning run at the
+  five coin-paying booths is worth roughly 1.2–2.2 coins per energy, so none
+  of them is a better farm than the rest. Fishing is the exception by design:
+  it pays a fish and a cheer rather than coins.
 - **Daniel's Shop** — walk up to the shop building and step inside;
   Daniel the bunny waits at the counter selling food and furniture for
   coins, including the SVT Lightstick VER.3 Anniversary for superfan

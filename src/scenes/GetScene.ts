@@ -39,6 +39,8 @@ export class GetScene extends Phaser.Scene {
   private mode: Mode = 'pick';
   private difficulty: GetDifficulty = 'easy';
   private menuOpen = false;
+  /** A pick we couldn't afford is reopening the picker — not a dismissal. */
+  private reopeningPicker = false;
   private ignoreClicksUntil = 0;
   private cameraZoom!: CameraZoom;
 
@@ -257,6 +259,7 @@ export class GetScene extends Phaser.Scene {
   private openDifficultyMenu() {
     this.mode = 'pick';
     this.menuOpen = true;
+    this.reopeningPicker = false;
     const option = (difficulty: GetDifficulty) => {
       const cfg = GET_DIFFICULTIES[difficulty];
       const energyCost = GET_ENERGY_COST[difficulty];
@@ -281,8 +284,12 @@ export class GetScene extends Phaser.Scene {
     menu.onClose = () => {
       this.menuOpen = false;
       this.ignoreClicksUntil = this.time.now + 250;
+      // A pick that turned out unaffordable reopens the picker, so it is not a
+      // dismissal — without this it would race the reopen and walk us outside.
       this.time.delayedCall(0, () => {
-        if (this.mode === 'pick') this.scene.start('EastPark', { spawn: 'get' });
+        if (this.mode === 'pick' && !this.reopeningPicker) {
+          this.scene.start('EastPark', { spawn: 'get' });
+        }
       });
     };
   }
@@ -291,6 +298,7 @@ export class GetScene extends Phaser.Scene {
     const energyCost = GET_ENERGY_COST[difficulty];
     if (!State.hasEnergy(energyCost)) {
       this.menuOpen = false;
+      this.reopeningPicker = true;
       this.time.delayedCall(0, () => this.openDifficultyMenu());
       return;
     }
