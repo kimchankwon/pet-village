@@ -60,7 +60,7 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 | Joystick (bottom-left) | Walk — made for touch |
 | Mouse wheel / pinch / zoom slider | Zoom the world; your chosen level follows you between scenes |
 | E / click | Interact when close (door, shop, arcade) |
-| I | open your inventory (your clothes · food · furniture) |
+| I | open your inventory (your clothes · food · furniture) — pick a snack from Food & treats to feed your pet on the spot |
 | P | open the pet menu (chat · feed · pet clothes) |
 | Decorate button | (in house) open the decorate menu |
 | Click furniture | (in house) pick it up into inventory |

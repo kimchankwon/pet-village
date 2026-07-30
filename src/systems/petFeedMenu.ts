@@ -1,30 +1,66 @@
 import type Phaser from 'phaser';
-import { ITEMS, State } from './GameState';
-import { Menu, type MenuOption } from './UI';
+import { ITEMS, State, type ItemDef } from './GameState';
+import { Menu, type MenuLayout, type MenuOption } from './UI';
 import type { Pet } from './Pet';
-import { petCanEat } from './petFoodRules';
+import { petCanEat, petFoodEffectLabel } from './petFoodRules';
+
+/**
+ * Snacks the pet can eat, in `ITEMS` order so the feed menu and the inventory's
+ * food list always list them the same way (inventory key order is whatever the
+ * player happened to pick up first).
+ */
+export function feedableFoods(): { item: ItemDef; count: number }[] {
+  return Object.values(ITEMS)
+    .filter((item) => petCanEat(item) && (State.data.inventory[item.id] ?? 0) > 0)
+    .map((item) => ({ item, count: State.data.inventory[item.id]! }));
+}
+
+export interface FeedMenuCallbacks {
+  closeMenu: () => void;
+  /** Called after a successful feed (refresh HUD, etc.). */
+  onFed?: () => void;
+}
+
+/** Subtitle showing how hungry the pet is before you spend a snack on it. */
+export function petNeedsSubtitle(): string {
+  const { hunger, happiness } = State.data.pet;
+  return `Food ${Math.round(hunger)}/100 · Happy ${Math.round(happiness)}/100`;
+}
+
+/** One row per snack, shared by the pet menu and the inventory food list. */
+export function feedMenuOptions(pet: Pet, opts: FeedMenuCallbacks): MenuOption[] {
+  return feedableFoods().map(({ item, count }) => ({
+    label: `${item.name} ×${count} (${petFoodEffectLabel(State.data.pet, item)})`,
+    icon: item.texture,
+    onSelect: () => {
+      if (State.feedPet(item.id)) {
+        pet.celebrate('Yum!');
+        pet.updateMood();
+        opts.onFed?.();
+      }
+      opts.closeMenu();
+    },
+  }));
+}
 
 /** Shared “Feed pet” entry for pet menus across scenes. */
 export function feedPetMenuOption(
   scene: Phaser.Scene,
   pet: Pet,
-  opts: {
-    closeMenu: () => void;
+  opts: FeedMenuCallbacks & {
     keepMenuOpen?: () => void;
     /** Shown when inventory has no food, e.g. "visit shop!". */
     emptyHint?: string;
-    /** Called after a successful feed (refresh HUD, etc.). */
-    onFed?: () => void;
+    /** Re-opens the parent menu so the feed list can offer a Back row. */
+    openParent?: () => void;
   },
 ): MenuOption {
-  const foods = Object.entries(State.data.inventory).filter(
-    ([id, count]) => count > 0 && petCanEat(ITEMS[id]),
-  );
+  const empty = feedableFoods().length === 0;
   const hint = opts.emptyHint ? ` (${opts.emptyHint})` : '';
   return {
-    label: `Feed ${State.data.petName}${foods.length === 0 ? hint : ''}`,
+    label: `Feed ${State.data.petName}${empty ? hint : ''}`,
     icon: 'fish',
-    disabled: foods.length === 0,
+    disabled: empty,
     onSelect: () => {
       opts.keepMenuOpen?.();
       openFeedMenu(scene, pet, opts);
@@ -35,30 +71,17 @@ export function feedPetMenuOption(
 export function openFeedMenu(
   scene: Phaser.Scene,
   pet: Pet,
-  opts: {
-    closeMenu: () => void;
-    onFed?: () => void;
-  },
+  opts: FeedMenuCallbacks & { openParent?: () => void },
 ) {
-  const foods = Object.entries(State.data.inventory).filter(
-    ([id, count]) => count > 0 && petCanEat(ITEMS[id]),
+  const layout: MenuLayout = { subtitle: petNeedsSubtitle() };
+  if (opts.openParent) {
+    layout.back = { label: '← Back', onSelect: opts.openParent };
+  }
+  const menu = new Menu(
+    scene,
+    `Feed ${State.data.petName}`,
+    feedMenuOptions(pet, opts),
+    layout,
   );
-  const options: MenuOption[] = foods.map(([id, count]) => {
-    const item = ITEMS[id]!;
-    const tip = `+${item.hunger} food`;
-    return {
-      label: `${item.name} x${count} (${tip})`,
-      icon: item.texture,
-      onSelect: () => {
-        if (State.feedPet(id)) {
-          pet.celebrate('Yum!');
-          pet.updateMood();
-          opts.onFed?.();
-        }
-        opts.closeMenu();
-      },
-    };
-  });
-  const menu = new Menu(scene, `Feed ${State.data.petName}`, options);
   menu.onClose = () => opts.closeMenu();
 }

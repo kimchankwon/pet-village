@@ -430,6 +430,7 @@ export class ShoreScene extends Phaser.Scene {
         },
         emptyHint: 'no food — try fishing!',
         onFed: () => this.hud.refresh(),
+        openParent: () => this.openPetMenu(),
       }),
       clothesPetMenuOption(this, this.pet, {
         closeMenu: () => this.closeMenu(),
@@ -457,6 +458,8 @@ export class ShoreScene extends Phaser.Scene {
       keepMenuOpen: () => {
         this.menuOpen = true;
       },
+      pet: this.pet,
+      onFed: () => this.hud.refresh(),
     });
   }
 

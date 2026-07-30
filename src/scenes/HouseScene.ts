@@ -434,6 +434,7 @@ export class HouseScene extends Phaser.Scene {
           this.menuOpen = true;
         },
         onFed: () => this.hud.refresh(),
+        openParent: () => this.openPetMenuInHouse(),
       }),
       {
         label: bedTuck.label,
@@ -479,6 +480,8 @@ export class HouseScene extends Phaser.Scene {
       keepMenuOpen: () => {
         this.menuOpen = true;
       },
+      pet: this.pet,
+      onFed: () => this.hud.refresh(),
     });
   }
 
