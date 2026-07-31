@@ -2,11 +2,17 @@ import type Phaser from 'phaser';
 import { refreshPenguin } from '../sprites/pixelart';
 import { ACCESSORY_LIST } from './accessories';
 import { ITEMS, State, type ItemDef } from './GameState';
+import type { Pet } from './Pet';
+import { feedMenuOptions, petNeedsSubtitle } from './petFeedMenu';
 import { Menu, menuFocusForIndex, type MenuOption } from './UI';
 
 export interface InventoryMenuCallbacks {
   closeMenu: () => void;
   keepMenuOpen: () => void;
+  /** Pet standing in this scene — lets the food list feed it in place. */
+  pet?: Pet;
+  /** Called after a successful feed (refresh HUD, etc.). */
+  onFed?: () => void;
 }
 
 function itemTotal(kind: ItemDef['kind']) {
@@ -34,7 +40,7 @@ export function openInventoryMenu(scene: Phaser.Scene, cbs: InventoryMenuCallbac
         onSelect: () => openPlayerClothes(scene, cbs),
       },
       {
-        label: `Food & treats · ${food}`,
+        label: `Food & treats · ${food}${cbs.pet && food > 0 ? ' · feed here' : ''}`,
         icon: 'fish',
         onSelect: () => openItemList(scene, cbs, 'food', 'Food & treats'),
       },
@@ -117,15 +123,22 @@ function openItemList(
   title: string,
 ) {
   cbs.keepMenuOpen();
-  const options: MenuOption[] = Object.values(ITEMS)
-    .filter((item) => item.kind === kind && (State.data.inventory[item.id] ?? 0) > 0)
-    .map((item) => ({
-      label: `${item.name} × ${State.data.inventory[item.id]}`,
-      icon: item.texture,
-      disabled: true,
-      onSelect: () => undefined,
-    }));
-  if (options.length === 0) {
+  // Food is actionable: pick a snack here and the pet eats it on the spot, so
+  // you never have to close the bag and re-open the pet menu to use what you
+  // are already looking at. Bait and furniture are spent elsewhere.
+  const pet = kind === 'food' ? cbs.pet : undefined;
+  const options: MenuOption[] = pet
+    ? feedMenuOptions(pet, { closeMenu: cbs.closeMenu, onFed: cbs.onFed })
+    : Object.values(ITEMS)
+        .filter((item) => item.kind === kind && (State.data.inventory[item.id] ?? 0) > 0)
+        .map((item) => ({
+          label: `${item.name} ×${State.data.inventory[item.id]}`,
+          icon: item.texture,
+          disabled: true,
+          onSelect: () => undefined,
+        }));
+  const empty = options.length === 0;
+  if (empty) {
     const emptyLabel =
       kind === 'food'
         ? 'No food — shop or go fishing!'
@@ -138,13 +151,16 @@ function openItemList(
       onSelect: () => undefined,
     });
   }
+  const subtitle =
+    kind === 'food'
+      ? pet && !empty
+        ? `${petNeedsSubtitle()} · pick a snack to feed ${State.data.petName}`
+        : 'Feed these to your pet from P → Feed'
+      : kind === 'bait'
+        ? 'One bait is used whenever you cast'
+        : 'Place these at home with Decorate';
   const menu = new Menu(scene, title, options, {
-    subtitle:
-      kind === 'food'
-        ? 'Feed these to your pet from P → Feed'
-        : kind === 'bait'
-          ? 'One bait is used whenever you cast'
-        : 'Place these at home with Decorate',
+    subtitle,
     back: {
       label: '← Back to Inventory',
       onSelect: () => openInventoryMenu(scene, cbs),

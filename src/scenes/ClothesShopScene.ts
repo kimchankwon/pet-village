@@ -324,6 +324,7 @@ export class ClothesShopScene extends Phaser.Scene {
         },
         emptyHint: 'no food — visit Daniel!',
         onFed: () => this.hud.refresh(),
+        openParent: () => this.openPetMenu(),
       }),
       clothesPetMenuOption(this, this.pet, {
         closeMenu: () => this.closeMenu(),
@@ -351,6 +352,8 @@ export class ClothesShopScene extends Phaser.Scene {
       keepMenuOpen: () => {
         this.menuOpen = true;
       },
+      pet: this.pet,
+      onFed: () => this.hud.refresh(),
     });
   }
 
