@@ -206,29 +206,26 @@ export interface SweepTuning {
   zoneShrink: number;
   /** Fraction of the arc, centred, that counts as a perfect hit. */
   perfectFraction: number;
-  /**
-   * Seconds of not tapping before the fish shakes loose. Without this the Sweep
-   * has no losing condition for a player who simply stops playing — the needle
-   * would spin forever. Comfortably longer than two full needle revolutions at
-   * the slowest speed (2π/1.6 ≈ 3.9s), so it never punishes waiting for the arc
-   * to come back round; it only ends an abandoned fight.
-   */
-  idleLimit: number;
+  /** Strikes a dead-centre gold-core tap is worth. */
+  perfectStrikes: number;
 }
 
 export function sweepTuning(sizeCm: number): SweepTuning {
   const s = fishSizeNorm(sizeCm);
   return {
-    // Every one of these is gentler than when a fight could absorb two misses.
-    // With no slack a fight is the bare product of its per-strike odds, so a
-    // long chain of tight windows stops being hard and starts being hopeless.
-    hitsNeeded: Math.round(lerp(3, 5, s)),
+    // Two forces pull against each other here. No slack means a fight is the
+    // bare product of its per-strike odds, so the windows are wider and the
+    // needle slower than when a miss was survivable. A perfect being worth two
+    // strikes then pulls the other way, which is why the chain is longer than
+    // the no-slack maths alone would want: precision buys speed, and sloppy
+    // play still has to land every single strike.
+    hitsNeeded: Math.round(lerp(3, 6, s)),
     speed: lerp(1.6, 2.4, s),
     speedStep: lerp(0.22, 0.25, s),
     zoneWidth: lerp(1.25, 0.85, s),
     zoneShrink: lerp(0.93, 0.95, s),
-    perfectFraction: 0.18,
-    idleLimit: 9,
+    perfectFraction: 0.15,
+    perfectStrikes: 2,
   };
 }
 
@@ -240,8 +237,10 @@ export interface SweepState {
   hits: number;
   misses: number;
   perfects: number;
-  /** Seconds since the last tap, against `SweepTuning.idleLimit`. */
-  sinceTap: number;
+  /** Radians the needle has travelled since the current target was placed. */
+  sweptSinceZone: number;
+  /** Radians from the placement angle to the target centre — the first pass. */
+  zoneGap: number;
   outcome: 'playing' | 'caught' | 'escaped';
 }
 
@@ -258,7 +257,23 @@ export function angleDelta(a: number, b: number): number {
 function placeZone(state: SweepState, rand: () => number): void {
   // Always at least ~1.5rad of run-up so the next target never lands under the
   // needle before the player can react.
-  state.zone = (state.angle + lerp(1.5, TAU - 1.5, rand())) % TAU;
+  const gap = lerp(1.5, TAU - 1.5, rand());
+  state.zone = (state.angle + gap) % TAU;
+  state.zoneGap = gap;
+  state.sweptSinceZone = 0;
+}
+
+/**
+ * Radians the needle may travel on one target before the fish is gone: the run
+ * up to the core, plus one full lap. You get one clean pass at every core — let
+ * it come round a second time and you have lost the fish.
+ *
+ * This is also the Sweep's only "stopped playing" guard, and a tighter one than
+ * a wall-clock idle timer: it is measured in the needle's own travel, so it
+ * scales with the speed of the fight instead of being a fixed number of seconds.
+ */
+export function sweepLapLimit(state: SweepState): number {
+  return state.zoneGap + TAU;
 }
 
 export function createSweepState(
@@ -273,18 +288,21 @@ export function createSweepState(
     hits: 0,
     misses: 0,
     perfects: 0,
-    sinceTap: 0,
+    sweptSinceZone: 0,
+    zoneGap: 0,
     outcome: 'playing',
   };
   placeZone(state, rand);
   return state;
 }
 
-export function stepSweep(state: SweepState, tuning: SweepTuning, dt: number): void {
+export function stepSweep(state: SweepState, _tuning: SweepTuning, dt: number): void {
   if (state.outcome !== 'playing') return;
-  state.angle = (state.angle + state.speed * dt) % TAU;
-  state.sinceTap += dt;
-  if (state.sinceTap >= tuning.idleLimit) state.outcome = 'escaped';
+  const travelled = state.speed * dt;
+  state.angle = (state.angle + travelled) % TAU;
+  state.sweptSinceZone += travelled;
+  // Let the core come round a second time and the fish is gone.
+  if (state.sweptSinceZone >= sweepLapLimit(state)) state.outcome = 'escaped';
 }
 
 export type SweepTapResult = 'hit' | 'perfect' | 'miss';
@@ -296,7 +314,6 @@ export function tapSweep(
   rand: () => number = Math.random,
 ): SweepTapResult {
   if (state.outcome !== 'playing') return 'miss';
-  state.sinceTap = 0;
   const off = Math.abs(angleDelta(state.angle, state.zone));
   if (off > state.zoneWidth / 2) {
     // One miss ends it. There is no slack to spend, which is why the windows
@@ -305,8 +322,10 @@ export function tapSweep(
     state.outcome = 'escaped';
     return 'miss';
   }
-  state.hits += 1;
   const perfect = off <= (state.zoneWidth / 2) * tuning.perfectFraction;
+  // Dead centre on the gold core is worth two strikes, so two perfects clear
+  // four strikes' worth of fish.
+  state.hits += perfect ? tuning.perfectStrikes : 1;
   if (perfect) state.perfects += 1;
   if (state.hits >= tuning.hitsNeeded) {
     state.outcome = 'caught';
