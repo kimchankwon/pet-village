@@ -120,7 +120,7 @@ export function simulateSweep(sizeCm: number, player: PlayerModel, rand: () => n
     const wait = timeToZone(state);
     const error = gauss(rand) * player.tapSigmaS;
     // Advance to the intended moment, then to where the player actually tapped.
-    stepSweep(state, wait + error);
+    stepSweep(state, tuning, wait + error);
     t += wait + Math.max(0, error);
     tapSweep(state, tuning, rand);
   }

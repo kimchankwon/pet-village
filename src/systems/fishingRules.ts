@@ -53,12 +53,20 @@ export interface FishTier {
   label: string;
 }
 
-/** Commonest first. Sizes span FISHING_SIZE_MIN..FISHING_SIZE_MAX end to end. */
+/** Commonest first. */
 export const FISH_TIERS: readonly FishTier[] = [
   { id: 'oceanfish-common', sizeMin: 12, sizeMax: 28, fight: 0.4, label: 'common' },
   { id: 'oceanfish-uncommon', sizeMin: 26, sizeMax: 48, fight: 0.7, label: 'uncommon' },
   { id: 'oceanfish-rare', sizeMin: 44, sizeMax: 78, fight: 1.0, label: 'rare' },
 ];
+
+/**
+ * The ends of every minigame difficulty ramp, derived from the tiers rather
+ * than restated. If a tier's range moves, the tuning follows it instead of
+ * silently clamping and drifting out of what the simulations cover.
+ */
+export const FISHING_SIZE_MIN = Math.min(...FISH_TIERS.map((t) => t.sizeMin));
+export const FISHING_SIZE_MAX = Math.max(...FISH_TIERS.map((t) => t.sizeMax));
 
 /** Tier odds at a dead-short cast, and at a maxed-out one. */
 const NEAR_WEIGHTS: readonly [number, number, number] = [92, 8, 0];
@@ -81,7 +89,10 @@ export function rollFishTier(castPower: number, rand: () => number = Math.random
   const weights = fishingTierWeights(castPower);
   const total = weights[0] + weights[1] + weights[2];
   let roll = rand() * total;
-  for (let i = 0; i < FISH_TIERS.length; i++) {
+  // Bounded by the weight tuple, not the tier list: a fourth tier without a
+  // fourth weight would otherwise turn `roll` into NaN and collapse every roll
+  // onto the common fallback.
+  for (let i = 0; i < weights.length && i < FISH_TIERS.length; i++) {
     roll -= weights[i]!;
     if (roll <= 0) return FISH_TIERS[i]!;
   }

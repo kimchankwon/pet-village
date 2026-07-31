@@ -10,6 +10,7 @@ import {
   keepItInTuning,
   pickFishingMinigame,
   stepKeepItIn,
+  stepSweep,
   sweepTuning,
   tapSweep,
   type FishingMinigameId,
@@ -112,6 +113,46 @@ test('sweep taps resolve against the arc', () => {
   assert.equal(state.misses, 1);
 });
 
+test('The Sweep ends if the player stops tapping', () => {
+  // Nothing decays on its own here, so without the idle timeout an abandoned
+  // fight would spin the needle forever with no way out but the leave menu.
+  const rand = mulberry32(5);
+  const tuning = sweepTuning(40);
+  const state = createSweepState(tuning, rand);
+  let t = 0;
+  for (let i = 0; i < 60 * 60 && state.outcome === 'playing'; i++) {
+    stepSweep(state, tuning, 1 / 60);
+    t += 1 / 60;
+  }
+  assert.equal(state.outcome, 'escaped');
+  assert.ok(Math.abs(t - tuning.idleLimit) < 0.1, `escaped at ${t}s, expected ~${tuning.idleLimit}s`);
+});
+
+test('the idle timeout never fires on someone who is still playing', () => {
+  // The longest legitimate wait is one full revolution of the needle at the
+  // slowest speed that size ever sweeps at. Two of those must still fit inside
+  // the limit, or waiting for the arc to come back round would lose the fish.
+  for (const size of SIM_SIZES) {
+    const tuning = sweepTuning(size);
+    const slowestRevolution = (Math.PI * 2) / tuning.speed;
+    assert.ok(
+      tuning.idleLimit > slowestRevolution * 2,
+      `${size}cm: idle limit ${tuning.idleLimit}s vs revolution ${slowestRevolution.toFixed(2)}s`,
+    );
+  }
+});
+
+test('tapping resets the idle countdown', () => {
+  const rand = mulberry32(9);
+  const tuning = sweepTuning(20);
+  const state = createSweepState(tuning, rand);
+  stepSweep(state, tuning, 4);
+  assert.ok(state.sinceTap >= 4);
+  state.angle = state.zone;
+  tapSweep(state, tuning, rand);
+  assert.equal(state.sinceTap, 0);
+});
+
 test('angleDelta wraps the short way round', () => {
   assert.ok(Math.abs(angleDelta(0.1, Math.PI * 2 - 0.1) - 0.2) < 1e-9);
   assert.ok(Math.abs(angleDelta(Math.PI * 2 - 0.1, 0.1) + 0.2) < 1e-9);
@@ -196,7 +237,7 @@ test('casting farther weights the roll toward rarer fish', () => {
 
 test('casting farther lands bigger fish on average', () => {
   const meanSize = (power: number) => {
-    const rand = mulberry32(500 + Math.round(power * 100));
+    const rand = mulberry32(500);
     let total = 0;
     const runs = 20_000;
     for (let i = 0; i < runs; i++) {

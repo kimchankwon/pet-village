@@ -10,9 +10,7 @@
  * are the ones the simulation signs off on: every size stays catchable.
  */
 
-/** Size range across all three tiers — the ends of every difficulty ramp. */
-export const FISHING_SIZE_MIN = 12;
-export const FISHING_SIZE_MAX = 78;
+import { FISHING_SIZE_MAX, FISHING_SIZE_MIN } from './fishingRules';
 
 export type FishingMinigameId = 'keepitin' | 'sweep';
 
@@ -176,7 +174,10 @@ export function stepKeepItIn(
     state.darted = true;
   }
   const desired = clamp((state.fishTarget - state.fishPos) * 4, -tuning.fishSpeed, tuning.fishSpeed);
-  state.fishVel += (desired - state.fishVel) * Math.min(1, tuning.fishSmooth * dt);
+  // Exact exponential convergence, not the linear `min(1, k*dt)` approximation:
+  // that one snaps once k*dt >= 1, so the fish would behave differently at 30fps
+  // and 144fps and diverge from the simulated balance.
+  state.fishVel += (desired - state.fishVel) * (1 - Math.exp(-tuning.fishSmooth * dt));
   state.fishPos = clamp(state.fishPos + state.fishVel * dt, 0, 1);
 
   // Catch meter.
@@ -207,6 +208,14 @@ export interface SweepTuning {
   zoneShrink: number;
   /** Fraction of the arc, centred, that counts as a perfect hit. */
   perfectFraction: number;
+  /**
+   * Seconds of not tapping before the fish shakes loose. Without this the Sweep
+   * has no losing condition for a player who simply stops playing — the needle
+   * would spin forever. Comfortably longer than two full needle revolutions at
+   * the slowest speed (2π/1.6 ≈ 3.9s), so it never punishes waiting for the arc
+   * to come back round; it only ends an abandoned fight.
+   */
+  idleLimit: number;
 }
 
 export function sweepTuning(sizeCm: number): SweepTuning {
@@ -219,6 +228,7 @@ export function sweepTuning(sizeCm: number): SweepTuning {
     zoneWidth: lerp(1.25, 0.82, s),
     zoneShrink: lerp(0.93, 0.92, s),
     perfectFraction: 0.18,
+    idleLimit: 9,
   };
 }
 
@@ -230,6 +240,8 @@ export interface SweepState {
   hits: number;
   misses: number;
   perfects: number;
+  /** Seconds since the last tap, against `SweepTuning.idleLimit`. */
+  sinceTap: number;
   outcome: 'playing' | 'caught' | 'escaped';
 }
 
@@ -261,15 +273,18 @@ export function createSweepState(
     hits: 0,
     misses: 0,
     perfects: 0,
+    sinceTap: 0,
     outcome: 'playing',
   };
   placeZone(state, rand);
   return state;
 }
 
-export function stepSweep(state: SweepState, dt: number): void {
+export function stepSweep(state: SweepState, tuning: SweepTuning, dt: number): void {
   if (state.outcome !== 'playing') return;
   state.angle = (state.angle + state.speed * dt) % TAU;
+  state.sinceTap += dt;
+  if (state.sinceTap >= tuning.idleLimit) state.outcome = 'escaped';
 }
 
 export type SweepTapResult = 'hit' | 'perfect' | 'miss';
@@ -281,6 +296,7 @@ export function tapSweep(
   rand: () => number = Math.random,
 ): SweepTapResult {
   if (state.outcome !== 'playing') return 'miss';
+  state.sinceTap = 0;
   const off = Math.abs(angleDelta(state.angle, state.zone));
   if (off > state.zoneWidth / 2) {
     state.misses += 1;

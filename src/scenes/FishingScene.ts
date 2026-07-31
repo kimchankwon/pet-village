@@ -1080,11 +1080,14 @@ export class FishingScene extends Phaser.Scene {
         const state = this.sweepState;
         const cfg = this.sweepCfg;
         if (state && cfg) {
-          if (this.reelArmed) stepSweep(state, dt);
+          if (this.reelArmed) stepSweep(state, cfg, dt);
           this.renderSweep();
           haul = state.hits / cfg.hitsNeeded;
           struggling = state.misses > 0;
           if (this.reelArmed) this.statusText.setText(this.minigameStatus());
+          // Unlike Keep It In, nothing here decays on its own — without the idle
+          // timeout a player who stops tapping would sit in the fight forever.
+          if (state.outcome === 'escaped') this.fishEscaped();
         }
       }
 
