@@ -11,8 +11,9 @@ import {
   BOSSES,
   EXPEDITION_REWARDS,
   MANA_CAP,
+  ABILITIES,
+  canAffordAbility,
   energyCost,
-  offeredAbilities,
   scaledBossHp,
   type AbilityDef,
   type ExpeditionBossId,
@@ -258,30 +259,46 @@ export class ExpeditionScene extends Phaser.Scene {
       .setDepth(20)
       .setVisible(false);
 
-    // Ability row — big cards.
+    // Full skill roster (all six) — unaffordable ones stay visible but dimmed.
     this.abilityRow = this.add.container(0, 0).setDepth(40);
     this.abilityButtons = [];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < ABILITIES.length; i++) {
       const bg = this.add
-        .rectangle(0, 0, 168, 58, 0x243448)
+        .rectangle(0, 0, 128, 48, 0x243448)
         .setStrokeStyle(2, 0xc9a227)
         .setInteractive({ useHandCursor: true });
-      const costBadge = this.add.rectangle(0, 0, 36, 18, 0x0a1018).setStrokeStyle(1, 0x74b9ff);
-      const costText = this.add.text(0, 0, '', { ...FONT_SM, color: '#74b9ff' }).setOrigin(0.5);
-      const label = this.add.text(0, 0, '', { ...FONT, color: '#efe8ff', align: 'center' }).setOrigin(0.5);
+      const costBadge = this.add.rectangle(0, 0, 34, 16, 0x0a1018).setStrokeStyle(1, 0x74b9ff);
+      const costText = this.add.text(0, 0, '', { ...FONT_SM, fontSize: '11px', color: '#74b9ff' }).setOrigin(0.5);
+      const label = this.add
+        .text(0, 0, '', { ...FONT_SM, fontSize: '12px', color: '#efe8ff', align: 'center' })
+        .setOrigin(0.5);
       this.abilityRow.add([bg, costBadge, costText, label]);
       const slot = { bg, costBadge, costText, label, ability: null as AbilityDef | null };
       this.abilityButtons.push(slot);
       bg.on('pointerover', () => {
-        if (slot.ability) bg.setFillStyle(0x3a5068);
+        if (!slot.ability || !this.combat) return;
+        if (!canAffordAbility(slot.ability, this.combat.mana)) return;
+        bg.setFillStyle(0x3a5068);
       });
       bg.on('pointerout', () => {
-        if (slot.ability) bg.setFillStyle(slot.ability.mana === 0 ? 0x1e3a2e : 0x243448);
+        if (!slot.ability || !this.combat) return;
+        this.styleAbilitySlot(slot, canAffordAbility(slot.ability, this.combat.mana));
       });
       bg.on('pointerdown', () => {
         if (this.mode !== 'battle' || !this.combat || this.combat.combatPhase !== 'your-turn') return;
         if (this.time.now < this.ignoreClicksUntil) return;
-        if (slot.ability) this.chooseAbility(slot.ability);
+        if (!slot.ability) return;
+        if (!canAffordAbility(slot.ability, this.combat.mana)) {
+          toast(
+            this,
+            this.cameras.main.width / 2,
+            this.cameras.main.height - 130,
+            `Need ${slot.ability.mana} mana`,
+            '#ffb3d1',
+          );
+          return;
+        }
+        this.chooseAbility(slot.ability);
       });
     }
     markAsUi(this, this.abilityRow);
@@ -532,7 +549,7 @@ export class ExpeditionScene extends Phaser.Scene {
 
   private enterYourTurn() {
     this.setTurnBanner('YOUR TURN', '#a8e6cf', true);
-    this.statusText.setText('Pick an ability below — free Nibble builds mana');
+    this.statusText.setText('All skills listed — grey ones need more mana · Nibble is free');
     this.showAbilityRow(true);
     this.showDefenseHalves(false);
     this.hideHitUi();
@@ -542,26 +559,61 @@ export class ExpeditionScene extends Phaser.Scene {
   private layoutAbilityRow() {
     const viewW = this.cameras.main.width;
     const viewH = this.cameras.main.height;
-    const y = viewH - 52;
-    const gap = 14;
-    const w = 168;
-    const total = 3 * w + 2 * gap;
-    const startX = (viewW - total) / 2 + w / 2;
+    // Two rows of three so every skill stays readable.
+    const cols = 3;
+    const gapX = 10;
+    const w = 128;
+    const totalW = cols * w + (cols - 1) * gapX;
+    const startX = (viewW - totalW) / 2 + w / 2;
+    const row0Y = viewH - 100;
+    const row1Y = viewH - 48;
     this.abilityButtons.forEach((slot, i) => {
-      const x = startX + i * (w + gap);
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = startX + col * (w + gapX);
+      const y = row === 0 ? row0Y : row1Y;
       slot.bg.setPosition(x, y);
       slot.label.setPosition(x, y + 6);
-      slot.costBadge.setPosition(x, y - 18);
-      slot.costText.setPosition(x, y - 18);
+      slot.costBadge.setPosition(x, y - 14);
+      slot.costText.setPosition(x, y - 14);
     });
+  }
+
+  private styleAbilitySlot(
+    slot: {
+      bg: Phaser.GameObjects.Rectangle;
+      costBadge: Phaser.GameObjects.Rectangle;
+      costText: Phaser.GameObjects.Text;
+      label: Phaser.GameObjects.Text;
+      ability: AbilityDef | null;
+    },
+    affordable: boolean,
+  ) {
+    const ability = slot.ability;
+    if (!ability) return;
+    if (affordable) {
+      const free = ability.mana === 0;
+      slot.bg.setFillStyle(free ? 0x1e3a2e : 0x243448).setAlpha(1);
+      slot.bg.setStrokeStyle(2, free ? 0x5ed6a0 : 0xc9a227);
+      slot.label.setColor('#efe8ff').setAlpha(1);
+      slot.costText.setColor(free ? '#a8e6cf' : '#74b9ff').setAlpha(1);
+      slot.costBadge.setStrokeStyle(1, free ? 0x5ed6a0 : 0x74b9ff).setAlpha(1);
+      slot.bg.setInteractive({ useHandCursor: true });
+    } else {
+      slot.bg.setFillStyle(0x1a1a28).setAlpha(0.55);
+      slot.bg.setStrokeStyle(2, 0x3d3d5c);
+      slot.label.setColor('#6a6a80').setAlpha(0.75);
+      slot.costText.setColor('#6a6a80').setAlpha(0.75);
+      slot.costBadge.setStrokeStyle(1, 0x3d3d5c).setAlpha(0.75);
+    }
   }
 
   private showAbilityRow(show: boolean) {
     this.abilityRow.setVisible(show);
     if (!show || !this.combat) return;
-    const offer = offeredAbilities(this.combat.mana);
+    const mana = this.combat.mana;
     this.abilityButtons.forEach((slot, i) => {
-      const ability = offer[i] ?? null;
+      const ability = ABILITIES[i] ?? null;
       slot.ability = ability;
       const vis = Boolean(ability);
       slot.bg.setVisible(vis);
@@ -571,9 +623,7 @@ export class ExpeditionScene extends Phaser.Scene {
       if (!ability) return;
       slot.label.setText(ability.name);
       slot.costText.setText(ability.mana === 0 ? 'FREE' : `${ability.mana}◆`);
-      slot.costText.setColor(ability.mana === 0 ? '#a8e6cf' : '#74b9ff');
-      slot.bg.setFillStyle(ability.mana === 0 ? 0x1e3a2e : 0x243448);
-      slot.bg.setStrokeStyle(2, ability.mana === 0 ? 0x5ed6a0 : 0xc9a227);
+      this.styleAbilitySlot(slot, canAffordAbility(ability, mana));
     });
   }
 

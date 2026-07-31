@@ -123,16 +123,20 @@ export function abilityAllHitTotal(ability: AbilityDef): number {
 }
 
 /**
- * Always offer Nibble (the free AP-builder) plus the two most expensive
- * abilities the pet can currently afford. Pure function of mana.
+ * Whether the pet can pay for this ability right now. Nibble (0 cost) is always
+ * available; paid skills need `mana >= cost`.
+ */
+export function canAffordAbility(ability: AbilityDef, mana: number): boolean {
+  return ability.mana <= mana;
+}
+
+/**
+ * Every skill the pet can currently cast. The UI shows the full roster and
+ * greys out the rest — this list is the selectable subset (and what the
+ * balance sim picks from).
  */
 export function offeredAbilities(mana: number): readonly AbilityDef[] {
-  const affordable = ABILITIES.filter((a) => a.mana <= mana && a.id !== 'nibble');
-  affordable.sort((a, b) => b.mana - a.mana || a.name.localeCompare(b.name));
-  const paid = affordable.slice(0, 2);
-  // Keep offer ordered cheapest → dearest for the ability row.
-  paid.sort((a, b) => a.mana - b.mana);
-  return [abilityById('nibble'), ...paid];
+  return ABILITIES.filter((a) => canAffordAbility(a, mana));
 }
 
 export type SweepDifficultyConfig = {

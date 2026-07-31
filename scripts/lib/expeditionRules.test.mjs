@@ -5,6 +5,7 @@ import {
   BOSS_ORDER,
   EXPEDITION_REWARDS,
   allWinKeys,
+  canAffordAbility,
   energyCost,
   expeditionMinEnergy,
   offeredAbilities,
@@ -13,39 +14,41 @@ import {
   winKey,
 } from '../../src/systems/expeditionRules.ts';
 
-test('ability offer is correct at every mana value 0…10', () => {
-  // At 0: only Nibble (no paid abilities affordable) → Nibble alone? Plan says
-  // "always shows three: free basic + two most expensive affordable". When
-  // fewer than two paid are affordable, we still only offer what exists.
-  const at0 = offeredAbilities(0);
-  assert.equal(at0[0].id, 'nibble');
-  assert.equal(at0.length, 1);
+test('all skills are listed; offeredAbilities is every skill you can afford', () => {
+  // UI shows the full roster; offeredAbilities is the selectable subset by mana.
+  assert.equal(ABILITIES.length, 6);
 
-  // At 1: Nibble + Tail Whip only (one paid).
-  const at1 = offeredAbilities(1).map((a) => a.id);
-  assert.deepEqual(at1, ['nibble', 'tail-whip']);
+  // At 0: only free Nibble.
+  assert.deepEqual(offeredAbilities(0).map((a) => a.id), ['nibble']);
 
-  // At 5: Nibble · Puffle Volley · Chroma Burst (plan worked example).
-  const at5 = offeredAbilities(5).map((a) => a.id);
-  assert.deepEqual(at5, ['nibble', 'puffle-volley', 'chroma-burst']);
+  // At 1: Nibble + Tail Whip.
+  assert.deepEqual(offeredAbilities(1).map((a) => a.id), ['nibble', 'tail-whip']);
 
-  // At 9: Nibble · Lumina Storm · Gradient Finale.
-  const at9 = offeredAbilities(9).map((a) => a.id);
-  assert.deepEqual(at9, ['nibble', 'lumina-storm', 'gradient-finale']);
+  // At 5: everything costing ≤5 (Nibble through Chroma Burst).
+  assert.deepEqual(offeredAbilities(5).map((a) => a.id), [
+    'nibble',
+    'tail-whip',
+    'puffle-volley',
+    'chroma-burst',
+  ]);
 
-  // At 10: same top two paid (Gradient + Lumina) + Nibble.
-  const at10 = offeredAbilities(10).map((a) => a.id);
-  assert.deepEqual(at10, ['nibble', 'lumina-storm', 'gradient-finale']);
+  // At 9: all but Gradient Finale still needs 8… wait, 9 >= 8 so all six.
+  assert.deepEqual(offeredAbilities(9).map((a) => a.id), ABILITIES.map((a) => a.id));
 
-  // Exhaustive: for every mana 0..10, Nibble is first and paid are sorted by cost.
+  // At 7: everything except Gradient Finale (8).
+  assert.deepEqual(
+    offeredAbilities(7).map((a) => a.id),
+    ABILITIES.filter((a) => a.mana <= 7).map((a) => a.id),
+  );
+
   for (let m = 0; m <= 10; m++) {
     const offer = offeredAbilities(m);
-    assert.equal(offer[0].id, 'nibble');
-    assert.ok(offer.length <= 3);
-    for (const a of offer) assert.ok(a.mana <= m || a.id === 'nibble');
-    const paid = offer.slice(1);
-    for (let i = 1; i < paid.length; i++) {
-      assert.ok(paid[i].mana >= paid[i - 1].mana);
+    assert.ok(offer.every((a) => canAffordAbility(a, m)));
+    assert.ok(offer.every((a) => a.mana <= m));
+    // Every ability is either offered or too expensive.
+    for (const a of ABILITIES) {
+      assert.equal(canAffordAbility(a, m), a.mana <= m);
+      assert.equal(offer.some((o) => o.id === a.id), a.mana <= m);
     }
   }
 });
