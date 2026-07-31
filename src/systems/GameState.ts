@@ -25,6 +25,14 @@ import {
 } from './petFoodRules';
 import { FISHING_CATCH_HAPPINESS, type FishTierId } from './fishingRules';
 import { GET_WIN_REWARDS, type GetDifficulty } from './getGameRules';
+import {
+  EXPEDITION_LOSS_HAPPINESS,
+  winCoins,
+  winHappiness,
+  winKey,
+  type ExpeditionBossId,
+  type ExpeditionDifficulty,
+} from './expeditionRules';
 import { normalizeTownPosition, type TownPosition } from './townPosition';
 import { validatePetName } from './profileNameRules';
 
@@ -60,6 +68,11 @@ export interface SaveData {
   biggestCatch: number;
   /** Best consecutive jumps in Skip Rope. */
   bestSkipRope: number;
+  /**
+   * Expedition clears keyed "renoir-hard" etc. Optional on old saves.
+   * Counts only — mana/HP/abilities never persist between bouts.
+   */
+  expeditionWins?: Record<string, number>;
   /** Accessory ids bought at Cafe Cinnamon (or granted on adopting Bongbongee). */
   ownedAccessories: AccessoryId[];
   /** One equipped accessory per slot. */
@@ -241,6 +254,7 @@ export function defaultSave(): SaveData {
     bestPaperToss: 0,
     biggestCatch: 0,
     bestSkipRope: 0,
+    expeditionWins: {},
     ownedAccessories: [],
     equippedAccessories: {},
     penguinColor: 'blue',
@@ -305,6 +319,17 @@ function normalizeStringRecord(raw: unknown): Record<string, string> {
   );
 }
 
+function normalizeNumberRecord(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+      out[key] = Math.floor(value);
+    }
+  }
+  return out;
+}
+
 export function normalizeSave(raw: unknown): SaveData {
   const base = defaultSave();
   const parsed = raw && typeof raw === 'object' && !Array.isArray(raw)
@@ -323,6 +348,7 @@ export function normalizeSave(raw: unknown): SaveData {
     bestPaperToss: finiteNumber(parsed.bestPaperToss, base.bestPaperToss),
     biggestCatch: finiteNumber(parsed.biggestCatch, base.biggestCatch),
     bestSkipRope: finiteNumber(parsed.bestSkipRope, base.bestSkipRope),
+    expeditionWins: normalizeNumberRecord(parsed.expeditionWins),
     petSpecies: species,
     // Older saves never had `adopted` — treat them as already playing.
     adopted: typeof parsed.adopted === 'boolean' ? parsed.adopted : hadPriorSave,
@@ -403,6 +429,7 @@ export class GameStateStore {
       bestPaperToss: this.data.bestPaperToss,
       biggestCatch: this.data.biggestCatch,
       bestSkipRope: this.data.bestSkipRope,
+      expeditionWins: { ...(this.data.expeditionWins ?? {}) },
       ownedAccessories: [...this.data.ownedAccessories],
       equippedAccessories: { ...this.data.equippedAccessories },
       penguinColor: this.data.penguinColor ?? 'blue',
@@ -597,6 +624,36 @@ export class GameStateStore {
     this.data.pet.happiness = clamp(this.data.pet.happiness + reward.happiness);
     this.save();
     return reward;
+  }
+
+  /**
+   * Expedition clear — coins (Flawless +50% floored), happiness, and a win
+   * counter keyed "renoir-hard" etc. Energy was paid at bout start.
+   */
+  rewardExpeditionWin(
+    boss: ExpeditionBossId,
+    difficulty: ExpeditionDifficulty,
+    flawless: boolean,
+  ): { coins: number; happiness: number; key: string } {
+    const coins = winCoins(boss, difficulty, flawless);
+    const happiness = winHappiness(boss, difficulty);
+    const key = winKey(boss, difficulty);
+    this.data.coins += coins;
+    this.data.pet.happiness = clamp(this.data.pet.happiness + happiness);
+    const wins = this.data.expeditionWins ?? (this.data.expeditionWins = {});
+    wins[key] = (wins[key] ?? 0) + 1;
+    this.save();
+    return { coins, happiness, key };
+  }
+
+  /** A lost Expedition still spends energy; small happiness ding only. */
+  settleExpeditionLoss() {
+    this.data.pet.happiness = clamp(this.data.pet.happiness + EXPEDITION_LOSS_HAPPINESS);
+    this.save();
+  }
+
+  expeditionWinCount(boss: ExpeditionBossId, difficulty: ExpeditionDifficulty): number {
+    return this.data.expeditionWins?.[winKey(boss, difficulty)] ?? 0;
   }
 
   /** A lost Bump bout still cheers the pet a little — it was playtime. */

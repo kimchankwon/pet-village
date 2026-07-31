@@ -13,6 +13,7 @@ import { SkipRopeScene } from '../scenes/SkipRopeScene';
 import { EastParkScene, WestParkScene } from '../scenes/ParkScene';
 import { BumpScene } from '../scenes/BumpScene';
 import { SledRunScene } from '../scenes/SledRunScene';
+import { ExpeditionScene } from '../scenes/ExpeditionScene';
 import { State } from '../systems/GameState';
 import { isTextEntryOpen, registerKeyboardCapture, syncKeyboardCapture } from '../systems/textEntry';
 import { BASE_HEIGHT, BASE_WIDTH, designSizeForHost } from './viewport';
@@ -78,6 +79,7 @@ export function startGame(parent: HTMLElement, options: StartGameOptions = {}): 
       EastParkScene,
       BumpScene,
       SledRunScene,
+      ExpeditionScene,
     ],
   });
 

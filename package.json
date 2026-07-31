@@ -1,7 +1,7 @@
 {
   "name": "pet-village",
   "private": true,
-  "version": "1.29.1",
+  "version": "1.30.0",
   "type": "module",
   "workspaces": [
     "packages/*",
@@ -24,6 +24,7 @@
     "sprite:bongbongee": "tsx scripts/imagine-to-bongbongee.mts",
     "sprite:penguin": "tsx scripts/imagine-to-penguin.mts",
     "sprite:penguin-wave": "tsx scripts/penguin-wave-plates.mts",
+    "sprite:expedition": "tsx scripts/imagine-to-expedition.mts",
     "sprite:mametchi": "tsx scripts/generate-mametchi.mts",
     "sprite:kuchipatchi": "tsx scripts/generate-kuchipatchi.mts",
     "sprite:mimitchi": "tsx scripts/generate-mimitchi.mts",

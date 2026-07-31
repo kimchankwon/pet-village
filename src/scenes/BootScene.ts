@@ -45,6 +45,18 @@ const WORLD_PROP_KEYS = [
   'get-arcade',
 ] as const;
 
+/** Expedition boss poses — 40×56 humanoid duellists (npm run sprite:expedition). */
+const EXPEDITION_BOSSES = ['gustave', 'maelle', 'renoir'] as const;
+const EXPEDITION_POSES = [
+  'idle',
+  'windup',
+  'strike',
+  'special',
+  'hurt',
+  'enraged',
+  'down',
+] as const;
+
 const LOAD_BG = 0x0e1a28;
 const LOAD_PANEL = 0x1a2838;
 const LOAD_LINE = 0x3a5068;
@@ -207,6 +219,13 @@ export class BootScene extends Phaser.Scene {
     // Outdoor hub Imagine plates (override grid fallbacks in generateTextures).
     for (const key of WORLD_PROP_KEYS) {
       this.load.image(key, `assets/world/${key}.png`);
+    }
+    // Expedition bosses (40×56). Missing files are fine at load — scene falls
+    // back to a generated silhouette; successful plate loads override.
+    for (const id of EXPEDITION_BOSSES) {
+      for (const pose of EXPEDITION_POSES) {
+        this.load.image(`exp-${id}-${pose}`, `assets/npc/expedition/${id}/${pose}.png`);
+      }
     }
   }
 

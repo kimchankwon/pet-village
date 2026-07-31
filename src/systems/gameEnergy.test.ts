@@ -9,9 +9,11 @@ import {
   PAPER_TOSS_ENERGY_COST,
   SKIP_ROPE_ENERGY_COST,
   SLED_RUN_ENERGY_COST,
+  expeditionMinEnergy,
   paperTossEnergyCost,
   tooTiredMessage,
 } from './gameEnergy';
+import { BOSS_ORDER, EXPEDITION_REWARDS } from './expeditionRules';
 import {
   PAPER_TOSS_COINS_PER_BASKET,
   PAPER_TOSS_LEVEL_CLEAR_COINS,
@@ -35,6 +37,8 @@ test('the walk-in gate is the cheapest run each booth sells', () => {
   assert.equal(GAME_MIN_ENERGY.PaperToss, PAPER_TOSS_ENERGY_COST.easy);
   assert.equal(GAME_MIN_ENERGY.SkipRope, SKIP_ROPE_ENERGY_COST);
   assert.equal(GAME_MIN_ENERGY.Fishing, FISHING_ENERGY_PER_CAST);
+  assert.equal(GAME_MIN_ENERGY.Expedition, expeditionMinEnergy());
+  assert.equal(GAME_MIN_ENERGY.Expedition, 8);
 });
 
 test('every game that charges energy has a gate', () => {
@@ -106,6 +110,24 @@ test('a winning run pays a comparable rate at every booth', () => {
     const baskets = 6 * (PAPER_TOSS_COINS_PER_BASKET[difficulty] + 1);
     const clears = 2 * PAPER_TOSS_LEVEL_CLEAR_COINS[difficulty];
     assertInBand(`Paper Toss ${difficulty}`, baskets + clears, PAPER_TOSS_ENERGY_COST[difficulty]);
+  }
+});
+
+/**
+ * Expedition bouts run far longer than a Get track or Bump bout, so they sit
+ * above the usual 1.2–2.2 coins/energy band on purpose. Cap is 4.0 so a future
+ * payout spike still fails CI.
+ */
+test('Expedition win rates stay inside the long-fight premium band', () => {
+  for (const boss of BOSS_ORDER) {
+    for (const difficulty of ['easy', 'normal', 'hard'] as const) {
+      const cell = EXPEDITION_REWARDS[boss][difficulty];
+      const rate = cell.coins / cell.energy;
+      assert.ok(
+        rate >= MIN_RATE && rate <= 4.0,
+        `${boss} ${difficulty} pays ${rate.toFixed(2)} coins per energy`,
+      );
+    }
   }
 });
 
