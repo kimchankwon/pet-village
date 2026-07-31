@@ -171,7 +171,8 @@ test('Nibble grants mana; paid ability spends it; sweep damages the boss', () =>
   const result = finishSweep(state);
   assert.ok(result.totalDamage > 0);
   assert.equal(state.bossHp, before - result.totalDamage);
-  assert.ok(state.mana >= 5); // Nibble +2, Bravo +1 → at least 7 if both landed
+  assert.equal(result.bravo, true);
+  assert.equal(state.mana, 8); // start 5 + Nibble grant 2 + Bravo refund 1
 });
 
 test('balance guard: competent player survives Easy/Normal for all bosses', () => {

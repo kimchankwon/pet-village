@@ -1,5 +1,5 @@
 /**
- * Convert high-res Grok Imagine Expedition boss plates into 40×56 game sprites.
+ * Convert high-res Grok Imagine Expedition boss plates into 56×80 game sprites.
  *
  * Source plates: scripts/reference/expedition/<id>/<pose>.png
  * Output:        public/assets/npc/expedition/<id>/<pose>.png
@@ -165,8 +165,9 @@ function downsample(src: InstanceType<typeof PNG>): InstanceType<typeof PNG> {
       let best: { c: RGBA; n: number } | null = null;
       const x0 = Math.floor(x * cellW);
       const y0 = Math.floor(y * cellH);
-      const x1 = Math.floor((x + 1) * cellW);
-      const y1 = Math.floor((y + 1) * cellH);
+      // Always sample at least one source pixel (tiny plates / upscale path).
+      const x1 = Math.max(x0 + 1, Math.floor((x + 1) * cellW));
+      const y1 = Math.max(y0 + 1, Math.floor((y + 1) * cellH));
       for (let sy = y0; sy < y1; sy++) {
         for (let sx = x0; sx < x1; sx++) {
           const c = get(src, sx, sy);

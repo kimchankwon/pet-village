@@ -113,14 +113,15 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   or 12 energy respectively; easier modes give your pet a wider catching bowl.
 - **Expedition** is the third East Green booth — a Clair Obscur-style duel.
   Pick Gustave, Maelle or Renoir, then Easy / Normal / Hard. Your turn: choose
-  one of three offered abilities (the free Nibble plus the two most expensive
-  you can afford) and land taps on a rotating-ring QTE. Their turn: dodge
-  (`X` / left half) or parry (`C` / right half) a telegraphed chain; parry is
-  tighter but pays mana and a full-chain parry counters. Bosses have three HP
-  phases and signature mechanics (Gustave charge, Maelle stances, Renoir's
-  canvas heal). Wins are counted in `expeditionWins`; Flawless (full HP) pays
-  +50% coins. Combat logic lives in pure modules under `src/systems/expedition*`
-  so balance is covered by tests without a browser.
+  from all six abilities (unaffordable ones stay visible but dimmed and show
+  the mana needed), then land taps on a rotating-ring QTE with a fixed-size
+  hit zone per difficulty. Their turn: each hit is its own circle near the
+  centre — dodge (`X` / left) or parry (`C` / right); parry is tighter but
+  pays mana and a full-chain parry counters. Bosses have three HP phases and
+  signature mechanics (Gustave charge, Maelle stances, Renoir's canvas heal).
+  Wins are counted in `expeditionWins`; Flawless (full HP) pays +50% coins.
+  Combat logic lives in pure modules under `src/systems/expedition*` so balance
+  is covered by tests without a browser.
 - **Fishing** at the Shore: drag to aim the cast the way you throw in Paper
   Toss, then click the moment the line dips. A bite always becomes a fight —
   there is no decoy nibble that eats your bait. Hooking rolls one of two games

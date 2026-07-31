@@ -41,6 +41,12 @@ const FONT_XL = { fontFamily: 'monospace', fontSize: '28px', color: '#efe8ff' };
 
 /** Boss display height in arena (56×80 art). */
 const BOSS_DISPLAY_H = 168;
+/** Fixed radius of every incoming-hit circle (same tap-read area). */
+const HIT_CIRCLE_R = 36;
+/** How far from arena centre the hit circles sit. */
+const HIT_RING_R = 88;
+/** Max hits we pre-build slots for (chains cap at 6). */
+const HIT_SLOT_MAX = 6;
 
 const POSES = ['idle', 'windup', 'strike', 'special', 'hurt', 'enraged', 'down'] as const;
 export type BossPose = (typeof POSES)[number];
@@ -131,6 +137,20 @@ export class ExpeditionScene extends Phaser.Scene {
   private timingBarBg!: Phaser.GameObjects.Rectangle;
   private timingBarFill!: Phaser.GameObjects.Rectangle;
   private fxGfx!: Phaser.GameObjects.Graphics;
+  /**
+   * One circle per chain slot near the centre. Same radius always — only
+   * position and colour (white / red) change per hit.
+   */
+  private hitCircles: {
+    ring: Phaser.GameObjects.Arc;
+    fill: Phaser.GameObjects.Arc;
+    label: Phaser.GameObjects.Text;
+    x: number;
+    y: number;
+  }[] = [];
+  private activeHitSlot = -1;
+  private dodgeBurst?: Phaser.GameObjects.Arc;
+  private parryBurst?: Phaser.GameObjects.Arc;
 
   private sweepLayout: SweepLayout | null = null;
   private needleDeg = 0;
@@ -286,20 +306,56 @@ export class ExpeditionScene extends Phaser.Scene {
       .setVisible(false);
     this.fxGfx = this.add.graphics().setDepth(40);
 
+    // Kept as a soft centre guide; real hits use per-slot circles below.
     this.hitCue = this.add
-      .rectangle(cx, viewH / 2 - 20, 110, 110, 0xffffff, 0)
-      .setDepth(19)
-      .setStrokeStyle(8, 0xffffff)
+      .rectangle(cx, viewH / 2 - 10, 24, 24, 0xffffff, 0)
+      .setDepth(18)
+      .setStrokeStyle(2, 0x3a5068)
+      .setVisible(false);
+
+    // Individual hit circles around the centre — same radius every time.
+    this.hitCircles = [];
+    for (let i = 0; i < HIT_SLOT_MAX; i++) {
+      const ang = Phaser.Math.DegToRad(-90 + (i / HIT_SLOT_MAX) * 360);
+      const hx = cx + Math.cos(ang) * HIT_RING_R;
+      const hy = viewH / 2 - 10 + Math.sin(ang) * HIT_RING_R;
+      const fill = this.add
+        .circle(hx, hy, HIT_CIRCLE_R, 0xffffff, 0.08)
+        .setStrokeStyle(4, 0xffffff, 0.9)
+        .setDepth(22)
+        .setVisible(false);
+      const ring = this.add
+        .circle(hx, hy, HIT_CIRCLE_R + 10, 0xffffff, 0)
+        .setStrokeStyle(3, 0xffe066, 0)
+        .setDepth(23)
+        .setVisible(false);
+      const label = this.add
+        .text(hx, hy, `${i + 1}`, { ...FONT_LG, fontSize: '18px', color: '#ffffff' })
+        .setOrigin(0.5)
+        .setDepth(24)
+        .setVisible(false);
+      this.hitCircles.push({ ring, fill, label, x: hx, y: hy });
+    }
+    // Parry / dodge success bursts (UI).
+    this.dodgeBurst = this.add
+      .circle(viewW * 0.25, viewH - 52, 20, 0x5dade2, 0)
+      .setStrokeStyle(4, 0x5dade2, 1)
+      .setDepth(41)
+      .setVisible(false);
+    this.parryBurst = this.add
+      .circle(viewW * 0.75, viewH - 52, 20, 0xffe066, 0)
+      .setStrokeStyle(4, 0xffe066, 1)
+      .setDepth(41)
       .setVisible(false);
 
     // Timing approach bar (fills toward the hit) — thicker, harder to miss.
     this.timingBarBg = this.add
-      .rectangle(cx, viewH / 2 + 58, 280, 16, 0x1a1a2e, 0.95)
+      .rectangle(cx, viewH / 2 + 100, 280, 16, 0x1a1a2e, 0.95)
       .setDepth(19)
       .setStrokeStyle(2, 0xc9a227)
       .setVisible(false);
     this.timingBarFill = this.add
-      .rectangle(cx - 140, viewH / 2 + 58, 0, 16, 0xffffff)
+      .rectangle(cx - 140, viewH / 2 + 100, 0, 16, 0xffffff)
       .setOrigin(0, 0.5)
       .setDepth(20)
       .setVisible(false);
@@ -513,6 +569,7 @@ export class ExpeditionScene extends Phaser.Scene {
       this.menuOpen = false;
       this.ignoreClicksUntil = this.time.now + 250;
       this.time.delayedCall(0, () => {
+        // Selecting a boss sets mode to pick-diff before close — don't leave.
         if (this.mode === 'pick-boss' && !this.reopeningPicker) this.leave();
       });
     };
@@ -703,6 +760,95 @@ export class ExpeditionScene extends Phaser.Scene {
     this.countdownText.setVisible(false);
     this.edgeFlashL.setVisible(false).setAlpha(0);
     this.edgeFlashR.setVisible(false).setAlpha(0);
+    this.activeHitSlot = -1;
+    for (const slot of this.hitCircles) {
+      this.tweens.killTweensOf(slot.fill);
+      this.tweens.killTweensOf(slot.ring);
+      slot.fill.setVisible(false).setScale(1).setAlpha(1);
+      slot.ring.setVisible(false).setScale(1).setAlpha(0);
+      slot.label.setVisible(false);
+    }
+  }
+
+  /** Lay out N equal circles near the centre for this chain. */
+  private layoutHitCircles(count: number, kinds: Array<'normal' | 'gradient'>) {
+    const cx = this.cameras.main.width / 2;
+    const cy = this.cameras.main.height / 2 - 10;
+    const n = Math.min(count, HIT_SLOT_MAX);
+    for (let i = 0; i < HIT_SLOT_MAX; i++) {
+      const slot = this.hitCircles[i]!;
+      if (i >= n) {
+        slot.fill.setVisible(false);
+        slot.ring.setVisible(false);
+        slot.label.setVisible(false);
+        continue;
+      }
+      // Evenly around centre so each hit owns a different screen patch.
+      const ang = Phaser.Math.DegToRad(-90 + (i / n) * 360 + 180 / n);
+      const hx = cx + Math.cos(ang) * HIT_RING_R;
+      const hy = cy + Math.sin(ang) * HIT_RING_R;
+      slot.x = hx;
+      slot.y = hy;
+      const isGrad = kinds[i] === 'gradient';
+      const color = isGrad ? 0xff3333 : 0xffffff;
+      slot.fill.setPosition(hx, hy).setRadius(HIT_CIRCLE_R);
+      slot.fill.setFillStyle(color, 0.1).setStrokeStyle(4, color, 0.75);
+      slot.fill.setVisible(true).setScale(1).setAlpha(0.55);
+      slot.ring.setPosition(hx, hy).setRadius(HIT_CIRCLE_R + 12);
+      slot.ring.setStrokeStyle(3, 0xffe066, 0).setVisible(true).setAlpha(0);
+      slot.label
+        .setPosition(hx, hy)
+        .setText(isGrad ? '!' : `${i + 1}`)
+        .setColor(isGrad ? '#ff6666' : '#efe8ff')
+        .setVisible(true)
+        .setAlpha(0.7);
+    }
+  }
+
+  private activateHitCircle(index: number, kind: 'normal' | 'gradient', preMs: number) {
+    const slot = this.hitCircles[index];
+    if (!slot) return;
+    this.activeHitSlot = index;
+    const isGrad = kind === 'gradient';
+    const color = isGrad ? 0xff3333 : 0xffffff;
+    // Dim siblings; light this one.
+    this.hitCircles.forEach((s, i) => {
+      if (i === index) return;
+      if (s.fill.visible) s.fill.setAlpha(0.25);
+      s.label.setAlpha(0.35);
+    });
+    slot.fill.setFillStyle(color, 0.28).setStrokeStyle(6, color, 1).setAlpha(1).setScale(0.7);
+    slot.label.setAlpha(1).setColor(isGrad ? '#ff4444' : '#ffffff');
+    slot.ring.setStrokeStyle(4, isGrad ? 0xff6666 : 0xffe066, 1).setAlpha(1).setScale(0.6);
+    this.tweens.killTweensOf(slot.fill);
+    this.tweens.killTweensOf(slot.ring);
+    this.tweens.add({
+      targets: slot.fill,
+      scale: 1.15,
+      duration: preMs,
+      ease: 'Cubic.easeOut',
+    });
+    this.tweens.add({
+      targets: slot.ring,
+      scale: 1.45,
+      alpha: 0.15,
+      duration: preMs,
+      ease: 'Cubic.easeOut',
+    });
+    // Move countdown onto this circle.
+    this.countdownText.setPosition(slot.x, slot.y - HIT_CIRCLE_R - 22).setVisible(true);
+  }
+
+  private resolveHitCircle(index: number, success: boolean) {
+    const slot = this.hitCircles[index];
+    if (!slot) return;
+    this.tweens.killTweensOf(slot.fill);
+    this.tweens.killTweensOf(slot.ring);
+    slot.fill.setFillStyle(success ? 0x5ed6a0 : 0x555555, 0.5);
+    slot.fill.setStrokeStyle(4, success ? 0xa8e6cf : 0x333333, 0.8);
+    slot.fill.setScale(0.9).setAlpha(0.5);
+    slot.ring.setAlpha(0);
+    slot.label.setText(success ? '✓' : '✗').setColor(success ? '#a8e6cf' : '#888899');
   }
 
   private hideAttackPreview() {
@@ -902,11 +1048,10 @@ export class ExpeditionScene extends Phaser.Scene {
         ? `Canvas +${canvasHeal} HP!  ·  ${attack.name} · ${chain.length} hits`
         : `WIND-UP · ${chain.length} hit${chain.length === 1 ? '' : 's'}${gradCount ? ` · ${gradCount} RED` : ''}`,
     );
-    // Name + pip strip so the whole chain is readable before it starts.
-    this.showAttackPreview(
-      attack.name,
-      chain.map((h) => h.kind),
-    );
+    // Name + pip strip + per-hit circles near centre.
+    const kinds = chain.map((h) => h.kind);
+    this.showAttackPreview(attack.name, kinds);
+    this.layoutHitCircles(chain.length, kinds);
     this.refreshHud();
     this.pendingHitIndex = 0;
     // Boss grows / glows during tell.
@@ -937,11 +1082,14 @@ export class ExpeditionScene extends Phaser.Scene {
   private scheduleHits() {
     if (!this.combat) return;
     const chain = this.combat.chain;
-    // Pre-cue earlier so players can read the colour.
+    const windows = defenseWindows(this.combat.difficulty, this.combat.phase);
+    // Auto-miss only after the widest defense window closes — otherwise a late
+    // but valid input is stolen and applied to the next hit (CodeRabbit).
+    const autoMissSlack = windows.dodgeMs + 16;
     const PRE_MS = 320;
     for (let i = 0; i < chain.length; i++) {
       const hit = chain[i]!;
-      this.time.delayedCall(hit.atMs, () => {
+      this.time.delayedCall(hit.atMs + autoMissSlack, () => {
         if (!this.combat || this.combat.combatPhase !== 'their-turn-hit') return;
         if (this.pendingHitIndex !== i) return;
         this.resolveCurrentHit('none');
@@ -974,17 +1122,8 @@ export class ExpeditionScene extends Phaser.Scene {
       }
     });
 
-    this.hitCue.setVisible(true);
-    this.hitCue.setStrokeStyle(10, color);
-    this.hitCue.setFillStyle(color, 0.2);
-    this.hitCue.setScale(0.45);
-    this.tweens.killTweensOf(this.hitCue);
-    this.tweens.add({
-      targets: this.hitCue,
-      scale: 1.25,
-      duration: preMs,
-      ease: 'Cubic.easeOut',
-    });
+    // Activate this hit's own circle near the centre.
+    this.activateHitCircle(index, kind, preMs);
 
     this.hitCounterText.setVisible(true).setText(`HIT  ${index + 1}  /  ${total}`);
     this.hitTypeText
@@ -994,7 +1133,7 @@ export class ExpeditionScene extends Phaser.Scene {
       .setScale(1.15);
     this.tweens.add({ targets: this.hitTypeText, scale: 1, duration: 160, ease: 'Back.easeOut' });
 
-    this.countdownText.setVisible(true).setText('●').setColor(isGrad ? '#ff4444' : '#ffe066');
+    this.countdownText.setColor(isGrad ? '#ff4444' : '#ffe066');
 
     // Side edge: blue = dodge, pink = parry; gradient only lights left.
     this.edgeFlashL.setVisible(true).setFillStyle(0x5dade2, isGrad ? 0.55 : 0.28);
@@ -1011,17 +1150,32 @@ export class ExpeditionScene extends Phaser.Scene {
         yoyo: true,
         repeat: 2,
       });
+      this.pulseDefenseZone(this.dodgeZone, 0x5dade2);
     } else {
       this.dodgeZone.setStrokeStyle(4, 0x5dade2);
       this.parryZone.setStrokeStyle(4, 0xff7fab);
       this.dodgeZone.setAlpha(0.9);
       this.parryZone.setAlpha(0.9);
+      this.pulseDefenseZone(this.dodgeZone, 0x5dade2);
+      this.pulseDefenseZone(this.parryZone, 0xff7fab);
     }
 
     this.timingBarBg.setVisible(true);
     this.timingBarFill.setVisible(true).setFillStyle(color);
     this.timingBarFill.width = 0;
     this.nextHitAt = this.chainStartAt + hitAtMs;
+  }
+
+  private pulseDefenseZone(zone: Phaser.GameObjects.Rectangle, color: number) {
+    this.tweens.add({
+      targets: zone,
+      scaleX: 1.04,
+      scaleY: 1.08,
+      duration: 120,
+      yoyo: true,
+      repeat: 1,
+    });
+    void color;
   }
 
   private tryDefense(action: DefenseAction) {
@@ -1061,6 +1215,7 @@ export class ExpeditionScene extends Phaser.Scene {
 
     const result = resolveDefense(this.combat, action, inputOffset);
     this.markChainPipResolved(hitIndex, result.success);
+    this.resolveHitCircle(hitIndex, result.success);
 
     if (result.success) {
       if (action === 'dodge') this.playDodgeAnim();
@@ -1073,7 +1228,15 @@ export class ExpeditionScene extends Phaser.Scene {
     this.pendingHitIndex += 1;
     this.inputLockedUntil = this.time.now + 90;
     this.refreshHud();
-    this.hideHitUi();
+    // Keep resolved circles; clear active cue chrome only.
+    this.hitCounterText.setVisible(false);
+    this.hitTypeText.setVisible(false);
+    this.timingBarBg.setVisible(false);
+    this.timingBarFill.setVisible(false);
+    this.countdownText.setVisible(false);
+    this.edgeFlashL.setVisible(false).setAlpha(0);
+    this.edgeFlashR.setVisible(false).setAlpha(0);
+    this.activeHitSlot = -1;
 
     if (this.pendingHitIndex >= this.combat.chain.length) {
       this.showDefenseHalves(false);
@@ -1081,9 +1244,39 @@ export class ExpeditionScene extends Phaser.Scene {
     }
   }
 
-  /** Slide-left dodge with blue trail and jump pose. */
+  /** UI burst on the dodge half + pet slide. */
   private playDodgeAnim() {
     this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'jump'));
+    // Zone UI: fill flash + expanding ring.
+    this.dodgeZone.setFillStyle(0x1a6a9a, 0.95);
+    this.tweens.add({
+      targets: this.dodgeZone,
+      alpha: 0.55,
+      duration: 220,
+      onComplete: () => {
+        this.dodgeZone.setFillStyle(0x0d3a55, 0.82).setAlpha(0.9);
+      },
+    });
+    if (this.dodgeBurst) {
+      this.dodgeBurst
+        .setVisible(true)
+        .setPosition(this.dodgeZone.x, this.dodgeZone.y)
+        .setScale(0.4)
+        .setAlpha(1)
+        .setStrokeStyle(5, 0x5dade2, 1);
+      this.tweens.killTweensOf(this.dodgeBurst);
+      this.tweens.add({
+        targets: this.dodgeBurst,
+        scale: 2.4,
+        alpha: 0,
+        duration: 280,
+        ease: 'Cubic.easeOut',
+        onComplete: () => this.dodgeBurst?.setVisible(false),
+      });
+    }
+    this.dodgeLabel.setScale(1.2);
+    this.tweens.add({ targets: this.dodgeLabel, scale: 1, duration: 180, ease: 'Back.easeOut' });
+
     const trail = this.add
       .image(this.petSprite.x, this.petSprite.y, this.petSprite.texture.key)
       .setScale(this.petSprite.scaleX)
@@ -1108,7 +1301,6 @@ export class ExpeditionScene extends Phaser.Scene {
       duration: 220,
       onComplete: () => trail.destroy(),
     });
-    // Blue afterimage ring.
     this.fxGfx.clear();
     this.fxGfx.lineStyle(3, 0x5dade2, 0.9);
     this.fxGfx.strokeCircle(this.petHomeX - 20, this.petHomeY - 20, 18);
@@ -1116,10 +1308,40 @@ export class ExpeditionScene extends Phaser.Scene {
     toast(this, this.cameras.main.width / 2, 175, 'DODGE!', '#5dade2');
   }
 
-  /** Flash-parry with gold sparks and lean-in. */
+  /** UI burst on the parry half + pet flash. */
   private playParryAnim(perfect: boolean) {
     this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'walk2'));
     this.petSprite.setTint(perfect ? 0xffe066 : 0xffb3d1);
+    // Zone UI.
+    this.parryZone.setFillStyle(perfect ? 0x6a4a10 : 0x6a2040, 0.95);
+    this.tweens.add({
+      targets: this.parryZone,
+      alpha: 0.55,
+      duration: 220,
+      onComplete: () => {
+        this.parryZone.setFillStyle(0x4a1530, 0.82).setAlpha(0.9);
+      },
+    });
+    if (this.parryBurst) {
+      this.parryBurst
+        .setVisible(true)
+        .setPosition(this.parryZone.x, this.parryZone.y)
+        .setScale(0.4)
+        .setAlpha(1)
+        .setStrokeStyle(5, perfect ? 0xffe066 : 0xff7fab, 1);
+      this.tweens.killTweensOf(this.parryBurst);
+      this.tweens.add({
+        targets: this.parryBurst,
+        scale: 2.6,
+        alpha: 0,
+        duration: 300,
+        ease: 'Cubic.easeOut',
+        onComplete: () => this.parryBurst?.setVisible(false),
+      });
+    }
+    this.parryLabel.setScale(1.2);
+    this.tweens.add({ targets: this.parryLabel, scale: 1, duration: 180, ease: 'Back.easeOut' });
+
     this.tweens.add({
       targets: this.petSprite,
       x: this.petHomeX + 28,
@@ -1131,7 +1353,6 @@ export class ExpeditionScene extends Phaser.Scene {
         this.petSprite.setPosition(this.petHomeX, this.petHomeY);
       },
     });
-    // Spark burst.
     const cx = this.petHomeX + 30;
     const cy = this.petHomeY - 24;
     this.fxGfx.clear();
@@ -1182,6 +1403,7 @@ export class ExpeditionScene extends Phaser.Scene {
   private endBossChain() {
     if (!this.combat) return;
     this.hideAttackPreview();
+    this.hideHitUi();
     const result = finishBossChain(this.combat);
     if (result.counterDmg > 0) {
       this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'happy'));
@@ -1244,6 +1466,7 @@ export class ExpeditionScene extends Phaser.Scene {
     );
     this.time.delayedCall(1600, () => {
       this.menuOpen = true;
+      let stayInScene = false;
       const menu = new Menu(
         this,
         'Expedition clear!',
@@ -1251,6 +1474,7 @@ export class ExpeditionScene extends Phaser.Scene {
           {
             label: 'Fight again',
             onSelect: () => {
+              stayInScene = true;
               this.menuOpen = false;
               this.openBossMenu();
             },
@@ -1263,7 +1487,8 @@ export class ExpeditionScene extends Phaser.Scene {
       );
       menu.onClose = () => {
         this.menuOpen = false;
-        this.leave();
+        // Menu.close always fires onClose after onSelect — don't leave on retry.
+        if (!stayInScene && this.mode === 'won') this.leave();
       };
     });
   }
@@ -1282,6 +1507,7 @@ export class ExpeditionScene extends Phaser.Scene {
     this.statusText.setText('Energy spent. Rest and try again.');
     this.time.delayedCall(1400, () => {
       this.menuOpen = true;
+      let stayInScene = false;
       const canRetry = State.hasEnergy(GAME_MIN_ENERGY.Expedition);
       const menu = new Menu(
         this,
@@ -1292,6 +1518,7 @@ export class ExpeditionScene extends Phaser.Scene {
                 {
                   label: 'Try again',
                   onSelect: () => {
+                    stayInScene = true;
                     this.menuOpen = false;
                     this.openBossMenu();
                   },
@@ -1308,7 +1535,7 @@ export class ExpeditionScene extends Phaser.Scene {
       );
       menu.onClose = () => {
         this.menuOpen = false;
-        this.leave();
+        if (!stayInScene && this.mode === 'lost') this.leave();
       };
     });
   }

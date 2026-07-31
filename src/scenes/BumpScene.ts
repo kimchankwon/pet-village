@@ -427,7 +427,8 @@ export class BumpScene extends Phaser.Scene {
     this.diffText.setText(`Difficulty: ${DIFFICULTY[d].label} · ${cost} energy`);
     this.vsText.setText(`${State.data.petName || 'Your pet'}  VS  ${this.oppName}`);
     this.flashFeedback('Get ready…', '#c8c8dc', 0);
-    toast(this, this.cameras.main.width / 2, 126, `-${cost} energy`, '#ffe066');
+    // Below the VS line (y=124) so the bout-start toast doesn't cover names.
+    toast(this, this.cameras.main.width / 2, 175, `-${cost} energy`, '#ffe066');
 
     this.time.delayedCall(900, () => {
       if (this.mode !== 'ready') return;

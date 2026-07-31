@@ -30,18 +30,18 @@ test('perfect band is middle 40% of arc width for every difficulty', () => {
   }
 });
 
-test('every ability × difficulty places the right arc count without overlap', () => {
+test('every ability × difficulty places the right arc count with fixed width', () => {
   for (const ability of ABILITIES) {
     for (const difficulty of DIFFICULTIES) {
+      const expectedW = SWEEP_BY_DIFFICULTY[difficulty].arcWidthDeg;
       for (const seed of SEEDS) {
         const layout = buildSweep(ability.id, difficulty, seed);
         assert.equal(layout.arcs.length, ability.arcs, `${ability.id}/${difficulty}/seed${seed}`);
-        // Gaps must be positive and non-overlapping; full arc-width preferred
-        // but Easy multi-arc may use a reduced floor (still ≥ 8°).
-        assertReachable(layout.arcs, 8);
+        assert.equal(layout.arcWidthDeg, expectedW, 'tap area is constant for the difficulty');
         for (const arc of layout.arcs) {
-          assert.ok(arc.widthDeg >= 8, 'arc still wide enough to tap');
+          assert.equal(arc.widthDeg, expectedW, 'every arc has the same fixed width');
         }
+        assertReachable(layout.arcs, 360 / ability.arcs - expectedW - 1e-6);
       }
     }
   }
@@ -51,12 +51,19 @@ test('assertAllSweepsPlaceable covers the full matrix', () => {
   assert.doesNotThrow(() => assertAllSweepsPlaceable(SEEDS));
 });
 
-test('7-arc Gradient Finale on Hard still fits with full arc-width gaps', () => {
+test('7-arc Gradient Finale keeps fixed Hard width on every seed', () => {
   for (const seed of SEEDS) {
     const layout = buildSweep('gradient-finale', 'hard', seed);
     assert.equal(layout.arcs.length, 7);
-    assert.ok(layout.arcWidthDeg <= 20 + 1e-9);
-    assertReachable(layout.arcs, layout.arcWidthDeg);
+    assert.equal(layout.arcWidthDeg, 20);
+    for (const arc of layout.arcs) assert.equal(arc.widthDeg, 20);
+  }
+});
+
+test('Easy multi-arc abilities never shrink below the difficulty arc width', () => {
+  for (const id of ['lumina-storm', 'gradient-finale'] as const) {
+    const layout = buildSweep(id, 'easy', 1);
+    assert.equal(layout.arcWidthDeg, SWEEP_BY_DIFFICULTY.easy.arcWidthDeg);
   }
 });
 

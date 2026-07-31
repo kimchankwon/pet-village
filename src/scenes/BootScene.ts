@@ -45,7 +45,7 @@ const WORLD_PROP_KEYS = [
   'get-arcade',
 ] as const;
 
-/** Expedition boss poses — 40×56 humanoid duellists (npm run sprite:expedition). */
+/** Expedition boss poses — 56×80 humanoid duellists (npm run sprite:expedition). */
 const EXPEDITION_BOSSES = ['gustave', 'maelle', 'renoir'] as const;
 const EXPEDITION_POSES = [
   'idle',
@@ -220,7 +220,7 @@ export class BootScene extends Phaser.Scene {
     for (const key of WORLD_PROP_KEYS) {
       this.load.image(key, `assets/world/${key}.png`);
     }
-    // Expedition bosses (40×56). Missing files are fine at load — scene falls
+    // Expedition bosses (56×80). Missing files are fine at load — scene falls
     // back to a generated silhouette; successful plate loads override.
     for (const id of EXPEDITION_BOSSES) {
       for (const pose of EXPEDITION_POSES) {
