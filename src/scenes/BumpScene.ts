@@ -22,15 +22,21 @@ const TUG_TRAVEL = 165;
 /** Fighters stand this far either side of the contact point. */
 const CHAR_GAP = 38;
 
-/** Tug marker travel on the bottom bar (px from centre). */
+/** Tug marker travel on the bar (px from centre). */
 const BAR_TRAVEL = 160;
+/**
+ * The tug bar sits below the bunting and above the VS line. The end faces are
+ * ~30px tall and centred on this, so it needs clear air on both sides: bunting
+ * ends at y=74, the VS line starts at y=116.
+ */
+const TUG_BAR_Y = 96;
 
-/** How hard each tap shoves; the mash meter adds up to this much again. */
+/** How hard each tap shoves; sustained mashing adds up to this much again. */
 const TAP_IMPULSE_BASE = 0.045;
 const TAP_IMPULSE_MASH_BONUS = 0.02;
 /** A full-meter tap's total shove — difficulty pressure is derived from it. */
 const TAP_IMPULSE_FULL = TAP_IMPULSE_BASE + TAP_IMPULSE_MASH_BONUS;
-/** Mash meter: gain per tap, drain per second (fills at ~4+ taps/sec). */
+/** Mash intensity: gain per tap, drain per second (peaks at ~4+ taps/sec). */
 const MASH_GAIN = 0.3;
 const MASH_DRAIN_PER_S = 0.9;
 
@@ -63,7 +69,8 @@ type Mode = 'pick' | 'ready' | 'wait' | 'push' | 'won' | 'lost' | 'done';
 /**
  * Bump — sumo push-out. Pick a difficulty, square up against a random
  * villager, hold your nerve through the stare-down, then MASH tap / click /
- * Space to shove. The mash meter boosts each shove; the bottom bar shows
+ * Space to shove. Mashing faster boosts each shove — that is felt in how hard
+ * you push rather than shown as a meter — and the bar across the top shows
  * who's winning. Push the marker all the way right to topple the opponent
  * off the platform — get pushed to the left end and your pet falls instead.
  */
@@ -90,13 +97,11 @@ export class BumpScene extends Phaser.Scene {
 
   /** −1 (pet falls) … +1 (opponent falls). */
   private tug = 0;
-  /** 0..1 recent mash intensity; boosts shove strength, drains fast. */
+  /** 0..1 recent mash intensity; boosts shove strength, drains fast. Not drawn. */
   private mash = 0;
   private surgePhase = 0;
   private nextDustAt = 0;
 
-  private mashBarFill!: Phaser.GameObjects.Rectangle;
-  private mashBarGroup: Phaser.GameObjects.GameObject[] = [];
   private tugMarker!: Phaser.GameObjects.Rectangle;
   private tugFillRight!: Phaser.GameObjects.Rectangle;
   private tugFillLeft!: Phaser.GameObjects.Rectangle;
@@ -158,7 +163,7 @@ export class BumpScene extends Phaser.Scene {
       .text(20, 44, '', { ...FONT, fontSize: '14px', color: '#a8e6cf' })
       .setScrollFactor(0);
     this.vsText = this.add
-      .text(cx, 96, '', { ...FONT, fontSize: '16px', color: '#ffb3d1' })
+      .text(cx, 124, '', { ...FONT, fontSize: '16px', color: '#ffb3d1' })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(30);
@@ -176,8 +181,7 @@ export class BumpScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setScrollFactor(0);
 
-    this.buildMashBar(cx);
-    this.buildTugBar(cx, viewH);
+    this.buildTugBar(cx);
 
     this.keySpace = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyEsc = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
@@ -326,36 +330,9 @@ export class BumpScene extends Phaser.Scene {
     }
   }
 
-  /** "MASH" meter — fills with taps, drains fast; boosts every shove. */
-  private buildMashBar(cx: number) {
-    const y = 196;
-    const frame = this.add
-      .rectangle(cx, y, 232, 22, 0x1a1a2e, 0.9)
-      .setStrokeStyle(2, 0xffe066)
-      .setScrollFactor(0)
-      .setDepth(40);
-    this.mashBarFill = this.add
-      .rectangle(cx - 112, y, 0, 14, 0xffe066)
-      .setOrigin(0, 0.5)
-      .setScrollFactor(0)
-      .setDepth(41);
-    const label = this.add
-      .text(cx, y - 24, 'MASH!', { ...FONT, fontSize: '13px', color: '#ffe066' })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(41);
-    this.mashBarGroup = [frame, this.mashBarFill, label];
-    markAsUi(this, frame, this.mashBarFill, label);
-    this.setMashBarVisible(false);
-  }
-
-  private setMashBarVisible(on: boolean) {
-    for (const o of this.mashBarGroup) (o as Phaser.GameObjects.Rectangle).setVisible(on);
-  }
-
-  /** Bottom tug-of-war bar — marker all the way right = opponent topples. */
-  private buildTugBar(cx: number, viewH: number) {
-    const y = viewH - 52;
+  /** Tug-of-war bar across the top — marker all the way right = opponent topples. */
+  private buildTugBar(cx: number) {
+    const y = TUG_BAR_Y;
     const track = this.add
       .rectangle(cx, y, BAR_TRAVEL * 2 + 20, 20, 0x1a1a2e, 0.92)
       .setStrokeStyle(2, 0xffb3d1)
@@ -468,11 +445,10 @@ export class BumpScene extends Phaser.Scene {
       if (this.mode !== 'wait') return;
       this.mode = 'push';
       this.mash = 0;
-      this.setMashBarVisible(true);
       this.feedbackText.setText('PUSH!!').setColor('#ffe066').setAlpha(1).setScale(1.6);
       this.tweens.add({ targets: this.feedbackText, scale: 1, duration: 260, ease: 'Back.easeOut' });
       this.tweens.add({ targets: this.feedbackText, alpha: 0.35, duration: 380, delay: 900, yoyo: true, repeat: -1 });
-      this.hintText.setText('MASH tap / click / Space — fill the bar, shove them off!');
+      this.hintText.setText('MASH tap / click / Space — shove them off!');
       this.spectatorsCheer(false);
     });
   }
@@ -522,7 +498,6 @@ export class BumpScene extends Phaser.Scene {
     this.tugFillRight.width = Math.max(0, this.tug) * BAR_TRAVEL;
     this.tugFillLeft.width = Math.max(0, -this.tug) * BAR_TRAVEL;
     this.tugFillLeft.x = cx - this.tugFillLeft.width;
-    this.mashBarFill.width = this.mash * 224;
   }
 
   /** Dust kicked up at the contact point while both are digging in. */
@@ -547,7 +522,6 @@ export class BumpScene extends Phaser.Scene {
 
   private win() {
     this.mode = 'won';
-    this.setMashBarVisible(false);
     this.tweens.killTweensOf(this.feedbackText);
     this.feedbackText.setAlpha(0);
     this.backBtn.setVisible(false);
@@ -591,7 +565,6 @@ export class BumpScene extends Phaser.Scene {
 
   private lose() {
     this.mode = 'lost';
-    this.setMashBarVisible(false);
     this.tweens.killTweensOf(this.feedbackText);
     this.feedbackText.setAlpha(0);
     this.backBtn.setVisible(false);
