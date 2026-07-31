@@ -11,6 +11,7 @@ import {
   pickFishingMinigame,
   stepKeepItIn,
   stepSweep,
+  sweepLapLimit,
   sweepTuning,
   tapSweep,
   type FishingMinigameId,
@@ -96,61 +97,117 @@ test('The Sweep gets faster with a smaller window for bigger fish', () => {
   assert.ok(big.speedStep > small.speedStep);
   assert.ok(big.zoneWidth < small.zoneWidth, 'bigger fish have a smaller tap window');
   assert.ok(big.hitsNeeded > small.hitsNeeded);
-  assert.ok(big.lives <= small.lives);
 });
 
 test('sweep taps resolve against the arc', () => {
   const rand = mulberry32(3);
   const tuning = sweepTuning(12);
   const state = createSweepState(tuning, rand);
-  // Dead centre is a perfect hit.
+  // Dead centre is a perfect hit — and a perfect is worth two strikes.
   state.angle = state.zone;
   assert.equal(tapSweep(state, tuning, rand), 'perfect');
-  assert.equal(state.hits, 1);
-  // Diametrically opposite is a miss.
+  assert.equal(state.hits, tuning.perfectStrikes);
+  // Diametrically opposite is a miss — and a miss is the whole fight.
   state.angle = state.zone + Math.PI;
   assert.equal(tapSweep(state, tuning, rand), 'miss');
   assert.equal(state.misses, 1);
+  assert.equal(state.outcome, 'escaped');
 });
 
-test('The Sweep ends if the player stops tapping', () => {
-  // Nothing decays on its own here, so without the idle timeout an abandoned
-  // fight would spin the needle forever with no way out but the leave menu.
+test('one missed strike loses the fish, at any size and any point in the fight', () => {
+  for (const size of SIM_SIZES) {
+    const rand = mulberry32(21 + size);
+    const tuning = sweepTuning(size);
+    const state = createSweepState(tuning, rand);
+    // Land every strike but the last, then fluff it. Ordinary hits, not
+    // perfects — a perfect is worth two and would land the fish early.
+    for (let i = 0; i < tuning.hitsNeeded - 1; i++) {
+      state.angle = state.zone + (state.zoneWidth / 2) * 0.6;
+      assert.equal(tapSweep(state, tuning, rand), 'hit');
+      assert.equal(state.outcome, 'playing', `${size}cm: ended early on strike ${i + 1}`);
+    }
+    state.angle = state.zone + Math.PI;
+    assert.equal(tapSweep(state, tuning, rand), 'miss');
+    assert.equal(state.outcome, 'escaped', `${size}cm: a miss should end it`);
+    assert.ok(state.hits < tuning.hitsNeeded);
+  }
+});
+
+test('letting the core come round twice loses the fish', () => {
+  // The Sweep's only "stopped playing" guard: you get one clean pass at every
+  // core, and the second approach ends it.
   const rand = mulberry32(5);
   const tuning = sweepTuning(40);
   const state = createSweepState(tuning, rand);
-  let t = 0;
-  for (let i = 0; i < 60 * 60 && state.outcome === 'playing'; i++) {
+  const limit = sweepLapLimit(state);
+  for (let i = 0; i < 60 * 120 && state.outcome === 'playing'; i++) {
     stepSweep(state, tuning, 1 / 60);
-    t += 1 / 60;
   }
   assert.equal(state.outcome, 'escaped');
-  assert.ok(Math.abs(t - tuning.idleLimit) < 0.1, `escaped at ${t}s, expected ~${tuning.idleLimit}s`);
+  assert.ok(
+    Math.abs(state.sweptSinceZone - limit) < 0.2,
+    `escaped after ${state.sweptSinceZone} rad, expected ~${limit}`,
+  );
 });
 
-test('the idle timeout never fires on someone who is still playing', () => {
-  // The longest legitimate wait is one full revolution of the needle at the
-  // slowest speed that size ever sweeps at. Two of those must still fit inside
-  // the limit, or waiting for the arc to come back round would lose the fish.
+test('one full pass at the core is always available', () => {
+  // The grace has to cover the whole run-up plus a lap, or a player who simply
+  // waits for the arc to arrive would lose without ever having had a chance.
   for (const size of SIM_SIZES) {
+    const rand = mulberry32(31 + size);
     const tuning = sweepTuning(size);
-    const slowestRevolution = (Math.PI * 2) / tuning.speed;
-    assert.ok(
-      tuning.idleLimit > slowestRevolution * 2,
-      `${size}cm: idle limit ${tuning.idleLimit}s vs revolution ${slowestRevolution.toFixed(2)}s`,
-    );
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const state = createSweepState(tuning, rand);
+      assert.ok(
+        sweepLapLimit(state) > state.zoneGap,
+        `${size}cm: no room to reach the first core`,
+      );
+      // Advance exactly to the core: it must still be alive to be tapped.
+      stepSweep(state, tuning, state.zoneGap / state.speed);
+      assert.equal(state.outcome, 'playing', `${size}cm: died before reaching the core`);
+      state.angle = state.zone;
+      assert.notEqual(tapSweep(state, tuning, rand), 'miss');
+    }
   }
 });
 
-test('tapping resets the idle countdown', () => {
-  const rand = mulberry32(9);
-  const tuning = sweepTuning(20);
+test('a dead-centre gold-core tap is worth two strikes', () => {
+  const rand = mulberry32(13);
+  const tuning = sweepTuning(78);
   const state = createSweepState(tuning, rand);
-  stepSweep(state, tuning, 4);
-  assert.ok(state.sinceTap >= 4);
+  state.angle = state.zone;
+  assert.equal(tapSweep(state, tuning, rand), 'perfect');
+  assert.equal(state.hits, tuning.perfectStrikes);
+  assert.equal(state.perfects, 1);
+  // ...and a second perfect doubles again, so two clear four strikes' worth.
   state.angle = state.zone;
   tapSweep(state, tuning, rand);
-  assert.equal(state.sinceTap, 0);
+  assert.equal(state.hits, tuning.perfectStrikes * 2);
+});
+
+test('an ordinary hit is still worth one strike', () => {
+  const rand = mulberry32(17);
+  const tuning = sweepTuning(78);
+  const state = createSweepState(tuning, rand);
+  // Just inside the arc but outside the gold core.
+  state.angle = state.zone + (state.zoneWidth / 2) * 0.6;
+  assert.equal(tapSweep(state, tuning, rand), 'hit');
+  assert.equal(state.hits, 1);
+  assert.equal(state.perfects, 0);
+});
+
+test('perfects can finish a fish early', () => {
+  const rand = mulberry32(23);
+  const tuning = sweepTuning(78);
+  const state = createSweepState(tuning, rand);
+  let taps = 0;
+  while (state.outcome === 'playing') {
+    state.angle = state.zone;
+    tapSweep(state, tuning, rand);
+    taps += 1;
+  }
+  assert.equal(state.outcome, 'caught');
+  assert.ok(taps < tuning.hitsNeeded, `all-perfect run took ${taps} taps of ${tuning.hitsNeeded}`);
 });
 
 test('angleDelta wraps the short way round', () => {

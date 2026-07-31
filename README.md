@@ -115,7 +115,10 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   at random: **Keep It In** (hold to lift a catch bar and keep the fish inside
   it, while the catch meter drains faster the longer the fight runs) or **The
   Sweep** (tap as a needle crosses a target arc that shrinks and speeds up with
-  every hit). Both scale off the fish's size only — bigger fish move faster,
+  every hit). The Sweep gives no second chances: one missed tap loses the fish,
+  and so does letting the needle lap a target twice. A dead-centre gold-core tap
+  counts as two strikes, so precision buys a shorter fight rather than a safer
+  one. Both scale off the fish's size only — bigger fish move faster,
   dart further and give you a smaller window. Distance is the sole lever on
   size: a tap lands almost nothing but common fish, a maxed cast usually finds
   something rare. Every size is playable at every skill level; the tuning is
