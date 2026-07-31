@@ -109,6 +109,19 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   arrows, A/D, or either side of the touchscreen to catch notes and dodge poop
   across newly randomized Easy, Normal, and Hard tracks. Each run costs 5, 8,
   or 12 energy respectively; easier modes give your pet a wider catching bowl.
+- **Fishing** at the Shore: drag to aim the cast the way you throw in Paper
+  Toss, then click the moment the line dips. A bite always becomes a fight —
+  there is no decoy nibble that eats your bait. Hooking rolls one of two games
+  at random: **Keep It In** (hold to lift a catch bar and keep the fish inside
+  it, while the catch meter drains faster the longer the fight runs) or **The
+  Sweep** (tap as a needle crosses a target arc that shrinks and speeds up with
+  every hit). Both scale off the fish's size only — bigger fish move faster,
+  dart further and give you a smaller window. Distance is the sole lever on
+  size: a tap lands almost nothing but common fish, a maxed cast usually finds
+  something rare. Every size is playable at every skill level; the tuning is
+  held there by simulation rather than by feel, so see
+  `src/systems/fishingSimulation.ts` and `npm run sim:fishing` before changing
+  a number.
 - Anything you can interact with (house, Daniel, arcade, your pet, the
   door mat) lights up when you're close enough.
 - MINITEEN residents roam Town, Shore, West Green, and East Green. Their
@@ -136,6 +149,11 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 - `src/systems/WandererNpc.ts` — shared waypoint-wander base for NPCs;
   `CinnamorollNpc` / `BongbongeeNpc` / `miniteen.ts` build dialogue on top.
   Each MINITEEN villager hands out a small once-per-day coin gift.
+- `src/systems/fishingMinigames.ts` — the two post-bite fights as pure,
+  frame-rate-independent state machines, plus the size→difficulty tuning
+  tables. `fishingSimulation.ts` plays them headlessly against three modelled
+  player skill levels; `fishingMinigames.test.ts` asserts every fish size stays
+  catchable and `npm run sim:fishing` prints the balance table.
 - `src/systems/GameState.ts` — save data, item catalog, pet-needs decay.
 - `src/systems/Pet.ts` — the follower companion (species-aware sprites).
 - `src/systems/UI.ts` — HUD, menus, toasts, prompts.

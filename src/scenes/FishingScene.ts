@@ -9,12 +9,30 @@ import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZo
 import { petAnimKey, petDrawScale, petTextureKey } from '../systems/pets';
 import {
   FISHING_BAIT_ID,
+  FISH_TIERS,
   fishingBaitCount,
   fishingBiteWindowMs,
   fishingFightStrength,
   hasFishingBait,
-  type FishTierId,
+  rollFishSize,
+  rollFishTier,
+  type FishTier,
 } from '../systems/fishingRules';
+import {
+  createKeepItInState,
+  createSweepState,
+  keepItInTuning,
+  pickFishingMinigame,
+  stepKeepItIn,
+  stepSweep,
+  sweepTuning,
+  tapSweep,
+  type FishingMinigameId,
+  type KeepItInState,
+  type KeepItInTuning,
+  type SweepState,
+  type SweepTuning,
+} from '../systems/fishingMinigames';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 
@@ -40,24 +58,20 @@ type Mode =
   | 'done'
   | 'settling';
 
-type FishTier = FishTierId;
-
-const FISH_TIERS: {
-  id: FishTier;
-  sizeMin: number;
-  sizeMax: number;
-  /** Base fight strength — bigger catches scale this further. */
-  fight: number;
-  label: string;
-}[] = [
-  { id: 'oceanfish-common', sizeMin: 12, sizeMax: 28, fight: 0.4, label: 'common' },
-  { id: 'oceanfish-uncommon', sizeMin: 26, sizeMax: 48, fight: 0.7, label: 'uncommon' },
-  { id: 'oceanfish-rare', sizeMin: 44, sizeMax: 78, fight: 1.0, label: 'rare' },
-];
+/** Catch-bar track geometry for Keep It In. */
+const TRACK_W = 46;
+const TRACK_H = 264;
+/** Dial radius for The Sweep. */
+const DIAL_R = 84;
 
 /**
- * Shore fishing minigame — slingshot cast → bite → surge reel.
- * Far casts risk bait theft; hard fish need lull/thrash pumping.
+ * Shore fishing minigame — slingshot cast → bite → one of two fights.
+ *
+ * Hooking a fish rolls either Keep It In (hold to lift a bar, keep the fish
+ * inside it) or The Sweep (tap as a needle crosses a shrinking arc). Both scale
+ * off the fish's size, and every size is simulated as catchable — see
+ * `fishingMinigames.test.ts`. Casting farther is the only way to find big fish.
+ *
  * Catch = food item only (no coins). Aim/drag mirrors PaperTossScene.
  */
 export class FishingScene extends Phaser.Scene {
@@ -73,10 +87,15 @@ export class FishingScene extends Phaser.Scene {
   private biteBang!: Phaser.GameObjects.Text;
   private aimGfx!: Phaser.GameObjects.Graphics;
   private lineGfx!: Phaser.GameObjects.Graphics;
-  private tensionFill!: Phaser.GameObjects.Rectangle;
-  private progressFill!: Phaser.GameObjects.Rectangle;
-  private patienceFill!: Phaser.GameObjects.Rectangle;
-  private meterRoot!: Phaser.GameObjects.Container;
+  private keepRoot!: Phaser.GameObjects.Container;
+  private keepBar!: Phaser.GameObjects.Rectangle;
+  private keepFish!: Phaser.GameObjects.Image;
+  private keepFill!: Phaser.GameObjects.Rectangle;
+  private keepFlash!: Phaser.GameObjects.Rectangle;
+  private sweepRoot!: Phaser.GameObjects.Container;
+  private sweepGfx!: Phaser.GameObjects.Graphics;
+  private sweepFish!: Phaser.GameObjects.Image;
+  private sweepText!: Phaser.GameObjects.Text;
   private menuOpen = false;
   private ignoreClicksUntil = 0;
   private keySpace!: Phaser.Input.Keyboard.Key;
@@ -90,19 +109,17 @@ export class FishingScene extends Phaser.Scene {
   private biteAt = 0;
   private biteDeadline = 0;
   private biteWindowMs = 900;
-  private tension = 0;
-  private progress = 0;
-  private patience = 100;
+  /** Drives the bobber thrash visuals only — the fight itself is size-driven. */
   private fishFight = 0.7;
-  /** Set when this cast's bait gets stolen instead of biting. */
-  private baitStolen = false;
-  /** Fish surge cycle: hold through a lull, ease off while it thrashes. */
-  private surgeStart = 0;
-  private surgePeriodMs = 2400;
-  private surgeHintShown = false;
-  private pendingFish: (typeof FISH_TIERS)[number] | null = null;
+  /** Which fight this hook-up rolled. */
+  private minigame: FishingMinigameId = 'keepitin';
+  private keepState: KeepItInState | null = null;
+  private keepCfg: KeepItInTuning | null = null;
+  private sweepState: SweepState | null = null;
+  private sweepCfg: SweepTuning | null = null;
+  private minigameHintShown = false;
+  private pendingFish: FishTier | null = null;
   private pendingSize = 0;
-  private waterY = 310;
   private bobberHome = { x: 420, y: 360 };
   private reelPulse = 0;
 
@@ -118,9 +135,9 @@ export class FishingScene extends Phaser.Scene {
     this.ignoreClicksUntil = 0;
     this.holding = false;
     this.reelArmed = false;
-    this.baitStolen = false;
-    this.surgeStart = 0;
-    this.surgeHintShown = false;
+    this.minigameHintShown = false;
+    this.keepState = null;
+    this.sweepState = null;
     this.dragStart = null;
     this.pendingFish = null;
 
@@ -161,7 +178,8 @@ export class FishingScene extends Phaser.Scene {
     this.aimGfx = this.add.graphics().setDepth(25);
     this.lineGfx = this.add.graphics().setDepth(14);
 
-    this.buildMeters(cx);
+    this.buildKeepItInHud(viewW, viewH);
+    this.buildSweepHud(cx, viewH);
 
     const title = this.add
       .text(140, 16, 'SHORE FISHING', { ...FONT, fontSize: '18px', color: '#ffe066' })
@@ -209,7 +227,8 @@ export class FishingScene extends Phaser.Scene {
       this.ignoreClicksUntil = this.time.now + 150;
       this.requestLeave();
     });
-    this.meterRoot.setScrollFactor(0);
+    this.keepRoot.setScrollFactor(0);
+    this.sweepRoot.setScrollFactor(0);
     markAsUi(
       this,
       title,
@@ -217,7 +236,8 @@ export class FishingScene extends Phaser.Scene {
       this.bestText,
       this.hintText,
       this.backBtn,
-      this.meterRoot,
+      this.keepRoot,
+      this.sweepRoot,
     );
 
     this.cameraZoom = attachCameraZoom(this, {
@@ -241,7 +261,9 @@ export class FishingScene extends Phaser.Scene {
       } else if (this.mode === 'bite') {
         this.hook();
       } else if (this.mode === 'reeling' && this.reelArmed) {
-        this.holding = true;
+        // The Sweep scores the press itself; Keep It In only cares that it's held.
+        if (this.minigame === 'sweep') this.sweepTap();
+        else this.holding = true;
       }
     });
     const release = (p: Phaser.Input.Pointer) => {
@@ -271,44 +293,52 @@ export class FishingScene extends Phaser.Scene {
     this.setReady();
   }
 
-  private buildMeters(cx: number) {
-    this.meterRoot = this.add.container(cx, 70).setDepth(40).setVisible(false);
-    const bg = this.add.rectangle(0, 0, 320, 78, 0x2a2440).setStrokeStyle(3, 0xffb3d1);
-    const tLabel = this.add.text(-140, -28, 'Tension', { ...FONT, fontSize: '12px', color: '#c8c8dc' });
-    const tTrack = this.add.rectangle(20, -20, 200, 12, 0x1a1a2e).setOrigin(0, 0.5);
-    this.tensionFill = this.add.rectangle(20, -20, 2, 10, 0xff6b6b).setOrigin(0, 0.5);
-    const pLabel = this.add.text(-140, -4, 'Reel', { ...FONT, fontSize: '12px', color: '#c8c8dc' });
-    const pTrack = this.add.rectangle(20, 4, 200, 12, 0x1a1a2e).setOrigin(0, 0.5);
-    this.progressFill = this.add.rectangle(20, 4, 2, 10, 0xa8e6cf).setOrigin(0, 0.5);
-    const wLabel = this.add.text(-140, 20, 'Patience', { ...FONT, fontSize: '12px', color: '#c8c8dc' });
-    const wTrack = this.add.rectangle(20, 28, 200, 12, 0x1a1a2e).setOrigin(0, 0.5);
-    this.patienceFill = this.add.rectangle(20, 28, 200, 10, 0x74b9ff).setOrigin(0, 0.5);
-    this.meterRoot.add([
-      bg,
-      tLabel,
-      tTrack,
-      this.tensionFill,
-      pLabel,
-      pTrack,
-      this.progressFill,
-      wLabel,
-      wTrack,
-      this.patienceFill,
-    ]);
+  /** Keep It In: a vertical track with the catch bar, plus the catch meter. */
+  private buildKeepItInHud(viewW: number, viewH: number) {
+    this.keepRoot = this.add.container(viewW - 96, viewH / 2).setDepth(40).setVisible(false);
+    const track = this.add.rectangle(0, 0, TRACK_W, TRACK_H, 0x101a2c, 0.82).setStrokeStyle(3, 0xffb3d1);
+    // Sits behind the bar so a dart reads as the whole lane lighting up.
+    this.keepFlash = this.add.rectangle(0, 0, TRACK_W - 8, 26, 0xffe066, 0).setVisible(false);
+    this.keepBar = this.add.rectangle(0, 0, TRACK_W - 8, 80, 0xa8e6cf, 0.3).setStrokeStyle(2, 0xa8e6cf);
+    this.keepFish = this.add.image(0, 0, 'oceanfish-common').setScale(1.3);
+    const meterTrack = this.add.rectangle(40, 0, 16, TRACK_H, 0x101a2c, 0.82).setStrokeStyle(2, 0xffb3d1);
+    // Centre origin and an explicit y: setting `.height` alone would leave the
+    // display origin stale and spill the fill out of its track.
+    this.keepFill = this.add.rectangle(40, TRACK_H / 2, 10, 0, 0xa8e6cf);
+    const label = this.add
+      .text(0, -TRACK_H / 2 - 20, 'KEEP IT IN', { ...FONT, fontSize: '12px', color: '#ffe066' })
+      .setOrigin(0.5);
+    this.keepRoot.add([track, this.keepFlash, this.keepBar, this.keepFish, meterTrack, this.keepFill, label]);
+  }
+
+  /** The Sweep: a dial with a sweeping needle, hit pips and slack pips. */
+  private buildSweepHud(cx: number, viewH: number) {
+    this.sweepRoot = this.add.container(cx, viewH / 2 - 10).setDepth(40).setVisible(false);
+    this.sweepGfx = this.add.graphics();
+    this.sweepFish = this.add.image(0, 0, 'oceanfish-common').setScale(1.6);
+    this.sweepText = this.add
+      .text(0, -DIAL_R - 34, 'THE SWEEP', { ...FONT, fontSize: '12px', color: '#ffe066' })
+      .setOrigin(0.5);
+    this.sweepRoot.add([this.sweepGfx, this.sweepFish, this.sweepText]);
+  }
+
+  private hideMinigameHud() {
+    this.keepRoot.setVisible(false);
+    this.sweepRoot.setVisible(false);
   }
 
   private setReady() {
     this.mode = 'ready';
     this.holding = false;
     this.reelArmed = false;
-    this.baitStolen = false;
-    this.surgeStart = 0;
+    this.keepState = null;
+    this.sweepState = null;
     this.dragStart = null;
     this.aimGfx.clear();
     this.lineGfx.clear();
     this.bobber.setVisible(false);
     this.biteBang.setVisible(false);
-    this.meterRoot.setVisible(false);
+    this.hideMinigameHud();
     this.tweens.killTweensOf(this.rod);
     this.rod.setAngle(-18);
     const bait = fishingBaitCount(State.data.inventory);
@@ -318,7 +348,7 @@ export class FishingScene extends Phaser.Scene {
       bait <= 0
         ? 'Back to shore — Daniel sells bait for 3 coins'
         : rested
-          ? `Each cast uses 1 bait and ${FISHING_ENERGY_PER_CAST} energy · Drag opposite the cast · Farther = rarer (and riskier) fish`
+          ? `Each cast uses 1 bait and ${FISHING_ENERGY_PER_CAST} energy · Drag opposite the cast · Farther = bigger fish`
           : tooTiredMessage(State.data.petName, FISHING_ENERGY_PER_CAST),
     );
     this.bestText.setText(`Best: ${State.data.biggestCatch || 0}cm · Bait: ${bait}`);
@@ -433,8 +463,6 @@ export class FishingScene extends Phaser.Scene {
     }
     State.spendEnergy(FISHING_ENERGY_PER_CAST);
     this.mode = 'casting';
-    this.baitStolen = false;
-    this.surgeStart = 0;
     const baitLeft = fishingBaitCount(State.data.inventory);
     this.statusText.setText(`Casting… · ${baitLeft} bait left`);
     this.bestText.setText(`Best: ${State.data.biggestCatch || 0}cm · Bait: ${baitLeft}`);
@@ -506,21 +534,16 @@ export class FishingScene extends Phaser.Scene {
     this.mode = 'waiting';
     this.statusText.setText('Waiting for a bite…');
     this.hintText.setText('Tap / Space to reel in the line · Watch for !');
-    this.pendingFish = this.rollFish(this.castPower);
-    this.pendingSize = Math.round(
-      Phaser.Math.Between(this.pendingFish.sizeMin, this.pendingFish.sizeMax) *
-        (0.9 + this.castPower * 0.25),
-    );
-    // Near/small = approachable; far/big = harder and now a little less forgiving.
+    // Distance is the whole story: it picks the tier and biases the size upward
+    // inside it. A tap barely ever finds anything rare; a maxed cast usually does.
+    this.pendingFish = rollFishTier(this.castPower);
+    this.pendingSize = rollFishSize(this.pendingFish, this.castPower);
     this.fishFight = fishingFightStrength(
       this.pendingFish.fight,
       this.pendingSize,
       this.castPower,
     );
     this.biteWindowMs = fishingBiteWindowMs(this.pendingSize, this.fishFight);
-    // Long casts risk a decoy nibble that steals bait instead of a real hook-up.
-    const stealChance = 0.04 + this.castPower * 0.16;
-    this.baitStolen = Math.random() < stealChance;
     const delay = Phaser.Math.Between(1400, 4200);
     this.biteAt = this.time.now + delay;
     this.rod.setAngle(-28);
@@ -534,31 +557,12 @@ export class FishingScene extends Phaser.Scene {
     });
   }
 
-  /**
-   * Farther casts bias toward uncommon/rare. Near shore is mostly common.
-   */
-  private rollFish(power: number): (typeof FISH_TIERS)[number] {
-    let weights: [number, number, number];
-    if (power < 0.22) weights = [86, 13, 1];
-    else if (power < 0.45) weights = [60, 32, 8];
-    else if (power < 0.7) weights = [32, 45, 23];
-    else weights = [14, 38, 48];
-
-    const total = weights[0] + weights[1] + weights[2];
-    let roll = Math.random() * total;
-    for (let i = 0; i < FISH_TIERS.length; i++) {
-      roll -= weights[i]!;
-      if (roll <= 0) return FISH_TIERS[i]!;
-    }
-    return FISH_TIERS[0]!;
-  }
-
   private startBite() {
     this.mode = 'bite';
     this.tweens.killTweensOf(this.bobber);
     this.bobber.setPosition(this.bobberHome.x, this.bobberHome.y + 14);
     this.biteBang.setPosition(this.bobber.x, this.bobber.y - 36).setVisible(true);
-    this.statusText.setText(this.baitStolen ? 'A nibble! Hook it!' : 'A bite! Hook it!');
+    this.statusText.setText('A bite! Hook it!');
     this.hintText.setText('TAP / SPACE now!');
     this.biteDeadline = this.time.now + this.biteWindowMs;
     this.tweens.add({
@@ -577,65 +581,57 @@ export class FishingScene extends Phaser.Scene {
     });
   }
 
-  /** 0–1 phase in the surge cycle. Thrash window is roughly mid-cycle. */
-  private surgePhase(): number {
-    if (this.surgePeriodMs <= 0) return 0;
-    const elapsed = (this.time.now - this.surgeStart) % this.surgePeriodMs;
-    return elapsed / this.surgePeriodMs;
-  }
-
-  /** True while the fish is thrashing — release during this window. */
-  private isSurging(): boolean {
-    const p = this.surgePhase();
-    return p > 0.38 && p < 0.72;
-  }
-
   /**
-   * How strongly surge timing matters. Near/easy fish stay mostly hold-through;
-   * far/hard fish force lull/thrash pumping.
+   * Hooking always starts a fight now — a bite is never a decoy, so a tap on the
+   * `!` is never wasted. Which of the two games you get is a coin flip, and the
+   * fish's size sets how hard it is.
    */
-  private surgeIntensity(): number {
-    return Phaser.Math.Clamp((this.fishFight - 0.32) / 0.7, 0, 1);
-  }
-
   private hook() {
     if (this.mode !== 'bite') return;
     this.biteBang.setVisible(false);
     this.tweens.killTweensOf(this.bobber);
     this.tweens.killTweensOf(this.rod);
 
-    if (this.baitStolen) {
-      this.baitStolen = false;
-      this.failCast('Bait stolen!', '#ffe066', 700);
-      return;
+    this.mode = 'reeling';
+    this.holding = false;
+    this.reelPulse = 0;
+    const size = this.pendingSize;
+    this.minigame = pickFishingMinigame();
+    const fishTexture = ITEMS[(this.pendingFish ?? FISH_TIERS[0]!).id]!.texture;
+
+    if (this.minigame === 'keepitin') {
+      this.keepCfg = keepItInTuning(size);
+      this.keepState = createKeepItInState(this.keepCfg);
+      this.sweepState = null;
+      this.keepFish.setTexture(fishTexture);
+      this.keepRoot.setVisible(true);
+      this.sweepRoot.setVisible(false);
+    } else {
+      this.sweepCfg = sweepTuning(size);
+      this.sweepState = createSweepState(this.sweepCfg);
+      this.keepState = null;
+      this.sweepFish.setTexture(fishTexture);
+      this.sweepRoot.setVisible(true);
+      this.keepRoot.setVisible(false);
     }
 
-    this.mode = 'reeling';
-    this.tension = 8 + this.fishFight * 12;
-    this.progress = 0;
-    this.patience = 100;
-    this.holding = false;
-    // Must release then hold again — can't spam/hold through the bite into a free reel.
+    // Must release once before the fight reads input — otherwise the tap that
+    // set the hook would immediately count as the first reel or the first strike.
     this.reelArmed = !(this.keySpace.isDown || this.input.activePointer.isDown);
-    this.meterRoot.setVisible(true);
-    this.reelPulse = 0;
-    this.surgeStart = this.time.now;
-    // Harder fish cycle faster so thrash windows come more often.
-    this.surgePeriodMs = Math.round(
-      Phaser.Math.Clamp(2700 - this.fishFight * 900, 1500, 2700),
-    );
-    this.statusText.setText(
-      this.reelArmed
-        ? 'Reeling — hold in the calm, ease off when it thrashes'
-        : 'Release, then hold to reel',
-    );
-    if (!this.surgeHintShown) {
-      this.hintText.setText('Hold in the calm · Release when it fights · Red snaps the line');
-      this.surgeHintShown = true;
+    this.statusText.setText(this.reelArmed ? this.minigameStatus() : 'Release, then play');
+    if (!this.minigameHintShown) {
+      this.hintText.setText(
+        this.minigame === 'keepitin'
+          ? 'Hold to lift the bar · Keep the fish inside it · The meter drains faster as it goes on'
+          : 'Tap as the needle crosses the green · Each hit speeds it up',
+      );
+      this.minigameHintShown = true;
     } else {
-      this.hintText.setText('Hold = reel · Thrash = ease off · Near fish are easier');
+      this.hintText.setText(
+        this.minigame === 'keepitin' ? 'Hold to lift · Keep it in' : 'Tap in the green',
+      );
     }
-    this.updateMeters();
+    this.renderMinigame();
     // Snap the rod into a fighting stance.
     this.tweens.add({
       targets: this.rod,
@@ -645,13 +641,41 @@ export class FishingScene extends Phaser.Scene {
     });
   }
 
+  private minigameStatus(): string {
+    if (this.minigame === 'keepitin') {
+      return this.keepState?.inZone ? 'On it — keep it in!' : 'Get the bar under it!';
+    }
+    const state = this.sweepState;
+    if (!state || !this.sweepCfg) return 'Tap in the green';
+    return `Strike ${state.hits + 1}/${this.sweepCfg.hitsNeeded}`;
+  }
+
+  /** Resolves one Sweep strike and reacts to the outcome. */
+  private sweepTap() {
+    const state = this.sweepState;
+    const cfg = this.sweepCfg;
+    // No outcome guard needed: both callers require mode 'reeling', which a
+    // resolved fight has already left, and tapSweep no-ops once it's decided.
+    if (this.mode !== 'reeling' || !state || !cfg) return;
+    const result = tapSweep(state, cfg);
+    if (result === 'miss') {
+      this.cameras.main.shake(120, 0.004);
+      toast(this, this.cameras.main.width / 2, 150, 'Missed!', '#ff6b6b');
+    } else if (result === 'perfect') {
+      toast(this, this.cameras.main.width / 2, 150, 'Perfect!', '#ffe066');
+    }
+    this.renderMinigame();
+    if (state.outcome === 'caught') this.landFish();
+    else if (state.outcome === 'escaped') this.fishEscaped();
+  }
+
   /** Pull the bobber back to the dock without a catch. */
   private retract(msg: string) {
     if (this.mode !== 'waiting' && this.mode !== 'bite') return;
     this.mode = 'retracting';
     this.holding = false;
     this.biteBang.setVisible(false);
-    this.meterRoot.setVisible(false);
+    this.hideMinigameHud();
     this.tweens.killTweensOf(this.bobber);
     this.tweens.killTweensOf(this.rod);
     this.statusText.setText(msg);
@@ -685,21 +709,17 @@ export class FishingScene extends Phaser.Scene {
     });
   }
 
+  /** Only way to lose a bite outright: never tapping inside the window. */
   private missBite() {
-    if (this.baitStolen) {
-      this.baitStolen = false;
-      this.failCast('Something stole the bait…', '#ffe066', 600);
-      return;
-    }
-    this.failCast('got away…', '#8a8a9e', 500);
-  }
-
-  private snapLine() {
-    this.failCast('Line snapped!', '#ff6b6b', 600);
+    this.failCast('Too slow — it spat the hook…', '#8a8a9e', 500);
   }
 
   private fishEscaped() {
-    this.failCast('Fish got tired of waiting…', '#8a8a9e', 600);
+    this.failCast(
+      this.minigame === 'keepitin' ? 'It slipped the line…' : 'It shook loose…',
+      '#8a8a9e',
+      600,
+    );
   }
 
   /** Brief non-interactive beat after a miss so toasts finish before re-cast. */
@@ -707,7 +727,7 @@ export class FishingScene extends Phaser.Scene {
     this.mode = 'settling';
     this.holding = false;
     this.reelArmed = false;
-    this.meterRoot.setVisible(false);
+    this.hideMinigameHud();
     this.lineGfx.clear();
     this.bobber.setVisible(false);
     this.biteBang.setVisible(false);
@@ -726,7 +746,7 @@ export class FishingScene extends Phaser.Scene {
     this.mode = 'catch';
     this.holding = false;
     this.reelArmed = false;
-    this.meterRoot.setVisible(false);
+    this.hideMinigameHud();
     this.lineGfx.clear();
     this.biteBang.setVisible(false);
 
@@ -866,11 +886,101 @@ export class FishingScene extends Phaser.Scene {
     markAsUi(this, panel, heading, fishImg, sizeLine, bestLine, tip, again, leave);
   }
 
-  private updateMeters() {
-    this.tensionFill.width = Math.max(2, (this.tension / 100) * 200);
-    this.tensionFill.fillColor = this.tension > 75 ? 0xff6b6b : this.tension > 45 ? 0xffe066 : 0xa8e6cf;
-    this.progressFill.width = Math.max(2, (this.progress / 100) * 200);
-    this.patienceFill.width = Math.max(2, (this.patience / 100) * 200);
+  private renderMinigame() {
+    if (this.minigame === 'keepitin') this.renderKeepItIn();
+    else this.renderSweep();
+  }
+
+  /** Track runs bottom-up: position 0 is the floor, 1 is the surface. */
+  private trackY(position: number): number {
+    return TRACK_H / 2 - position * TRACK_H;
+  }
+
+  private renderKeepItIn() {
+    const state = this.keepState;
+    const cfg = this.keepCfg;
+    if (!state || !cfg) return;
+
+    this.keepBar.setSize(TRACK_W - 8, cfg.barHeight * TRACK_H);
+    this.keepBar.y = this.trackY(state.barPos + cfg.barHeight / 2);
+    this.keepBar.fillAlpha = state.inZone ? 0.42 : 0.16;
+    this.keepFish.y = this.trackY(state.fishPos);
+
+    // A dart is the fish's tell — flash the lane so it's readable, not random.
+    if (state.darted) {
+      this.keepFlash.y = this.keepFish.y;
+      this.keepFlash.setVisible(true).setAlpha(0.55);
+      this.tweens.killTweensOf(this.keepFlash);
+      this.tweens.add({
+        targets: this.keepFlash,
+        alpha: 0,
+        duration: 220,
+        onComplete: () => this.keepFlash.setVisible(false),
+      });
+    }
+
+    // Grows upward from the foot of the track.
+    const fillPx = state.progress * TRACK_H;
+    this.keepFill.setSize(10, fillPx);
+    this.keepFill.y = TRACK_H / 2 - fillPx / 2;
+    this.keepFill.fillColor =
+      state.progress > 0.66 ? 0xa8e6cf : state.progress > 0.3 ? 0xffe066 : 0xff6b6b;
+  }
+
+  private renderSweep() {
+    const state = this.sweepState;
+    const cfg = this.sweepCfg;
+    if (!state || !cfg) return;
+    const g = this.sweepGfx;
+    g.clear();
+
+    // Dial base
+    g.lineStyle(18, 0x101a2c, 0.85);
+    g.beginPath();
+    g.arc(0, 0, DIAL_R, 0, Math.PI * 2);
+    g.strokePath();
+
+    // Target arc, with the perfect core inside it
+    const half = state.zoneWidth / 2;
+    g.lineStyle(18, 0xa8e6cf, 0.95);
+    g.beginPath();
+    g.arc(0, 0, DIAL_R, state.zone - half, state.zone + half);
+    g.strokePath();
+    const core = half * cfg.perfectFraction;
+    g.lineStyle(18, 0xffe066, 0.95);
+    g.beginPath();
+    g.arc(0, 0, DIAL_R, state.zone - core, state.zone + core);
+    g.strokePath();
+
+    // Rails
+    g.lineStyle(2, 0xffb3d1, 0.7);
+    g.beginPath();
+    g.arc(0, 0, DIAL_R + 10, 0, Math.PI * 2);
+    g.strokePath();
+    g.beginPath();
+    g.arc(0, 0, DIAL_R - 10, 0, Math.PI * 2);
+    g.strokePath();
+
+    // Needle
+    const cos = Math.cos(state.angle);
+    const sin = Math.sin(state.angle);
+    g.lineStyle(4, 0xffffff, 1);
+    g.lineBetween(cos * (DIAL_R - 15), sin * (DIAL_R - 15), cos * (DIAL_R + 14), sin * (DIAL_R + 14));
+
+    // Hits earned along the top, slack remaining along the bottom
+    for (let i = 0; i < cfg.hitsNeeded; i++) {
+      const x = (i - (cfg.hitsNeeded - 1) / 2) * 16;
+      g.fillStyle(i < state.hits ? 0xa8e6cf : 0x3a4a66, 1);
+      g.fillRect(x - 5, -DIAL_R - 22, 10, 8);
+    }
+    const slack = cfg.lives - state.misses;
+    for (let i = 0; i < cfg.lives; i++) {
+      const x = (i - (cfg.lives - 1) / 2) * 16;
+      g.fillStyle(i < slack ? 0xffb3d1 : 0x3a4a66, 1);
+      g.fillRect(x - 5, DIAL_R + 14, 10, 8);
+    }
+
+    this.sweepText.setText(`STRIKE ${Math.min(state.hits + 1, cfg.hitsNeeded)}/${cfg.hitsNeeded}`);
   }
 
   private requestLeave() {
@@ -915,7 +1025,9 @@ export class FishingScene extends Phaser.Scene {
       this.drawAimPreview(this.dragStart.x - p.x, this.dragStart.y - p.y);
     }
 
-    if (Phaser.Input.Keyboard.JustDown(this.keySpace)) {
+    // Read once: JustDown clears the flag, so a second call this frame is false.
+    const spaceJustDown = Phaser.Input.Keyboard.JustDown(this.keySpace);
+    if (spaceJustDown) {
       if (this.mode === 'ready' && !this.dragStart) {
         this.castDir = { ...TAP_DIR };
         this.castPower = 0.12;
@@ -933,9 +1045,12 @@ export class FishingScene extends Phaser.Scene {
         // Arm once everything is released after the hook.
         if (!wantHold) this.reelArmed = true;
         this.holding = false;
-        this.statusText.setText('Release, then hold to reel');
+        this.statusText.setText(
+          this.minigame === 'keepitin' ? 'Release, then hold to lift' : 'Release, then tap',
+        );
       } else {
-        this.holding = wantHold;
+        this.holding = this.minigame === 'keepitin' && wantHold;
+        if (this.minigame === 'sweep' && spaceJustDown) this.sweepTap();
       }
     }
 
@@ -945,65 +1060,52 @@ export class FishingScene extends Phaser.Scene {
       this.missBite();
     } else if (this.mode === 'reeling') {
       const fight = this.fishFight;
-      const surging = this.isSurging();
-      const surge = this.surgeIntensity();
-      // Near/small fish: hold-through still works. Far/big: time holds to the lull.
-      const fightPulse = (0.5 + Math.sin(this.time.now / 280) * 0.5) * fight;
-      if (this.reelArmed) {
-        this.statusText.setText(
-          surging && surge > 0.25
-            ? 'Thrashing — ease off!'
-            : surge > 0.25
-              ? 'Calm — hold to reel!'
-              : this.holding
-                ? 'Reeling — ease off before the red'
-                : 'Hold to reel',
-        );
-      }
-      if (this.holding) {
-        const reelRate = 46 - fight * 16; // slightly slower than before
-        if (surging) {
-          // Holding through a thrash: progress slows, tension spikes with surge.
-          const holdPenalty = 0.35 + surge * 0.55;
-          this.progress += Math.max(8, reelRate * (1 - holdPenalty * 0.75)) * dt * (1.12 - this.tension / 320);
-          this.tension += (10 + fight * 36 + fightPulse * 14) * (1 + surge * 1.35) * dt;
-        } else {
-          // Lull: best time to haul — progress full, tension milder when surge matters.
-          this.progress += Math.max(22, reelRate) * dt * (1.12 - this.tension / 320);
-          this.tension += (10 + fight * 36 + fightPulse * 14) * (1 - surge * 0.45) * dt;
+      let haul = 0;
+      let struggling = false;
+
+      if (this.minigame === 'keepitin') {
+        const state = this.keepState;
+        const cfg = this.keepCfg;
+        if (state && cfg) {
+          // Only advance once armed, so the hook tap can't bank free progress.
+          if (this.reelArmed) stepKeepItIn(state, cfg, dt, this.holding);
+          this.renderKeepItIn();
+          haul = state.progress;
+          struggling = !state.inZone;
+          if (this.reelArmed) this.statusText.setText(this.minigameStatus());
+          if (state.outcome === 'caught') this.landFish();
+          else if (state.outcome === 'escaped') this.fishEscaped();
         }
+      } else {
+        const state = this.sweepState;
+        const cfg = this.sweepCfg;
+        if (state && cfg) {
+          if (this.reelArmed) stepSweep(state, dt);
+          this.renderSweep();
+          haul = state.hits / cfg.hitsNeeded;
+          struggling = state.misses > 0;
+          if (this.reelArmed) this.statusText.setText(this.minigameStatus());
+        }
+      }
+
+      // The fight resolved this frame — the bobber has already been hidden.
+      if (this.mode !== 'reeling') return;
+
+      if (this.holding) {
         this.reelPulse += dt * 14;
         this.rod.setAngle(-48 - Math.sin(this.reelPulse) * 7);
       } else {
-        if (surging) {
-          // Correct: ride out the thrash. Tension drops faster; tiny progress.
-          this.tension = Math.max(0, this.tension - (55 - fight * 12) * (1 + surge * 0.55) * dt);
-          this.progress += Math.max(1, 4 - fight * 2) * dt;
-        } else {
-          this.tension = Math.max(0, this.tension - (55 - fight * 12) * dt);
-          this.progress += Math.max(2, 8 - fight * 4) * dt;
-        }
         this.rod.setAngle(-42 - Math.sin(this.time.now / 400) * 2);
       }
-      // Patience always outlasts a competent reel; hard fish are tighter.
-      this.patience -= (3.4 + fight * 4.5) * dt;
-      this.tension = Phaser.Math.Clamp(this.tension, 0, 100);
-      this.progress = Phaser.Math.Clamp(this.progress, 0, 100);
-      this.updateMeters();
 
       // Bobber fights toward deeper water while being hauled shoreward.
-      const haul = this.progress / 100;
       const baseX = Phaser.Math.Linear(this.bobberHome.x, CAST_ORIGIN.x + 80, haul * 0.55);
       const baseY = Phaser.Math.Linear(this.bobberHome.y, CAST_ORIGIN.y + 20, haul * 0.35);
-      const thrashBoost = surging ? 1 + surge * 1.4 : 1;
-      const thrash = (5 + this.tension / 16 + fight * 4) * thrashBoost;
-      this.bobber.x = baseX + Math.sin(this.time.now / (surging ? 55 : 80)) * thrash;
-      this.bobber.y = baseY + 8 + Math.cos(this.time.now / (surging ? 48 : 65)) * (3 + fight * 2) * thrashBoost;
+      const thrashBoost = struggling ? 1.8 : 1;
+      const thrash = (6 + fight * 6) * thrashBoost;
+      this.bobber.x = baseX + Math.sin(this.time.now / (struggling ? 55 : 80)) * thrash;
+      this.bobber.y = baseY + 8 + Math.cos(this.time.now / (struggling ? 48 : 65)) * (3 + fight * 2) * thrashBoost;
       this.drawLineToBobber();
-
-      if (this.tension >= 100) this.snapLine();
-      else if (this.patience <= 0) this.fishEscaped();
-      else if (this.progress >= 100) this.landFish();
     } else if (this.mode === 'waiting' || this.mode === 'bite' || this.mode === 'casting') {
       this.drawLineToBobber();
     }
