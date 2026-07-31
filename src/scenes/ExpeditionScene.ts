@@ -35,7 +35,11 @@ import { defenseWindows } from '../systems/expeditionRules';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 const FONT_SM = { fontFamily: 'monospace', fontSize: '12px', color: '#c8c8dc' };
-const FONT_LG = { fontFamily: 'monospace', fontSize: '18px', color: '#ffe066' };
+const FONT_LG = { fontFamily: 'monospace', fontSize: '20px', color: '#ffe066' };
+const FONT_XL = { fontFamily: 'monospace', fontSize: '28px', color: '#efe8ff' };
+
+/** Boss display height in arena (56×80 art). */
+const BOSS_DISPLAY_H = 168;
 
 const POSES = ['idle', 'windup', 'strike', 'special', 'hurt', 'enraged', 'down'] as const;
 export type BossPose = (typeof POSES)[number];
@@ -49,9 +53,9 @@ type Mode = 'pick-boss' | 'pick-diff' | 'battle' | 'won' | 'lost';
 /**
  * Expedition — Clair Obscur-style single-combatant duel on the East Green.
  *
- * Your turn: pick an ability (offer is a pure function of mana), then land
- * taps as a needle sweeps a ring. Their turn: dodge (X / left) or parry
- * (C / right) a chain of timed hits.
+ * Your turn: pick an ability, land taps on a rotating-ring QTE.
+ * Their turn: left half / X dodges; right half / C parries. Parry is tighter
+ * but pays mana and full-chain parries fire a counter.
  */
 export class ExpeditionScene extends Phaser.Scene {
   private mode: Mode = 'pick-boss';
@@ -69,41 +73,63 @@ export class ExpeditionScene extends Phaser.Scene {
   private keyC!: Phaser.Input.Keyboard.Key;
 
   private petSprite!: Phaser.GameObjects.Sprite;
+  private petHomeX = 0;
+  private petHomeY = 0;
   private bossSprite!: Phaser.GameObjects.Image;
+  private bossHomeX = 0;
+  private bossHomeY = 0;
+
   private bossNameText!: Phaser.GameObjects.Text;
   private bossPhaseText!: Phaser.GameObjects.Text;
   private bossHpFill!: Phaser.GameObjects.Rectangle;
   private bossHpLabel!: Phaser.GameObjects.Text;
+  private phasePips: Phaser.GameObjects.Rectangle[] = [];
   private petNameText!: Phaser.GameObjects.Text;
   private petHpFill!: Phaser.GameObjects.Rectangle;
   private petHpLabel!: Phaser.GameObjects.Text;
   private manaText!: Phaser.GameObjects.Text;
-  private statusText!: Phaser.GameObjects.Text;
   private chargeText!: Phaser.GameObjects.Text;
   private stanceText!: Phaser.GameObjects.Text;
 
+  private turnBanner!: Phaser.GameObjects.Text;
+  private turnBannerBg!: Phaser.GameObjects.Rectangle;
+  private statusText!: Phaser.GameObjects.Text;
+  private hitCounterText!: Phaser.GameObjects.Text;
+  private hitTypeText!: Phaser.GameObjects.Text;
+
   private ringGfx!: Phaser.GameObjects.Graphics;
+  private ringHint!: Phaser.GameObjects.Text;
   private abilityRow!: Phaser.GameObjects.Container;
   private abilityButtons: {
     bg: Phaser.GameObjects.Rectangle;
+    costBadge: Phaser.GameObjects.Rectangle;
+    costText: Phaser.GameObjects.Text;
     label: Phaser.GameObjects.Text;
     ability: AbilityDef | null;
   }[] = [];
+
   private dodgeZone!: Phaser.GameObjects.Rectangle;
   private parryZone!: Phaser.GameObjects.Rectangle;
   private dodgeLabel!: Phaser.GameObjects.Text;
   private parryLabel!: Phaser.GameObjects.Text;
+  private dodgeSub!: Phaser.GameObjects.Text;
+  private parrySub!: Phaser.GameObjects.Text;
+  private defensePulse?: Phaser.Tweens.Tween;
+
   private hitCue!: Phaser.GameObjects.Rectangle;
+  private timingBarBg!: Phaser.GameObjects.Rectangle;
+  private timingBarFill!: Phaser.GameObjects.Rectangle;
+  private fxGfx!: Phaser.GameObjects.Graphics;
 
   private sweepLayout: SweepLayout | null = null;
   private needleDeg = 0;
   private sweepElapsed = 0;
   private sweepActive = false;
   private chainStartAt = 0;
-  private tellEndsAt = 0;
   private pendingHitIndex = 0;
   private inputLockedUntil = 0;
   private seed = 1;
+  private nextHitAt = 0;
 
   constructor() {
     super('Expedition');
@@ -120,69 +146,138 @@ export class ExpeditionScene extends Phaser.Scene {
     const viewW = this.cameras.main.width;
     const viewH = this.cameras.main.height;
     const cx = viewW / 2;
-    this.cameras.main.setBackgroundColor('#0f1a26');
+    this.cameras.main.setBackgroundColor('#0c1420');
 
-    // Arena backdrop — cool canvas hall.
-    this.add.rectangle(cx, 80, viewW, 160, 0x1a2838);
-    this.add.rectangle(cx, viewH / 2, viewW, viewH, 0x152030).setDepth(0);
-    this.add.rectangle(cx, viewH - 70, viewW, 140, 0x0e1824).setDepth(1);
-    // Soft vignette bars.
-    this.add.rectangle(cx, 8, viewW, 4, 0x7ed6a8).setDepth(2);
-    this.add.rectangle(cx, viewH - 4, viewW, 4, 0xff7fab).setDepth(2);
+    // Belle Époque arena — dark canvas hall with gold trim.
+    this.add.rectangle(cx, viewH / 2, viewW, viewH, 0x121c2a).setDepth(0);
+    this.add.rectangle(cx, 70, viewW, 140, 0x1a2434).setDepth(0);
+    this.add.rectangle(cx, viewH - 90, viewW, 180, 0x0a1018).setDepth(1);
+    // Gold frame rails.
+    this.add.rectangle(cx, 6, viewW - 16, 6, 0xc9a227).setDepth(2);
+    this.add.rectangle(cx, viewH - 6, viewW - 16, 6, 0xc9a227).setDepth(2);
+    this.add.rectangle(8, viewH / 2, 6, viewH - 20, 0xc9a227).setDepth(2);
+    this.add.rectangle(viewW - 8, viewH / 2, 6, viewH - 20, 0xc9a227).setDepth(2);
+    // Soft stage oval under fighters.
+    const stage = this.add.graphics().setDepth(3);
+    stage.fillStyle(0x1e2a3a, 0.85);
+    stage.fillEllipse(cx, viewH * 0.55, viewW * 0.72, 48);
 
     // Boss (top-right).
-    this.bossSprite = this.add
-      .image(viewW - 90, 150, expeditionBossTextureKey('gustave', 'idle'))
-      .setDepth(5)
-      .setScale(2.4);
+    this.bossHomeX = viewW - 110;
+    this.bossHomeY = 175;
+    this.bossSprite = this.add.image(this.bossHomeX, this.bossHomeY, expeditionBossTextureKey('gustave', 'idle')).setDepth(8);
     this.ensureBossTexture(this.bossSprite, 'gustave', 'idle');
+    this.fitBossSprite();
 
     // Pet (bottom-left).
+    this.petHomeX = 100;
+    this.petHomeY = viewH - 175;
     const petKey = petTextureKey(State.data.petSpecies, 'idle1');
     this.petSprite = this.add
-      .sprite(90, viewH - 160, petKey)
-      .setDepth(5)
-      .setScale(petDrawScale(this, State.data.petSpecies) * 1.35);
+      .sprite(this.petHomeX, this.petHomeY, petKey)
+      .setDepth(8)
+      .setScale(petDrawScale(this, State.data.petSpecies) * 1.5);
 
-    // HUD texts.
-    this.bossNameText = this.add.text(16, 16, '', { ...FONT_LG, color: '#ffb3d1' }).setDepth(20);
-    this.bossPhaseText = this.add.text(16, 40, '', { ...FONT_SM, color: '#a8e6cf' }).setDepth(20);
-    this.add.rectangle(16, 66, 220, 12, 0x3d3d5c).setOrigin(0, 0.5).setDepth(20);
-    this.bossHpFill = this.add.rectangle(16, 66, 220, 12, 0xff6b6b).setOrigin(0, 0.5).setDepth(21);
-    this.bossHpLabel = this.add.text(242, 58, '', FONT_SM).setDepth(20);
+    // ── Boss HUD ──
+    this.bossNameText = this.add.text(20, 18, '', { ...FONT_LG, color: '#ffb3d1' }).setDepth(30);
+    this.bossPhaseText = this.add.text(20, 44, '', { ...FONT_SM, color: '#a8e6cf' }).setDepth(30);
+    this.add.rectangle(20, 74, 260, 14, 0x2a2030).setOrigin(0, 0.5).setDepth(30).setStrokeStyle(1, 0x5a4060);
+    this.bossHpFill = this.add.rectangle(20, 74, 260, 14, 0xe74c5c).setOrigin(0, 0.5).setDepth(31);
+    this.bossHpLabel = this.add.text(288, 66, '', { ...FONT_SM, color: '#ffb3d1' }).setDepth(30);
+    // Phase pips.
+    this.phasePips = [];
+    for (let i = 0; i < 3; i++) {
+      const pip = this.add
+        .rectangle(22 + i * 18, 92, 12, 8, 0x3d3d5c)
+        .setOrigin(0, 0.5)
+        .setDepth(30)
+        .setStrokeStyle(1, 0xc9a227);
+      this.phasePips.push(pip);
+    }
 
+    // ── Pet HUD ──
     this.petNameText = this.add
-      .text(16, viewH - 120, State.data.petName || 'Pet', { ...FONT, color: '#a8e6cf' })
-      .setDepth(20);
-    this.add.rectangle(16, viewH - 96, 200, 12, 0x3d3d5c).setOrigin(0, 0.5).setDepth(20);
-    this.petHpFill = this.add.rectangle(16, viewH - 96, 200, 12, 0x7ed6a8).setOrigin(0, 0.5).setDepth(21);
-    this.petHpLabel = this.add.text(222, viewH - 104, '', FONT_SM).setDepth(20);
-    this.manaText = this.add.text(16, viewH - 78, '', { ...FONT_SM, color: '#74b9ff' }).setDepth(20);
-    this.chargeText = this.add.text(viewW - 200, 40, '', { ...FONT_SM, color: '#ffe066' }).setDepth(20);
-    this.stanceText = this.add.text(viewW - 200, 58, '', { ...FONT_SM, color: '#ffb3d1' }).setDepth(20);
-    this.statusText = this.add
-      .text(cx, viewH / 2 - 120, '', { ...FONT, color: '#efe8ff' })
+      .text(20, viewH - 138, State.data.petName || 'Pet', { ...FONT, color: '#a8e6cf' })
+      .setDepth(30);
+    this.add.rectangle(20, viewH - 114, 220, 14, 0x1a2a28).setOrigin(0, 0.5).setDepth(30).setStrokeStyle(1, 0x3a6058);
+    this.petHpFill = this.add.rectangle(20, viewH - 114, 220, 14, 0x5ed6a0).setOrigin(0, 0.5).setDepth(31);
+    this.petHpLabel = this.add.text(248, viewH - 122, '', { ...FONT_SM, color: '#a8e6cf' }).setDepth(30);
+    this.manaText = this.add.text(20, viewH - 96, '', { ...FONT_SM, color: '#74b9ff' }).setDepth(30);
+    this.chargeText = this.add.text(viewW - 210, 44, '', { ...FONT_SM, color: '#ffe066' }).setDepth(30);
+    this.stanceText = this.add.text(viewW - 210, 62, '', { ...FONT_SM, color: '#ffb3d1' }).setDepth(30);
+
+    // ── Turn banner ──
+    this.turnBannerBg = this.add
+      .rectangle(cx, 118, 320, 36, 0x0a1018, 0.88)
+      .setStrokeStyle(2, 0xc9a227)
+      .setDepth(35)
+      .setVisible(false);
+    this.turnBanner = this.add
+      .text(cx, 118, '', { ...FONT_XL, fontSize: '22px', color: '#ffe066' })
       .setOrigin(0.5)
-      .setDepth(25);
+      .setDepth(36)
+      .setVisible(false);
+    this.statusText = this.add
+      .text(cx, 150, '', { ...FONT, color: '#efe8ff' })
+      .setOrigin(0.5)
+      .setDepth(35);
+    this.hitCounterText = this.add
+      .text(cx, viewH / 2 - 100, '', { ...FONT_LG, color: '#efe8ff' })
+      .setOrigin(0.5)
+      .setDepth(36)
+      .setVisible(false);
+    this.hitTypeText = this.add
+      .text(cx, viewH / 2 - 70, '', { ...FONT_XL, fontSize: '24px', color: '#ffffff' })
+      .setOrigin(0.5)
+      .setDepth(36)
+      .setVisible(false);
 
-    this.ringGfx = this.add.graphics().setDepth(15);
+    this.ringGfx = this.add.graphics().setDepth(20);
+    this.ringHint = this.add
+      .text(cx, viewH / 2 + 70, '', { ...FONT_LG, color: '#ffe066' })
+      .setOrigin(0.5)
+      .setDepth(21)
+      .setVisible(false);
+    this.fxGfx = this.add.graphics().setDepth(40);
+
     this.hitCue = this.add
-      .rectangle(cx, viewH / 2 - 40, 48, 48, 0xffffff, 0)
-      .setDepth(16)
-      .setStrokeStyle(3, 0xffffff);
+      .rectangle(cx, viewH / 2 - 30, 72, 72, 0xffffff, 0)
+      .setDepth(19)
+      .setStrokeStyle(5, 0xffffff)
+      .setVisible(false);
 
-    // Ability row (3 slots).
-    this.abilityRow = this.add.container(0, 0).setDepth(30);
+    // Timing approach bar (fills toward the hit).
+    this.timingBarBg = this.add
+      .rectangle(cx, viewH / 2 + 10, 200, 10, 0x1a1a2e, 0.9)
+      .setDepth(19)
+      .setStrokeStyle(1, 0x5d7a90)
+      .setVisible(false);
+    this.timingBarFill = this.add
+      .rectangle(cx - 100, viewH / 2 + 10, 0, 10, 0xffffff)
+      .setOrigin(0, 0.5)
+      .setDepth(20)
+      .setVisible(false);
+
+    // Ability row — big cards.
+    this.abilityRow = this.add.container(0, 0).setDepth(40);
     this.abilityButtons = [];
     for (let i = 0; i < 3; i++) {
       const bg = this.add
-        .rectangle(0, 0, 150, 44, 0x2e4258)
-        .setStrokeStyle(2, 0x5d7a90)
+        .rectangle(0, 0, 168, 58, 0x243448)
+        .setStrokeStyle(2, 0xc9a227)
         .setInteractive({ useHandCursor: true });
-      const label = this.add.text(0, 0, '', { ...FONT_SM, color: '#efe8ff' }).setOrigin(0.5);
-      this.abilityRow.add([bg, label]);
-      const slot = { bg, label, ability: null as AbilityDef | null };
+      const costBadge = this.add.rectangle(0, 0, 36, 18, 0x0a1018).setStrokeStyle(1, 0x74b9ff);
+      const costText = this.add.text(0, 0, '', { ...FONT_SM, color: '#74b9ff' }).setOrigin(0.5);
+      const label = this.add.text(0, 0, '', { ...FONT, color: '#efe8ff', align: 'center' }).setOrigin(0.5);
+      this.abilityRow.add([bg, costBadge, costText, label]);
+      const slot = { bg, costBadge, costText, label, ability: null as AbilityDef | null };
       this.abilityButtons.push(slot);
+      bg.on('pointerover', () => {
+        if (slot.ability) bg.setFillStyle(0x3a5068);
+      });
+      bg.on('pointerout', () => {
+        if (slot.ability) bg.setFillStyle(slot.ability.mana === 0 ? 0x1e3a2e : 0x243448);
+      });
       bg.on('pointerdown', () => {
         if (this.mode !== 'battle' || !this.combat || this.combat.combatPhase !== 'your-turn') return;
         if (this.time.now < this.ignoreClicksUntil) return;
@@ -191,37 +286,49 @@ export class ExpeditionScene extends Phaser.Scene {
     }
     markAsUi(this, this.abilityRow);
 
-    // Dodge / parry halves — only live on their turn.
+    // Dodge / parry — large left/right halves.
+    const zoneH = 88;
+    const zoneY = viewH - 52;
     this.dodgeZone = this.add
-      .rectangle(viewW * 0.25, viewH - 36, viewW * 0.48, 56, 0x1a3a4a, 0.55)
-      .setStrokeStyle(2, 0x5dade2)
-      .setDepth(28)
+      .rectangle(viewW * 0.25, zoneY, viewW * 0.46, zoneH, 0x0d3a55, 0.82)
+      .setStrokeStyle(3, 0x5dade2)
+      .setDepth(38)
       .setInteractive({ useHandCursor: true })
       .setVisible(false);
     this.parryZone = this.add
-      .rectangle(viewW * 0.75, viewH - 36, viewW * 0.48, 56, 0x3a1a2a, 0.55)
-      .setStrokeStyle(2, 0xff7fab)
-      .setDepth(28)
+      .rectangle(viewW * 0.75, zoneY, viewW * 0.46, zoneH, 0x4a1530, 0.82)
+      .setStrokeStyle(3, 0xff7fab)
+      .setDepth(38)
       .setInteractive({ useHandCursor: true })
       .setVisible(false);
     this.dodgeLabel = this.add
-      .text(viewW * 0.25, viewH - 36, '← DODGE  X', { ...FONT, color: '#5dade2' })
+      .text(viewW * 0.25, zoneY - 12, '←  DODGE', { ...FONT_XL, fontSize: '22px', color: '#5dade2' })
       .setOrigin(0.5)
-      .setDepth(29)
+      .setDepth(39)
+      .setVisible(false);
+    this.dodgeSub = this.add
+      .text(viewW * 0.25, zoneY + 14, 'X  ·  wide window  ·  safe', { ...FONT_SM, color: '#8ecae6' })
+      .setOrigin(0.5)
+      .setDepth(39)
       .setVisible(false);
     this.parryLabel = this.add
-      .text(viewW * 0.75, viewH - 36, 'PARRY  C →', { ...FONT, color: '#ff7fab' })
+      .text(viewW * 0.75, zoneY - 12, 'PARRY  →', { ...FONT_XL, fontSize: '22px', color: '#ff7fab' })
       .setOrigin(0.5)
-      .setDepth(29)
+      .setDepth(39)
+      .setVisible(false);
+    this.parrySub = this.add
+      .text(viewW * 0.75, zoneY + 14, 'C  ·  tight  ·  +mana  ·  counter', { ...FONT_SM, color: '#ffb3d1' })
+      .setOrigin(0.5)
+      .setDepth(39)
       .setVisible(false);
     this.dodgeZone.on('pointerdown', () => this.tryDefense('dodge'));
     this.parryZone.on('pointerdown', () => this.tryDefense('parry'));
 
     // Back chip.
     const back = this.add
-      .text(viewW - 16, 16, '← Back', { ...FONT_SM, color: '#a89bc4' })
+      .text(viewW - 20, 18, '← Back', { ...FONT_SM, color: '#a89bc4' })
       .setOrigin(1, 0)
-      .setDepth(40)
+      .setDepth(50)
       .setInteractive({ useHandCursor: true });
     markAsUi(this, back);
     back.on('pointerdown', () => this.leave());
@@ -239,7 +346,6 @@ export class ExpeditionScene extends Phaser.Scene {
         this.handleSweepTap();
         return;
       }
-      // Left/right halves for defense when zones are live.
       if (this.combat.combatPhase === 'their-turn-hit') {
         const action: DefenseAction = pointer.x < viewW / 2 ? 'dodge' : 'parry';
         this.tryDefense(action);
@@ -261,6 +367,14 @@ export class ExpeditionScene extends Phaser.Scene {
     this.scene.start('EastPark', { spawn: 'expedition' });
   }
 
+  private fitBossSprite() {
+    const tex = this.bossSprite.texture;
+    const src = tex.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    const h = (src as HTMLImageElement).height || (src as HTMLCanvasElement).height || 80;
+    this.bossSprite.setScale(BOSS_DISPLAY_H / Math.max(1, h));
+    this.bossSprite.setOrigin(0.5, 1);
+  }
+
   private ensureBossTexture(
     sprite: Phaser.GameObjects.Image,
     id: ExpeditionBossId,
@@ -269,10 +383,9 @@ export class ExpeditionScene extends Phaser.Scene {
     const key = expeditionBossTextureKey(id, pose);
     if (this.textures.exists(key)) {
       sprite.setTexture(key);
+      this.fitBossSprite();
       return;
     }
-    // Fallback plate: coloured silhouette so the fight is playable without
-    // Imagine plates (Boot may still be missing assets on first boot).
     const fallback = `exp-fallback-${id}-${pose}`;
     if (!this.textures.exists(fallback)) {
       const g = this.make.graphics({ x: 0, y: 0 });
@@ -281,52 +394,52 @@ export class ExpeditionScene extends Phaser.Scene {
         maelle: 0xc45c5c,
         renoir: 0xd8d0c8,
       };
-      const poseTint: Record<BossPose, number> = {
-        idle: 0xffffff,
-        windup: 0xffe066,
-        strike: 0xffb3d1,
-        special: 0xff4444,
-        hurt: 0xaaaaaa,
-        enraged: 0xff6b6b,
-        down: 0x555555,
-      };
-      const base = colors[id];
-      g.fillStyle(base, 1);
-      g.fillRoundedRect(4, 4, 32, 48, 6);
-      g.fillStyle(poseTint[pose], 0.35);
-      g.fillRoundedRect(4, 4, 32, 48, 6);
+      g.fillStyle(colors[id], 1);
+      g.fillRoundedRect(6, 6, 44, 68, 8);
       g.lineStyle(2, 0x1a1a2e, 1);
-      g.strokeRoundedRect(4, 4, 32, 48, 6);
-      // Face dots.
+      g.strokeRoundedRect(6, 6, 44, 68, 8);
       g.fillStyle(0x1a1a2e, 1);
-      g.fillCircle(14, 18, 2);
-      g.fillCircle(26, 18, 2);
-      g.generateTexture(fallback, 40, 56);
+      g.fillCircle(20, 28, 3);
+      g.fillCircle(36, 28, 3);
+      g.generateTexture(fallback, 56, 80);
       g.destroy();
     }
     sprite.setTexture(fallback);
+    this.fitBossSprite();
   }
 
   private setBossPose(pose: BossPose) {
     if (!this.combat) return;
-    // Phase III idle uses enraged when standing.
     const p = pose === 'idle' && this.combat.phase === 3 ? 'enraged' : pose;
     this.ensureBossTexture(this.bossSprite, this.combat.bossId, p);
+  }
+
+  private setTurnBanner(text: string, color: string, show: boolean) {
+    this.turnBannerBg.setVisible(show);
+    this.turnBanner.setVisible(show);
+    if (show) {
+      this.turnBanner.setText(text).setColor(color);
+      this.turnBanner.setScale(1.15);
+      this.tweens.add({ targets: this.turnBanner, scale: 1, duration: 220, ease: 'Back.easeOut' });
+    }
   }
 
   private openBossMenu() {
     this.mode = 'pick-boss';
     this.menuOpen = true;
     this.reopeningPicker = false;
+    this.setTurnBanner('', '', false);
+    this.showAbilityRow(false);
+    this.showDefenseHalves(false);
     const options = BOSS_ORDER.map((id) => {
       const boss = BOSSES[id];
       const hp = scaledBossHp(boss.baseHp, 'normal');
-      const beaten =
-        (['easy', 'normal', 'hard'] as const).some((d) => State.expeditionWinCount(id, d) > 0);
+      const beaten = (['easy', 'normal', 'hard'] as const).some((d) => State.expeditionWinCount(id, d) > 0);
       return {
         label: `${boss.name} · ${hp} HP${beaten ? ' ✓' : ''} — ${boss.blurb}`,
         onSelect: () => {
           this.bossId = id;
+          this.ensureBossTexture(this.bossSprite, id, 'idle');
           this.openDifficultyMenu();
         },
       };
@@ -405,31 +518,41 @@ export class ExpeditionScene extends Phaser.Scene {
     this.mode = 'battle';
     this.menuOpen = false;
     this.setBossPose('idle');
+    this.resetPetPose();
     this.refreshHud();
-    this.showAbilityRow(true);
-    this.showDefenseHalves(false);
+    this.enterYourTurn();
     toast(
       this,
       this.cameras.main.width / 2,
-      110,
+      175,
       `−${cost} energy · ${BOSSES[this.bossId].name} · ${difficulty}`,
       '#ffe066',
     );
-    this.statusText.setText('Your turn — pick an ability');
+  }
+
+  private enterYourTurn() {
+    this.setTurnBanner('YOUR TURN', '#a8e6cf', true);
+    this.statusText.setText('Pick an ability below — free Nibble builds mana');
+    this.showAbilityRow(true);
+    this.showDefenseHalves(false);
+    this.hideHitUi();
+    this.ringHint.setVisible(false);
   }
 
   private layoutAbilityRow() {
     const viewW = this.cameras.main.width;
     const viewH = this.cameras.main.height;
-    const y = viewH - 48;
-    const gap = 12;
-    const w = 150;
+    const y = viewH - 52;
+    const gap = 14;
+    const w = 168;
     const total = 3 * w + 2 * gap;
     const startX = (viewW - total) / 2 + w / 2;
     this.abilityButtons.forEach((slot, i) => {
       const x = startX + i * (w + gap);
       slot.bg.setPosition(x, y);
-      slot.label.setPosition(x, y);
+      slot.label.setPosition(x, y + 6);
+      slot.costBadge.setPosition(x, y - 18);
+      slot.costText.setPosition(x, y - 18);
     });
   }
 
@@ -440,16 +563,17 @@ export class ExpeditionScene extends Phaser.Scene {
     this.abilityButtons.forEach((slot, i) => {
       const ability = offer[i] ?? null;
       slot.ability = ability;
-      if (!ability) {
-        slot.bg.setVisible(false);
-        slot.label.setVisible(false);
-        return;
-      }
-      slot.bg.setVisible(true);
-      slot.label.setVisible(true);
-      const diamond = ability.mana === 0 ? '0 ◆' : `${ability.mana} ◆`;
-      slot.label.setText(`${ability.name}\n${diamond}`);
-      slot.bg.setFillStyle(ability.mana === 0 ? 0x2e4a3a : 0x2e4258);
+      const vis = Boolean(ability);
+      slot.bg.setVisible(vis);
+      slot.label.setVisible(vis);
+      slot.costBadge.setVisible(vis);
+      slot.costText.setVisible(vis);
+      if (!ability) return;
+      slot.label.setText(ability.name);
+      slot.costText.setText(ability.mana === 0 ? 'FREE' : `${ability.mana}◆`);
+      slot.costText.setColor(ability.mana === 0 ? '#a8e6cf' : '#74b9ff');
+      slot.bg.setFillStyle(ability.mana === 0 ? 0x1e3a2e : 0x243448);
+      slot.bg.setStrokeStyle(2, ability.mana === 0 ? 0x5ed6a0 : 0xc9a227);
     });
   }
 
@@ -458,6 +582,28 @@ export class ExpeditionScene extends Phaser.Scene {
     this.parryZone.setVisible(show);
     this.dodgeLabel.setVisible(show);
     this.parryLabel.setVisible(show);
+    this.dodgeSub.setVisible(show);
+    this.parrySub.setVisible(show);
+    this.defensePulse?.stop();
+    if (show) {
+      this.dodgeZone.setAlpha(0.82);
+      this.parryZone.setAlpha(0.82);
+      this.defensePulse = this.tweens.add({
+        targets: [this.dodgeZone, this.parryZone],
+        alpha: 0.95,
+        duration: 420,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
+  }
+
+  private hideHitUi() {
+    this.hitCue.setVisible(false);
+    this.hitCounterText.setVisible(false);
+    this.hitTypeText.setVisible(false);
+    this.timingBarBg.setVisible(false);
+    this.timingBarFill.setVisible(false);
   }
 
   private chooseAbility(ability: AbilityDef) {
@@ -471,7 +617,9 @@ export class ExpeditionScene extends Phaser.Scene {
     this.sweepElapsed = 0;
     this.sweepActive = true;
     this.showAbilityRow(false);
-    this.statusText.setText(`${ability.name} — tap the arcs!`);
+    this.setTurnBanner('TAP THE ARCS!', '#ffe066', true);
+    this.statusText.setText(`${ability.name} — Space / click when the needle is in a blue arc`);
+    this.ringHint.setText('TAP!').setVisible(true);
     this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'happy'));
     this.refreshHud();
   }
@@ -482,13 +630,27 @@ export class ExpeditionScene extends Phaser.Scene {
     if (result.kind === 'hit' || result.kind === 'perfect') {
       this.flashDamageNumber(
         this.bossSprite.x,
-        this.bossSprite.y - 40,
+        this.bossSprite.y - BOSS_DISPLAY_H - 10,
         result.damage,
         result.kind === 'perfect' ? '#ffe066' : '#efe8ff',
       );
       this.setBossPose('hurt');
-      this.time.delayedCall(180, () => {
+      this.tweens.add({
+        targets: this.bossSprite,
+        x: this.bossHomeX + 8,
+        duration: 50,
+        yoyo: true,
+      });
+      this.time.delayedCall(160, () => {
         if (this.sweepActive) this.setBossPose('idle');
+      });
+      // Pet attack bob.
+      this.tweens.add({
+        targets: this.petSprite,
+        x: this.petHomeX + 18,
+        duration: 70,
+        yoyo: true,
+        ease: 'Quad.easeOut',
       });
     }
   }
@@ -499,42 +661,56 @@ export class ExpeditionScene extends Phaser.Scene {
     const result = finishSweep(this.combat);
     this.sweepLayout = null;
     this.ringGfx.clear();
+    this.ringHint.setVisible(false);
     this.flashDamageNumber(
       this.bossSprite.x,
-      this.bossSprite.y - 60,
+      this.bossSprite.y - BOSS_DISPLAY_H - 20,
       result.totalDamage,
       result.bravo ? '#ffe066' : '#ffb3d1',
     );
     if (result.bravo) {
-      toast(this, this.cameras.main.width / 2, 140, 'Bravo!', '#ffe066');
+      toast(this, this.cameras.main.width / 2, 170, 'Bravo! +1 mana', '#ffe066');
     }
     this.refreshHud();
     if (result.won) {
       this.onWin();
       return;
     }
-    this.statusText.setText('…');
-    this.time.delayedCall(450, () => this.startBossTurn());
+    this.statusText.setText('');
+    this.time.delayedCall(420, () => this.startBossTurn());
   }
 
   private startBossTurn() {
     if (!this.combat) return;
     this.seed += 1;
-    const { attack, chain, tellMs } = beginBossTurn(this.combat, this.seed);
+    const { attack, chain, tellMs, canvasHeal } = beginBossTurn(this.combat, this.seed);
     this.setBossPose('windup');
     this.showAbilityRow(false);
     this.showDefenseHalves(false);
-    this.statusText.setText(`${attack.name} — ${chain.length} hits`);
+    this.setTurnBanner('THEIR TURN', '#ff7fab', true);
+    this.statusText.setText(
+      canvasHeal > 0
+        ? `Canvas restores ${canvasHeal} HP!  ·  ${attack.name}`
+        : `${attack.name} — wind up…`,
+    );
     this.refreshHud();
-    this.tellEndsAt = this.time.now + tellMs;
     this.pendingHitIndex = 0;
-    // After tell, open the chain.
+    // Wind-up flash on boss.
+    this.tweens.add({
+      targets: this.bossSprite,
+      scaleX: this.bossSprite.scaleX * 1.08,
+      scaleY: this.bossSprite.scaleY * 1.08,
+      duration: tellMs * 0.6,
+      yoyo: true,
+    });
     this.time.delayedCall(tellMs, () => {
       if (!this.combat || this.combat.combatPhase === 'won' || this.combat.combatPhase === 'lost') {
         return;
       }
       startChainHits(this.combat);
       this.chainStartAt = this.time.now;
+      this.setTurnBanner('DODGE  OR  PARRY!', '#ffe066', true);
+      this.statusText.setText('Left / X = Dodge · Right / C = Parry  ·  RED hits must be dodged!');
       this.showDefenseHalves(true);
       this.scheduleHits();
     });
@@ -550,26 +726,56 @@ export class ExpeditionScene extends Phaser.Scene {
         if (this.pendingHitIndex !== i) return;
         this.resolveCurrentHit('none');
       });
-      // Colour cue slightly before the hit lands.
-      this.time.delayedCall(Math.max(0, hit.atMs - 120), () => {
+      // Pre-cue ~200ms early.
+      const pre = Math.max(0, hit.atMs - 200);
+      this.time.delayedCall(pre, () => {
         if (!this.combat || this.combat.combatPhase !== 'their-turn-hit') return;
-        const color = hit.kind === 'gradient' ? 0xff3333 : 0xffffff;
-        this.hitCue.setStrokeStyle(4, color);
-        this.hitCue.setFillStyle(color, 0.15);
-        this.tweens.add({
-          targets: this.hitCue,
-          scaleX: 1.4,
-          scaleY: 1.4,
-          alpha: 0.2,
-          duration: 140,
-          yoyo: true,
-          onComplete: () => {
-            this.hitCue.setScale(1);
-            this.hitCue.setFillStyle(0xffffff, 0);
-          },
-        });
+        if (this.pendingHitIndex > i) return;
+        this.showHitCue(hit.kind, i, chain.length, hit.atMs);
       });
     }
+  }
+
+  private showHitCue(
+    kind: 'normal' | 'gradient',
+    index: number,
+    total: number,
+    hitAtMs: number,
+  ) {
+    const isGrad = kind === 'gradient';
+    const color = isGrad ? 0xff3333 : 0xffffff;
+    this.hitCue.setVisible(true);
+    this.hitCue.setStrokeStyle(6, color);
+    this.hitCue.setFillStyle(color, 0.12);
+    this.hitCue.setScale(0.6);
+    this.tweens.add({ targets: this.hitCue, scale: 1.15, duration: 180, yoyo: true });
+
+    this.hitCounterText.setVisible(true).setText(`Hit ${index + 1} / ${total}`);
+    this.hitTypeText
+      .setVisible(true)
+      .setText(isGrad ? '⚠ DODGE ONLY!' : 'PARRY or DODGE')
+      .setColor(isGrad ? '#ff4444' : '#efe8ff');
+
+    // Pulse the correct half harder for gradient.
+    if (isGrad) {
+      this.dodgeZone.setStrokeStyle(5, 0x5dade2);
+      this.parryZone.setStrokeStyle(2, 0x663344);
+      this.tweens.add({
+        targets: this.dodgeZone,
+        scaleX: 1.04,
+        scaleY: 1.06,
+        duration: 120,
+        yoyo: true,
+        repeat: 1,
+      });
+    } else {
+      this.dodgeZone.setStrokeStyle(3, 0x5dade2);
+      this.parryZone.setStrokeStyle(3, 0xff7fab);
+    }
+
+    this.timingBarBg.setVisible(true);
+    this.timingBarFill.setVisible(true).setFillStyle(color);
+    this.nextHitAt = this.chainStartAt + hitAtMs;
   }
 
   private tryDefense(action: DefenseAction) {
@@ -583,48 +789,137 @@ export class ExpeditionScene extends Phaser.Scene {
     const hit = this.combat.chain[this.pendingHitIndex];
     if (!hit) return;
 
-    const windows = defenseWindows(this.combat.difficulty, this.combat.phase);
     const expectedAt = this.chainStartAt + hit.atMs;
     const offset = this.time.now - expectedAt;
-    // If auto-timeout fired with action none, offset is ~0 from schedule — treat
-    // as a miss by using a large offset when the player never pressed.
     const inputOffset = action === 'none' ? 9999 : offset;
-    // Clamp "good enough" presses to window maths.
-    void windows;
+    void defenseWindows(this.combat.difficulty, this.combat.phase);
 
     this.setBossPose(hit.kind === 'gradient' ? 'special' : 'strike');
+    // Boss lunge toward pet.
+    this.tweens.add({
+      targets: this.bossSprite,
+      x: this.bossHomeX - 24,
+      duration: 70,
+      yoyo: true,
+      ease: 'Quad.easeIn',
+    });
+
     const result = resolveDefense(this.combat, action, inputOffset);
 
     if (result.success) {
-      if (action === 'dodge') {
-        this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'jump'));
-        toast(this, this.cameras.main.width / 2, 160, 'Dodge!', '#5dade2');
-      } else {
-        this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'walk2'));
-        const tag = result.perfect ? 'Perfect Parry!' : 'Parry!';
-        toast(this, this.cameras.main.width / 2, 160, tag, '#ff7fab');
-      }
+      if (action === 'dodge') this.playDodgeAnim();
+      else this.playParryAnim(result.perfect);
     } else {
-      this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'sad'));
-      if (result.damageTaken > 0) {
-        this.flashDamageNumber(
-          this.petSprite.x,
-          this.petSprite.y - 30,
-          result.damageTaken,
-          '#ff6b6b',
-        );
-        this.cameras.main.shake(80, 0.004);
-      }
+      this.playHitTakenAnim(result.damageTaken);
     }
 
     this.pendingHitIndex += 1;
-    this.inputLockedUntil = this.time.now + 80;
+    this.inputLockedUntil = this.time.now + 90;
     this.refreshHud();
+    this.hideHitUi();
 
     if (this.pendingHitIndex >= this.combat.chain.length) {
       this.showDefenseHalves(false);
-      this.time.delayedCall(280, () => this.endBossChain());
+      this.time.delayedCall(320, () => this.endBossChain());
     }
+  }
+
+  /** Slide-left dodge with blue trail and jump pose. */
+  private playDodgeAnim() {
+    this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'jump'));
+    const trail = this.add
+      .image(this.petSprite.x, this.petSprite.y, this.petSprite.texture.key)
+      .setScale(this.petSprite.scaleX)
+      .setAlpha(0.45)
+      .setTint(0x5dade2)
+      .setDepth(7);
+    this.tweens.add({
+      targets: this.petSprite,
+      x: this.petHomeX - 42,
+      y: this.petHomeY - 16,
+      duration: 110,
+      yoyo: true,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        this.petSprite.setPosition(this.petHomeX, this.petHomeY);
+      },
+    });
+    this.tweens.add({
+      targets: trail,
+      x: this.petHomeX - 50,
+      alpha: 0,
+      duration: 220,
+      onComplete: () => trail.destroy(),
+    });
+    // Blue afterimage ring.
+    this.fxGfx.clear();
+    this.fxGfx.lineStyle(3, 0x5dade2, 0.9);
+    this.fxGfx.strokeCircle(this.petHomeX - 20, this.petHomeY - 20, 18);
+    this.time.delayedCall(200, () => this.fxGfx.clear());
+    toast(this, this.cameras.main.width / 2, 175, 'DODGE!', '#5dade2');
+  }
+
+  /** Flash-parry with gold sparks and lean-in. */
+  private playParryAnim(perfect: boolean) {
+    this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'walk2'));
+    this.petSprite.setTint(perfect ? 0xffe066 : 0xffb3d1);
+    this.tweens.add({
+      targets: this.petSprite,
+      x: this.petHomeX + 28,
+      duration: 90,
+      yoyo: true,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.petSprite.clearTint();
+        this.petSprite.setPosition(this.petHomeX, this.petHomeY);
+      },
+    });
+    // Spark burst.
+    const cx = this.petHomeX + 30;
+    const cy = this.petHomeY - 24;
+    this.fxGfx.clear();
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const len = perfect ? 28 : 18;
+      this.fxGfx.lineStyle(2, perfect ? 0xffe066 : 0xff7fab, 1);
+      this.fxGfx.lineBetween(cx, cy, cx + Math.cos(a) * len, cy + Math.sin(a) * len);
+    }
+    this.fxGfx.lineStyle(4, 0xffffff, 0.85);
+    this.fxGfx.strokeCircle(cx, cy, perfect ? 22 : 16);
+    this.time.delayedCall(180, () => this.fxGfx.clear());
+    toast(
+      this,
+      this.cameras.main.width / 2,
+      175,
+      perfect ? 'PERFECT PARRY! +2◆' : 'PARRY! +1◆',
+      perfect ? '#ffe066' : '#ff7fab',
+    );
+  }
+
+  private playHitTakenAnim(damage: number) {
+    this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'sad'));
+    this.petSprite.setTint(0xff4444);
+    this.tweens.add({
+      targets: this.petSprite,
+      x: this.petHomeX - 16,
+      duration: 60,
+      yoyo: true,
+      repeat: 1,
+      onComplete: () => {
+        this.petSprite.clearTint();
+        this.petSprite.setPosition(this.petHomeX, this.petHomeY);
+      },
+    });
+    if (damage > 0) {
+      this.flashDamageNumber(this.petSprite.x, this.petSprite.y - 36, damage, '#ff6b6b');
+      this.cameras.main.shake(90, 0.005);
+    }
+  }
+
+  private resetPetPose() {
+    this.petSprite.clearTint();
+    this.petSprite.setPosition(this.petHomeX, this.petHomeY);
+    this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'idle1'));
   }
 
   private endBossChain() {
@@ -633,17 +928,26 @@ export class ExpeditionScene extends Phaser.Scene {
     if (result.counterDmg > 0) {
       this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'happy'));
       this.setBossPose('hurt');
+      // Counter dash.
+      this.tweens.add({
+        targets: this.petSprite,
+        x: this.bossHomeX - 40,
+        duration: 140,
+        yoyo: true,
+        ease: 'Cubic.easeIn',
+        onComplete: () => this.petSprite.setPosition(this.petHomeX, this.petHomeY),
+      });
       this.flashDamageNumber(
         this.bossSprite.x,
-        this.bossSprite.y - 50,
+        this.bossSprite.y - BOSS_DISPLAY_H - 10,
         result.counterDmg,
         '#ffe066',
       );
       toast(
         this,
         this.cameras.main.width / 2,
-        140,
-        result.allPerfect ? 'Perfect Counter!' : 'Counter!',
+        165,
+        result.allPerfect ? 'PERFECT COUNTER!' : 'COUNTER!',
         '#ffe066',
       );
     }
@@ -656,12 +960,11 @@ export class ExpeditionScene extends Phaser.Scene {
       this.onWin();
       return;
     }
-    this.time.delayedCall(500, () => {
+    this.time.delayedCall(520, () => {
       if (!this.combat) return;
       this.setBossPose('idle');
-      this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'idle1'));
-      this.showAbilityRow(true);
-      this.statusText.setText('Your turn — pick an ability');
+      this.resetPetPose();
+      this.enterYourTurn();
       this.refreshHud();
     });
   }
@@ -672,12 +975,14 @@ export class ExpeditionScene extends Phaser.Scene {
     this.sweepActive = false;
     this.showAbilityRow(false);
     this.showDefenseHalves(false);
+    this.hideHitUi();
     this.setBossPose('down');
+    this.setTurnBanner('VICTORY!', '#ffe066', true);
     this.petSprite.play(petAnimKey(State.data.petSpecies, 'bounce'));
     const flawless = this.combat.petHp >= this.combat.petMaxHp;
     const reward = State.rewardExpeditionWin(this.bossId, this.difficulty, flawless);
     this.statusText.setText(
-      `Victory! +${reward.coins} coins · +${reward.happiness} happy${flawless ? ' · Flawless!' : ''}`,
+      `+${reward.coins} coins · +${reward.happiness} happy${flawless ? ' · Flawless!' : ''}`,
     );
     this.time.delayedCall(1600, () => {
       this.menuOpen = true;
@@ -711,10 +1016,12 @@ export class ExpeditionScene extends Phaser.Scene {
     this.sweepActive = false;
     this.showAbilityRow(false);
     this.showDefenseHalves(false);
+    this.hideHitUi();
     this.petSprite.setTexture(petTextureKey(State.data.petSpecies, 'sad'));
     this.setBossPose('enraged');
+    this.setTurnBanner('DEFEATED', '#ff6b6b', true);
     State.settleExpeditionLoss();
-    this.statusText.setText('Defeated… energy spent. Rest and try again.');
+    this.statusText.setText('Energy spent. Rest and try again.');
     this.time.delayedCall(1400, () => {
       this.menuOpen = true;
       const canRetry = State.hasEnergy(GAME_MIN_ENERGY.Expedition);
@@ -758,36 +1065,41 @@ export class ExpeditionScene extends Phaser.Scene {
       `Act ${['I', 'II', 'III'][c.phase - 1]} — ${phaseDef?.title ?? ''}`,
     );
     const bossFrac = c.bossMaxHp > 0 ? c.bossHp / c.bossMaxHp : 0;
-    this.bossHpFill.width = 220 * bossFrac;
-    this.bossHpLabel.setText(`${c.bossHp}/${c.bossMaxHp}`);
+    this.bossHpFill.width = 260 * bossFrac;
+    this.bossHpLabel.setText(`${c.bossHp} / ${c.bossMaxHp}`);
+    // Phase pips: lit for current and past.
+    this.phasePips.forEach((pip, i) => {
+      const phase = (i + 1) as 1 | 2 | 3;
+      pip.setFillStyle(c.phase >= phase ? 0xc9a227 : 0x3d3d5c);
+    });
     const petFrac = c.petMaxHp > 0 ? c.petHp / c.petMaxHp : 0;
-    this.petHpFill.width = 200 * petFrac;
-    this.petHpLabel.setText(`${c.petHp}/${c.petMaxHp}`);
+    this.petHpFill.width = 220 * petFrac;
+    this.petHpLabel.setText(`${c.petHp} / ${c.petMaxHp}`);
     const filled = '◆'.repeat(c.mana);
     const empty = '◇'.repeat(MANA_CAP - c.mana);
-    this.manaText.setText(`mana ${filled}${empty}  ${c.mana}/${MANA_CAP}`);
+    this.manaText.setText(`MANA  ${filled}${empty}  ${c.mana}/${MANA_CAP}`);
     if (c.bossId === 'gustave') {
-      this.chargeText.setText(`Charge ${'●'.repeat(c.charge)}${'○'.repeat(3 - c.charge)}`);
+      this.chargeText.setText(`CHARGE  ${'●'.repeat(c.charge)}${'○'.repeat(3 - c.charge)}`);
       this.stanceText.setText('');
     } else if (c.bossId === 'maelle') {
       this.chargeText.setText('');
-      this.stanceText.setText(`Stance: ${c.stance}`);
+      this.stanceText.setText(`STANCE  ${c.stance.toUpperCase()}`);
     } else {
-      this.chargeText.setText(c.lastChainFullyParried ? 'Canvas held' : 'Canvas active');
+      this.chargeText.setText(c.lastChainFullyParried ? 'CANVAS  held' : 'CANVAS  active');
       this.stanceText.setText('');
     }
   }
 
   private flashDamageNumber(x: number, y: number, amount: number, color: string) {
     const t = this.add
-      .text(x, y, `−${amount}`, { fontFamily: 'monospace', fontSize: '20px', color })
+      .text(x, y, `−${amount}`, { fontFamily: 'monospace', fontSize: '22px', color, stroke: '#0a1018', strokeThickness: 4 })
       .setOrigin(0.5)
-      .setDepth(50);
+      .setDepth(55);
     this.tweens.add({
       targets: t,
-      y: y - 40,
+      y: y - 48,
       alpha: 0,
-      duration: 700,
+      duration: 750,
       onComplete: () => t.destroy(),
     });
   }
@@ -796,31 +1108,40 @@ export class ExpeditionScene extends Phaser.Scene {
     this.ringGfx.clear();
     if (!this.sweepActive || !this.sweepLayout) return;
     const cx = this.cameras.main.width / 2;
-    const cy = this.cameras.main.height / 2 - 20;
-    const r = 78;
-    this.ringGfx.lineStyle(4, 0x3a5068, 1);
+    const cy = this.cameras.main.height / 2 - 10;
+    const r = 88;
+    // Outer track.
+    this.ringGfx.lineStyle(6, 0x2a3a4a, 1);
     this.ringGfx.strokeCircle(cx, cy, r);
+    this.ringGfx.lineStyle(2, 0xc9a227, 0.5);
+    this.ringGfx.strokeCircle(cx, cy, r + 8);
     for (const arc of this.sweepLayout.arcs) {
       let color = 0x5dade2;
       if (arc.result === 'perfect') color = 0xffe066;
       else if (arc.result === 'hit') color = 0xa8e6cf;
-      else if (arc.result === 'miss') color = 0x555555;
-      this.ringGfx.lineStyle(10, color, arc.consumed ? 0.45 : 0.95);
+      else if (arc.result === 'miss') color = 0x444455;
+      this.ringGfx.lineStyle(14, color, arc.consumed ? 0.4 : 1);
       this.drawArc(cx, cy, r, arc.startDeg, arc.widthDeg);
+      // Perfect band highlight.
+      if (!arc.consumed) {
+        this.ringGfx.lineStyle(4, 0xffe066, 0.55);
+        const half = arc.perfectHalfWidthDeg;
+        this.drawArc(cx, cy, r, arc.perfectCenterDeg - half, half * 2);
+      }
     }
     // Needle.
     const rad = Phaser.Math.DegToRad(this.needleDeg - 90);
-    const nx = cx + Math.cos(rad) * (r - 4);
-    const ny = cy + Math.sin(rad) * (r - 4);
-    this.ringGfx.fillStyle(0xffe066, 1);
-    this.ringGfx.fillCircle(nx, ny, 6);
-    this.ringGfx.lineStyle(2, 0xffffff, 0.8);
+    const nx = cx + Math.cos(rad) * (r - 2);
+    const ny = cy + Math.sin(rad) * (r - 2);
+    this.ringGfx.lineStyle(3, 0xffffff, 0.9);
     this.ringGfx.lineBetween(cx, cy, nx, ny);
+    this.ringGfx.fillStyle(0xffe066, 1);
+    this.ringGfx.fillCircle(nx, ny, 8);
+    this.ringGfx.fillStyle(0xffffff, 1);
+    this.ringGfx.fillCircle(cx, cy, 5);
   }
 
   private drawArc(cx: number, cy: number, r: number, startDeg: number, widthDeg: number) {
-    // Phaser arcs use radians, 0 = east, clockwise positive in some modes —
-    // we treat 0° as top (12 o'clock) and sweep clockwise with the needle.
     const start = Phaser.Math.DegToRad(startDeg - 90);
     const end = Phaser.Math.DegToRad(startDeg + widthDeg - 90);
     this.ringGfx.beginPath();
@@ -846,6 +1167,18 @@ export class ExpeditionScene extends Phaser.Scene {
         this.drawSweepRing();
       }
       if (Phaser.Input.Keyboard.JustDown(this.keySpace)) this.handleSweepTap();
+    }
+
+    // Timing bar progress toward next hit.
+    if (
+      this.combat.combatPhase === 'their-turn-hit' &&
+      this.timingBarFill.visible &&
+      this.nextHitAt > 0
+    ) {
+      const remain = this.nextHitAt - this.time.now;
+      const window = 200;
+      const t = Phaser.Math.Clamp(1 - remain / window, 0, 1);
+      this.timingBarFill.width = 200 * t;
     }
 
     if (this.combat.combatPhase === 'their-turn-hit') {

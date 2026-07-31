@@ -18,8 +18,9 @@ const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
 
 type RGBA = [number, number, number, number];
-const W = 40;
-const H = 56;
+/** Taller humanoid frame — clearer Belle Époque silhouettes than 32×42 miniteens. */
+const W = 56;
+const H = 80;
 const IDS = ['gustave', 'maelle', 'renoir'] as const;
 const POSES = ['idle', 'windup', 'strike', 'special', 'hurt', 'enraged', 'down'] as const;
 type BossId = (typeof IDS)[number];
