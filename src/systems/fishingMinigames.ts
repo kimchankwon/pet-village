@@ -71,8 +71,11 @@ export interface KeepItInTuning {
 
 export function keepItInTuning(sizeCm: number): KeepItInTuning {
   const s = fishSizeNorm(sizeCm);
+  // The big end of every ramp below was tightened once the fights were playable:
+  // a small fish is unchanged, but the largest now runs faster, darts more often
+  // and gives back less. Only the far end moved, so the early game feels the same.
   return {
-    barHeight: lerp(0.36, 0.25, s),
+    barHeight: lerp(0.36, 0.235, s),
     // Deliberately low relative to the speed cap: the bar coasts, so the player
     // has to lead the fish instead of pinning it. This is the "less sensitive"
     // handling — small taps barely move it, and it takes about a second of hold
@@ -82,14 +85,14 @@ export function keepItInTuning(sizeCm: number): KeepItInTuning {
     // Always above `fishSpeed`. If the bar's cap sat under the fish's the fight
     // would be literally untrackable, not merely hard.
     maxSpeed: lerp(0.85, 1.25, s),
-    fishSpeed: lerp(0.5, 1.05, s),
+    fishSpeed: lerp(0.5, 1.1, s),
     fishSmooth: lerp(4.2, 7.5, s),
-    dartMin: lerp(0.8, 0.34, s),
-    dartMax: lerp(2.0, 0.95, s),
+    dartMin: lerp(0.8, 0.32, s),
+    dartMax: lerp(2.0, 0.9, s),
     dartRange: lerp(0.42, 1, s),
-    fillRate: lerp(0.44, 0.38, s),
-    drainBase: lerp(0.15, 0.2, s),
-    drainRamp: lerp(0.018, 0.03, s),
+    fillRate: lerp(0.44, 0.365, s),
+    drainBase: lerp(0.15, 0.21, s),
+    drainRamp: lerp(0.018, 0.033, s),
     drainMax: 2.4,
     startProgress: 0.4,
   };
