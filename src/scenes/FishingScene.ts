@@ -96,6 +96,7 @@ export class FishingScene extends Phaser.Scene {
   private sweepGfx!: Phaser.GameObjects.Graphics;
   private sweepFish!: Phaser.GameObjects.Image;
   private sweepText!: Phaser.GameObjects.Text;
+  private sweepWarn!: Phaser.GameObjects.Text;
   private menuOpen = false;
   private ignoreClicksUntil = 0;
   private keySpace!: Phaser.Input.Keyboard.Key;
@@ -319,7 +320,15 @@ export class FishingScene extends Phaser.Scene {
     this.sweepText = this.add
       .text(0, -DIAL_R - 34, 'THE SWEEP', { ...FONT, fontSize: '12px', color: '#ffe066' })
       .setOrigin(0.5);
-    this.sweepRoot.add([this.sweepGfx, this.sweepFish, this.sweepText]);
+    // Stands in for the old slack pips: the stake is the same every strike.
+    this.sweepWarn = this.add
+      .text(0, DIAL_R + 20, 'ONE MISS AND IT’S GONE', {
+        ...FONT,
+        fontSize: '11px',
+        color: '#ff6b6b',
+      })
+      .setOrigin(0.5);
+    this.sweepRoot.add([this.sweepGfx, this.sweepFish, this.sweepText, this.sweepWarn]);
   }
 
   private hideMinigameHud() {
@@ -623,12 +632,12 @@ export class FishingScene extends Phaser.Scene {
       this.hintText.setText(
         this.minigame === 'keepitin'
           ? 'Hold to lift the bar · Keep the fish inside it · The meter drains faster as it goes on'
-          : 'Tap as the needle crosses the green · Each hit speeds it up',
+          : 'Tap as the needle crosses the green · Each hit speeds it up · One miss and it is gone',
       );
       this.minigameHintShown = true;
     } else {
       this.hintText.setText(
-        this.minigame === 'keepitin' ? 'Hold to lift · Keep it in' : 'Tap in the green',
+        this.minigame === 'keepitin' ? 'Hold to lift · Keep it in' : 'Tap in the green · Miss once and it is gone',
       );
     }
     this.renderMinigame();
@@ -659,8 +668,9 @@ export class FishingScene extends Phaser.Scene {
     if (this.mode !== 'reeling' || !state || !cfg) return;
     const result = tapSweep(state, cfg);
     if (result === 'miss') {
-      this.cameras.main.shake(120, 0.004);
-      toast(this, this.cameras.main.width / 2, 150, 'Missed!', '#ff6b6b');
+      // No "Missed!" toast any more — the miss *is* the loss, and fishEscaped
+      // is about to say so. Two toasts at once just talked over each other.
+      this.cameras.main.shake(180, 0.006);
     } else if (result === 'perfect') {
       toast(this, this.cameras.main.width / 2, 150, 'Perfect!', '#ffe066');
     }
@@ -967,17 +977,12 @@ export class FishingScene extends Phaser.Scene {
     g.lineStyle(4, 0xffffff, 1);
     g.lineBetween(cos * (DIAL_R - 15), sin * (DIAL_R - 15), cos * (DIAL_R + 14), sin * (DIAL_R + 14));
 
-    // Hits earned along the top, slack remaining along the bottom
+    // Strikes landed, along the top. There is no slack row any more — one miss
+    // ends the fight, so the warning below the dial replaces it.
     for (let i = 0; i < cfg.hitsNeeded; i++) {
       const x = (i - (cfg.hitsNeeded - 1) / 2) * 16;
       g.fillStyle(i < state.hits ? 0xa8e6cf : 0x3a4a66, 1);
       g.fillRect(x - 5, -DIAL_R - 22, 10, 8);
-    }
-    const slack = cfg.lives - state.misses;
-    for (let i = 0; i < cfg.lives; i++) {
-      const x = (i - (cfg.lives - 1) / 2) * 16;
-      g.fillStyle(i < slack ? 0xffb3d1 : 0x3a4a66, 1);
-      g.fillRect(x - 5, DIAL_R + 14, 10, 8);
     }
 
     this.sweepText.setText(`STRIKE ${Math.min(state.hits + 1, cfg.hitsNeeded)}/${cfg.hitsNeeded}`);

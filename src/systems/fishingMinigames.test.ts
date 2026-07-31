@@ -96,7 +96,6 @@ test('The Sweep gets faster with a smaller window for bigger fish', () => {
   assert.ok(big.speedStep > small.speedStep);
   assert.ok(big.zoneWidth < small.zoneWidth, 'bigger fish have a smaller tap window');
   assert.ok(big.hitsNeeded > small.hitsNeeded);
-  assert.ok(big.lives <= small.lives);
 });
 
 test('sweep taps resolve against the arc', () => {
@@ -107,10 +106,29 @@ test('sweep taps resolve against the arc', () => {
   state.angle = state.zone;
   assert.equal(tapSweep(state, tuning, rand), 'perfect');
   assert.equal(state.hits, 1);
-  // Diametrically opposite is a miss.
+  // Diametrically opposite is a miss — and a miss is the whole fight.
   state.angle = state.zone + Math.PI;
   assert.equal(tapSweep(state, tuning, rand), 'miss');
   assert.equal(state.misses, 1);
+  assert.equal(state.outcome, 'escaped');
+});
+
+test('one missed strike loses the fish, at any size and any point in the fight', () => {
+  for (const size of SIM_SIZES) {
+    const rand = mulberry32(21 + size);
+    const tuning = sweepTuning(size);
+    const state = createSweepState(tuning, rand);
+    // Land every strike but the last, then fluff it.
+    for (let i = 0; i < tuning.hitsNeeded - 1; i++) {
+      state.angle = state.zone;
+      assert.notEqual(tapSweep(state, tuning, rand), 'miss');
+      assert.equal(state.outcome, 'playing', `${size}cm: ended early on strike ${i + 1}`);
+    }
+    state.angle = state.zone + Math.PI;
+    assert.equal(tapSweep(state, tuning, rand), 'miss');
+    assert.equal(state.outcome, 'escaped', `${size}cm: a miss should end it`);
+    assert.ok(state.hits < tuning.hitsNeeded);
+  }
 });
 
 test('The Sweep ends if the player stops tapping', () => {

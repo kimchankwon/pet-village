@@ -196,8 +196,6 @@ export function stepKeepItIn(
 export interface SweepTuning {
   /** Hits required to land the fish. */
   hitsNeeded: number;
-  /** Misses allowed before the fish shakes loose. */
-  lives: number;
   /** Needle speed in radians per second at the first hit. */
   speed: number;
   /** Added to the needle speed after every hit. */
@@ -221,12 +219,14 @@ export interface SweepTuning {
 export function sweepTuning(sizeCm: number): SweepTuning {
   const s = fishSizeNorm(sizeCm);
   return {
-    hitsNeeded: Math.round(lerp(3, 6, s)),
-    lives: Math.round(lerp(4, 3, s)),
-    speed: lerp(1.6, 3.1, s),
-    speedStep: lerp(0.22, 0.31, s),
-    zoneWidth: lerp(1.25, 0.82, s),
-    zoneShrink: lerp(0.93, 0.92, s),
+    // Every one of these is gentler than when a fight could absorb two misses.
+    // With no slack a fight is the bare product of its per-strike odds, so a
+    // long chain of tight windows stops being hard and starts being hopeless.
+    hitsNeeded: Math.round(lerp(3, 5, s)),
+    speed: lerp(1.6, 2.4, s),
+    speedStep: lerp(0.22, 0.25, s),
+    zoneWidth: lerp(1.25, 0.85, s),
+    zoneShrink: lerp(0.93, 0.95, s),
     perfectFraction: 0.18,
     idleLimit: 9,
   };
@@ -299,8 +299,10 @@ export function tapSweep(
   state.sinceTap = 0;
   const off = Math.abs(angleDelta(state.angle, state.zone));
   if (off > state.zoneWidth / 2) {
+    // One miss ends it. There is no slack to spend, which is why the windows
+    // below are wider and the strike counts lower than when misses were cheap.
     state.misses += 1;
-    if (state.misses >= tuning.lives) state.outcome = 'escaped';
+    state.outcome = 'escaped';
     return 'miss';
   }
   state.hits += 1;
