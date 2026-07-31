@@ -7,13 +7,15 @@ export default defineConfig({
   base: '/pet-village/',
   plugins: [react()],
   build: {
-    // The guide and controls pages are plain static HTML, but they still have to
-    // be listed here or the Pages deploy (which publishes `dist`) drops them.
+    // The guide, controls and fishing-prototype pages are plain static HTML, but
+    // they still have to be listed here or the deploy (which publishes `dist`)
+    // drops them.
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
         guide: resolve(__dirname, 'guide.html'),
         controls: resolve(__dirname, 'controls.html'),
+        fishingPrototypes: resolve(__dirname, 'fishing-prototypes.html'),
       },
     },
   },

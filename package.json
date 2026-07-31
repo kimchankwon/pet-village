@@ -1,7 +1,7 @@
 {
   "name": "pet-village",
   "private": true,
-  "version": "1.27.0",
+  "version": "1.28.0",
   "type": "module",
   "workspaces": [
     "packages/*",
@@ -14,6 +14,7 @@
     "build": "npm run build -w @pet-village/multiplayer-protocol && npm run build -w multiplayer-server && tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run && npx tsx --test scripts/lib/*.test.mjs src/systems/*.test.ts && npm test -w @pet-village/multiplayer-protocol && npm test -w multiplayer-server",
+    "sim:fishing": "tsx scripts/fishing-sim.mts",
     "smoke:sled": "tsx scripts/sled-smoke.mts",
     "smoke:worlds": "tsx scripts/smoke-multiplayer-worlds.mts",
     "smoke:presence": "tsx scripts/sanity-chat-log-presence.mts",
