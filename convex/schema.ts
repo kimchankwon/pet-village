@@ -56,6 +56,7 @@ export default defineSchema({
     bestPaperToss: v.number(),
     biggestCatch: v.optional(v.number()),
     bestSkipRope: v.optional(v.number()),
+    expeditionWins: v.optional(v.record(v.string(), v.number())),
     ownedAccessories: v.optional(v.array(v.string())),
     equippedAccessories: equippedAccessoriesValidator,
     penguinColor: v.optional(v.string()),

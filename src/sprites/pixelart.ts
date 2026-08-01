@@ -1305,6 +1305,29 @@ const BUMP_ARENA: Grid = [
   '................',
 ];
 
+/**
+ * Expedition booth — canvas-and-easel duelling tent.
+ * Reads as "painting / Clair Obscur" without needing Imagine.
+ */
+const EXPEDITION_BOOTH: Grid = [
+  '................',
+  '....kWWWWWWk....',
+  '...kWyyyyyyWk...',
+  '..kWyyRRRRyyWk..',
+  '..kWyRRkkRRyWk..',
+  '..kWyyRRRRyyWk..',
+  '...kWyyyyyyWk...',
+  '....kkkkkkkk....',
+  '.....n....n.....',
+  '.....n.yy.n.....',
+  '..kk.n.yR.n.kk..',
+  '.kssk.yyyy.kssk.',
+  '.ksskkkkkkkkssk.',
+  '..kk........kk..',
+  '................',
+  '................',
+];
+
 // ---- Minigame + misc ----
 const PAPERBALL: Grid = [
   '........',
@@ -2018,6 +2041,7 @@ export function generateTextures(scene: Phaser.Scene) {
     if (!scene.textures.exists('get-arcade')) makeTexture(scene, 'get-arcade', [GET_ARCADE]);
     if (!scene.textures.exists('skiprope-booth')) makeTexture(scene, 'skiprope-booth', [SKIPROPE_BOOTH]);
     if (!scene.textures.exists('sled-hill')) makeTexture(scene, 'sled-hill', [SLED_HILL]);
+    if (!scene.textures.exists('expedition-booth')) makeTexture(scene, 'expedition-booth', [EXPEDITION_BOOTH]);
     makeTexture(scene, 'paperball', [PAPERBALL]);
     makeTexture(scene, 'bin', [BIN]);
     makeTexture(scene, 'music-note-crotchet', [MUSIC_NOTE_CROTCHET]);
@@ -2125,6 +2149,7 @@ export function generateTextures(scene: Phaser.Scene) {
     ['oceanfish-rare', OCEAN_FISH_RARE],
     ['clothes-rack', CLOTHES_RACK],
     ['bump-arena', BUMP_ARENA],
+    ['expedition-booth', EXPEDITION_BOOTH],
   ];
   for (const [key, grid] of outdoor) {
     if (!scene.textures.exists(key)) makeTexture(scene, key, [grid]);

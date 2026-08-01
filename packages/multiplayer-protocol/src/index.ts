@@ -1,6 +1,6 @@
 import { MapSchema, Schema, defineTypes } from '@colyseus/schema';
 
-export const PROTOCOL_VERSION = 9 as const;
+export const PROTOCOL_VERSION = 10 as const;
 export const TICKET_ISSUER = 'pet-village-convex';
 export const TICKET_AUDIENCE = 'pet-village-multiplayer';
 export const ROOM_NAME = 'town_default';
@@ -53,6 +53,7 @@ export const WORLD_SCENE_NAMED_SPAWNS = {
     town: { x: 2 * 48, y: 7.5 * 48 },
     arcade: { x: 7 * 48, y: 4.5 * 48 },
     get: { x: 16 * 48, y: 4.5 * 48 },
+    expedition: { x: 21 * 48, y: 4.5 * 48 },
   },
   'daniels-shop': { default: { x: 288, y: 498 } },
   'cafe-cinnamon': { default: { x: 288, y: 498 } },
@@ -82,7 +83,15 @@ export const CHAT_MAX_LENGTH = 120;
 /** The server's floor between two messages from the same player. */
 export const CHAT_COOLDOWN_MS = 600;
 export type Facing = 'up' | 'down' | 'side';
-export const GAME_ACTIVITIES = ['fishing', 'get', 'bump', 'skip-rope', 'paper-toss', 'sled-run'] as const;
+export const GAME_ACTIVITIES = [
+  'fishing',
+  'get',
+  'bump',
+  'skip-rope',
+  'paper-toss',
+  'sled-run',
+  'expedition',
+] as const;
 export type GameActivity = (typeof GAME_ACTIVITIES)[number];
 export type MovePayload = {scene:WorldScene;x:number;y:number;petX:number;petY:number;facing:Facing;moving:boolean;seq:number};
 export type ActivityPose = Omit<MovePayload, 'scene' | 'seq'>;

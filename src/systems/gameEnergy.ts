@@ -14,6 +14,7 @@
 import type { SledDifficulty } from '@pet-village/multiplayer-protocol';
 import type { BumpDifficulty, PaperTossDifficulty } from './GameState';
 import type { GetDifficulty } from './getGameRules';
+import { expeditionMinEnergy } from './expeditionRules';
 
 /** A bout is short and win-or-lose; paid up front, walking away doesn't refund. */
 export const BUMP_ENERGY_COST: Record<BumpDifficulty, number> = {
@@ -68,6 +69,12 @@ export const SKIP_ROPE_ENERGY_COST = 10;
  */
 export const FISHING_ENERGY_PER_CAST = 4;
 
+/**
+ * Expedition energy is per character × difficulty — re-exported from the
+ * rules module so booths and GameState share one table.
+ */
+export { energyCost as expeditionEnergyCost, expeditionMinEnergy } from './expeditionRules';
+
 /** Scene keys of the games that charge energy — a park booth must name one. */
 export const MINI_GAME_KEYS = [
   'Bump',
@@ -76,6 +83,7 @@ export const MINI_GAME_KEYS = [
   'PaperToss',
   'SkipRope',
   'Fishing',
+  'Expedition',
 ] as const;
 export type MiniGameKey = (typeof MINI_GAME_KEYS)[number];
 
@@ -94,6 +102,7 @@ export const GAME_MIN_ENERGY: Record<MiniGameKey, number> = {
   PaperToss: cheapest(PAPER_TOSS_ENERGY_COST),
   SkipRope: SKIP_ROPE_ENERGY_COST,
   Fishing: FISHING_ENERGY_PER_CAST,
+  Expedition: expeditionMinEnergy(),
 };
 
 /** One wording for every refusal, so being tired always reads the same way. */

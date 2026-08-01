@@ -19,8 +19,8 @@ import {
   worldSceneSpawn,
 } from '../src/index.ts';
 
-test('protocol v9 validates scene-scoped moves within each world bounds', () => {
-  assert.equal(PROTOCOL_VERSION, 9);
+test('protocol v10 validates scene-scoped moves within each world bounds', () => {
+  assert.equal(PROTOCOL_VERSION, 10);
   // Expanded ice town: 32×22, parks/shore 24×16.
   assert.deepEqual(TOWN_BOUNDS, { width: 1536, height: 1056 });
   assert.deepEqual(WORLD_SCENES, [
@@ -43,10 +43,25 @@ test('world spawn lookup ignores inherited property names', () => {
 });
 
 test('protocol accepts only known multiplayer game activities', () => {
-  assert.deepEqual(GAME_ACTIVITIES, ['fishing', 'get', 'bump', 'skip-rope', 'paper-toss', 'sled-run']);
+  assert.deepEqual(GAME_ACTIVITIES, [
+    'fishing',
+    'get',
+    'bump',
+    'skip-rope',
+    'paper-toss',
+    'sled-run',
+    'expedition',
+  ]);
   assert.equal(isGameActivity('fishing'), true);
+  assert.equal(isGameActivity('expedition'), true);
   assert.equal(isGameActivity('not-a-game'), false);
   assert.equal(isGameActivity(''), false);
+});
+
+test('east-green has an expedition named spawn', () => {
+  const spawn = worldSceneSpawn('east-green', 'expedition');
+  assert.equal(spawn.x, 21 * 48);
+  assert.equal(spawn.y, 4.5 * 48);
 });
 
 test('protocol v4 clients keep existing player fields during the v7 rollout', () => {

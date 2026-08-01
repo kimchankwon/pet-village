@@ -704,7 +704,7 @@ export class WestParkScene extends ParkScene {
   }
 }
 
-/** East Green — right of town: Paper Toss and Get arcade games. */
+/** East Green — right of town: Paper Toss, Get, and Expedition duels. */
 export class EastParkScene extends ParkScene {
   constructor() {
     super({
@@ -738,9 +738,22 @@ export class EastParkScene extends ParkScene {
           radius: 110,
           solid: [150, 100, 24],
         },
+        {
+          texture: 'expedition-booth',
+          label: 'Expedition',
+          prompt: 'E / Space / click — Expedition',
+          sceneKey: 'Expedition',
+          spawnId: 'expedition',
+          tx: 21,
+          ty: 3.4,
+          displayH: BOOTH_DISPLAY_H,
+          radius: 110,
+          solid: [150, 100, 24],
+        },
       ],
       decor: [
-        { tex: 'tree', tx: 22.2, ty: 1.8, displayH: TREE_DISPLAY_H, solid: [48, 36, 22] },
+        // Tree nudged right to clear the Expedition booth silhouette.
+        { tex: 'tree', tx: 23.0, ty: 1.6, displayH: TREE_DISPLAY_H, solid: [48, 36, 22] },
         { tex: 'tree', tx: 2.2, ty: 13.2, displayH: TREE_DISPLAY_H, solid: [48, 36, 22] },
         { tex: 'tree', tx: 22, ty: 13, displayH: TREE_DISPLAY_H * 0.95, solid: [46, 34, 20] },
         { tex: 'bush', tx: 4.5, ty: 1.7, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 24, 8] },
@@ -752,7 +765,8 @@ export class EastParkScene extends ParkScene {
         { tex: 'bench', tx: 7.5, ty: 10.6, displayH: PROP_DISPLAY_H, solid: [90, 32, 8] },
         { tex: 'bench', tx: 15.5, ty: 10.6, displayH: PROP_DISPLAY_H, solid: [90, 32, 8] },
         { tex: 'streetlamp', tx: 11.5, ty: 6.2, displayH: LAMP_DISPLAY_H, solid: [22, 20, 28] },
-        { tex: 'barrel', tx: 20.5, ty: 5.8, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 34, 6] },
+        // Barrel moved left so the third booth has path-side clearance.
+        { tex: 'barrel', tx: 3.5, ty: 5.8, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 34, 6] },
         { tex: 'rock', tx: 19.5, ty: 14, displayH: PROP_DISPLAY_H * 0.85, solid: [40, 28, 6] },
       ],
     });

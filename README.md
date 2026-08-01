@@ -76,15 +76,17 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   into a bed to restore energy.
 - **Energy gates every mini-game.** Each booth charges up front and refuses a
   pet that can't cover it: 5–12 for a Bump bout, a Get track or a sled race,
-  10 for a Skip Rope run, 10–18 for a Paper Toss run, and 4 for each fishing
-  cast. The booth outside turns you away, unaffordable difficulties are greyed
-  out where a game has them, and retry buttons say what's needed. Every cost
-  lives in `src/systems/gameEnergy.ts`; the payouts stay with their own games
-  (`GameState`, `getGameRules`, `sledRunRewards`, `fishingRules`), and
-  `gameEnergy.test.ts` holds them against each other — a winning run at the
-  five coin-paying booths is worth roughly 1.2–2.2 coins per energy, so none
-  of them is a better farm than the rest. Fishing is the exception by design:
-  it pays a fish and a cheer rather than coins.
+  8–21 for an Expedition duel (by foe × difficulty), 10 for a Skip Rope run,
+  10–18 for a Paper Toss run, and 4 for each fishing cast. The booth outside
+  turns you away, unaffordable difficulties are greyed out where a game has
+  them, and retry buttons say what's needed. Every cost lives in
+  `src/systems/gameEnergy.ts`; the payouts stay with their own games
+  (`GameState`, `getGameRules`, `sledRunRewards`, `fishingRules`,
+  `expeditionRules`), and `gameEnergy.test.ts` holds them against each other —
+  a winning run at the shorter coin-paying booths is worth roughly 1.2–2.2
+  coins per energy. Expedition sits above that band on purpose (long boss
+  fights). Fishing is the exception by design: it pays a fish and a cheer
+  rather than coins.
 - **Daniel's Shop** — walk up to the shop building and step inside;
   Daniel the bunny waits at the counter selling food and furniture for
   coins, including the SVT Lightstick VER.3 Anniversary for superfan
@@ -109,6 +111,17 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   arrows, A/D, or either side of the touchscreen to catch notes and dodge poop
   across newly randomized Easy, Normal, and Hard tracks. Each run costs 5, 8,
   or 12 energy respectively; easier modes give your pet a wider catching bowl.
+- **Expedition** is the third East Green booth — a Clair Obscur-style duel.
+  Pick Gustave, Maelle or Renoir, then Easy / Normal / Hard. Your turn: choose
+  from all six abilities (unaffordable ones stay visible but dimmed and show
+  the mana needed), then land taps on a rotating-ring QTE with a fixed-size
+  hit zone per difficulty. Their turn: each hit is its own circle near the
+  centre — dodge (`X` / left) or parry (`C` / right); parry is tighter but
+  pays mana and a full-chain parry counters. Bosses have three HP phases and
+  signature mechanics (Gustave charge, Maelle stances, Renoir's canvas heal).
+  Wins are counted in `expeditionWins`; Flawless (full HP) pays +50% coins.
+  Combat logic lives in pure modules under `src/systems/expedition*` so balance
+  is covered by tests without a browser.
 - **Fishing** at the Shore: drag to aim the cast the way you throw in Paper
   Toss, then click the moment the line dips. A bite always becomes a fight —
   there is no decoy nibble that eats your bait. Hooking rolls one of two games
