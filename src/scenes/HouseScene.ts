@@ -131,8 +131,8 @@ export class HouseScene extends Phaser.Scene {
     bottomButtons(
       this,
       [
-        { label: '[ Inventory · I ]', onTap: () => { if (!this.menuOpen && !this.placing) this.openInventory(); } },
-        { label: '[ Pet · P ]', onTap: () => { if (!this.menuOpen && !this.placing) this.openPetMenuInHouse(); } },
+        { label: '[ Inventory · I ]', shortLabel: '[Inv]', onTap: () => { if (!this.menuOpen && !this.placing) this.openInventory(); } },
+        { label: '[ Pet · P ]', shortLabel: '[Pet]', onTap: () => { if (!this.menuOpen && !this.placing) this.openPetMenuInHouse(); } },
       ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;

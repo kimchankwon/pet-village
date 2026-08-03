@@ -3,6 +3,9 @@ import { State } from './GameState';
 import { blockUi, isPointerUiBlocked, unblockUi } from './nav';
 import { isPortraitDesign, joystickAnchor } from '../game/viewport';
 import { markAsUi } from './cameraZoom';
+import { isBottomButtonsCompact } from './bottomButtonsPolicy';
+
+export { isBottomButtonsCompact } from './bottomButtonsPolicy';
 
 const FONT = { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' };
 const FONT_SM = { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff' };
@@ -508,20 +511,40 @@ export class Menu {
   }
 }
 
+export type BottomButtonDef = {
+  /** Full desktop label, e.g. `[ Inventory · I ]`. */
+  label: string;
+  /**
+   * Compact label for phones / narrow canvases. When omitted, `label` is used
+   * and only the type size shrinks.
+   */
+  shortLabel?: string;
+  onTap: () => void;
+};
+
+export function bottomButtonsCompact(scene: Phaser.Scene): boolean {
+  const cam = scene.cameras.main;
+  return isBottomButtonsCompact({
+    touch: Boolean(scene.sys.game.device.input.touch),
+    width: cam.width,
+    height: cam.height,
+  });
+}
+
+/**
+ * Bottom-right action chips (Inventory / Pet / Chat / Dance).
+ * Desktop: full labels. Mobile/narrow: shorter labels + smaller type so four
+ * chips still fit beside the left-hand joystick.
+ */
 export function bottomButtons(
   scene: Phaser.Scene,
-  buttons: { label: string; onTap: () => void }[],
+  buttons: BottomButtonDef[],
   before: () => void,
 ) {
-  const cam = scene.cameras.main;
-  // Bottom-right, clear of the touch joystick on the left.
-  const pad = 16;
-  let x = cam.width - pad;
-  const y = cam.height - pad - 18;
   const nodes: Phaser.GameObjects.Text[] = [];
   for (const def of buttons) {
     const b = scene.add
-      .text(x, y, def.label, {
+      .text(0, 0, def.label, {
         ...FONT,
         fontSize: '17px',
         color: '#ffe066',
@@ -540,19 +563,28 @@ export function bottomButtons(
       def.onTap();
     });
     nodes.push(b);
-    x -= b.width + 12;
   }
   markAsUi(scene, ...nodes);
 
   const relayout = () => {
     const c = scene.cameras.main;
+    const compact = bottomButtonsCompact(scene);
+    const pad = compact ? 10 : 16;
+    const gap = compact ? 6 : 12;
+    const fontSize = compact ? '12px' : '17px';
+    const padding = compact ? { x: 7, y: 6 } : { x: 12, y: 9 };
     let rx = c.width - pad;
-    const ry = c.height - pad - 18;
-    for (const b of nodes) {
+    const ry = c.height - pad - (compact ? 14 : 18);
+    nodes.forEach((b, i) => {
+      const def = buttons[i]!;
+      const text = compact && def.shortLabel ? def.shortLabel : def.label;
+      b.setStyle({ ...FONT, fontSize, color: '#ffe066', backgroundColor: '#1a1a2ecc', padding });
+      b.setText(text);
       b.setPosition(rx, ry);
-      rx -= b.width + 12;
-    }
+      rx -= b.width + gap;
+    });
   };
+  relayout();
   scene.scale.on('resize', relayout);
   scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
     scene.scale.off('resize', relayout);

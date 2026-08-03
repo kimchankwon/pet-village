@@ -213,10 +213,10 @@ export class TownScene extends Phaser.Scene {
     bottomButtons(
       this,
       [
-        { label: '[ Inventory · I ]', onTap: () => { if (!this.menuOpen) this.openInventory(); } },
-        { label: '[ Pet · P ]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } },
-        // Same composer T opens, for a player who is tapping rather than typing.
-        { label: '[ Chat · T ]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.openChat(); } },
+        { label: '[ Inventory · I ]', shortLabel: '[Inv]', onTap: () => { if (!this.menuOpen) this.openInventory(); } },
+        { label: '[ Pet · P ]', shortLabel: '[Pet]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } },
+        { label: '[ Chat · T ]', shortLabel: '[Chat]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.openChat(); } },
+        { label: '[ Dance · N ]', shortLabel: '[Dance]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.toggleLocalDance(); } },
       ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;
