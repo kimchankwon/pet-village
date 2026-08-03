@@ -3,6 +3,7 @@ import { ACCESSORIES, type AccessoryId, type AccessorySlot } from '../systems/ac
 import { CHARACTER_PENGUIN_DISPLAY_HEIGHT } from '../systems/characterScale';
 import { State } from '../systems/GameState';
 import {
+  LOCAL_PENGUIN_DANCE_TEXTURE_KEY,
   LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
   normalizePenguinColor,
   remotePenguinTextureKey,
@@ -1582,6 +1583,9 @@ export const PENGUIN_PLATE_KEY = (facing: 'down' | 'up' | 'side', frame: 0 | 1 |
 /** Raised-flipper wave poses; frame 0 of the wave is the idle down plate. */
 export const PENGUIN_WAVE_PLATE_KEY = (frame: 1 | 2 | 3) => `penguin-plate-wave-${frame}`;
 const PENGUIN_WAVE_PLATE_FRAMES = [1, 2, 3] as const;
+/** Classic Club Penguin dance loop (all four frames are dance poses). */
+export const PENGUIN_DANCE_PLATE_KEY = (frame: 1 | 2 | 3 | 4) => `penguin-plate-dance-${frame}`;
+const PENGUIN_DANCE_PLATE_FRAMES = [1, 2, 3, 4] as const;
 
 const PENGUIN_FACINGS = ['down', 'up', 'side'] as const;
 /** 0 = idle plant (stop); 1–2 = alternating mid-stride walk. */
@@ -1599,6 +1603,14 @@ export function hasPenguinWavePlates(scene: Phaser.Scene): boolean {
   return (
     hasPenguinPlates(scene) &&
     PENGUIN_WAVE_PLATE_FRAMES.every((frame) => scene.textures.exists(PENGUIN_WAVE_PLATE_KEY(frame)))
+  );
+}
+
+/** True when Boot preloaded the plate-resolution dance poses. */
+export function hasPenguinDancePlates(scene: Phaser.Scene): boolean {
+  return (
+    hasPenguinPlates(scene) &&
+    PENGUIN_DANCE_PLATE_FRAMES.every((frame) => scene.textures.exists(PENGUIN_DANCE_PLATE_KEY(frame)))
   );
 }
 
@@ -1846,6 +1858,58 @@ function makeWaveTexture(
   makeAuthoredWaveTexture(scene, key, color, referenceKey, includeClothes);
 }
 
+/**
+ * Dance spritesheet from Imagine plates: four looping dance poses (no idle
+ * lead-in — the player is already standing when they press N).
+ */
+function makeDanceTextureFromPlates(
+  scene: Phaser.Scene,
+  key: string,
+  color: string,
+  includeClothes: boolean,
+) {
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  if (!hasPenguinDancePlates(scene)) return;
+  const palette = PENGUIN_COLORS[normalizePenguinColor(color)] ?? PENGUIN_COLORS.blue!;
+  const body = hexToRgb(palette.v);
+  const shade = hexToRgb(palette.V);
+  const hi = hexToRgb(palette.u);
+  const frameKeys = PENGUIN_DANCE_PLATE_FRAMES.map((frame) => PENGUIN_DANCE_PLATE_KEY(frame));
+  const first = scene.textures.get(frameKeys[0]!).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+  const fw = first.width;
+  const fh = first.height;
+  const sheet = document.createElement('canvas');
+  sheet.width = fw * frameKeys.length;
+  sheet.height = fh;
+  const sctx = sheet.getContext('2d')!;
+  const previous = { v: PALETTE.v!, V: PALETTE.V!, u: PALETTE.u! };
+  setPenguinPalette(normalizePenguinColor(color));
+  frameKeys.forEach((frameKey, index) => {
+    const source = scene.textures.get(frameKey).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    const tmp = document.createElement('canvas');
+    tmp.width = fw;
+    tmp.height = fh;
+    const tctx = tmp.getContext('2d')!;
+    tctx.imageSmoothingEnabled = false;
+    tctx.drawImage(source as CanvasImageSource, 0, 0, fw, fh);
+    const image = tctx.getImageData(0, 0, fw, fh);
+    recolorPenguinPlateData(image.data, body, shade, hi);
+    tctx.putImageData(image, 0, 0);
+    if (includeClothes) stampClothesOnPlate(tctx, 'down', fw, fh);
+    sctx.drawImage(tmp, index * fw, 0);
+  });
+  Object.assign(PALETTE, previous);
+  scene.textures.addSpriteSheet(key, sheet as unknown as HTMLImageElement, {
+    frameWidth: fw,
+    frameHeight: fh,
+  });
+  scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+}
+
+function makeDanceTexture(scene: Phaser.Scene, key: string, color: string, includeClothes: boolean) {
+  makeDanceTextureFromPlates(scene, key, color, includeClothes);
+}
+
 function makeAuthoredWaveTexture(
   scene: Phaser.Scene,
   key: string,
@@ -1964,6 +2028,7 @@ function makePenguin(scene: Phaser.Scene) {
       'penguin-down',
       true,
     );
+    makeDanceTexture(scene, LOCAL_PENGUIN_DANCE_TEXTURE_KEY, State.data.penguinColor ?? 'blue', true);
     return;
   }
   // Classic 18×20 grid fallback (pre-plate path): idle plant + 2 walk strides.
@@ -1983,6 +2048,7 @@ function makePenguin(scene: Phaser.Scene) {
     'penguin-down',
     true,
   );
+  makeDanceTexture(scene, LOCAL_PENGUIN_DANCE_TEXTURE_KEY, State.data.penguinColor ?? 'blue', true);
 }
 
 const PENGUIN_TEXTURE_KEYS = [
@@ -1990,6 +2056,7 @@ const PENGUIN_TEXTURE_KEYS = [
   'penguin-up',
   'penguin-side',
   LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
+  LOCAL_PENGUIN_DANCE_TEXTURE_KEY,
 ];
 
 /**

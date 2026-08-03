@@ -11,11 +11,13 @@ import {
   approachPointForWave,
   handleRemotePlayerPointerDown,
   canInitiateWave,
+  danceAnimationFrame,
   isNewWave,
   pendingWaveDecision,
   isNewWaveForLocalPlayer,
   normalizePenguinColor,
   positionCorrectionAction,
+  LOCAL_PENGUIN_DANCE_TEXTURE_KEY,
   LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
   remoteMovementDecision,
   remotePetMovementDecision,
@@ -191,6 +193,8 @@ export class WorldMultiplayer {
   private lastPose: PresencePose;
   private lastSentAt = -Infinity;
   private localWaveStartedAt: number | null = null;
+  /** Set while the local player is looping the Club Penguin dance (N key). */
+  private localDanceStartedAt: number | null = null;
   private pendingWave: {
     sessionId: string;
     startedAt: number;
@@ -198,6 +202,20 @@ export class WorldMultiplayer {
     aimedAt: { x: number; y: number };
   } | null = null;
   private disposed = false;
+  private readonly onDanceKeyDown = (event: KeyboardEvent) => {
+    if (this.disposed) return;
+    if (event.key.toLowerCase() !== 'n') return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    // Don't steal N while typing in chat or another field.
+    const target = event.target;
+    if (target instanceof HTMLElement) {
+      const tag = target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return;
+    }
+    if (this.chatComposer.isOpen() || isUiBlocked()) return;
+    event.preventDefault();
+    this.toggleLocalDance();
+  };
 
   constructor(scene: Phaser.Scene, options: WorldMultiplayerOptions) {
     this.scene = scene;
@@ -210,6 +228,7 @@ export class WorldMultiplayer {
     this.networkOffsetX = options.networkOffsetX ?? 0;
     this.networkOffsetY = options.networkOffsetY ?? 0;
     this.depthFor = options.depthFor ?? feetDepth;
+    window.addEventListener('keydown', this.onDanceKeyDown);
     this.localMarker = scene.add
       .ellipse(this.localPlayer.x, this.localPlayer.y + 12, 46, 18, 0x2d8cff, 0.34)
       .setStrokeStyle(3, 0x66b6ff, 0.98)
@@ -310,7 +329,10 @@ export class WorldMultiplayer {
       this.depthFor(this.localPlayer) + 3,
       now,
     );
+    // Walking cancels the dance (Club Penguin style: move to stop).
+    if (moving && this.localDanceStartedAt !== null) this.stopLocalDance();
     this.applyLocalWave(now);
+    this.applyLocalDance(now);
     for (const remote of this.remotes.values()) this.updateRemote(remote, now, deltaMs);
     this.updatePendingWave(now);
   }
@@ -353,10 +375,43 @@ export class WorldMultiplayer {
 
   playLocalWave() {
     if (this.disposed) return;
+    this.stopLocalDance();
     this.cancelLocalMovement();
     this.localPlayer.setVelocity(0, 0);
     this.localWaveStartedAt = this.scene.time.now;
     this.applyLocalWave(this.scene.time.now);
+  }
+
+  /** True while the local dance loop is playing. */
+  isDancing() {
+    return this.localDanceStartedAt !== null;
+  }
+
+  /**
+   * Toggle the Club Penguin dance (N). Starts a looping four-frame bounce, or
+   * stops if already dancing. Requires the Imagine dance plates in Boot.
+   */
+  toggleLocalDance() {
+    if (this.disposed) return;
+    if (this.localDanceStartedAt !== null) {
+      this.stopLocalDance();
+      return;
+    }
+    if (!this.scene.textures.exists(LOCAL_PENGUIN_DANCE_TEXTURE_KEY)) return;
+    // A one-shot wave wins over starting a dance mid-wave.
+    if (this.localWaveStartedAt !== null) return;
+    this.cancelLocalMovement();
+    this.localPlayer.setVelocity(0, 0);
+    this.localDanceStartedAt = this.scene.time.now;
+    this.applyLocalDance(this.scene.time.now);
+  }
+
+  stopLocalDance() {
+    if (this.localDanceStartedAt === null) return;
+    this.localDanceStartedAt = null;
+    // Snap back to the front idle — facing may still be side/up from a walk,
+    // but the dance is front-only art so land on down-0 until they move again.
+    this.localPlayer.stop().setFlipX(false).setTexture('penguin-down', 0);
   }
 
   waveTo(remote: RemotePresence | string) {
@@ -475,6 +530,19 @@ export class WorldMultiplayer {
     // otherwise the wave plays while the player slides.
     this.localPlayer.setVelocity(0, 0);
     this.localPlayer.stop().setFlipX(false).setTexture(LOCAL_PENGUIN_WAVE_TEXTURE_KEY, frame);
+  }
+
+  private applyLocalDance(now: number) {
+    if (this.localDanceStartedAt === null) return;
+    if (!this.scene.textures.exists(LOCAL_PENGUIN_DANCE_TEXTURE_KEY)) {
+      this.localDanceStartedAt = null;
+      return;
+    }
+    // Wave one-shot takes the sprite if both somehow race; dance yields.
+    if (this.localWaveStartedAt !== null) return;
+    const frame = danceAnimationFrame(now - this.localDanceStartedAt);
+    this.localPlayer.setVelocity(0, 0);
+    this.localPlayer.stop().setFlipX(false).setTexture(LOCAL_PENGUIN_DANCE_TEXTURE_KEY, frame);
   }
 
   private syncRows(rows: RemotePresence[]) {
@@ -694,12 +762,15 @@ export class WorldMultiplayer {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    window.removeEventListener('keydown', this.onDanceKeyDown);
     this.scene.events.off(Phaser.Scenes.Events.SHUTDOWN, this.dispose, this);
     this.scene.events.off(Phaser.Scenes.Events.DESTROY, this.dispose, this);
     this.scene.input.off(Phaser.Input.Events.POINTER_DOWN, this.cancelPendingWave, this);
     this.unsubscribe();
     this.releaseWorld();
     this.pendingWave = null;
+    this.localWaveStartedAt = null;
+    this.localDanceStartedAt = null;
     this.chatComposer.dispose();
     this.chatLog.dispose();
     this.localMarker.destroy();

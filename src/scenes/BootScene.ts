@@ -1,5 +1,10 @@
 import Phaser from 'phaser';
-import { generateTextures, PENGUIN_PLATE_KEY, PENGUIN_WAVE_PLATE_KEY } from '../sprites/pixelart';
+import {
+  generateTextures,
+  PENGUIN_DANCE_PLATE_KEY,
+  PENGUIN_PLATE_KEY,
+  PENGUIN_WAVE_PLATE_KEY,
+} from '../sprites/pixelart';
 import {
   ACCESSORY_LIST,
   accessoryAssetPath,
@@ -214,6 +219,13 @@ export class BootScene extends Phaser.Scene {
       this.load.image(
         PENGUIN_WAVE_PLATE_KEY(frame),
         `assets/player/penguin/wave-${frame}.png`,
+      );
+    }
+    // Classic Club Penguin dance loop (npm run sprite:penguin-dance).
+    for (const frame of [1, 2, 3, 4] as const) {
+      this.load.image(
+        PENGUIN_DANCE_PLATE_KEY(frame),
+        `assets/player/penguin/dance-${frame}.png`,
       );
     }
     // Outdoor hub Imagine plates (override grid fallbacks in generateTextures).

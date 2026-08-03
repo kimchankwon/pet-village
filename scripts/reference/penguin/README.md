@@ -66,6 +66,30 @@ npm run sprite:penguin-wave
 If Imagine sources are missing, the script falls back to the procedural
 `raiseFlipper` path on `down-0.png` (unit-tested in `scripts/lib/penguin-wave.test.mjs`).
 
+## Dance (Imagine)
+
+Local dance emote (keyboard **N**) uses four front-facing loop frames
+`dance-{1,2,3,4}.png` authored with Grok Imagine from the front idle:
+
+| Frame | Pose |
+|-------|------|
+| dance-1 | lean left, left flipper high |
+| dance-2 | both flippers up (cheer bounce) |
+| dance-3 | lean right, right flipper high |
+| dance-4 | both flippers out at shoulder height |
+
+```text
+scripts/reference/penguin/imagine-dance/dance-{1,2,3,4}-source.png
+```
+
+```bash
+npm run sprite:penguin-dance
+```
+
+Scale locks to idle **torso** width (belly band), not full wingspan, so
+arms-out poses keep the same body size as idle. Press **N** again or walk
+to stop; the loop does not currently sync over multiplayer.
+
 ## Refresh
 
 ```bash
@@ -73,6 +97,8 @@ If Imagine sources are missing, the script falls back to the procedural
 npm run sprite:penguin
 # Wave plates (Imagine preferred):
 npm run sprite:penguin-wave
+# Dance plates (Imagine required):
+npm run sprite:penguin-dance
 ```
 
 Poses:

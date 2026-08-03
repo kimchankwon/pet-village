@@ -16,6 +16,7 @@ import {
   remotePetMovementDecision,
   stepRemotePosition,
   waveAnimationFrame,
+  danceAnimationFrame,
   canInitiateWave,
   approachPointForWave,
   pendingWaveDecision,
@@ -183,6 +184,16 @@ test('wave timing selects authored frames and ends cleanly', () => {
   assert.equal(waveAnimationFrame(520), 2);
   assert.equal(waveAnimationFrame(650), 1);
   assert.equal(waveAnimationFrame(780), null);
+});
+
+test('dance timing loops the four authored frames', () => {
+  assert.equal(danceAnimationFrame(0), 0);
+  assert.equal(danceAnimationFrame(140), 1);
+  assert.equal(danceAnimationFrame(280), 2);
+  assert.equal(danceAnimationFrame(420), 3);
+  assert.equal(danceAnimationFrame(560), 0);
+  assert.equal(danceAnimationFrame(700), 1);
+  assert.equal(danceAnimationFrame(1_120), 0);
 });
 
 test('prefers an active Town session over a newer game session for the same user', () => {
