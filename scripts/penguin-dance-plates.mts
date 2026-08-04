@@ -109,8 +109,10 @@ function extractGifFrames() {
   const w = reader.width;
   const h = reader.height;
   const n = reader.numFrames();
+  // Runtime asks for frames 0..75 unconditionally, so a short GIF is a hard error.
   if (n !== DANCE_FRAME_COUNT) {
-    console.warn(`GIF has ${n} frames; expected ${DANCE_FRAME_COUNT}`);
+    console.error(`GIF has ${n} frames; expected exactly ${DANCE_FRAME_COUNT}`);
+    process.exit(1);
   }
   let canvas = new Uint8ClampedArray(w * h * 4);
   let prev: { disposal: number; x: number; y: number; width: number; height: number; backup: Uint8ClampedArray | null } | null =
@@ -217,14 +219,28 @@ function processPlates(frameCount: number) {
   console.log(`  sheet       → ${path.relative(process.cwd(), SHEET_OUT)}`);
 }
 
-// Prefer pre-extracted frames; re-extract from GIF when missing/incomplete.
-const existing = fs.existsSync(FRAME_DIR)
-  ? fs.readdirSync(FRAME_DIR).filter((f) => /^f\d{3}\.png$/.test(f)).length
-  : 0;
-if (existing < DANCE_FRAME_COUNT) {
+/** Names the frames f000..f075 that are missing from FRAME_DIR. */
+function missingFrames(): string[] {
+  if (!fs.existsSync(FRAME_DIR)) return [`(no ${path.relative(process.cwd(), FRAME_DIR)})`];
+  const have = new Set(fs.readdirSync(FRAME_DIR));
+  const gaps: string[] = [];
+  for (let i = 0; i < DANCE_FRAME_COUNT; i++) {
+    const name = `f${String(i).padStart(3, '0')}.png`;
+    if (!have.has(name)) gaps.push(name);
+  }
+  return gaps;
+}
+
+// Prefer pre-extracted frames; re-extract from GIF when any of f000..f075 is missing.
+if (missingFrames().length > 0) {
   extractGifFrames();
 } else {
-  console.log(`using ${existing} existing frames in ${path.relative(process.cwd(), FRAME_DIR)}`);
+  console.log(`using ${DANCE_FRAME_COUNT} existing frames in ${path.relative(process.cwd(), FRAME_DIR)}`);
 }
-const count = fs.readdirSync(FRAME_DIR).filter((f) => /^f\d{3}\.png$/.test(f)).length;
-processPlates(Math.min(count, DANCE_FRAME_COUNT));
+// Never build a short sheet: the game plays frames 0..75 and would draw blanks.
+const gaps = missingFrames();
+if (gaps.length > 0) {
+  console.error(`missing ${gaps.length} dance frame(s): ${gaps.slice(0, 8).join(', ')}`);
+  process.exit(1);
+}
+processPlates(DANCE_FRAME_COUNT);

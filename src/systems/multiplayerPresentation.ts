@@ -182,6 +182,21 @@ export function danceAnimationFrame(elapsedMs: number): number {
   return Math.floor(elapsedMs / DANCE_FRAME_MS) % DANCE_FRAME_COUNT;
 }
 
+/**
+ * Which idle pose to restore when the dance stops. Dance cells are all
+ * front-facing and unflipped, so an up/side dancer needs the pose they held
+ * when they started. A walk-cancel passes the live facing instead, and the
+ * scene sets flipX from travel direction on the same frame.
+ */
+export function danceExitPose(
+  movementFacing: 'down' | 'up' | 'side' | undefined,
+  startPose: { facing: 'down' | 'up' | 'side'; flipX: boolean } | null,
+): { facing: 'down' | 'up' | 'side'; flipX: boolean | null } {
+  if (movementFacing) return { facing: movementFacing, flipX: null };
+  if (startPose) return { facing: startPose.facing, flipX: startPose.flipX };
+  return { facing: 'down', flipX: null };
+}
+
 export function handleRemotePlayerPointerDown(
   event: Pick<Phaser.Types.Input.EventData, 'stopPropagation'>,
   cancelMovement: () => void,

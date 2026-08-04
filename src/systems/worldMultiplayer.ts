@@ -20,6 +20,7 @@ import {
   handleRemotePlayerPointerDown,
   canInitiateWave,
   danceAnimationFrame,
+  danceExitPose,
   isNewWave,
   pendingWaveDecision,
   isNewWaveForLocalPlayer,
@@ -209,6 +210,10 @@ export class WorldMultiplayer {
   private localWaveStartedAt: number | null = null;
   /** Set while the local player is looping the Club Penguin dance (N key). */
   private localDanceStartedAt: number | null = null;
+  /** Idle pose captured when the dance began, so stopping restores it. */
+  private localDanceIdlePose: { facing: WorldPose['facing']; flipX: boolean } | null = null;
+  /** Facing the scene reported last frame — the dance overwrites the sprite. */
+  private lastFacing: WorldPose['facing'] = 'down';
   private pendingWave: {
     sessionId: string;
     startedAt: number;
@@ -304,6 +309,8 @@ export class WorldMultiplayer {
   update(facing: WorldPose['facing'], moving: boolean, deltaMs: number) {
     if (this.disposed) return;
     const now = this.scene.time.now;
+    // Remembered before the N check so starting a dance can capture this pose.
+    this.lastFacing = facing;
 
     // N toggles dance — scene-scoped so overlays cannot double-fire.
     // Chat owns the keyboard while open; menus block via isUiBlocked().
@@ -417,22 +424,28 @@ export class WorldMultiplayer {
     if (this.localWaveStartedAt !== null) return;
     this.cancelLocalMovement();
     this.localPlayer.setVelocity(0, 0);
+    // Dance frames are front-facing and unflipped, so bank the pose we came from.
+    this.localDanceIdlePose = { facing: this.lastFacing, flipX: this.localPlayer.flipX };
     this.localDanceStartedAt = this.scene.time.now;
     multiplayerBridge.dance(true);
     this.applyLocalDance(this.scene.time.now);
   }
 
   /**
-   * End the dance loop. When `facing` is known (walk-cancel), restore that
-   * idle plate so we don't flash front-facing for a frame after an up/side walk.
+   * End the dance loop. `facing` is the live movement facing (walk-cancel);
+   * without it we restore the pose the player held when the dance started, so
+   * dancing while facing up or left doesn't leave them facing down or unflipped.
    */
   stopLocalDance(facing?: WorldPose['facing']) {
     if (this.localDanceStartedAt === null) return;
     this.localDanceStartedAt = null;
+    const idle = this.localDanceIdlePose;
+    this.localDanceIdlePose = null;
     multiplayerBridge.dance(false);
+    const exit = danceExitPose(facing, idle);
     const key =
-      facing === 'up' ? 'penguin-up' : facing === 'side' ? 'penguin-side' : 'penguin-down';
-    // Keep existing flipX on side-facing so left/right walk direction sticks.
+      exit.facing === 'up' ? 'penguin-up' : exit.facing === 'side' ? 'penguin-side' : 'penguin-down';
+    if (exit.flipX !== null) this.localPlayer.setFlipX(exit.flipX);
     this.localPlayer.stop().setTexture(key, 0);
     // Dance frames are 220×214; walk plates are ~477×513 — restore classic scale.
     configurePlayerPenguin(this.localPlayer);

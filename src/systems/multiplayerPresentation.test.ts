@@ -18,6 +18,7 @@ import {
   stepRemotePosition,
   waveAnimationFrame,
   danceAnimationFrame,
+  danceExitPose,
   canInitiateWave,
   approachPointForWave,
   pendingWaveDecision,
@@ -197,6 +198,26 @@ test('dance timing loops all 76 GIF frames at 100 ms', () => {
   assert.equal(danceAnimationFrame(7600), 0);
   assert.equal(danceAnimationFrame(7700), 1);
   assert.equal(danceAnimationFrame(15_200), 0);
+});
+
+test('stopping a dance returns to the pose it started from, not front-facing', () => {
+  // Dance cells are front-facing and unflipped: a left-facing dancer must not
+  // pop to facing-down (or unflip) when the loop ends.
+  assert.deepEqual(danceExitPose(undefined, { facing: 'side', flipX: true }), {
+    facing: 'side',
+    flipX: true,
+  });
+  assert.deepEqual(danceExitPose(undefined, { facing: 'up', flipX: false }), {
+    facing: 'up',
+    flipX: false,
+  });
+  // Walk-cancel: the scene owns facing and flip this frame, so leave flip alone.
+  assert.deepEqual(danceExitPose('up', { facing: 'side', flipX: true }), {
+    facing: 'up',
+    flipX: null,
+  });
+  // No captured pose (dance started before we tracked one): safe front-facing idle.
+  assert.deepEqual(danceExitPose(undefined, null), { facing: 'down', flipX: null });
 });
 
 test('prefers an active Town session over a newer game session for the same user', () => {
