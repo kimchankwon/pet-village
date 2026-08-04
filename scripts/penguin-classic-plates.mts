@@ -333,9 +333,28 @@ function fitBottomCenter(src: InstanceType<typeof PNG>, fillRatio = 0.9, addOutl
   return stripDisconnectedOutline(outlined);
 }
 
-/** Dance idle plates (already keyed, hard-edged). */
-function processDanceIdle(src: InstanceType<typeof PNG>) {
-  return fitBottomCenter(normalizeBodyToDance(src), 0.9, true);
+/** Horizontal mirror — game side art must face right (`setFlipX(vx < 0)`). */
+function flipHorizontal(src: InstanceType<typeof PNG>) {
+  const out = blank(src.width, src.height);
+  for (let y = 0; y < src.height; y++) {
+    for (let x = 0; x < src.width; x++) {
+      const c = getPx(src, x, y);
+      if (c[3]! < 20) continue;
+      setPx(out, src.width - 1 - x, y, c);
+    }
+  }
+  return out;
+}
+
+/**
+ * Dance idle plates (already keyed, hard-edged).
+ * Side stand (f07) faces left in the GIF — mirror so it faces right, matching
+ * every scene's `setFlipX(vx < 0)` convention (unflipped = east / SE / NE).
+ */
+function processDanceIdle(src: InstanceType<typeof PNG>, facing: 'down' | 'up' | 'side') {
+  let img = normalizeBodyToDance(src);
+  if (facing === 'side') img = flipHorizontal(img);
+  return fitBottomCenter(img, 0.9, true);
 }
 
 /** Tenor walk frames — key white, strip ground shadow, no hard outline. */
@@ -455,9 +474,10 @@ for (const [facing, srcPath] of Object.entries(DANCE_IDLE) as [keyof typeof DANC
     console.error(`missing ${srcPath} — run npm run sprite:penguin-dance first`);
     process.exit(1);
   }
-  const plate = processDanceIdle(PNG.sync.read(fs.readFileSync(srcPath)));
+  const plate = processDanceIdle(PNG.sync.read(fs.readFileSync(srcPath)), facing);
   fs.writeFileSync(path.join(OUT, `${facing}-0.png`), PNG.sync.write(plate));
-  console.log(`  ${facing}-0 ← ${path.relative(process.cwd(), srcPath)}`);
+  const note = facing === 'side' ? ' (mirrored → faces right)' : '';
+  console.log(`  ${facing}-0 ← ${path.relative(process.cwd(), srcPath)}${note}`);
 }
 
 // Side/up walk: same GIF so walking is the Tenor cycle in every facing.

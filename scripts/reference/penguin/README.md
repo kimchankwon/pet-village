@@ -9,7 +9,7 @@ dance emote (not the older Grok Imagine pixel plates). Shared cell size is
 | Asset | Source |
 |-------|--------|
 | **down-0** idle | Dance plate `f00` (front stand) |
-| **side-0** idle | Dance plate `f07` (side stand mid-spin) |
+| **side-0** idle | Dance plate `f07` mirrored to face **right** (scenes use `setFlipX(vx < 0)`) |
 | **up-0** idle | Dance plate `f08` (back stand mid-spin) |
 | **down/side/up 1..8** walk | Tenor Club Penguin walk GIF (8 frames @ 60 ms) |
 
