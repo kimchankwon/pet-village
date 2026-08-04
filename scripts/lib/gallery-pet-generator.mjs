@@ -32,19 +32,41 @@ function contentBounds(png, name) {
   return { x0, y0, x1, y1 };
 }
 
-/** Crop opaque content and bottom-center it on the shared 32×32 pet canvas. */
-export function toGalleryCanvas(source, { name, scaleToFit = false }) {
+/**
+ * Fit scale for one frame's content. Used alone (`scaleToFit`) or as the shared
+ * scale taken from an idle pose so walk frames do not shrink independently.
+ */
+export function fitScale(contentWidth, contentHeight) {
+  return Math.min(1, WIDTH / contentWidth, HEIGHT / contentHeight);
+}
+
+/**
+ * Crop opaque content and bottom-center it on the shared 32×32 pet canvas.
+ *
+ * @param {object} opts
+ * @param {string} opts.name
+ * @param {boolean} [opts.scaleToFit]  Per-frame fit (legacy). Prefer `scale` from
+ *   a shared idle measurement so walk bob does not resize the character.
+ * @param {number} [opts.scale]  Fixed nearest-neighbour scale applied to content.
+ *   Taller walk frames bottom-align; overflow above the canvas is clipped so
+ *   feet stay planted and body size matches idle.
+ */
+export function toGalleryCanvas(source, { name, scaleToFit = false, scale: fixedScale }) {
   const bounds = contentBounds(source, name);
   const contentWidth = bounds.x1 - bounds.x0 + 1;
   const contentHeight = bounds.y1 - bounds.y0 + 1;
-  const scale = scaleToFit
-    ? Math.min(1, WIDTH / contentWidth, HEIGHT / contentHeight)
-    : 1;
+  const scale =
+    typeof fixedScale === 'number' && Number.isFinite(fixedScale) && fixedScale > 0
+      ? fixedScale
+      : scaleToFit
+        ? fitScale(contentWidth, contentHeight)
+        : 1;
   const width = Math.max(1, Math.round(contentWidth * scale));
   const height = Math.max(1, Math.round(contentHeight * scale));
   const output = new PNG({ width: WIDTH, height: HEIGHT });
   output.data.fill(0);
   const offsetX = Math.floor((WIDTH - width) / 2);
+  // Negative when the scaled pose is taller than the plate — clip the top.
   const offsetY = HEIGHT - height;
 
   for (let y = 0; y < height; y++) {
@@ -73,15 +95,37 @@ export function generateGalleryPet({
   poses,
   completionMessage,
   scaleToFit = false,
+  /**
+   * Pose id whose content size defines the shared scale for every frame.
+   * Walk/jump art that is taller than idle keeps the same body size; extra
+   * pixels clip at the top of the 32×32 plate instead of shrinking the pet.
+   */
+  uniformScaleFrom = null,
 }) {
   // Preflight every reference and conversion before writing any output, so a
   // bad or missing mid-pose frame cannot leave the committed sprites partial.
-  const loaded = poses.map((pose) => {
+  const sources = poses.map((pose) => {
     const file = path.join(referenceDir, `${pose}.png`);
     if (!fs.existsSync(file)) throw new Error(`Missing reference frame ${file}`);
-    const source = PNG.sync.read(fs.readFileSync(file));
-    return { pose, canvas: toGalleryCanvas(source, { name, scaleToFit }) };
+    return { pose, source: PNG.sync.read(fs.readFileSync(file)) };
   });
+
+  let sharedScale;
+  if (uniformScaleFrom) {
+    const ref = sources.find((entry) => entry.pose === uniformScaleFrom);
+    if (!ref) throw new Error(`uniformScaleFrom pose missing: ${uniformScaleFrom}`);
+    const bounds = contentBounds(ref.source, name);
+    sharedScale = fitScale(bounds.x1 - bounds.x0 + 1, bounds.y1 - bounds.y0 + 1);
+  }
+
+  const loaded = sources.map(({ pose, source }) => ({
+    pose,
+    canvas: toGalleryCanvas(source, {
+      name,
+      scaleToFit: sharedScale == null && scaleToFit,
+      scale: sharedScale,
+    }),
+  }));
 
   fs.mkdirSync(outputDir, { recursive: true });
   for (const { pose, canvas } of loaded) {

@@ -73,7 +73,7 @@ describe('canonical cloud saves', () => {
     expect(names?.displayName).toBe('12345678901234567-2');
   });
 
-  test('a duplicate adoption rejects without writing a save', async () => {
+  test('a duplicate adoption claims the next free suffix so both villagers can start', async () => {
     const t = convexTest(schema, modules);
     const [firstUser, secondUser] = await t.run(async (ctx) => [
       await ctx.db.insert('users', { name: 'Alice' }),
@@ -81,7 +81,6 @@ describe('canonical cloud saves', () => {
     ] as const);
     await t.mutation((ctx) => upsertCanonicalSave(ctx, firstUser, save('Mochi')));
     // The cloud saver may create an unadopted row before the adoption flow.
-    // That is not a legacy adopted profile and must not receive a silent suffix.
     await t.run((ctx) => ctx.db.insert('saves', {
       ...save('Starter'),
       adopted: false,
@@ -90,13 +89,40 @@ describe('canonical cloud saves', () => {
       updatedAt: 1,
     } as any));
 
-    await expect(
-      t.mutation((ctx) => upsertCanonicalSave(ctx, secondUser, save('ｍＯＣＨＩ'))),
-    ).rejects.toThrow('pet name is already taken');
-    const secondSave = await t.run((ctx) =>
-      ctx.db.query('saves').withIndex('by_user', (q) => q.eq('userId', secondUser)).unique(),
+    // Fullwidth/cased collision still normalizes to the same key — second
+    // adopter receives a free suffix (validated NFKC form + "-2") instead of
+    // being stuck on the adopt screen.
+    const second = await t.mutation((ctx) =>
+      upsertCanonicalSave(ctx, secondUser, save('ｍＯＣＨＩ')),
     );
-    expect(secondSave).toMatchObject({ petName: 'Starter', adopted: false });
+    expect(second.petName).toBe('mOCHI-2');
+    const docs = await t.run(async (ctx) => ({
+      save: await ctx.db.query('saves').withIndex('by_user', (q) => q.eq('userId', secondUser)).unique(),
+      names: await ctx.db.query('multiplayerNames').withIndex('by_user', (q) => q.eq('userId', secondUser)).unique(),
+      first: await ctx.db.query('multiplayerNames').withIndex('by_user', (q) => q.eq('userId', firstUser)).unique(),
+    }));
+    expect(docs.save).toMatchObject({ petName: 'mOCHI-2', adopted: true });
+    expect(docs.names).toMatchObject({ petName: 'mOCHI-2', petNameKey: 'mochi-2' });
+    expect(docs.first).toMatchObject({ petName: 'Mochi', petNameKey: 'mochi' });
+  });
+
+  test('two villagers adopting the same default name both get unique reservations', async () => {
+    const t = convexTest(schema, modules);
+    const [u1, u2] = await t.run(async (ctx) => [
+      await ctx.db.insert('users', { name: 'Alice' }),
+      await ctx.db.insert('users', { name: 'Bob' }),
+    ] as const);
+
+    const first = await t.mutation((ctx) => upsertCanonicalSave(ctx, u1, save('Kitty')));
+    const second = await t.mutation((ctx) => upsertCanonicalSave(ctx, u2, save('Kitty')));
+    expect(first.petName).toBe('Kitty');
+    expect(second.petName).toBe('Kitty-2');
+
+    const keys = await t.run(async (ctx) => {
+      const rows = await ctx.db.query('multiplayerNames').collect();
+      return rows.map((r) => r.petNameKey).sort();
+    });
+    expect(keys).toEqual(['kitty', 'kitty-2']);
   });
 
   test('changing pets updates the canonical reservation and save together', async () => {

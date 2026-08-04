@@ -46,6 +46,61 @@ test('scales oversized content to fit with nearest-neighbour sampling', () => {
   assert.deepEqual(get(result, 31, 31), [62, 62, 100, 255]);
 });
 
+test('fixed scale keeps walk-tall content full width and bottom-aligned', () => {
+  // Idle-sized body (30×32) would use scale 1; a taller walk pose must not
+  // shrink — only clip the top of the 32×32 plate.
+  const walk = image(30, 40);
+  for (let y = 0; y < 40; y++) {
+    for (let x = 0; x < 30; x++) set(walk, x, y, [200, 100, 50, 255]);
+  }
+
+  const result = toGalleryCanvas(walk, { name: 'walk pet', scale: 1 });
+  // Bottom row fully drawn (feet planted).
+  assert.deepEqual(get(result, 1, 31), [200, 100, 50, 255]);
+  // Content is 30 wide → 1px pad each side on a 32 canvas.
+  assert.deepEqual(get(result, 0, 31), [0, 0, 0, 0]);
+  assert.deepEqual(get(result, 1, 20), [200, 100, 50, 255]);
+  assert.deepEqual(get(result, 30, 20), [200, 100, 50, 255]);
+  assert.deepEqual(get(result, 31, 20), [0, 0, 0, 0]);
+});
+
+test('uniformScaleFrom locks every pose to the idle fit scale', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gallery-uniform-'));
+  const referenceDir = path.join(root, 'reference');
+  const outputDir = path.join(root, 'output');
+  fs.mkdirSync(referenceDir);
+
+  const idle = image(30, 32);
+  for (let y = 0; y < 32; y++) {
+    for (let x = 0; x < 30; x++) set(idle, x, y, [10, 20, 30, 255]);
+  }
+  const walk = image(30, 40);
+  for (let y = 0; y < 40; y++) {
+    for (let x = 0; x < 30; x++) set(walk, x, y, [40, 50, 60, 255]);
+  }
+  fs.writeFileSync(path.join(referenceDir, 'neutral1.png'), PNG.sync.write(idle));
+  fs.writeFileSync(path.join(referenceDir, 'walk1.png'), PNG.sync.write(walk));
+
+  generateGalleryPet({
+    name: 'Uniform Pet',
+    referenceDir,
+    outputDir,
+    poses: ['neutral1', 'walk1'],
+    completionMessage: 'done',
+    uniformScaleFrom: 'neutral1',
+  });
+
+  const walkOut = PNG.sync.read(fs.readFileSync(path.join(outputDir, 'walk1.png')));
+  // Full idle width (30px content) — not the ~26px scaleToFit walk used to produce.
+  const opaqueCols = new Set();
+  for (let y = 0; y < 32; y++) {
+    for (let x = 0; x < 32; x++) {
+      if (walkOut.data[(y * 32 + x) * 4 + 3] >= 20) opaqueCols.add(x);
+    }
+  }
+  assert.equal(opaqueCols.size, 30);
+});
+
 test('preflights every input before writing any output', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gallery-pet-generator-'));
   const referenceDir = path.join(root, 'reference');

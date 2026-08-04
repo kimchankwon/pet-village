@@ -13,14 +13,16 @@
 import path from 'node:path';
 import { generateGalleryPet } from './lib/gallery-pet-generator.mjs';
 
-// Walk frames are taller than the plate, so nearest-neighbour scaling keeps ears
-// and feet visible. Exterior cleaning would damage the yellow face/white ear fur;
-// gallery outline repair would add a second pure-black ring.
+// Walk frames are a few pixels taller than idle (leg bob). Scale every pose
+// from neutral1 so the body stays the same size; extra height clips at the top
+// of the 32×32 plate instead of shrinking the whole kitty when she walks.
+// Exterior cleaning would damage the yellow face/white ear fur; gallery outline
+// repair would add a second pure-black ring.
 generateGalleryPet({
   name: 'mamekitty',
   referenceDir: path.resolve('scripts/reference/mamekitty/frames'),
   outputDir: path.resolve('public/assets/pet/mamekitty'),
   poses: ['neutral1', 'neutral2', 'walk1', 'walk2', 'happy', 'sad', 'sleep', 'jump'],
   completionMessage: "Mame Kitty P's sprites written to",
-  scaleToFit: true,
+  uniformScaleFrom: 'neutral1',
 });
