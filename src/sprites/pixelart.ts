@@ -1851,7 +1851,7 @@ function stampClothesOnPlate(
 
 /**
  * Build penguin-down/up/side spritesheets from classic CP plate textures
- * (Boot preloads `penguin-plate-*`). Keeps plate resolution; nearest filter.
+ * (Boot preloads `penguin-plate-*`). Keeps plate resolution; linear filter.
  *
  * Sheet frames: 0 = idle plant (stop), 1..8 = Tenor walk GIF cycle.
  * Walk anims play frames 1..8 at the GIF's 60 ms delay (~16.7 fps).

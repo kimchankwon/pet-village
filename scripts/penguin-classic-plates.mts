@@ -5,9 +5,9 @@
  * look) instead of the older Grok Imagine pixel plates.
  *
  * Sources:
- *   Idle down  ← dance plate f00 (same art as the dance emote)
- *   Idle side  ← scripts/reference/penguin/cp-side-angle.png
- *   Idle up    ← scripts/reference/penguin/cp-back-angle.png
+ *   Idle down  ← dance plate f00 (front stand)
+ *   Idle side  ← dance plate f07 (side stand from the spin wind-up)
+ *   Idle up    ← dance plate f08 (back stand from the spin)
  *   Walk       ← Tenor Club Penguin walk GIF (8 frames @ 60 ms)
  *                scripts/reference/penguin/cp-walk-gif/penguin-walk.gif
  *
@@ -15,9 +15,9 @@
  *   public/assets/player/penguin/down-0.png          idle front
  *   public/assets/player/penguin/down-1..8.png        walk cycle
  *   public/assets/player/penguin/side-0.png           idle side
- *   public/assets/player/penguin/side-1.png, side-2   walk (GIF frames)
+ *   public/assets/player/penguin/side-1..8.png        walk (GIF frames)
  *   public/assets/player/penguin/up-0.png             idle back
- *   public/assets/player/penguin/up-1.png, up-2       walk (GIF frames)
+ *   public/assets/player/penguin/up-1..8.png          walk (GIF frames)
  *   public/assets/player/penguin/walk/f00..f07.png    walk cells
  *   public/assets/player/penguin/walk-sheet.png       8-wide row
  *
@@ -54,7 +54,13 @@ const FRAME_DIR = path.join(ROOT, 'frames');
 const OUT = path.resolve('public/assets/player/penguin');
 const WALK_OUT = path.join(OUT, 'walk');
 const SHEET_OUT = path.join(OUT, 'walk-sheet.png');
-const DANCE_F00 = path.join(OUT, 'dance', 'f00.png');
+const DANCE_DIR = path.join(OUT, 'dance');
+/** Standing poses harvested from the dance medley (same art family as the emote). */
+const DANCE_IDLE = {
+  down: path.join(DANCE_DIR, 'f00.png'), // front plant
+  side: path.join(DANCE_DIR, 'f07.png'), // side plant mid-spin
+  up: path.join(DANCE_DIR, 'f08.png'), // back plant mid-spin
+} as const;
 
 function blank(w: number, h: number) {
   const p = new PNG({ width: w, height: h });
@@ -119,7 +125,11 @@ function keyWhiteBg(src: InstanceType<typeof PNG>) {
   return out;
 }
 
-/** Drop soft grey ground shadow wedges under the feet. */
+/**
+ * Drop soft grey ground-shadow wedges under the feet (Tenor walk plate).
+ * Applied on the full-res GIF frame and again after fit, so bilinear AA of the
+ * shadow does not reappear as a floating grey/black squiggle under the feet.
+ */
 function removeGroundShadow(src: InstanceType<typeof PNG>) {
   const out = clone(src);
   for (let y = 0; y < src.height; y++) {
@@ -130,10 +140,92 @@ function removeGroundShadow(src: InstanceType<typeof PNG>) {
       const min = Math.min(c[0]!, c[1]!, c[2]!);
       const sat = max - min;
       const lum = (c[0]! + c[1]! + c[2]!) / 3;
-      // Pure greys in the lower half of the plate = cast shadow, not belly.
-      if (sat <= 8 && lum >= 70 && lum <= 170 && y > src.height * 0.55) {
+      // Orange beak/feet and dark-brown foot tops stay.
+      const isOrange = c[0]! > 160 && c[1]! > 70 && c[2]! < 120 && c[0]! > c[2]! + 40;
+      const isFootBrown =
+        c[0]! > 70 && c[0]! < 160 && c[1]! > 30 && c[1]! < 100 && c[2]! < 50 && c[0]! > c[2]! + 30;
+      if (isOrange || isFootBrown) continue;
+      // Greys / desaturated midtones in the lower half = cast shadow (+ AA fringe).
+      if (sat <= 28 && lum >= 40 && lum <= 210 && y > src.height * 0.5) {
         setPx(out, x, y, [0, 0, 0, 0]);
       }
+    }
+  }
+  return out;
+}
+
+/**
+ * Drop near-black / desaturated islands that do not touch the coloured body.
+ * Catches both `repairExternalOutline` rims around deleted shadows and soft
+ * grey shadow AA left under the feet after the walk GIF is keyed.
+ */
+function stripDisconnectedOutline(src: InstanceType<typeof PNG>) {
+  const w = src.width;
+  const h = src.height;
+  /** Candidate junk: near-black OR desaturated midtone (shadow AA). */
+  const isJunk = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= w || y >= h) return false;
+    const c = getPx(src, x, y);
+    if (c[3]! < 20) return false;
+    const max = Math.max(c[0]!, c[1]!, c[2]!);
+    const min = Math.min(c[0]!, c[1]!, c[2]!);
+    const sat = max - min;
+    const lum = (c[0]! + c[1]! + c[2]!) / 3;
+    if (lum < 48) return true; // near-black
+    if (sat <= 28 && lum <= 190) return true; // grey shadow residue
+    return false;
+  };
+  /** Real body: saturated colour (blue / orange / brown / white belly). */
+  const isBody = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= w || y >= h) return false;
+    const c = getPx(src, x, y);
+    if (c[3]! < 20) return false;
+    if (isJunk(x, y)) return false;
+    return true;
+  };
+  const keep = new Uint8Array(w * h);
+  const queue: [number, number][] = [];
+  // Seed: junk pixels that already touch a real body pixel.
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!isJunk(x, y)) continue;
+      const touchesBody = [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+        [1, 1],
+        [-1, -1],
+        [1, -1],
+        [-1, 1],
+      ].some(([dx, dy]) => isBody(x + dx!, y + dy!));
+      if (!touchesBody) continue;
+      keep[y * w + x] = 1;
+      queue.push([x, y]);
+    }
+  }
+  // Grow through junk neighbours so a continuous rim around the body stays.
+  for (let head = 0; head < queue.length; head++) {
+    const [x, y] = queue[head]!;
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (!isJunk(nx, ny)) continue;
+      const idx = ny * w + nx;
+      if (keep[idx]) continue;
+      keep[idx] = 1;
+      queue.push([nx, ny]);
+    }
+  }
+  const out = clone(src);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (isJunk(x, y) && !keep[y * w + x]) setPx(out, x, y, [0, 0, 0, 0]);
     }
   }
   return out;
@@ -197,8 +289,13 @@ function sampleBilinear(src: InstanceType<typeof PNG>, fx: number, fy: number): 
   return [blend(0), blend(1), blend(2), Math.min(255, Math.round(a))];
 }
 
-/** Fit content into the shared cell, feet planted near the bottom edge. */
-function fitBottomCenter(src: InstanceType<typeof PNG>, fillRatio = 0.9) {
+/**
+ * Fit content into the shared cell, feet planted near the bottom edge.
+ * @param addOutline When true (dance idles), redraw a clean 1px rim. Walk GIF
+ *   frames stay soft-edged — hard outline around residual foot/shadow AA draws
+ *   floating black arcs under the feet that never read as part of the body.
+ */
+function fitBottomCenter(src: InstanceType<typeof PNG>, fillRatio = 0.9, addOutline = true) {
   const b = contentBounds(src);
   const cw = b.x1 - b.x0 + 1;
   const ch = b.y1 - b.y0 + 1;
@@ -227,19 +324,26 @@ function fitBottomCenter(src: InstanceType<typeof PNG>, fillRatio = 0.9) {
       if (c[3]! >= 20) setPx(out, ox + x, oy + y, c);
     }
   }
-  return asPng(repairExternalOutline(out, { outline: OUTLINE }));
+  if (!addOutline) {
+    // Shadow AA can reappear after bilinear fit — strip again, then drop any
+    // leftover near-black islands that never touch the coloured body.
+    return stripDisconnectedOutline(removeGroundShadow(out));
+  }
+  const outlined = asPng(repairExternalOutline(out, { outline: OUTLINE }));
+  return stripDisconnectedOutline(outlined);
 }
 
-function processPlate(src: InstanceType<typeof PNG>, alreadyKeyed = false) {
-  let img = src;
-  if (!alreadyKeyed) {
-    img = keyWhiteBg(img);
-    img = removeGroundShadow(img);
-  } else {
-    img = removeGroundShadow(img);
-  }
+/** Dance idle plates (already keyed, hard-edged). */
+function processDanceIdle(src: InstanceType<typeof PNG>) {
+  return fitBottomCenter(normalizeBodyToDance(src), 0.9, true);
+}
+
+/** Tenor walk frames — key white, strip ground shadow, no hard outline. */
+function processWalkFrame(src: InstanceType<typeof PNG>) {
+  let img = keyWhiteBg(src);
+  img = removeGroundShadow(img);
   img = normalizeBodyToDance(img);
-  return fitBottomCenter(img, 0.9);
+  return fitBottomCenter(img, 0.9, false);
 }
 
 function extractGifFrames() {
@@ -319,7 +423,7 @@ for (let i = 0; i < WALK_FRAME_COUNT; i++) {
     console.error(`missing ${srcPath}`);
     process.exit(1);
   }
-  const plate = processPlate(PNG.sync.read(fs.readFileSync(srcPath)));
+  const plate = processWalkFrame(PNG.sync.read(fs.readFileSync(srcPath)));
   walkPlates.push(plate);
   const name = `f${String(i).padStart(2, '0')}.png`;
   fs.writeFileSync(path.join(WALK_OUT, name), PNG.sync.write(plate));
@@ -345,25 +449,15 @@ for (let i = 0; i < WALK_FRAME_COUNT; i++) {
 fs.writeFileSync(SHEET_OUT, PNG.sync.write(sheet));
 console.log(`  walk-sheet → ${path.relative(process.cwd(), SHEET_OUT)}`);
 
-// Idles
-if (!fs.existsSync(DANCE_F00)) {
-  console.error(`missing ${DANCE_F00} — run npm run sprite:penguin-dance first`);
-  process.exit(1);
-}
-{
-  const plate = processPlate(PNG.sync.read(fs.readFileSync(DANCE_F00)), true);
-  fs.writeFileSync(path.join(OUT, 'down-0.png'), PNG.sync.write(plate));
-  console.log('  down-0 ← dance f00');
-}
-{
-  const plate = processPlate(PNG.sync.read(fs.readFileSync(path.join(REF, 'cp-side-angle.png'))));
-  fs.writeFileSync(path.join(OUT, 'side-0.png'), PNG.sync.write(plate));
-  console.log('  side-0 ← cp-side-angle');
-}
-{
-  const plate = processPlate(PNG.sync.read(fs.readFileSync(path.join(REF, 'cp-back-angle.png'))));
-  fs.writeFileSync(path.join(OUT, 'up-0.png'), PNG.sync.write(plate));
-  console.log('  up-0 ← cp-back-angle');
+// Idles — standing poses from the dance GIF (same body as the emote).
+for (const [facing, srcPath] of Object.entries(DANCE_IDLE) as [keyof typeof DANCE_IDLE, string][]) {
+  if (!fs.existsSync(srcPath)) {
+    console.error(`missing ${srcPath} — run npm run sprite:penguin-dance first`);
+    process.exit(1);
+  }
+  const plate = processDanceIdle(PNG.sync.read(fs.readFileSync(srcPath)));
+  fs.writeFileSync(path.join(OUT, `${facing}-0.png`), PNG.sync.write(plate));
+  console.log(`  ${facing}-0 ← ${path.relative(process.cwd(), srcPath)}`);
 }
 
 // Side/up walk: same GIF so walking is the Tenor cycle in every facing.
