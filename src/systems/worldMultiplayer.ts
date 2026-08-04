@@ -309,6 +309,10 @@ export class WorldMultiplayer {
   update(facing: WorldPose['facing'], moving: boolean, deltaMs: number) {
     if (this.disposed) return;
     const now = this.scene.time.now;
+    // `moving` describes the frame *before* the N check, so a dance started
+    // below must not be cancelled by it — otherwise pressing N mid-walk starts
+    // and stops the dance in one frame and a walking player can never dance.
+    const wasDancing = this.localDanceStartedAt !== null;
     // Remembered before the N check so starting a dance can capture this pose.
     this.lastFacing = facing;
 
@@ -350,8 +354,11 @@ export class WorldMultiplayer {
       this.depthFor(penguinDepthTarget(this.localPlayer)) + 3,
       now,
     );
-    // Walking cancels the dance (Club Penguin style: move to stop).
-    if (moving && this.localDanceStartedAt !== null) this.stopLocalDance(facing);
+    // Walking cancels the dance (Club Penguin style: move to stop) — but only a
+    // dance that was already running when this frame began.
+    if (moving && wasDancing && this.localDanceStartedAt !== null) {
+      this.stopLocalDance(facing);
+    }
     this.applyLocalWave(now);
     this.applyLocalDance(now);
     for (const remote of this.remotes.values()) this.updateRemote(remote, now, deltaMs);
@@ -832,11 +839,15 @@ export class WorldMultiplayer {
     this.scene.events.off(Phaser.Scenes.Events.SHUTDOWN, this.dispose, this);
     this.scene.events.off(Phaser.Scenes.Events.DESTROY, this.dispose, this);
     this.scene.input.off(Phaser.Input.Events.POINTER_DOWN, this.cancelPendingWave, this);
+    // Tell peers the dance ended *before* releasing world access, or a player
+    // who leaves the scene mid-dance keeps dancing on everyone else's screen.
+    if (this.localDanceStartedAt !== null) multiplayerBridge.dance(false);
     this.unsubscribe();
     this.releaseWorld();
     this.pendingWave = null;
     this.localWaveStartedAt = null;
     this.localDanceStartedAt = null;
+    this.localDanceIdlePose = null;
     this.chatComposer.dispose();
     this.chatLog.dispose();
     this.localMarker.destroy();

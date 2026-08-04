@@ -17,12 +17,15 @@ const IDLE_PLATE = path.resolve('public/assets/player/penguin/down-0.png');
 const FRAME_COUNT = 76;
 const COLS = 10;
 
-/** Mirrors PENGUIN_DISPLAY_HEIGHT / the dance ratios in src/sprites/pixelart.ts. */
-const PENGUIN_DISPLAY_HEIGHT = 60;
-const DANCE_STAND_HEIGHT_RATIO = 131 / 214;
-const DANCE_STAND_FEET_RATIO = 155.5 / 214;
-const IDLE_BODY_HEIGHT_RATIO = 503 / 513;
-const IDLE_FEET_BELOW_CENTRE_RATIO = (512.5 - 256.5) / 513;
+// The very constants the game draws with — imported, not mirrored, so a change
+// to one without the other fails here instead of shipping a mis-sized dancer.
+const {
+  CHARACTER_PENGUIN_DISPLAY_HEIGHT: PENGUIN_DISPLAY_HEIGHT,
+  DANCE_STAND_HEIGHT_RATIO,
+  DANCE_STAND_FEET_RATIO,
+  IDLE_BODY_HEIGHT_RATIO,
+  IDLE_FEET_BELOW_CENTRE_RATIO,
+} = await import('../../src/systems/characterScale.ts');
 
 /** Tight bounds of the non-transparent art inside a cell. */
 function contentBox(png, ox, oy, w, h) {

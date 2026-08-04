@@ -102,7 +102,9 @@ cell by its height (the rule the walk plates use, where the art is flush with
 the cell) therefore draws the dancer ~38% short and floating. `pixelart.ts`
 scales and anchors dance frames off the *standing* pose instead —
 `penguinDanceDrawScale` / `penguinDanceOriginY`, from the
-`DANCE_STAND_*_RATIO` constants. **Re-cropping or re-exporting the GIF means
+`DANCE_STAND_*_RATIO` constants in `src/systems/characterScale.ts` (kept there,
+free of Phaser, so the sheet test imports the same numbers the game draws
+with). **Re-cropping or re-exporting the GIF means
 re-measuring those ratios**; `scripts/lib/penguin-dance-sheet.test.mjs` fails
 if they drift from the sheet or if the dancer stops matching the idle plate's
 height and ground line.

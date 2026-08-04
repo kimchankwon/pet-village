@@ -1,6 +1,13 @@
 import Phaser from 'phaser';
 import { ACCESSORIES, type AccessoryId, type AccessorySlot } from '../systems/accessories';
-import { CHARACTER_PENGUIN_DISPLAY_HEIGHT } from '../systems/characterScale';
+import {
+  CHARACTER_PENGUIN_DISPLAY_HEIGHT,
+  DANCE_STAND_FEET_RATIO,
+  DANCE_STAND_HEIGHT_RATIO,
+  DANCE_STAND_TOP_RATIO,
+  IDLE_BODY_HEIGHT_RATIO,
+  IDLE_FEET_BELOW_CENTRE_RATIO,
+} from '../systems/characterScale';
 import { State } from '../systems/GameState';
 import {
   LOCAL_PENGUIN_DANCE_TEXTURE_KEY,
@@ -1635,28 +1642,6 @@ const CLASSIC_COLLIDER_WIDTH = 34;
 const CLASSIC_COLLIDER_HEIGHT = 16;
 const CLASSIC_COLLIDER_X = 10;
 const CLASSIC_COLLIDER_Y = 42;
-
-/**
- * How the walk plate frames its penguin: the body fills rows 10..512 of the
- * 513-row cell, so the drawn penguin is all but flush with the cell.
- */
-const IDLE_BODY_HEIGHT_RATIO = 503 / 513;
-const IDLE_FEET_BELOW_CENTRE_RATIO = (512.5 - 256.5) / 513;
-
-/**
- * How the dance sheet frames its penguin, measured from the source GIF's
- * standing pose: the body fills only rows 25..155 of the 214-row cell.
- *
- * The dance bobs between two baselines and drops into a floor spin that reaches
- * the very bottom of the cell, so the empty space below the feet is deliberate
- * and per-frame normalisation would flatten the animation. These ratios pin the
- * *standing* pose instead, and stay correct if the sheet is re-exported at a
- * different resolution.
- */
-const DANCE_STAND_HEIGHT_RATIO = 131 / 214;
-const DANCE_STAND_FEET_RATIO = 155.5 / 214;
-/** Rows above the standing pose's head — flail frames reach higher on purpose. */
-const DANCE_STAND_TOP_RATIO = 25 / 214;
 
 /**
  * How far below a penguin sprite's y its feet are planted. Every pose aligns to
