@@ -8,7 +8,6 @@ import {
   petSpeciesValidator,
 } from "./lib/validators";
 import {
-  assertProfileNamesAvailable,
   profileNameKey,
   validateDisplayName,
   validatePetName,
@@ -100,23 +99,50 @@ function stableUserSuffix(userId: Id<'users'>, salt: number) {
   return hash.toString(36).padStart(13, '0').slice(-13);
 }
 
+/** First holder of a pet-name key, if any (safe when duplicate rows exist). */
+async function petNameHolder(ctx: MutationCtx, petNameKey: string) {
+  const holders = await ctx.db
+    .query('multiplayerNames')
+    .withIndex('by_pet_name', (q) => q.eq('petNameKey', petNameKey))
+    .collect();
+  if (holders.length === 0) return null;
+  holders.sort((a, b) => a._creationTime - b._creationTime);
+  return holders[0]!;
+}
+
+/** First holder of a display-name key, if any (safe when duplicate rows exist). */
+async function displayNameHolder(ctx: MutationCtx, displayNameKey: string) {
+  const holders = await ctx.db
+    .query('multiplayerNames')
+    .withIndex('by_display_name', (q) => q.eq('displayNameKey', displayNameKey))
+    .collect();
+  if (holders.length === 0) return null;
+  holders.sort((a, b) => a._creationTime - b._creationTime);
+  return holders[0]!;
+}
+
+/**
+ * Allocate a free pet name. `rawName` may be a validated name (preferred casing
+ * kept) or a messy legacy string (cleaned via {@link legacyPetBase}).
+ */
 async function availablePetName(ctx: MutationCtx, userId: Id<'users'>, rawName: string) {
-  const base = legacyPetBase(rawName);
+  let base: string;
+  try {
+    base = validatePetName(rawName);
+  } catch {
+    base = legacyPetBase(rawName);
+  }
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const suffix = attempt === 0 ? '' : `-${attempt + 1}`;
     const candidate = `${truncateForSuffix(base, 16 - suffix.length).trimEnd()}${suffix}`;
-    const owner = await ctx.db
-      .query('multiplayerNames')
-      .withIndex('by_pet_name', (q) => q.eq('petNameKey', profileNameKey(candidate)))
-      .unique();
+    // Suffix can re-introduce characters validatePetName would reject only if
+    // base was legacy-cleaned; validated bases stay legal with "-N".
+    const owner = await petNameHolder(ctx, profileNameKey(candidate));
     if (!owner || owner.userId === userId) return candidate;
   }
   for (let salt = 0; salt < 100; salt += 1) {
     const candidate = `P-${stableUserSuffix(userId, salt)}`;
-    const owner = await ctx.db
-      .query('multiplayerNames')
-      .withIndex('by_pet_name', (q) => q.eq('petNameKey', profileNameKey(candidate)))
-      .unique();
+    const owner = await petNameHolder(ctx, profileNameKey(candidate));
     if (!owner || owner.userId === userId) return candidate;
   }
   throw new Error('Could not allocate a unique pet name');
@@ -132,18 +158,12 @@ async function availableDisplayName(ctx: MutationCtx, userId: Id<'users'>, rawNa
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const suffix = attempt === 0 ? '' : `-${attempt + 1}`;
     const candidate = `${truncateForSuffix(base, 20 - suffix.length).trimEnd()}${suffix}`;
-    const owner = await ctx.db
-      .query('multiplayerNames')
-      .withIndex('by_display_name', (q) => q.eq('displayNameKey', profileNameKey(candidate)))
-      .unique();
+    const owner = await displayNameHolder(ctx, profileNameKey(candidate));
     if (!owner || owner.userId === userId) return candidate;
   }
   for (let salt = 0; salt < 100; salt += 1) {
     const candidate = `Player-${stableUserSuffix(userId, salt)}`;
-    const owner = await ctx.db
-      .query('multiplayerNames')
-      .withIndex('by_display_name', (q) => q.eq('displayNameKey', profileNameKey(candidate)))
-      .unique();
+    const owner = await displayNameHolder(ctx, profileNameKey(candidate));
     if (!owner || owner.userId === userId) return candidate;
   }
   throw new Error('Could not allocate a unique player name');
@@ -203,24 +223,20 @@ export async function upsertCanonicalSave(
       petName = ownNames.petName;
       petNameKey = ownNames.petNameKey;
       legacyPetNameKey = ownNames.legacyPetNameKey;
+    } else if (provisioningLegacySave) {
+      // Pre-names-table adopted saves may have invalid / colliding pet names.
+      petName = await availablePetName(ctx, userId, args.petName);
+      petNameKey = profileNameKey(petName);
+      legacyPetNameKey = incomingPetNameKey !== petNameKey ? incomingPetNameKey : undefined;
     } else {
-      petName = provisioningLegacySave
-        ? await availablePetName(ctx, userId, args.petName)
-        : validatePetName(args.petName);
+      // Fresh adoption (including change-pet). Validate the requested name,
+      // then reserve it — or the next free suffix if two villagers pick the
+      // same default at once. Explicit renames still go through profiles.
+      const requested = validatePetName(args.petName);
+      petName = await availablePetName(ctx, userId, requested);
       petNameKey = profileNameKey(petName);
       const retainingCanonicalName = ownNames?.petNameKey === petNameKey;
-      legacyPetNameKey = provisioningLegacySave && incomingPetNameKey !== petNameKey
-        ? incomingPetNameKey
-        : retainingCanonicalName
-          ? ownNames?.legacyPetNameKey
-          : undefined;
-    }
-    if (!provisioningLegacySave && !replayingLegacyName && !retainingExistingCanonicalName) {
-      const reservedPet = await ctx.db
-        .query("multiplayerNames")
-        .withIndex("by_pet_name", (q) => q.eq("petNameKey", petNameKey!))
-        .unique();
-      assertProfileNamesAvailable(userId, undefined, reservedPet?.userId);
+      legacyPetNameKey = retainingCanonicalName ? ownNames?.legacyPetNameKey : undefined;
     }
     if (!displayName || !displayNameKey) {
       displayName = await availableDisplayName(ctx, userId, user?.name);
@@ -245,6 +261,14 @@ export async function upsertCanonicalSave(
       await ctx.db.patch(ownNames._id, namesPayload);
     } else {
       await ctx.db.insert("multiplayerNames", { userId, ...namesPayload });
+    }
+    // Concurrent adopters can both pass availablePetName before either insert
+    // lands. The older multiplayerNames row wins; throwing aborts this whole
+    // mutation (Convex rolls the save + names write back) so the client can
+    // retry and receive a free suffix.
+    const holder = await petNameHolder(ctx, petNameKey);
+    if (holder && holder.userId !== userId) {
+      throw new Error('That pet name is already taken');
     }
     // Password sign-ups have no provider name, so `viewer.name` would stay
     // undefined until a rename and the topbar would disagree with the nametag.

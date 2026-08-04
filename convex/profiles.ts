@@ -17,24 +17,26 @@ export const updateMine = mutation({
     const display = { name: names.displayName, key: profileNameKey(names.displayName) };
     const pet = { name: names.petName, key: profileNameKey(names.petName) };
 
-    const [reservedDisplay, reservedPet, existing, save] = await Promise.all([
+    const [displayHolders, petHolders, existing, save] = await Promise.all([
       ctx.db
         .query('multiplayerNames')
         .withIndex('by_display_name', (q) => q.eq('displayNameKey', display.key))
-        .unique(),
+        .collect(),
       ctx.db
         .query('multiplayerNames')
         .withIndex('by_pet_name', (q) => q.eq('petNameKey', pet.key))
-        .unique(),
+        .collect(),
       ctx.db.query('multiplayerNames').withIndex('by_user', (q) => q.eq('userId', userId)).unique(),
       ctx.db.query('saves').withIndex('by_user', (q) => q.eq('userId', userId)).unique(),
     ]);
 
-    assertProfileNamesAvailable(
-      userId,
-      reservedDisplay?.userId,
-      reservedPet?.userId,
-    );
+    // Prefer the oldest row when a past race left duplicate keys.
+    const oldest = (rows: typeof displayHolders) =>
+      rows.length === 0
+        ? undefined
+        : [...rows].sort((a, b) => a._creationTime - b._creationTime)[0]!.userId;
+
+    assertProfileNamesAvailable(userId, oldest(displayHolders), oldest(petHolders));
     if (!save?.adopted) throw new Error('Adopt a pet before changing names');
 
     await Promise.all([
