@@ -454,7 +454,7 @@ export class WorldMultiplayer {
       exit.facing === 'up' ? 'penguin-up' : exit.facing === 'side' ? 'penguin-side' : 'penguin-down';
     if (exit.flipX !== null) this.localPlayer.setFlipX(exit.flipX);
     this.localPlayer.stop().setTexture(key, 0);
-    // Dance frames are 220×214; walk plates are ~477×513 — restore classic scale.
+    // Dance and walk plates share the 220×214 classic cell — restore walk scale.
     configurePlayerPenguin(this.localPlayer);
   }
 

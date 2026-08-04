@@ -30,8 +30,9 @@ const { PNG } = require('pngjs');
 const DIR = path.resolve('public/assets/player/penguin');
 const REF = path.resolve('scripts/reference/penguin/imagine-wave');
 const IDLE = path.join(DIR, 'down-0.png');
-const TARGET_W = 477;
-const TARGET_H = 513;
+/** Match classic CP idle / dance cell (sprite:penguin-classic). */
+const TARGET_W = 220;
+const TARGET_H = 214;
 const OUTLINE: [number, number, number, number] = [0, 0, 0, 255];
 
 function blank(w: number, h: number) {
@@ -277,9 +278,22 @@ function writeImagine() {
   }
 }
 
-if (hasImagineSources()) {
+// Classic CP idle (220×214 dance-family art) cannot use the old Imagine wave
+// sources (pixel-art on a 477×513 canvas). Always raise the flipper on the
+// classic idle so wave / walk / dance share one body.
+if (!fs.existsSync(IDLE)) {
+  console.error(`missing ${IDLE} — run npm run sprite:penguin-classic first`);
+  process.exit(1);
+}
+const idleMeta = PNG.sync.read(fs.readFileSync(IDLE));
+const classicIdle = idleMeta.width <= 256 && idleMeta.height <= 256;
+if (hasImagineSources() && !classicIdle) {
   writeImagine();
 } else {
-  console.log('no Imagine sources under scripts/reference/penguin/imagine-wave/ — using procedural');
+  if (hasImagineSources() && classicIdle) {
+    console.log('classic CP idle detected — procedural wave on dance-family body (skipping Imagine sources)');
+  } else {
+    console.log('no Imagine sources under scripts/reference/penguin/imagine-wave/ — using procedural');
+  }
   writeProcedural();
 }

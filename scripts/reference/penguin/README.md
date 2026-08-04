@@ -1,70 +1,52 @@
-# Player penguin Imagine plates
+# Player penguin — classic Club Penguin plates
 
-Like MINITEEN source plates: keep Grok Imagine resolution (capped at 512px),
-transparent background, shared canvas. Phaser draws them with **nearest-neighbour**
-scale to classic height (~60 world px) — no majority-downsample to 18×20.
+The player penguin uses the same smooth Club Penguin sticker art family as the
+dance emote (not the older Grok Imagine pixel plates). Shared cell size is
+**220×214** so idle ↔ walk ↔ dance swaps stay size-stable.
 
-## Club Penguin stance rules
+## Classic plates (`sprite:penguin-classic`)
 
-Match classic Club Penguin proportions and pose:
-
-| Pose | Flippers | Feet | Eyes (side) |
-|------|----------|------|-------------|
-| **Frame 0** (idle / stop) | Hang **down** by the body — never T-pose | **Both planted** flat | White oval + black pupil |
-| **Frame 1** (walk L) | Still by the body, slight sway ok | Viewer's-**left** foot raised mid-stride | White oval + black pupil |
-| **Frame 2** (walk R) | Still by the body, slight sway ok | Viewer's-**right** foot raised mid-stride | White oval + black pupil |
-
-Front eyes are white with black pupils. Side view must **never** use a solid
-black dot for the eye. Generate plates from the CP references under this folder
-(`cp-front.png`, `cp-side-angle.png`, `cp-back-angle.png`, `cp-tenor-frame.png`).
-
-When the player stops, scenes set texture frame **0** — standing idle, not a
-mid-walk hop. Walk anims cycle frames **1↔2** so feet truly alternate (never
-plant + one-foot hop, which reads as sliding on one foot).
-
-## Side facing (v4)
-
-Side idle + walk plates regenerated with Grok Imagine from the front idle
-(`down-0`) so the profile matches the same chunky Club Penguin pixel look
-(white eye + black pupil, short beak, flippers by the body, clean torso with
-no diagonal seam artifacts). Sources under `imagine-side-v4/`; game inputs
-`poses/side-{0,1,2}.png`.
-
-Side walk frames (cycle **1↔2** so feet alternate — same rule as front/back):
-
-| Frame | Pose |
-|-------|------|
-| side-0 | idle — both feet planted |
-| side-1 | mid-stride — front foot raised |
-| side-2 | mid-stride — rear foot raised (opposite leg) |
-
-Eyes match across side-0 / side-1 / side-2.
-
-## Back facing (v3)
-
-Back idle + walk plates regenerated from the same front idle anchor. Walk
-steps **away from the camera** (raised foot partially under the body; planted
-foot toward the camera). Sources under `imagine-back-v3/`. Pipeline always
-runs `repairExternalOutline` so every facing shares a clean 1px exterior rim.
-
-`up-2` is a horizontal mirror of `up-1` so the walk cycle truly alternates
-the other raised leg.
-
-## Wave (Imagine)
-
-Multiplayer wave uses front-facing raised-flipper frames `wave-{1,2,3}.png`
-(frame 0 is still `down-0` idle). Prefer Grok Imagine sources:
+| Asset | Source |
+|-------|--------|
+| **down-0** idle | Dance plate `f00` (same body as the dance emote) |
+| **down-1..8** walk | Tenor Club Penguin walk GIF (8 frames @ 60 ms) |
+| **side-0** idle | `cp-side-angle.png` |
+| **up-0** idle | `cp-back-angle.png` |
+| **side/up 1..8** walk | Same Tenor walk GIF (all facings share the cycle) |
 
 ```text
-scripts/reference/penguin/imagine-wave/wave-{1,2,3}-source.png
+scripts/reference/penguin/cp-walk-gif/penguin-walk.gif
+scripts/reference/penguin/cp-walk-gif/frames/f00.png … f07.png
 ```
+
+```bash
+npm run sprite:penguin-classic
+# then refresh wave poses on the classic idle:
+npm run sprite:penguin-wave
+```
+
+Output:
+
+```text
+public/assets/player/penguin/{down,up,side}-{0..8}.png
+public/assets/player/penguin/walk/f00.png … f07.png
+public/assets/player/penguin/walk-sheet.png
+```
+
+White plate + soft ground shadow are keyed out; body blues are normalised to
+the dance cyan so colourways recolour the same way. When the player stops,
+scenes set texture frame **0**. Walk anims play frames **1..8** at ~16.7 fps.
+
+## Wave (procedural on classic idle)
+
+Multiplayer wave uses front-facing raised-flipper frames `wave-{1,2,3}.png`
+(frame 0 is still `down-0` idle). On the classic 220×214 idle the pipeline
+always uses procedural `raiseFlipper` (old Imagine wave sources are pixel-art
+on a larger canvas and do not match).
 
 ```bash
 npm run sprite:penguin-wave
 ```
-
-If Imagine sources are missing, the script falls back to the procedural
-`raiseFlipper` path on `down-0.png` (unit-tested in `scripts/lib/penguin-wave.test.mjs`).
 
 ## Dance (Club Penguin GIF · 76 frames)
 

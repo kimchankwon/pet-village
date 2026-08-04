@@ -28,11 +28,12 @@ export const PET_DISPLAY_HEIGHT = Math.round(
 export const MINITEEN_NATIVE_HEIGHT = 42;
 
 /**
- * How the walk plate frames its penguin: the body fills rows 10..512 of the
- * 513-row cell, so the drawn penguin is all but flush with the cell.
+ * How the classic CP idle plate frames its penguin (220×214 cell, matching
+ * the dance sheet). Measured from `down-0.png` after `sprite:penguin-classic`:
+ * body rows ~24..211, feet near the bottom edge.
  */
-export const IDLE_BODY_HEIGHT_RATIO = 503 / 513;
-export const IDLE_FEET_BELOW_CENTRE_RATIO = (512.5 - 256.5) / 513;
+export const IDLE_BODY_HEIGHT_RATIO = 188 / 214;
+export const IDLE_FEET_BELOW_CENTRE_RATIO = (211.5 - 107) / 214;
 
 /**
  * How the dance sheet frames its penguin, measured from the source GIF's

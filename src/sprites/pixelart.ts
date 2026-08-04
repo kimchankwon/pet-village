@@ -1585,8 +1585,8 @@ function makeCobbleTile(scene: Phaser.Scene, key: string, size = 16) {
  * Re-exported from characterScale so NPC and pet heights derive from one number.
  */
 export const PENGUIN_DISPLAY_HEIGHT = CHARACTER_PENGUIN_DISPLAY_HEIGHT;
-/** Boot loads Imagine plates under this key prefix when present. */
-export const PENGUIN_PLATE_KEY = (facing: 'down' | 'up' | 'side', frame: 0 | 1 | 2) =>
+/** Boot loads classic CP plates under this key prefix when present. */
+export const PENGUIN_PLATE_KEY = (facing: 'down' | 'up' | 'side', frame: number) =>
   `penguin-plate-${facing}-${frame}`;
 /** Raised-flipper wave poses; frame 0 of the wave is the idle down plate. */
 export const PENGUIN_WAVE_PLATE_KEY = (frame: 1 | 2 | 3) => `penguin-plate-wave-${frame}`;
@@ -1600,14 +1600,24 @@ export const PENGUIN_DANCE_SHEET_KEY = 'penguin-plate-dance-sheet';
 export const PENGUIN_DANCE_FRAME_COUNT = 76;
 export const PENGUIN_DANCE_SHEET_COLS = 10;
 
-const PENGUIN_FACINGS = ['down', 'up', 'side'] as const;
-/** 0 = idle plant (stop); 1–2 = alternating mid-stride walk. */
-const PENGUIN_FRAME_COUNT = 3;
+/**
+ * Tenor Club Penguin walk GIF — 8 unique frames @ 60 ms (~16.7 fps).
+ * Must match `WALK_FRAME_COUNT` in scripts/penguin-classic-plates.mts.
+ */
+export const PENGUIN_WALK_FRAME_COUNT = 8;
+/** Frame delay of the source walk GIF (centiseconds × 10 → ms). */
+export const PENGUIN_WALK_FRAME_MS = 60;
 
-/** True when Boot preloaded Imagine plate frames for the player penguin. */
+const PENGUIN_FACINGS = ['down', 'up', 'side'] as const;
+/** 0 = idle plant (stop); 1..WALK = Tenor walk cycle. */
+const PENGUIN_FRAME_COUNT = 1 + PENGUIN_WALK_FRAME_COUNT;
+
+/** True when Boot preloaded classic CP plate frames for the player penguin. */
 export function hasPenguinPlates(scene: Phaser.Scene): boolean {
   return PENGUIN_FACINGS.every((facing) =>
-    ([0, 1, 2] as const).every((frame) => scene.textures.exists(PENGUIN_PLATE_KEY(facing, frame))),
+    Array.from({ length: PENGUIN_FRAME_COUNT }, (_, frame) => frame).every((frame) =>
+      scene.textures.exists(PENGUIN_PLATE_KEY(facing, frame)),
+    ),
   );
 }
 
@@ -1840,16 +1850,18 @@ function stampClothesOnPlate(
 }
 
 /**
- * Build penguin-down/up/side spritesheets from Imagine plate textures
+ * Build penguin-down/up/side spritesheets from classic CP plate textures
  * (Boot preloads `penguin-plate-*`). Keeps plate resolution; nearest filter.
  *
- * Sheet frames: 0 = idle plant (stop), 1–2 = alternating walk strides.
- * Walk anims use frames 1↔2 so the cycle never hops on one foot.
+ * Sheet frames: 0 = idle plant (stop), 1..8 = Tenor walk GIF cycle.
+ * Walk anims play frames 1..8 at the GIF's 60 ms delay (~16.7 fps).
  */
 function makePenguinFromPlates(scene: Phaser.Scene) {
   const body = hexToRgb(PALETTE.v!);
   const shade = hexToRgb(PALETTE.V!);
   const hi = hexToRgb(PALETTE.u!);
+  // GIF delay is 60 ms → frameRate in fps.
+  const walkFrameRate = 1000 / PENGUIN_WALK_FRAME_MS;
 
   for (const facing of PENGUIN_FACINGS) {
     const key0 = PENGUIN_PLATE_KEY(facing, 0);
@@ -1862,7 +1874,7 @@ function makePenguinFromPlates(scene: Phaser.Scene) {
     const sctx = sheet.getContext('2d')!;
 
     for (let frame = 0; frame < PENGUIN_FRAME_COUNT; frame++) {
-      const srcKey = PENGUIN_PLATE_KEY(facing, frame as 0 | 1 | 2);
+      const srcKey = PENGUIN_PLATE_KEY(facing, frame);
       const srcImg = scene.textures.get(srcKey).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
       const tmp = document.createElement('canvas');
       tmp.width = fw;
@@ -1881,30 +1893,33 @@ function makePenguinFromPlates(scene: Phaser.Scene) {
       frameWidth: fw,
       frameHeight: fh,
     });
-    scene.textures.get(`penguin-${facing}`).setFilter(Phaser.Textures.FilterMode.NEAREST);
+    // Classic CP art is smooth (not chunky pixel); linear keeps it soft when
+    // scaled down. Dance uses the same filter for the GIF cells.
+    scene.textures.get(`penguin-${facing}`).setFilter(Phaser.Textures.FilterMode.LINEAR);
   }
 
   const anims = scene.anims;
   for (const key of ['walk-down', 'walk-up', 'walk-side'] as const) {
     if (anims.exists(key)) anims.remove(key);
   }
-  // Walk cycles frames 1↔2 (alternating feet). Frame 0 is idle plant for stop.
+  // Walk cycles frames 1..8 (Tenor GIF). Frame 0 is idle plant for stop.
+  const walkEnd = PENGUIN_WALK_FRAME_COUNT;
   anims.create({
     key: 'walk-down',
-    frames: anims.generateFrameNumbers('penguin-down', { start: 1, end: 2 }),
-    frameRate: 6,
+    frames: anims.generateFrameNumbers('penguin-down', { start: 1, end: walkEnd }),
+    frameRate: walkFrameRate,
     repeat: -1,
   });
   anims.create({
     key: 'walk-up',
-    frames: anims.generateFrameNumbers('penguin-up', { start: 1, end: 2 }),
-    frameRate: 6,
+    frames: anims.generateFrameNumbers('penguin-up', { start: 1, end: walkEnd }),
+    frameRate: walkFrameRate,
     repeat: -1,
   });
   anims.create({
     key: 'walk-side',
-    frames: anims.generateFrameNumbers('penguin-side', { start: 1, end: 2 }),
-    frameRate: 6,
+    frames: anims.generateFrameNumbers('penguin-side', { start: 1, end: walkEnd }),
+    frameRate: walkFrameRate,
     repeat: -1,
   });
 }
@@ -1958,7 +1973,7 @@ function makeWaveTextureFromPlates(
     frameWidth: fw,
     frameHeight: fh,
   });
-  scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+  scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR);
 }
 
 /** Plate wave poses when Boot loaded them; hand-authored grids otherwise. */
@@ -2014,7 +2029,7 @@ function makeDanceTextureFromSheet(scene: Phaser.Scene, key: string, color: stri
     frameHeight: fh,
     endFrame: PENGUIN_DANCE_FRAME_COUNT - 1,
   });
-  scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+  scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR);
 }
 
 function makeDanceTexture(scene: Phaser.Scene, key: string, color: string, _includeClothes: boolean) {
@@ -2093,7 +2108,7 @@ export function ensureRemotePenguinTextures(scene: Phaser.Scene, requestedColor:
       const ctx = canvas.getContext('2d')!;
       for (let index = 0; index < PENGUIN_FRAME_COUNT; index++) {
         const frameSource = scene.textures
-          .get(PENGUIN_PLATE_KEY(facing, index as 0 | 1 | 2))
+          .get(PENGUIN_PLATE_KEY(facing, index))
           .getSourceImage() as HTMLImageElement | HTMLCanvasElement;
         ctx.drawImage(frameSource as CanvasImageSource, index * width, 0, width, height);
         const image = ctx.getImageData(index * width, 0, width, height);
@@ -2105,17 +2120,21 @@ export function ensureRemotePenguinTextures(scene: Phaser.Scene, requestedColor:
         frameWidth: width,
         frameHeight: height,
       });
-      scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+      scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR);
     }
   }
 
+  const walkFrameRate = 1000 / PENGUIN_WALK_FRAME_MS;
   for (const facing of PENGUIN_FACINGS) {
     const animKey = remotePenguinWalkAnimKey(facing, color);
     if (!scene.anims.exists(animKey)) {
       scene.anims.create({
         key: animKey,
-        frames: scene.anims.generateFrameNumbers(remotePenguinTextureKey(facing, color), { start: 1, end: 2 }),
-        frameRate: 6,
+        frames: scene.anims.generateFrameNumbers(remotePenguinTextureKey(facing, color), {
+          start: 1,
+          end: PENGUIN_WALK_FRAME_COUNT,
+        }),
+        frameRate: walkFrameRate,
         repeat: -1,
       });
     }
