@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
   generateTextures,
-  PENGUIN_DANCE_PLATE_KEY,
+  PENGUIN_DANCE_SHEET_KEY,
   PENGUIN_PLATE_KEY,
   PENGUIN_WAVE_PLATE_KEY,
 } from '../sprites/pixelart';
@@ -221,13 +221,9 @@ export class BootScene extends Phaser.Scene {
         `assets/player/penguin/wave-${frame}.png`,
       );
     }
-    // Classic Club Penguin dance loop (npm run sprite:penguin-dance).
-    for (const frame of [1, 2, 3, 4] as const) {
-      this.load.image(
-        PENGUIN_DANCE_PLATE_KEY(frame),
-        `assets/player/penguin/dance-${frame}.png`,
-      );
-    }
+    // Classic Club Penguin dance (76 GIF frames, multi-row sheet).
+    // npm run sprite:penguin-dance
+    this.load.image(PENGUIN_DANCE_SHEET_KEY, 'assets/player/penguin/dance-sheet.png');
     // Outdoor hub Imagine plates (override grid fallbacks in generateTextures).
     for (const key of WORLD_PROP_KEYS) {
       this.load.image(key, `assets/world/${key}.png`);
@@ -253,6 +249,9 @@ export class BootScene extends Phaser.Scene {
       if (this.textures.exists(key)) {
         this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
       }
+    }
+    if (this.textures.exists(PENGUIN_DANCE_SHEET_KEY)) {
+      this.textures.get(PENGUIN_DANCE_SHEET_KEY).setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
 
     // Source-plate frames (≫64px) scale down in-game — force nearest-neighbour

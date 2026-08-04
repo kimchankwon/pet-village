@@ -186,14 +186,14 @@ test('wave timing selects authored frames and ends cleanly', () => {
   assert.equal(waveAnimationFrame(780), null);
 });
 
-test('dance timing loops the four authored frames', () => {
+test('dance timing loops all 76 GIF frames at 100 ms', () => {
   assert.equal(danceAnimationFrame(0), 0);
-  assert.equal(danceAnimationFrame(140), 1);
-  assert.equal(danceAnimationFrame(280), 2);
-  assert.equal(danceAnimationFrame(420), 3);
-  assert.equal(danceAnimationFrame(560), 0);
-  assert.equal(danceAnimationFrame(700), 1);
-  assert.equal(danceAnimationFrame(1_120), 0);
+  assert.equal(danceAnimationFrame(100), 1);
+  assert.equal(danceAnimationFrame(200), 2);
+  assert.equal(danceAnimationFrame(7500), 75);
+  assert.equal(danceAnimationFrame(7600), 0);
+  assert.equal(danceAnimationFrame(7700), 1);
+  assert.equal(danceAnimationFrame(15_200), 0);
 });
 
 test('prefers an active Town session over a newer game session for the same user', () => {

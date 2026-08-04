@@ -1,5 +1,10 @@
 import Phaser from 'phaser';
-import { ensureRemotePenguinTextures, penguinDrawScale } from '../sprites/pixelart';
+import {
+  configurePlayerPenguin,
+  ensureRemotePenguinTextures,
+  PENGUIN_DISPLAY_HEIGHT,
+  penguinDrawScale,
+} from '../sprites/pixelart';
 import { Pet } from './Pet';
 import {
   multiplayerBridge,
@@ -202,20 +207,8 @@ export class WorldMultiplayer {
     aimedAt: { x: number; y: number };
   } | null = null;
   private disposed = false;
-  private readonly onDanceKeyDown = (event: KeyboardEvent) => {
-    if (this.disposed) return;
-    if (event.key.toLowerCase() !== 'n') return;
-    if (event.ctrlKey || event.metaKey || event.altKey) return;
-    // Don't steal N while typing in chat or another field.
-    const target = event.target;
-    if (target instanceof HTMLElement) {
-      const tag = target.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return;
-    }
-    if (this.chatComposer.isOpen() || isUiBlocked()) return;
-    event.preventDefault();
-    this.toggleLocalDance();
-  };
+  /** Scene-scoped N key — avoids a window listener that would double-fire if a scene is launched as an overlay. */
+  private readonly keyN: Phaser.Input.Keyboard.Key | null;
 
   constructor(scene: Phaser.Scene, options: WorldMultiplayerOptions) {
     this.scene = scene;
@@ -228,7 +221,7 @@ export class WorldMultiplayer {
     this.networkOffsetX = options.networkOffsetX ?? 0;
     this.networkOffsetY = options.networkOffsetY ?? 0;
     this.depthFor = options.depthFor ?? feetDepth;
-    window.addEventListener('keydown', this.onDanceKeyDown);
+    this.keyN = scene.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.N) ?? null;
     this.localMarker = scene.add
       .ellipse(this.localPlayer.x, this.localPlayer.y + 12, 46, 18, 0x2d8cff, 0.34)
       .setStrokeStyle(3, 0x66b6ff, 0.98)
@@ -302,6 +295,18 @@ export class WorldMultiplayer {
   update(facing: WorldPose['facing'], moving: boolean, deltaMs: number) {
     if (this.disposed) return;
     const now = this.scene.time.now;
+
+    // N toggles dance — scene-scoped so overlays cannot double-fire.
+    // Chat owns the keyboard while open; menus block via isUiBlocked().
+    if (
+      this.keyN &&
+      Phaser.Input.Keyboard.JustDown(this.keyN) &&
+      !this.chatComposer.isOpen() &&
+      !isUiBlocked()
+    ) {
+      this.toggleLocalDance();
+    }
+
     const pose = this.currentPose(facing, moving);
     const nextPresence: PresencePose = {
       ...pose,
@@ -330,7 +335,7 @@ export class WorldMultiplayer {
       now,
     );
     // Walking cancels the dance (Club Penguin style: move to stop).
-    if (moving && this.localDanceStartedAt !== null) this.stopLocalDance();
+    if (moving && this.localDanceStartedAt !== null) this.stopLocalDance(facing);
     this.applyLocalWave(now);
     this.applyLocalDance(now);
     for (const remote of this.remotes.values()) this.updateRemote(remote, now, deltaMs);
@@ -388,8 +393,8 @@ export class WorldMultiplayer {
   }
 
   /**
-   * Toggle the Club Penguin dance (N). Starts a looping four-frame bounce, or
-   * stops if already dancing. Requires the Imagine dance plates in Boot.
+   * Toggle the Club Penguin dance (N / Dance chip). Starts the 76-frame GIF
+   * loop, or stops if already dancing. Requires the dance sheet in Boot.
    */
   toggleLocalDance() {
     if (this.disposed) return;
@@ -406,12 +411,19 @@ export class WorldMultiplayer {
     this.applyLocalDance(this.scene.time.now);
   }
 
-  stopLocalDance() {
+  /**
+   * End the dance loop. When `facing` is known (walk-cancel), restore that
+   * idle plate so we don't flash front-facing for a frame after an up/side walk.
+   */
+  stopLocalDance(facing?: WorldPose['facing']) {
     if (this.localDanceStartedAt === null) return;
     this.localDanceStartedAt = null;
-    // Snap back to the front idle — facing may still be side/up from a walk,
-    // but the dance is front-only art so land on down-0 until they move again.
-    this.localPlayer.stop().setFlipX(false).setTexture('penguin-down', 0);
+    const key =
+      facing === 'up' ? 'penguin-up' : facing === 'side' ? 'penguin-side' : 'penguin-down';
+    // Keep existing flipX on side-facing so left/right walk direction sticks.
+    this.localPlayer.stop().setTexture(key, 0);
+    // Dance frames are 220×214; walk plates are ~477×513 — restore classic scale.
+    configurePlayerPenguin(this.localPlayer);
   }
 
   waveTo(remote: RemotePresence | string) {
@@ -543,6 +555,10 @@ export class WorldMultiplayer {
     const frame = danceAnimationFrame(now - this.localDanceStartedAt);
     this.localPlayer.setVelocity(0, 0);
     this.localPlayer.stop().setFlipX(false).setTexture(LOCAL_PENGUIN_DANCE_TEXTURE_KEY, frame);
+    // Dance sheet cells are native GIF size (~220×214), not walk-plate size.
+    // Scale so on-screen height matches classic penguin height.
+    const h = this.localPlayer.frame.height || 1;
+    this.localPlayer.setScale(PENGUIN_DISPLAY_HEIGHT / h);
   }
 
   private syncRows(rows: RemotePresence[]) {
@@ -762,7 +778,6 @@ export class WorldMultiplayer {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
-    window.removeEventListener('keydown', this.onDanceKeyDown);
     this.scene.events.off(Phaser.Scenes.Events.SHUTDOWN, this.dispose, this);
     this.scene.events.off(Phaser.Scenes.Events.DESTROY, this.dispose, this);
     this.scene.input.off(Phaser.Input.Events.POINTER_DOWN, this.cancelPendingWave, this);

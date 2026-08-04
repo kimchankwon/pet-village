@@ -1583,9 +1583,14 @@ export const PENGUIN_PLATE_KEY = (facing: 'down' | 'up' | 'side', frame: 0 | 1 |
 /** Raised-flipper wave poses; frame 0 of the wave is the idle down plate. */
 export const PENGUIN_WAVE_PLATE_KEY = (frame: 1 | 2 | 3) => `penguin-plate-wave-${frame}`;
 const PENGUIN_WAVE_PLATE_FRAMES = [1, 2, 3] as const;
-/** Classic Club Penguin dance loop (all four frames are dance poses). */
-export const PENGUIN_DANCE_PLATE_KEY = (frame: 1 | 2 | 3 | 4) => `penguin-plate-dance-${frame}`;
-const PENGUIN_DANCE_PLATE_FRAMES = [1, 2, 3, 4] as const;
+/**
+ * Classic Club Penguin dance spritesheet (76 GIF frames, 10-col grid).
+ * Built by `npm run sprite:penguin-dance` from the Tenor reference GIF.
+ */
+export const PENGUIN_DANCE_SHEET_KEY = 'penguin-plate-dance-sheet';
+/** Must match `DANCE_FRAME_COUNT` / sheet packing in scripts/penguin-dance-plates.mts. */
+export const PENGUIN_DANCE_FRAME_COUNT = 76;
+export const PENGUIN_DANCE_SHEET_COLS = 10;
 
 const PENGUIN_FACINGS = ['down', 'up', 'side'] as const;
 /** 0 = idle plant (stop); 1–2 = alternating mid-stride walk. */
@@ -1606,12 +1611,9 @@ export function hasPenguinWavePlates(scene: Phaser.Scene): boolean {
   );
 }
 
-/** True when Boot preloaded the plate-resolution dance poses. */
-export function hasPenguinDancePlates(scene: Phaser.Scene): boolean {
-  return (
-    hasPenguinPlates(scene) &&
-    PENGUIN_DANCE_PLATE_FRAMES.every((frame) => scene.textures.exists(PENGUIN_DANCE_PLATE_KEY(frame)))
-  );
+/** True when Boot preloaded the dance spritesheet. */
+export function hasPenguinDanceSheet(scene: Phaser.Scene): boolean {
+  return scene.textures.exists(PENGUIN_DANCE_SHEET_KEY);
 }
 
 /**
@@ -1859,55 +1861,48 @@ function makeWaveTexture(
 }
 
 /**
- * Dance spritesheet from Imagine plates: four looping dance poses (no idle
- * lead-in — the player is already standing when they press N).
+ * Dance spritesheet from the Club Penguin GIF (76 frames, multi-row grid).
+ * Recolours body blues for the active colourway. Clothes are skipped: spin and
+ * tumble frames have no stable down-facing attach points.
  */
-function makeDanceTextureFromPlates(
-  scene: Phaser.Scene,
-  key: string,
-  color: string,
-  includeClothes: boolean,
-) {
+function makeDanceTextureFromSheet(scene: Phaser.Scene, key: string, color: string) {
   if (scene.textures.exists(key)) scene.textures.remove(key);
-  if (!hasPenguinDancePlates(scene)) return;
+  if (!hasPenguinDanceSheet(scene)) return;
   const palette = PENGUIN_COLORS[normalizePenguinColor(color)] ?? PENGUIN_COLORS.blue!;
   const body = hexToRgb(palette.v);
   const shade = hexToRgb(palette.V);
   const hi = hexToRgb(palette.u);
-  const frameKeys = PENGUIN_DANCE_PLATE_FRAMES.map((frame) => PENGUIN_DANCE_PLATE_KEY(frame));
-  const first = scene.textures.get(frameKeys[0]!).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
-  const fw = first.width;
-  const fh = first.height;
-  const sheet = document.createElement('canvas');
-  sheet.width = fw * frameKeys.length;
-  sheet.height = fh;
-  const sctx = sheet.getContext('2d')!;
-  const previous = { v: PALETTE.v!, V: PALETTE.V!, u: PALETTE.u! };
-  setPenguinPalette(normalizePenguinColor(color));
-  frameKeys.forEach((frameKey, index) => {
-    const source = scene.textures.get(frameKey).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
-    const tmp = document.createElement('canvas');
-    tmp.width = fw;
-    tmp.height = fh;
-    const tctx = tmp.getContext('2d')!;
-    tctx.imageSmoothingEnabled = false;
-    tctx.drawImage(source as CanvasImageSource, 0, 0, fw, fh);
-    const image = tctx.getImageData(0, 0, fw, fh);
-    recolorPenguinPlateData(image.data, body, shade, hi);
-    tctx.putImageData(image, 0, 0);
-    if (includeClothes) stampClothesOnPlate(tctx, 'down', fw, fh);
-    sctx.drawImage(tmp, index * fw, 0);
-  });
-  Object.assign(PALETTE, previous);
-  scene.textures.addSpriteSheet(key, sheet as unknown as HTMLImageElement, {
+  const source = scene.textures.get(PENGUIN_DANCE_SHEET_KEY).getSourceImage() as
+    | HTMLImageElement
+    | HTMLCanvasElement;
+  const sheetW = source.width;
+  const sheetH = source.height;
+  const cols = PENGUIN_DANCE_SHEET_COLS;
+  const rows = Math.ceil(PENGUIN_DANCE_FRAME_COUNT / cols);
+  const fw = Math.floor(sheetW / cols);
+  const fh = Math.floor(sheetH / rows);
+  if (fw < 8 || fh < 8) return;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = sheetW;
+  canvas.height = sheetH;
+  const ctx = canvas.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(source as CanvasImageSource, 0, 0, sheetW, sheetH);
+  const image = ctx.getImageData(0, 0, sheetW, sheetH);
+  recolorPenguinPlateData(image.data, body, shade, hi);
+  ctx.putImageData(image, 0, 0);
+
+  scene.textures.addSpriteSheet(key, canvas as unknown as HTMLImageElement, {
     frameWidth: fw,
     frameHeight: fh,
+    endFrame: PENGUIN_DANCE_FRAME_COUNT - 1,
   });
   scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
 }
 
-function makeDanceTexture(scene: Phaser.Scene, key: string, color: string, includeClothes: boolean) {
-  makeDanceTextureFromPlates(scene, key, color, includeClothes);
+function makeDanceTexture(scene: Phaser.Scene, key: string, color: string, _includeClothes: boolean) {
+  makeDanceTextureFromSheet(scene, key, color);
 }
 
 function makeAuthoredWaveTexture(

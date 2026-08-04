@@ -46,10 +46,6 @@ export function remotePenguinWaveTextureKey(color: string) {
   return `penguin-remote-${normalizePenguinColor(color)}-wave`;
 }
 
-export function remotePenguinDanceTextureKey(color: string) {
-  return `penguin-remote-${normalizePenguinColor(color)}-dance`;
-}
-
 export const LOCAL_PENGUIN_WAVE_TEXTURE_KEY = 'penguin-wave';
 export const LOCAL_PENGUIN_DANCE_TEXTURE_KEY = 'penguin-dance';
 
@@ -98,9 +94,12 @@ export function remotePetMovementDecision(from: Point, to: Point, previousFlipX:
 const WAVE_FRAME_MS = 130;
 const WAVE_FRAME_SEQUENCE = [0, 1, 2, 3, 2, 1] as const;
 
-/** Classic Club Penguin dance — four poses loop while the player holds N. */
-const DANCE_FRAME_MS = 140;
-const DANCE_FRAME_COUNT = 4;
+/**
+ * Classic Club Penguin dance GIF (Tenor, 76 unique frames).
+ * Source delays are 100 ms per frame (first is 200 ms; we use 100 for a steady loop).
+ */
+export const DANCE_FRAME_MS = 100;
+export const DANCE_FRAME_COUNT = 76;
 
 export function canInitiateWave(
   local: { x: number; y: number },
@@ -171,7 +170,7 @@ export function waveAnimationFrame(elapsedMs: number): number | null {
 }
 
 /**
- * Looping dance frame index (0..3). Always defined while dancing — the caller
+ * Looping dance frame index (0..75). Always defined while dancing — the caller
  * decides when to stop (move, press N again, open a menu).
  */
 export function danceAnimationFrame(elapsedMs: number): number {

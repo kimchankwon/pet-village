@@ -1,22 +1,18 @@
 /**
- * Build the penguin's dance plates at plate resolution from Grok Imagine sources.
+ * Build Club Penguin dance plates + grid spritesheet from the reference GIF.
  *
- * Sources (solid black bg, black outline):
- *   scripts/reference/penguin/imagine-dance/dance-{1,2,3,4}-source.png
+ * Source (Tenor classic dance, 76 unique frames @ ~10 fps):
+ *   scripts/reference/penguin/cp-dance-gif/penguin-dance.gif
+ *   scripts/reference/penguin/cp-dance-gif/frames/f000.png … f075.png
  *
- * Classic Club Penguin dance loop (front-facing):
- *   1 = lean left, left flipper high
- *   2 = both flippers up (cheer bounce)
- *   3 = lean right, right flipper high
- *   4 = both flippers out at shoulder height
+ * The GIF is the real 76-frame Club Penguin emote medley (idle wind-up, spin,
+ * arms-overhead dance, waves, tumble). We key the white plate, keep native
+ * 220×214 registration so the loop lands cleanly, and pack a multi-row sheet
+ * so WebGL texture size stays well under MAX_TEXTURE_SIZE.
  *
- * Imagine sources sit on solid black and the character has a black outline, so
- * we key the exterior aggressively (outline may go with the bg), then restore a
- * one-pixel outline via `repairExternalOutline`. Scale is driven by **body
- * width** (max opaque row span), not total content height, so raised flippers
- * above the head do not shrink the torso.
- *
- * Output: public/assets/player/penguin/dance-{1,2,3,4}.png
+ * Output:
+ *   public/assets/player/penguin/dance/f00.png … f75.png  (individual frames)
+ *   public/assets/player/penguin/dance-sheet.png          (10×8 grid, 76 cells)
  *
  *   npm run sprite:penguin-dance
  */
@@ -28,14 +24,20 @@ import { repairExternalOutline } from './lib/pixel-outline.mjs';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
+const omggif = require('omggif');
 
-const DIR = path.resolve('public/assets/player/penguin');
-const REF = path.resolve('scripts/reference/penguin/imagine-dance');
-const IDLE = path.join(DIR, 'down-0.png');
-const TARGET_W = 477;
-const TARGET_H = 513;
+const ROOT = path.resolve('scripts/reference/penguin/cp-dance-gif');
+const GIF = path.join(ROOT, 'penguin-dance.gif');
+const FRAME_DIR = path.join(ROOT, 'frames');
+const OUT_DIR = path.resolve('public/assets/player/penguin/dance');
+const SHEET_OUT = path.resolve('public/assets/player/penguin/dance-sheet.png');
 const OUTLINE: [number, number, number, number] = [0, 0, 0, 255];
-const DANCE_FRAMES = [1, 2, 3, 4] as const;
+
+/** Must match DANCE_FRAME_COUNT in multiplayerPresentation.ts */
+export const DANCE_FRAME_COUNT = 76;
+/** Grid columns for the spritesheet (rows = ceil(count / cols)). */
+export const DANCE_SHEET_COLS = 10;
+const DANCE_SHEET_ROWS = Math.ceil(DANCE_FRAME_COUNT / DANCE_SHEET_COLS);
 
 function blank(w: number, h: number) {
   const p = new PNG({ width: w, height: h });
@@ -49,17 +51,15 @@ function asPng(image: { width: number; height: number; data: Buffer | Uint8Array
   return png;
 }
 
-/**
- * Flood-key near-black exterior as transparent.
- * Outline blacks contiguous with the plate will be removed; call
- * `repairExternalOutline` afterward to redraw a clean 1px rim.
- */
-function keyBlackBg(src: InstanceType<typeof PNG>) {
+/** Flood-key near-white exterior (Tenor GIF plate is ~#fefefe). */
+function keyWhiteBg(src: InstanceType<typeof PNG>) {
   const out = blank(src.width, src.height);
   const isBg = (c: number[]) => {
     if (c[3]! < 20) return true;
-    const lum = (c[0]! + c[1]! + c[2]!) / 3;
-    if (lum < 28 && Math.max(c[0]!, c[1]!, c[2]!) < 40) return true;
+    const min = Math.min(c[0]!, c[1]!, c[2]!);
+    const max = Math.max(c[0]!, c[1]!, c[2]!);
+    // Near-white plate (and soft AA fringe).
+    if (min > 235 && max - min < 18) return true;
     return false;
   };
   const exterior = new Uint8Array(src.width * src.height);
@@ -98,201 +98,133 @@ function keyBlackBg(src: InstanceType<typeof PNG>) {
   return out;
 }
 
-/**
- * Opaque span of the torso (belly band), not the full silhouette.
- * Dance poses with arms out would otherwise treat wingspan as "body width"
- * and shrink the whole penguin to match idle torso width.
- */
-function torsoWidth(png: InstanceType<typeof PNG>) {
-  const b = contentBounds(png);
-  const h = b.y1 - b.y0 + 1;
-  // Belly band: halfway down to ~72% of the content — below flippers, above feet.
-  const y0 = b.y0 + Math.floor(h * 0.5);
-  const y1 = b.y0 + Math.floor(h * 0.72);
-  let maxW = 0;
-  for (let y = y0; y <= y1; y++) {
-    let x0 = png.width;
-    let x1 = 0;
-    for (let x = b.x0; x <= b.x1; x++) {
-      if (getPx(png, x, y)[3]! < 20) continue;
-      if (x < x0) x0 = x;
-      if (x > x1) x1 = x;
-    }
-    if (x1 >= x0) maxW = Math.max(maxW, x1 - x0 + 1);
-  }
-  // Fallback if the band was empty (shouldn't happen on a full penguin).
-  if (maxW < 8) {
-    for (let y = b.y0; y <= b.y1; y++) {
-      let x0 = png.width;
-      let x1 = 0;
-      for (let x = b.x0; x <= b.x1; x++) {
-        if (getPx(png, x, y)[3]! < 20) continue;
-        if (x < x0) x0 = x;
-        if (x > x1) x1 = x;
-      }
-      if (x1 >= x0) maxW = Math.max(maxW, x1 - x0 + 1);
-    }
-  }
-  return maxW;
-}
-
-/** Full-content max row width — only used for logging. */
-function maxRowWidth(png: InstanceType<typeof PNG>) {
-  const b = contentBounds(png);
-  let maxW = 0;
-  for (let y = b.y0; y <= b.y1; y++) {
-    let x0 = png.width;
-    let x1 = 0;
-    for (let x = b.x0; x <= b.x1; x++) {
-      if (getPx(png, x, y)[3]! < 20) continue;
-      if (x < x0) x0 = x;
-      if (x > x1) x1 = x;
-    }
-    if (x1 >= x0) maxW = Math.max(maxW, x1 - x0 + 1);
-  }
-  return maxW;
-}
-
-/** Horizontal center of the widest opaque row — stable body/torso anchor. */
-function bodyCenterX(png: InstanceType<typeof PNG>) {
-  const b = contentBounds(png);
-  let bestW = -1;
-  let cx = (b.x0 + b.x1) / 2;
-  for (let y = b.y0; y <= b.y1; y++) {
-    let x0 = png.width;
-    let x1 = 0;
-    for (let x = b.x0; x <= b.x1; x++) {
-      if (getPx(png, x, y)[3]! < 20) continue;
-      if (x < x0) x0 = x;
-      if (x > x1) x1 = x;
-    }
-    if (x1 >= x0) {
-      const w = x1 - x0 + 1;
-      if (w > bestW) {
-        bestW = w;
-        cx = (x0 + x1) / 2;
-      }
-    }
-  }
-  return cx;
-}
-
-/**
- * Fit Imagine source onto the shared 477×513 canvas.
- * Scale from max body width so the torso matches idle; raised flippers may
- * extend above the idle head line and clip at the plate top rather than
- * shrinking the body.
- */
-function imagineToPlate(
-  raw: InstanceType<typeof PNG>,
-  idleBottom: number,
-  idleBodyW: number,
-  idleBodyCx: number,
-  idleContentH: number,
-): InstanceType<typeof PNG> {
-  const keyed = keyBlackBg(raw);
-  const cleaned = asPng(repairExternalOutline(keyed, { outline: OUTLINE }));
-
-  const full = contentBounds(cleaned);
-  const cw = full.x1 - full.x0 + 1;
-  const ch = full.y1 - full.y0 + 1;
-  const bodyW = torsoWidth(cleaned);
-  // Prefer torso-width lock (matches idle body). If a pose came out short in
-  // the source (e.g. arms-out crop), boost scale so height stays near idle.
-  let scale = idleBodyW / Math.max(1, bodyW);
-  if (ch * scale < idleContentH * 0.9) {
-    scale = (idleContentH * 0.95) / Math.max(1, ch);
-  }
-
-  const nw = Math.max(8, Math.round(cw * scale));
-  const nh = Math.max(10, Math.round(ch * scale));
-  const sized = blank(nw, nh);
-  for (let y = 0; y < nh; y++) {
-    for (let x = 0; x < nw; x++) {
-      const sx = full.x0 + Math.min(cw - 1, Math.floor((x / nw) * cw));
-      const sy = full.y0 + Math.min(ch - 1, Math.floor((y / nh) * ch));
-      const c = getPx(cleaned, sx, sy);
-      if (c[3]! >= 20) setPx(sized, x, y, [c[0]!, c[1]!, c[2]!, 255]);
-    }
-  }
-
-  const sizedB = contentBounds(sized);
-  const contentH = sizedB.y1 - sizedB.y0 + 1;
-  const bodyCx = bodyCenterX(sized);
-  const plate = blank(TARGET_W, TARGET_H);
-  const ox = Math.round(idleBodyCx - bodyCx);
-  const oy = idleBottom - contentH + 1 - sizedB.y0;
-  let wrote = 0;
-  let clipped = 0;
-  for (let y = sizedB.y0; y <= sizedB.y1; y++) {
-    for (let x = sizedB.x0; x <= sizedB.x1; x++) {
-      const c = getPx(sized, x, y);
-      if (c[3]! < 20) continue;
-      const dx = ox + x;
-      const dy = oy + y;
-      if (dx < 0 || dy < 0 || dx >= TARGET_W || dy >= TARGET_H) {
-        clipped++;
-        continue;
-      }
-      setPx(plate, dx, dy, [c[0]!, c[1]!, c[2]!, 255]);
-      wrote++;
-    }
-  }
-  if (wrote === 0) {
-    console.error('imagineToPlate: fitted content missed the canvas entirely');
+function extractGifFrames() {
+  if (!fs.existsSync(GIF)) {
+    console.error(`missing ${GIF}`);
     process.exit(1);
   }
-  if (clipped > 0) {
-    console.log(`  (clipped ${clipped}px above/beside plate — body size preserved)`);
+  fs.mkdirSync(FRAME_DIR, { recursive: true });
+  const buf = fs.readFileSync(GIF);
+  const reader = new omggif.GifReader(buf);
+  const w = reader.width;
+  const h = reader.height;
+  const n = reader.numFrames();
+  if (n !== DANCE_FRAME_COUNT) {
+    console.warn(`GIF has ${n} frames; expected ${DANCE_FRAME_COUNT}`);
   }
-  return asPng(repairExternalOutline(plate, { outline: OUTLINE }));
+  let canvas = new Uint8ClampedArray(w * h * 4);
+  let prev: { disposal: number; x: number; y: number; width: number; height: number; backup: Uint8ClampedArray | null } | null =
+    null;
+  for (let i = 0; i < n; i++) {
+    const info = reader.frameInfo(i);
+    if (prev && prev.disposal === 2) {
+      for (let y = prev.y; y < prev.y + prev.height; y++) {
+        for (let x = prev.x; x < prev.x + prev.width; x++) {
+          const o = (y * w + x) * 4;
+          canvas[o] = canvas[o + 1] = canvas[o + 2] = canvas[o + 3] = 0;
+        }
+      }
+    } else if (prev && prev.disposal === 3 && prev.backup) {
+      canvas.set(prev.backup);
+    }
+    let backup: Uint8ClampedArray | null = null;
+    if (info.disposal === 3) backup = canvas.slice();
+    const frame = new Uint8ClampedArray(w * h * 4);
+    reader.decodeAndBlitFrameRGBA(i, frame);
+    for (let p = 0; p < frame.length; p += 4) {
+      if (frame[p + 3]! > 0) {
+        canvas[p] = frame[p]!;
+        canvas[p + 1] = frame[p + 1]!;
+        canvas[p + 2] = frame[p + 2]!;
+        canvas[p + 3] = frame[p + 3]!;
+      }
+    }
+    const png = blank(w, h);
+    Buffer.from(canvas).copy(png.data);
+    fs.writeFileSync(path.join(FRAME_DIR, `f${String(i).padStart(3, '0')}.png`), PNG.sync.write(png));
+    prev = { disposal: info.disposal, x: info.x, y: info.y, width: info.width, height: info.height, backup };
+  }
+  console.log(`extracted ${n} frames ${w}×${h} → ${path.relative(process.cwd(), FRAME_DIR)}`);
+  return { w, h, n };
 }
 
-function hasImagineSources() {
-  return DANCE_FRAMES.every((n) => fs.existsSync(path.join(REF, `dance-${n}-source.png`)));
-}
-
-function writeImagine() {
-  if (!fs.existsSync(IDLE)) {
-    console.error(`missing ${IDLE}`);
-    process.exit(1);
+function processPlates(frameCount: number) {
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  // Clear stale plates.
+  for (const f of fs.readdirSync(OUT_DIR)) {
+    if (f.endsWith('.png')) fs.unlinkSync(path.join(OUT_DIR, f));
   }
-  const idle = PNG.sync.read(fs.readFileSync(IDLE));
-  const idleB = contentBounds(idle);
-  const idleBodyW = torsoWidth(idle);
-  const idleBodyCx = bodyCenterX(idle);
-  const idleContentH = idleB.y1 - idleB.y0 + 1;
-  console.log(
-    `Imagine dance plates → idle bodyW=${idleBodyW} bodyCx=${idleBodyCx.toFixed(1)} ` +
-      `contentH=${idleContentH} feet y=${idleB.y1}, canvas ${TARGET_W}×${TARGET_H}`,
-  );
-  for (const frame of DANCE_FRAMES) {
-    const srcPath = path.join(REF, `dance-${frame}-source.png`);
+  // Also drop the old 4-frame Imagine plates if present.
+  for (const n of [1, 2, 3, 4]) {
+    const legacy = path.resolve('public/assets/player/penguin', `dance-${n}.png`);
+    if (fs.existsSync(legacy)) fs.unlinkSync(legacy);
+  }
+
+  let cellW = 0;
+  let cellH = 0;
+  const plates: InstanceType<typeof PNG>[] = [];
+  let minFeetY = Infinity;
+  let maxFeetY = -Infinity;
+
+  for (let i = 0; i < frameCount; i++) {
+    const srcPath = path.join(FRAME_DIR, `f${String(i).padStart(3, '0')}.png`);
+    if (!fs.existsSync(srcPath)) {
+      console.error(`missing frame ${srcPath} — re-extract the GIF`);
+      process.exit(1);
+    }
     const raw = PNG.sync.read(fs.readFileSync(srcPath));
-    const plate = imagineToPlate(raw, idleB.y1, idleBodyW, idleBodyCx, idleContentH);
-    const out = path.join(DIR, `dance-${frame}.png`);
-    fs.writeFileSync(out, PNG.sync.write(plate));
-    const b = contentBounds(plate);
-    const bodyW = torsoWidth(plate);
-    let black = 0;
-    let opaque = 0;
-    for (let i = 0; i < plate.data.length; i += 4) {
-      if (plate.data[i + 3]! < 20) continue;
-      opaque++;
-      if ((plate.data[i]! + plate.data[i + 1]! + plate.data[i + 2]!) / 3 < 40) black++;
+    const keyed = keyWhiteBg(raw);
+    // Light outline pass keeps silhouettes crisp against the game snow.
+    const cleaned = asPng(repairExternalOutline(keyed, { outline: OUTLINE }));
+    cellW = cleaned.width;
+    cellH = cleaned.height;
+    plates.push(cleaned);
+    const b = contentBounds(cleaned);
+    if (b.y1 >= b.y0) {
+      minFeetY = Math.min(minFeetY, b.y1);
+      maxFeetY = Math.max(maxFeetY, b.y1);
     }
-    console.log(
-      `wrote ${path.relative(process.cwd(), out)} ` +
-        `bodyW=${bodyW} full ${b.x1 - b.x0 + 1}×${b.y1 - b.y0 + 1} ` +
-        `feetY=${b.y1} black=${opaque ? ((100 * black) / opaque).toFixed(1) : 0}%`,
-    );
+    const out = path.join(OUT_DIR, `f${String(i).padStart(2, '0')}.png`);
+    fs.writeFileSync(out, PNG.sync.write(cleaned));
   }
+
+  // Multi-row sheet: col-major fill left→right, top→bottom (Phaser default).
+  const sheet = blank(cellW * DANCE_SHEET_COLS, cellH * DANCE_SHEET_ROWS);
+  for (let i = 0; i < plates.length; i++) {
+    const col = i % DANCE_SHEET_COLS;
+    const row = Math.floor(i / DANCE_SHEET_COLS);
+    const plate = plates[i]!;
+    const ox = col * cellW;
+    const oy = row * cellH;
+    for (let y = 0; y < cellH; y++) {
+      for (let x = 0; x < cellW; x++) {
+        const c = getPx(plate, x, y);
+        if (c[3]! < 20) continue;
+        setPx(sheet, ox + x, oy + y, [c[0]!, c[1]!, c[2]!, 255]);
+      }
+    }
+  }
+  fs.writeFileSync(SHEET_OUT, PNG.sync.write(sheet));
+
+  // Geometry sanity: feet Y should not drift wildly across upright frames.
+  // (Tumbles intentionally sit higher — only log overall range.)
+  console.log(
+    `wrote ${frameCount} plates ${cellW}×${cellH} + sheet ` +
+      `${sheet.width}×${sheet.height} (${DANCE_SHEET_COLS}×${DANCE_SHEET_ROWS}) ` +
+      `feetY ${minFeetY}..${maxFeetY}`,
+  );
+  console.log(`  individuals → ${path.relative(process.cwd(), OUT_DIR)}`);
+  console.log(`  sheet       → ${path.relative(process.cwd(), SHEET_OUT)}`);
 }
 
-if (!hasImagineSources()) {
-  console.error(
-    'missing Imagine sources under scripts/reference/penguin/imagine-dance/dance-{1..4}-source.png',
-  );
-  process.exit(1);
+// Prefer pre-extracted frames; re-extract from GIF when missing/incomplete.
+const existing = fs.existsSync(FRAME_DIR)
+  ? fs.readdirSync(FRAME_DIR).filter((f) => /^f\d{3}\.png$/.test(f)).length
+  : 0;
+if (existing < DANCE_FRAME_COUNT) {
+  extractGifFrames();
+} else {
+  console.log(`using ${existing} existing frames in ${path.relative(process.cwd(), FRAME_DIR)}`);
 }
-writeImagine();
+const count = fs.readdirSync(FRAME_DIR).filter((f) => /^f\d{3}\.png$/.test(f)).length;
+processPlates(Math.min(count, DANCE_FRAME_COUNT));

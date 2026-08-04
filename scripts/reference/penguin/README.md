@@ -66,29 +66,33 @@ npm run sprite:penguin-wave
 If Imagine sources are missing, the script falls back to the procedural
 `raiseFlipper` path on `down-0.png` (unit-tested in `scripts/lib/penguin-wave.test.mjs`).
 
-## Dance (Imagine)
+## Dance (Club Penguin GIF · 76 frames)
 
-Local dance emote (keyboard **N**) uses four front-facing loop frames
-`dance-{1,2,3,4}.png` authored with Grok Imagine from the front idle:
-
-| Frame | Pose |
-|-------|------|
-| dance-1 | lean left, left flipper high |
-| dance-2 | both flippers up (cheer bounce) |
-| dance-3 | lean right, right flipper high |
-| dance-4 | both flippers out at shoulder height |
+Local dance emote (keyboard **N** / Dance chip) plays the classic Club Penguin
+emote medley from the Tenor reference GIF — **76 unique frames** at **100 ms**
+each (~7.6 s loop). It is not a four-pose bounce: the GIF chains idle wind-up,
+a full spin, the arms-overhead dance, waves, and tumbles.
 
 ```text
-scripts/reference/penguin/imagine-dance/dance-{1,2,3,4}-source.png
+scripts/reference/penguin/cp-dance-gif/penguin-dance.gif
+scripts/reference/penguin/cp-dance-gif/frames/f000.png … f075.png
 ```
 
 ```bash
 npm run sprite:penguin-dance
 ```
 
-Scale locks to idle **torso** width (belly band), not full wingspan, so
-arms-out poses keep the same body size as idle. Press **N** again or walk
-to stop; the loop does not currently sync over multiplayer.
+Output:
+
+```text
+public/assets/player/penguin/dance/f00.png … f75.png   # individual cells
+public/assets/player/penguin/dance-sheet.png           # 10×8 grid (220×214 cells)
+```
+
+White plate is keyed to transparent; registration matches the GIF so the loop
+closes cleanly. The multi-row sheet stays under WebGL max texture size (a
+single 76-wide row of walk-plate-resolution cells would not). Press **N**
+again or walk to stop. Local-only for now (no multiplayer protocol bump).
 
 ## Refresh
 
