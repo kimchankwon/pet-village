@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { worldSceneSpawn } from '@pet-village/multiplayer-protocol';
-import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
+import { configurePlayerPenguin, generateTextures, penguinDepthTarget } from '../sprites/pixelart';
 import { State } from '../systems/GameState';
 import { GAME_MIN_ENERGY, tooTiredMessage, type MiniGameKey } from '../systems/gameEnergy';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
@@ -211,10 +211,10 @@ export class ParkScene extends Phaser.Scene {
     bottomButtons(
       this,
       [
-        { label: '[ Inventory · I ]', onTap: () => { if (!this.menuOpen) this.openInventory(); } },
-        { label: '[ Pet · P ]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } },
-        // Same composer T opens, for a player who is tapping rather than typing.
-        { label: '[ Chat · T ]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.openChat(); } },
+        { label: '[ Inventory · I ]', shortLabel: '[Inv]', onTap: () => { if (!this.menuOpen) this.openInventory(); } },
+        { label: '[ Pet · P ]', shortLabel: '[Pet]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } },
+        { label: '[ Chat · T ]', shortLabel: '[Chat]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.openChat(); } },
+        { label: '[ Dance · N ]', shortLabel: '[Dance]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.toggleLocalDance(); } },
       ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;
@@ -582,7 +582,8 @@ export class ParkScene extends Phaser.Scene {
         0,
       );
     }
-    this.player.setDepth(characterDepth(this.player));
+    // Sort by the feet, not the sprite box: the dance sheet is a different size.
+    this.player.setDepth(characterDepth(penguinDepthTarget(this.player)));
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
     this.worldMultiplayer.update(this.facing, moving, this.game.loop.delta);

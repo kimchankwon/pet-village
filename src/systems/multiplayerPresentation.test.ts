@@ -12,10 +12,13 @@ import {
   remotePlayerPresentation,
   remotePenguinTextureKey,
   remotePenguinWalkAnimKey,
+  remotePenguinDanceTextureKey,
   remoteMovementDecision,
   remotePetMovementDecision,
   stepRemotePosition,
   waveAnimationFrame,
+  danceAnimationFrame,
+  danceExitPose,
   canInitiateWave,
   approachPointForWave,
   pendingWaveDecision,
@@ -77,6 +80,8 @@ test('a correction for another scene switches scenes instead of snapping in plac
 test('uses validated colour-specific remote penguin textures', () => {
   assert.equal(remotePenguinTextureKey('side', 'red'), 'penguin-remote-red-side');
   assert.equal(remotePenguinTextureKey('down', 'not-a-colour'), 'penguin-remote-blue-down');
+  assert.equal(remotePenguinDanceTextureKey('pink'), 'penguin-remote-pink-dance');
+  assert.equal(remotePenguinDanceTextureKey('???'), 'penguin-remote-blue-dance');
 });
 
 test('clicking a remote consumes the ground click and waves without moving', () => {
@@ -183,6 +188,36 @@ test('wave timing selects authored frames and ends cleanly', () => {
   assert.equal(waveAnimationFrame(520), 2);
   assert.equal(waveAnimationFrame(650), 1);
   assert.equal(waveAnimationFrame(780), null);
+});
+
+test('dance timing loops all 76 GIF frames at 100 ms', () => {
+  assert.equal(danceAnimationFrame(0), 0);
+  assert.equal(danceAnimationFrame(100), 1);
+  assert.equal(danceAnimationFrame(200), 2);
+  assert.equal(danceAnimationFrame(7500), 75);
+  assert.equal(danceAnimationFrame(7600), 0);
+  assert.equal(danceAnimationFrame(7700), 1);
+  assert.equal(danceAnimationFrame(15_200), 0);
+});
+
+test('stopping a dance returns to the pose it started from, not front-facing', () => {
+  // Dance cells are front-facing and unflipped: a left-facing dancer must not
+  // pop to facing-down (or unflip) when the loop ends.
+  assert.deepEqual(danceExitPose(undefined, { facing: 'side', flipX: true }), {
+    facing: 'side',
+    flipX: true,
+  });
+  assert.deepEqual(danceExitPose(undefined, { facing: 'up', flipX: false }), {
+    facing: 'up',
+    flipX: false,
+  });
+  // Walk-cancel: the scene owns facing and flip this frame, so leave flip alone.
+  assert.deepEqual(danceExitPose('up', { facing: 'side', flipX: true }), {
+    facing: 'up',
+    flipX: null,
+  });
+  // No captured pose (dance started before we tracked one): safe front-facing idle.
+  assert.deepEqual(danceExitPose(undefined, null), { facing: 'down', flipX: null });
 });
 
 test('prefers an active Town session over a newer game session for the same user', () => {

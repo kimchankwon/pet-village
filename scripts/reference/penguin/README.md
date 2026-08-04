@@ -66,6 +66,49 @@ npm run sprite:penguin-wave
 If Imagine sources are missing, the script falls back to the procedural
 `raiseFlipper` path on `down-0.png` (unit-tested in `scripts/lib/penguin-wave.test.mjs`).
 
+## Dance (Club Penguin GIF · 76 frames)
+
+Local dance emote (keyboard **N** / Dance chip) plays the classic Club Penguin
+emote medley from the Tenor reference GIF — **76 unique frames** at **100 ms**
+each (~7.6 s loop). It is not a four-pose bounce: the GIF chains idle wind-up,
+a full spin, the arms-overhead dance, waves, and tumbles.
+
+```text
+scripts/reference/penguin/cp-dance-gif/penguin-dance.gif
+scripts/reference/penguin/cp-dance-gif/frames/f000.png … f075.png
+```
+
+```bash
+npm run sprite:penguin-dance
+```
+
+Output:
+
+```text
+public/assets/player/penguin/dance/f00.png … f75.png   # individual cells
+public/assets/player/penguin/dance-sheet.png           # 10×8 grid (220×214 cells)
+```
+
+White plate is keyed to transparent; registration matches the GIF so the loop
+closes cleanly. The multi-row sheet stays under WebGL max texture size (a
+single 76-wide row of walk-plate-resolution cells would not). Press **N**
+again or walk to stop. Peers in the same scene see the loop via the
+`dancing` multiplayer field (protocol v11).
+
+Cells keep the GIF's own registration, so the penguin fills only part of the
+cell: the standing pose occupies rows 25–155 of 214, and the rest is headroom
+for the floor spin, which really does reach the bottom edge. Scaling a dance
+cell by its height (the rule the walk plates use, where the art is flush with
+the cell) therefore draws the dancer ~38% short and floating. `pixelart.ts`
+scales and anchors dance frames off the *standing* pose instead —
+`penguinDanceDrawScale` / `penguinDanceOriginY`, from the
+`DANCE_STAND_*_RATIO` constants in `src/systems/characterScale.ts` (kept there,
+free of Phaser, so the sheet test imports the same numbers the game draws
+with). **Re-cropping or re-exporting the GIF means
+re-measuring those ratios**; `scripts/lib/penguin-dance-sheet.test.mjs` fails
+if they drift from the sheet or if the dancer stops matching the idle plate's
+height and ground line.
+
 ## Refresh
 
 ```bash
@@ -73,6 +116,8 @@ If Imagine sources are missing, the script falls back to the procedural
 npm run sprite:penguin
 # Wave plates (Imagine preferred):
 npm run sprite:penguin-wave
+# Dance plates (Imagine required):
+npm run sprite:penguin-dance
 ```
 
 Poses:

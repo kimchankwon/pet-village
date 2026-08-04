@@ -18,6 +18,7 @@ function actions(sent: number[]) {
     updateProfile: () => {},
     leave: () => {},
     wave: () => {},
+    dance: () => {},
     chat: () => {},
   };
 }
@@ -51,6 +52,24 @@ test('stale connection cleanup cannot uninstall or update the current bridge', (
   assert.equal(seen[seen.length - 1]?.length, 1);
   assert.equal(multiplayerBridge.uninstall(secondId), true);
   unsubscribe();
+});
+
+test('dance start and stop reach the installed connection, and only it', () => {
+  const first: boolean[] = [];
+  const second: boolean[] = [];
+  const firstId = multiplayerBridge.install({ ...actions([]), dance: (d: boolean) => first.push(d) });
+  const secondId = multiplayerBridge.install({ ...actions([]), dance: (d: boolean) => second.push(d) });
+
+  multiplayerBridge.dance(true);
+  multiplayerBridge.dance(false);
+  // Only the live connection carries the emote; the superseded one stays silent.
+  assert.deepEqual(second, [true, false]);
+  assert.deepEqual(first, []);
+
+  multiplayerBridge.uninstall(secondId);
+  multiplayerBridge.dance(true);
+  assert.deepEqual(second, [true, false]);
+  multiplayerBridge.uninstall(firstId);
 });
 
 test('scene transitions discard delayed position corrections from the previous world', () => {

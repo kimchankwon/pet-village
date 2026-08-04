@@ -37,6 +37,8 @@ export type RemotePresence = {
   /** Changes on every message sent, which is how a new bubble is spotted. */
   chatId?: string;
   chatText?: string;
+  /** True while they are looping the Club Penguin dance for the village. */
+  dancing?: boolean;
 };
 
 export type RemoteNpc = {
@@ -78,6 +80,7 @@ type Actions = {
   updateProfile: (ticket: string) => void;
   leave: () => void;
   wave: (id: string) => void;
+  dance: (dancing: boolean) => void;
   chat: (text: string) => void;
   /** Re-snapshot peers now — scene filtering changed, so cached rows are stale. */
   resync?: () => void;
@@ -307,6 +310,10 @@ export const multiplayerBridge = {
   },
   wave(id: string) {
     actions?.wave(id);
+  },
+  /** Broadcast start/stop of the Club Penguin dance loop. */
+  dance(dancing: boolean) {
+    actions?.dance(dancing);
   },
   /**
    * Send a message, and say what became of it.

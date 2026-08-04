@@ -46,7 +46,12 @@ export function remotePenguinWaveTextureKey(color: string) {
   return `penguin-remote-${normalizePenguinColor(color)}-wave`;
 }
 
+export function remotePenguinDanceTextureKey(color: string) {
+  return `penguin-remote-${normalizePenguinColor(color)}-dance`;
+}
+
 export const LOCAL_PENGUIN_WAVE_TEXTURE_KEY = 'penguin-wave';
+export const LOCAL_PENGUIN_DANCE_TEXTURE_KEY = 'penguin-dance';
 
 type Point = { x: number; y: number };
 
@@ -92,6 +97,13 @@ export function remotePetMovementDecision(from: Point, to: Point, previousFlipX:
 
 const WAVE_FRAME_MS = 130;
 const WAVE_FRAME_SEQUENCE = [0, 1, 2, 3, 2, 1] as const;
+
+/**
+ * Classic Club Penguin dance GIF (Tenor, 76 unique frames).
+ * Source delays are 100 ms per frame (first is 200 ms; we use 100 for a steady loop).
+ */
+export const DANCE_FRAME_MS = 100;
+export const DANCE_FRAME_COUNT = 76;
 
 export function canInitiateWave(
   local: { x: number; y: number },
@@ -159,6 +171,30 @@ export function waveAnimationFrame(elapsedMs: number): number | null {
   if (elapsedMs < 0) return WAVE_FRAME_SEQUENCE[0];
   const index = Math.floor(elapsedMs / WAVE_FRAME_MS);
   return WAVE_FRAME_SEQUENCE[index] ?? null;
+}
+
+/**
+ * Looping dance frame index (0..75). Always defined while dancing — the caller
+ * decides when to stop (move, press N again, open a menu).
+ */
+export function danceAnimationFrame(elapsedMs: number): number {
+  if (elapsedMs < 0) return 0;
+  return Math.floor(elapsedMs / DANCE_FRAME_MS) % DANCE_FRAME_COUNT;
+}
+
+/**
+ * Which idle pose to restore when the dance stops. Dance cells are all
+ * front-facing and unflipped, so an up/side dancer needs the pose they held
+ * when they started. A walk-cancel passes the live facing instead, and the
+ * scene sets flipX from travel direction on the same frame.
+ */
+export function danceExitPose(
+  movementFacing: 'down' | 'up' | 'side' | undefined,
+  startPose: { facing: 'down' | 'up' | 'side'; flipX: boolean } | null,
+): { facing: 'down' | 'up' | 'side'; flipX: boolean | null } {
+  if (movementFacing) return { facing: movementFacing, flipX: null };
+  if (startPose) return { facing: startPose.facing, flipX: startPose.flipX };
+  return { facing: 'down', flipX: null };
 }
 
 export function handleRemotePlayerPointerDown(

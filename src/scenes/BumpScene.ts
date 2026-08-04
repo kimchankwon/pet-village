@@ -30,6 +30,14 @@ const BAR_TRAVEL = 160;
  * ends at y=74, the VS line starts at y=116.
  */
 const TUG_BAR_Y = 96;
+/**
+ * Where the bout-start energy toast starts. What matters is the top of its
+ * travel, not this y: `toast()` tweens 40px upward over its life, so a start
+ * point only ~12px below the VS line still ends up crossing it. Measured swept
+ * bounds from here are 180–237, clear of the VS line (116–132) and the
+ * Get ready / PUSH cue (137–163).
+ */
+const ENERGY_TOAST_Y = 228;
 
 /** How hard each tap shoves; sustained mashing adds up to this much again. */
 const TAP_IMPULSE_BASE = 0.045;
@@ -429,7 +437,7 @@ export class BumpScene extends Phaser.Scene {
     this.flashFeedback('Get ready…', '#c8c8dc', 0);
     // Below the VS line (y=124) and the feedback cue (y=150) so the bout-start
     // toast doesn't sit on the new top-of-screen tug UI.
-    toast(this, this.cameras.main.width / 2, 175, `-${cost} energy`, '#ffe066');
+    toast(this, this.cameras.main.width / 2, ENERGY_TOAST_Y, `-${cost} energy`, '#ffe066');
 
     this.time.delayedCall(900, () => {
       if (this.mode !== 'ready') return;
