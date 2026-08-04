@@ -6,6 +6,7 @@ import {
   LOCAL_PENGUIN_DANCE_TEXTURE_KEY,
   LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
   normalizePenguinColor,
+  remotePenguinDanceTextureKey,
   remotePenguinTextureKey,
   remotePenguinWalkAnimKey,
   remotePenguinWaveTextureKey,
@@ -2011,6 +2012,7 @@ export function ensureRemotePenguinTextures(scene: Phaser.Scene, requestedColor:
     remotePenguinTextureKey('down', color),
     false,
   );
+  makeDanceTexture(scene, remotePenguinDanceTextureKey(color), color, false);
 }
 
 function makePenguin(scene: Phaser.Scene) {

@@ -27,6 +27,7 @@ import {
   remoteMovementDecision,
   remotePetMovementDecision,
   remotePlayerPresentation,
+  remotePenguinDanceTextureKey,
   remotePenguinTextureKey,
   remotePenguinWalkAnimKey,
   remotePenguinWaveTextureKey,
@@ -76,6 +77,8 @@ type RemoteAvatar = {
   accessoryRetryAt: number;
   lastWaveId?: string;
   waveStartedAt: number | null;
+  /** Set while row.dancing is true — drives the shared 76-frame loop. */
+  danceStartedAt: number | null;
   chat: ChatBubble;
   lastChatId?: string;
 };
@@ -408,6 +411,7 @@ export class WorldMultiplayer {
     this.cancelLocalMovement();
     this.localPlayer.setVelocity(0, 0);
     this.localDanceStartedAt = this.scene.time.now;
+    multiplayerBridge.dance(true);
     this.applyLocalDance(this.scene.time.now);
   }
 
@@ -418,6 +422,7 @@ export class WorldMultiplayer {
   stopLocalDance(facing?: WorldPose['facing']) {
     if (this.localDanceStartedAt === null) return;
     this.localDanceStartedAt = null;
+    multiplayerBridge.dance(false);
     const key =
       facing === 'up' ? 'penguin-up' : facing === 'side' ? 'penguin-side' : 'penguin-down';
     // Keep existing flipX on side-facing so left/right walk direction sticks.
@@ -607,6 +612,7 @@ export class WorldMultiplayer {
       accessoryRetryAt: 0,
       lastWaveId: row.waveId,
       waveStartedAt: null,
+      danceStartedAt: row.dancing ? this.scene.time.now : null,
       chat: createChatBubble(this.scene, local.x, local.y),
       lastChatId: row.chatId,
     };
@@ -646,11 +652,21 @@ export class WorldMultiplayer {
     this.refreshRemoteAccessories(remote);
 
     // Everyone nearby sees the flipper go up; only the target gets the toast.
-    if (isNewWave(previousWaveId, row.waveId)) remote.waveStartedAt = this.scene.time.now;
+    if (isNewWave(previousWaveId, row.waveId)) {
+      remote.waveStartedAt = this.scene.time.now;
+      remote.danceStartedAt = null;
+    }
     if (isNewWaveForLocalPlayer(previousWaveId, row.waveId, row.waveTarget, row.localSessionId)) {
       toast(this.scene, remote.player.x, remote.player.y - remote.player.displayHeight / 2, `${row.name} waves hello!`, '#bfe6ff');
     }
     remote.lastWaveId = row.waveId;
+
+    // Dance is a continuous state: latch the loop when it starts, clear when it stops.
+    if (row.dancing) {
+      if (remote.danceStartedAt === null) remote.danceStartedAt = this.scene.time.now;
+    } else {
+      remote.danceStartedAt = null;
+    }
 
     // A message shows once: the id changes per send, so a state patch about
     // someone walking must not replay the bubble they posted a minute ago.
@@ -729,10 +745,18 @@ export class WorldMultiplayer {
     if (remote.waveStartedAt !== null && waveFrame === null) remote.waveStartedAt = null;
     if (waveFrame !== null) {
       remote.player.stop().setFlipX(false).setTexture(remotePenguinWaveTextureKey(remote.color), waveFrame);
+      remote.player.setScale(penguinDrawScale(this.scene));
+    } else if (remote.danceStartedAt !== null && this.scene.textures.exists(remotePenguinDanceTextureKey(remote.color))) {
+      const danceFrame = danceAnimationFrame(now - remote.danceStartedAt);
+      remote.player.stop().setFlipX(false).setTexture(remotePenguinDanceTextureKey(remote.color), danceFrame);
+      const h = remote.player.frame.height || 1;
+      remote.player.setScale(PENGUIN_DISPLAY_HEIGHT / h);
     } else if (playerDecision.walking) {
       remote.player.play(remotePenguinWalkAnimKey(playerDecision.facing, remote.color), true);
+      remote.player.setScale(penguinDrawScale(this.scene));
     } else {
       remote.player.stop().setTexture(remotePenguinTextureKey(playerDecision.facing, remote.color), 0);
+      remote.player.setScale(penguinDrawScale(this.scene));
     }
 
     const petFrom = { x: remote.pet.x, y: remote.pet.y };

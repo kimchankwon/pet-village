@@ -12,6 +12,7 @@ import {
   remotePlayerPresentation,
   remotePenguinTextureKey,
   remotePenguinWalkAnimKey,
+  remotePenguinDanceTextureKey,
   remoteMovementDecision,
   remotePetMovementDecision,
   stepRemotePosition,
@@ -78,6 +79,8 @@ test('a correction for another scene switches scenes instead of snapping in plac
 test('uses validated colour-specific remote penguin textures', () => {
   assert.equal(remotePenguinTextureKey('side', 'red'), 'penguin-remote-red-side');
   assert.equal(remotePenguinTextureKey('down', 'not-a-colour'), 'penguin-remote-blue-down');
+  assert.equal(remotePenguinDanceTextureKey('pink'), 'penguin-remote-pink-dance');
+  assert.equal(remotePenguinDanceTextureKey('???'), 'penguin-remote-blue-dance');
 });
 
 test('clicking a remote consumes the ground click and waves without moving', () => {

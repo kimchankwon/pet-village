@@ -18,6 +18,7 @@ function actions(sent: number[]) {
     updateProfile: () => {},
     leave: () => {},
     wave: () => {},
+    dance: () => {},
     chat: () => {},
   };
 }

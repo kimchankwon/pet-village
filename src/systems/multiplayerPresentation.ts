@@ -46,6 +46,10 @@ export function remotePenguinWaveTextureKey(color: string) {
   return `penguin-remote-${normalizePenguinColor(color)}-wave`;
 }
 
+export function remotePenguinDanceTextureKey(color: string) {
+  return `penguin-remote-${normalizePenguinColor(color)}-dance`;
+}
+
 export const LOCAL_PENGUIN_WAVE_TEXTURE_KEY = 'penguin-wave';
 export const LOCAL_PENGUIN_DANCE_TEXTURE_KEY = 'penguin-dance';
 

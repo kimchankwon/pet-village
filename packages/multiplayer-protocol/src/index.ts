@@ -1,6 +1,6 @@
 import { MapSchema, Schema, defineTypes } from '@colyseus/schema';
 
-export const PROTOCOL_VERSION = 10 as const;
+export const PROTOCOL_VERSION = 11 as const;
 export const TICKET_ISSUER = 'pet-village-convex';
 export const TICKET_AUDIENCE = 'pet-village-multiplayer';
 export const ROOM_NAME = 'town_default';
@@ -100,6 +100,8 @@ export type PositionCorrection = { scene: WorldScene; x: number; y: number; petX
 export type ProfileRefreshPayload = { ticket: string; requestId?: string };
 export type ProfileRefreshResult = { ok: boolean; requestId?: string; retryAfterMs?: number };
 export type WavePayload = { targetSessionId: string };
+/** Continuous dance emote — peers loop the GIF while true. */
+export type DancePayload = { dancing: boolean };
 export type ChatPayload = { text: string };
 export type TownPositionClaim = { x: number; y: number; facing: Facing };
 export type EquippedAccessoriesClaim = {
@@ -512,6 +514,8 @@ export class PlayerState extends Schema {
   /** Stamped `${sentAt}:${uuid}` — how peers spot a message they have not shown. */
   declare chatId: string;
   declare chatText: string;
+  /** True while the player is looping the Club Penguin dance emote. */
+  declare dancing: boolean;
 
   constructor() {
     super();
@@ -539,11 +543,12 @@ export class PlayerState extends Schema {
     this.accessoryExtra = '';
     this.chatId = '';
     this.chatText = '';
+    this.dancing = false;
   }
 }
 // Field order is the wire format: new fields are appended so clients on an older
 // protocol keep decoding the ones they know.
-defineTypes(PlayerState, {userId:'string',displayName:'string',petName:'string',petSpecies:'string',penguinColor:'string',x:'number',y:'number',petX:'number',petY:'number',facing:'string',moving:'boolean',active:'boolean',seq:'number',updatedAt:'number',waveId:'string',waveTarget:'string',activity:'string',scene:'string',accessoryHeadLeft:'string',accessoryHeadRight:'string',accessoryBody:'string',accessoryExtra:'string',chatId:'string',chatText:'string'});
+defineTypes(PlayerState, {userId:'string',displayName:'string',petName:'string',petSpecies:'string',penguinColor:'string',x:'number',y:'number',petX:'number',petY:'number',facing:'string',moving:'boolean',active:'boolean',seq:'number',updatedAt:'number',waveId:'string',waveTarget:'string',activity:'string',scene:'string',accessoryHeadLeft:'string',accessoryHeadRight:'string',accessoryBody:'string',accessoryExtra:'string',chatId:'string',chatText:'string',dancing:'boolean'});
 
 export class NpcState extends Schema {
   declare id: string;

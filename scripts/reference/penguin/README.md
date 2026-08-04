@@ -92,7 +92,8 @@ public/assets/player/penguin/dance-sheet.png           # 10×8 grid (220×214 ce
 White plate is keyed to transparent; registration matches the GIF so the loop
 closes cleanly. The multi-row sheet stays under WebGL max texture size (a
 single 76-wide row of walk-plate-resolution cells would not). Press **N**
-again or walk to stop. Local-only for now (no multiplayer protocol bump).
+again or walk to stop. Peers in the same scene see the loop via the
+`dancing` multiplayer field (protocol v11).
 
 ## Refresh
 

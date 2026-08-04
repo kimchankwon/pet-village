@@ -1,6 +1,6 @@
 {
   "name": "@pet-village/multiplayer-protocol",
-  "version": "1.23.0",
+  "version": "1.24.0",
   "type": "module",
   "exports": "./src/index.ts",
   "types": "./src/index.ts",
