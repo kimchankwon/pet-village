@@ -3,7 +3,7 @@ import {
   generateTextures,
   PENGUIN_DANCE_SHEET_KEY,
   PENGUIN_PLATE_KEY,
-  PENGUIN_WAVE_PLATE_KEY,
+  PENGUIN_WAVE_SHEET_KEY,
 } from '../sprites/pixelart';
 import {
   ACCESSORY_LIST,
@@ -213,14 +213,9 @@ export class BootScene extends Phaser.Scene {
         );
       }
     }
-    // Raised-flipper wave poses at plate resolution (npm run sprite:penguin-wave).
-    // Wave frame 0 is the idle down plate, so only 1–3 are files.
-    for (const frame of [1, 2, 3] as const) {
-      this.load.image(
-        PENGUIN_WAVE_PLATE_KEY(frame),
-        `assets/player/penguin/wave-${frame}.png`,
-      );
-    }
+    // Classic Club Penguin wave (16 GIF frames, single-row sheet).
+    // npm run sprite:penguin-wave
+    this.load.image(PENGUIN_WAVE_SHEET_KEY, 'assets/player/penguin/wave-sheet.png');
     // Classic Club Penguin dance (76 GIF frames, multi-row sheet).
     // npm run sprite:penguin-dance
     this.load.image(PENGUIN_DANCE_SHEET_KEY, 'assets/player/penguin/dance-sheet.png');
@@ -250,8 +245,11 @@ export class BootScene extends Phaser.Scene {
         this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
       }
     }
+    if (this.textures.exists(PENGUIN_WAVE_SHEET_KEY)) {
+      this.textures.get(PENGUIN_WAVE_SHEET_KEY).setFilter(Phaser.Textures.FilterMode.LINEAR);
+    }
     if (this.textures.exists(PENGUIN_DANCE_SHEET_KEY)) {
-      this.textures.get(PENGUIN_DANCE_SHEET_KEY).setFilter(Phaser.Textures.FilterMode.NEAREST);
+      this.textures.get(PENGUIN_DANCE_SHEET_KEY).setFilter(Phaser.Textures.FilterMode.LINEAR);
     }
 
     // Source-plate frames (≫64px) scale down in-game — force nearest-neighbour

@@ -36,15 +36,27 @@ White plate + soft ground shadow are keyed out; body blues are normalised to
 the dance cyan so colourways recolour the same way. When the player stops,
 scenes set texture frame **0**. Walk anims play frames **1..8** at ~16.7 fps.
 
-## Wave (procedural on classic idle)
+## Wave (Tenor GIF · 16 frames)
 
-Multiplayer wave uses front-facing raised-flipper frames `wave-{1,2,3}.png`
-(frame 0 is still `down-0` idle). On the classic 220×214 idle the pipeline
-always uses procedural `raiseFlipper` (old Imagine wave sources are pixel-art
-on a larger canvas and do not match).
+Multiplayer wave plays the authentic Club Penguin wave emote from Tenor
+(https://tenor.com/view/club-penguin-wave-gif-25809655) — **16 frames** at
+**75 ms** each (~1.2 s one-shot). Captions and the greeting platform are keyed
+out; the black body is remapped to dance cyan so colourways recolour.
+
+```text
+scripts/reference/penguin/cp-wave-gif/penguin-wave.gif
+scripts/reference/penguin/cp-wave-gif/frames/f00.png … f15.png
+```
 
 ```bash
 npm run sprite:penguin-wave
+```
+
+Output:
+
+```text
+public/assets/player/penguin/wave/f00.png … f15.png
+public/assets/player/penguin/wave-sheet.png   # 16×1 row (220×214 cells)
 ```
 
 ## Dance (Club Penguin GIF · 76 frames)
