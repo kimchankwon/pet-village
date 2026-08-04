@@ -95,6 +95,18 @@ single 76-wide row of walk-plate-resolution cells would not). Press **N**
 again or walk to stop. Peers in the same scene see the loop via the
 `dancing` multiplayer field (protocol v11).
 
+Cells keep the GIF's own registration, so the penguin fills only part of the
+cell: the standing pose occupies rows 25–155 of 214, and the rest is headroom
+for the floor spin, which really does reach the bottom edge. Scaling a dance
+cell by its height (the rule the walk plates use, where the art is flush with
+the cell) therefore draws the dancer ~38% short and floating. `pixelart.ts`
+scales and anchors dance frames off the *standing* pose instead —
+`penguinDanceDrawScale` / `penguinDanceOriginY`, from the
+`DANCE_STAND_*_RATIO` constants. **Re-cropping or re-exporting the GIF means
+re-measuring those ratios**; `scripts/lib/penguin-dance-sheet.test.mjs` fails
+if they drift from the sheet or if the dancer stops matching the idle plate's
+height and ground line.
+
 ## Refresh
 
 ```bash

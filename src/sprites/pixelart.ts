@@ -1628,6 +1628,104 @@ export function penguinDrawScale(scene: Phaser.Scene): number {
   return PENGUIN_DISPLAY_HEIGHT / h;
 }
 
+/** Classic penguin geometry: 54×60 canvas, foot collider 34×16 @ (10,42). */
+const CLASSIC_BOX_WIDTH = 54;
+const CLASSIC_BOX_HEIGHT = 60;
+const CLASSIC_COLLIDER_WIDTH = 34;
+const CLASSIC_COLLIDER_HEIGHT = 16;
+const CLASSIC_COLLIDER_X = 10;
+const CLASSIC_COLLIDER_Y = 42;
+
+/**
+ * How the walk plate frames its penguin: the body fills rows 10..512 of the
+ * 513-row cell, so the drawn penguin is all but flush with the cell.
+ */
+const IDLE_BODY_HEIGHT_RATIO = 503 / 513;
+const IDLE_FEET_BELOW_CENTRE_RATIO = (512.5 - 256.5) / 513;
+
+/**
+ * How the dance sheet frames its penguin, measured from the source GIF's
+ * standing pose: the body fills only rows 25..155 of the 214-row cell.
+ *
+ * The dance bobs between two baselines and drops into a floor spin that reaches
+ * the very bottom of the cell, so the empty space below the feet is deliberate
+ * and per-frame normalisation would flatten the animation. These ratios pin the
+ * *standing* pose instead, and stay correct if the sheet is re-exported at a
+ * different resolution.
+ */
+const DANCE_STAND_HEIGHT_RATIO = 131 / 214;
+const DANCE_STAND_FEET_RATIO = 155.5 / 214;
+/** Rows above the standing pose's head — flail frames reach higher on purpose. */
+const DANCE_STAND_TOP_RATIO = 25 / 214;
+
+/**
+ * How far below a penguin sprite's y its feet are planted. Every pose aligns to
+ * this, so ground markers do not need to know which pose is showing.
+ */
+export const PENGUIN_FEET_BELOW_CENTRE =
+  PENGUIN_DISPLAY_HEIGHT * IDLE_FEET_BELOW_CENTRE_RATIO;
+
+/**
+ * Scale for dance frames. Cell height is the wrong yardstick here: the walk
+ * plate is packed tight around its penguin while the dance cell reserves a
+ * third of its height for the floor spin, so reusing `penguinDrawScale`'s
+ * rule draws the dancer ~38% short. Match the drawn body instead.
+ */
+export function penguinDanceDrawScale(frameHeight: number): number {
+  const standHeight = frameHeight * DANCE_STAND_HEIGHT_RATIO;
+  if (standHeight <= 0) return 1;
+  return (PENGUIN_DISPLAY_HEIGHT * IDLE_BODY_HEIGHT_RATIO) / standHeight;
+}
+
+/**
+ * Origin that plants the standing pose's feet exactly where the idle penguin's
+ * are. Centring the cell instead would leave the dancer hovering, because its
+ * feet sit well above the middle of the cell.
+ */
+export function penguinDanceOriginY(frameHeight: number): number {
+  if (frameHeight <= 0) return 0.5;
+  const scale = penguinDanceDrawScale(frameHeight);
+  const feet = frameHeight * DANCE_STAND_FEET_RATIO;
+  return (feet - (PENGUIN_DISPLAY_HEIGHT * IDLE_FEET_BELOW_CENTRE_RATIO) / scale) / frameHeight;
+}
+
+/**
+ * True when this texture is a dance sheet (local `penguin-dance` or a per-colour
+ * remote one). Read from the sprite rather than tracked separately: world scenes
+ * reset the walk plate every frame and the dance pose is re-applied after, so a
+ * caller's "is dancing" flag can disagree with what is actually drawn.
+ */
+export function isPenguinDanceTexture(key: string): boolean {
+  return key === LOCAL_PENGUIN_DANCE_TEXTURE_KEY || key.endsWith('-dance');
+}
+
+/**
+ * How far above a penguin sprite's y the drawn head reaches, for whichever pose
+ * is currently showing. Labels anchor to this instead of `displayHeight`, which
+ * counts the dance cell's empty floor-spin margin and drifts as poses change.
+ */
+export function penguinHeadAboveCentre(
+  sprite: Phaser.GameObjects.Sprite | Phaser.Physics.Arcade.Sprite,
+): number {
+  if (!isPenguinDanceTexture(sprite.texture.key)) return PENGUIN_DISPLAY_HEIGHT / 2;
+  const fh = sprite.frame.height;
+  const scale = penguinDanceDrawScale(fh);
+  return (penguinDanceOriginY(fh) - DANCE_STAND_TOP_RATIO) * fh * scale;
+}
+
+/**
+ * Y-sort a penguin by where its feet stand, whatever pose is showing. Sorting on
+ * the raw sprite box would jump when the dance sheet swaps in, because its cell
+ * reserves empty rows below the feet for the floor spin.
+ */
+export function penguinDepthTarget(sprite: Phaser.GameObjects.Sprite | Phaser.Physics.Arcade.Sprite): {
+  y: number;
+  displayHeight: number;
+  originY: number;
+} {
+  return { y: sprite.y + PENGUIN_FEET_BELOW_CENTRE, displayHeight: 0, originY: 0 };
+}
+
 /**
  * Apply plate-aware scale + foot collider to the player sprite.
  * Classic textures: 54×60, body (34×16) @ offset (10,42).
@@ -1641,13 +1739,45 @@ export function configurePlayerPenguin(
 ) {
   const scale = penguinDrawScale(sprite.scene);
   sprite.setScale(scale);
+  // Dance borrows the origin to plant its feet; every other pose is centred.
+  sprite.setOrigin(0.5, 0.5);
   if (!sprite.body || !(sprite.body instanceof Phaser.Physics.Arcade.Body)) return;
   const fw = sprite.frame.width;
   const fh = sprite.frame.height;
   // Same proportions as classic 34×16 / 54×60, in source pixels.
   sprite.body
-    .setSize(fw * (34 / 54), fh * (16 / 60))
-    .setOffset(fw * (10 / 54), fh * (42 / 60));
+    .setSize(
+      fw * (CLASSIC_COLLIDER_WIDTH / CLASSIC_BOX_WIDTH),
+      fh * (CLASSIC_COLLIDER_HEIGHT / CLASSIC_BOX_HEIGHT),
+    )
+    .setOffset(
+      fw * (CLASSIC_COLLIDER_X / CLASSIC_BOX_WIDTH),
+      fh * (CLASSIC_COLLIDER_Y / CLASSIC_BOX_HEIGHT),
+    );
+}
+
+/**
+ * Point a penguin sprite at the dance sheet: its cells carry their own scale and
+ * origin, and the collider has to be re-pinned in dance pixels or it inflates
+ * with the sprite and starts shoving whatever the dancer is standing next to.
+ */
+export function configureDancePenguin(
+  sprite: Phaser.Physics.Arcade.Sprite | Phaser.GameObjects.Sprite,
+) {
+  const fw = sprite.frame.width;
+  const fh = sprite.frame.height;
+  const scale = penguinDanceDrawScale(fh);
+  const originY = penguinDanceOriginY(fh);
+  sprite.setScale(scale);
+  sprite.setOrigin(0.5, originY);
+  if (!sprite.body || !(sprite.body instanceof Phaser.Physics.Arcade.Body)) return;
+  // Same world-space collider as the idle plate, expressed in dance pixels.
+  sprite.body
+    .setSize(CLASSIC_COLLIDER_WIDTH / scale, CLASSIC_COLLIDER_HEIGHT / scale)
+    .setOffset(
+      fw / 2 - (CLASSIC_BOX_WIDTH / 2 - CLASSIC_COLLIDER_X) / scale,
+      originY * fh + (CLASSIC_COLLIDER_Y - CLASSIC_BOX_HEIGHT / 2) / scale,
+    );
 }
 
 /** Is this pixel part of the recolourable blue body (not outline/belly/beak/feet)? */

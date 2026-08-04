@@ -1,9 +1,12 @@
 import Phaser from 'phaser';
 import {
+  configureDancePenguin,
   configurePlayerPenguin,
   ensureRemotePenguinTextures,
-  PENGUIN_DISPLAY_HEIGHT,
   penguinDrawScale,
+  penguinDepthTarget,
+  penguinHeadAboveCentre,
+  PENGUIN_FEET_BELOW_CENTRE,
 } from '../sprites/pixelart';
 import { Pet } from './Pet';
 import {
@@ -114,8 +117,11 @@ export type WorldMultiplayerOptions = {
   /** Screen-space interiors can be centred differently on each client. */
   networkOffsetX?: number;
   networkOffsetY?: number;
-  depthFor?: (sprite: Phaser.GameObjects.Sprite) => number;
+  depthFor?: (sprite: DepthTarget) => number;
 };
+
+/** The shape the depth helpers actually read — lets a pose pass a stable foot Y. */
+type DepthTarget = { y: number; displayHeight: number; originY: number };
 
 function labelStyle(color = '#ffffff'): Phaser.Types.GameObjects.Text.TextStyle {
   return {
@@ -189,7 +195,7 @@ export class WorldMultiplayer {
   private readonly isLocalMoving?: () => boolean;
   private readonly networkOffsetX: number;
   private readonly networkOffsetY: number;
-  private readonly depthFor: (sprite: Phaser.GameObjects.Sprite) => number;
+  private readonly depthFor: (sprite: DepthTarget) => number;
   private readonly localMarker: Phaser.GameObjects.Ellipse;
   private readonly localPlayerLabel: Phaser.GameObjects.Text;
   private readonly localChat: ChatBubble;
@@ -228,7 +234,7 @@ export class WorldMultiplayer {
     this.localMarker = scene.add
       .ellipse(this.localPlayer.x, this.localPlayer.y + 12, 46, 18, 0x2d8cff, 0.34)
       .setStrokeStyle(3, 0x66b6ff, 0.98)
-      .setDepth(this.depthFor(this.localPlayer) - 1);
+      .setDepth(this.depthFor(penguinDepthTarget(this.localPlayer)) - 1);
     // Your own nametag, on the same terms as everyone else's: always on, at any
     // distance, so a crowd reads the same way from either side of it. Your pet
     // already carries its own label (see Pet), so this is the player only.
@@ -324,9 +330,9 @@ export class WorldMultiplayer {
     this.localMarker
       .setPosition(
         this.localPlayer.x,
-        this.localPlayer.y + this.localPlayer.displayHeight / 2 - 3,
+        this.localPlayer.y + PENGUIN_FEET_BELOW_CENTRE - 3,
       )
-      .setDepth(this.depthFor(this.localPlayer) - 1);
+      .setDepth(this.depthFor(penguinDepthTarget(this.localPlayer)) - 1);
     this.updateLocalLabel();
     this.chatComposer.update(now);
     this.chatLog.update();
@@ -334,7 +340,7 @@ export class WorldMultiplayer {
       this.localChat,
       this.localPlayer.x,
       this.localPlayerLabel.y - this.localPlayerLabel.height,
-      this.depthFor(this.localPlayer) + 3,
+      this.depthFor(penguinDepthTarget(this.localPlayer)) + 3,
       now,
     );
     // Walking cancels the dance (Club Penguin style: move to stop).
@@ -346,10 +352,11 @@ export class WorldMultiplayer {
   }
 
   private updateLocalLabel() {
+    const head = penguinHeadAboveCentre(this.localPlayer);
     this.localPlayerLabel
       .setText(localDisplayName())
-      .setPosition(this.localPlayer.x, this.localPlayer.y - this.localPlayer.displayHeight / 2 - 4)
-      .setDepth(this.depthFor(this.localPlayer) + 2);
+      .setPosition(this.localPlayer.x, this.localPlayer.y - head - 4)
+      .setDepth(this.depthFor(penguinDepthTarget(this.localPlayer)) + 2);
   }
 
   /** True while the chat composer has the keyboard. */
@@ -560,10 +567,9 @@ export class WorldMultiplayer {
     const frame = danceAnimationFrame(now - this.localDanceStartedAt);
     this.localPlayer.setVelocity(0, 0);
     this.localPlayer.stop().setFlipX(false).setTexture(LOCAL_PENGUIN_DANCE_TEXTURE_KEY, frame);
-    // Dance sheet cells are native GIF size (~220×214), not walk-plate size.
-    // Scale so on-screen height matches classic penguin height.
-    const h = this.localPlayer.frame.height || 1;
-    this.localPlayer.setScale(PENGUIN_DISPLAY_HEIGHT / h);
+    // Dance cells reserve room below the feet for the floor spin, so they need
+    // their own scale and origin to stand the same height as the walk plates.
+    configureDancePenguin(this.localPlayer);
   }
 
   private syncRows(rows: RemotePresence[]) {
@@ -657,7 +663,13 @@ export class WorldMultiplayer {
       remote.danceStartedAt = null;
     }
     if (isNewWaveForLocalPlayer(previousWaveId, row.waveId, row.waveTarget, row.localSessionId)) {
-      toast(this.scene, remote.player.x, remote.player.y - remote.player.displayHeight / 2, `${row.name} waves hello!`, '#bfe6ff');
+      toast(
+        this.scene,
+        remote.player.x,
+        remote.player.y - penguinHeadAboveCentre(remote.player),
+        `${row.name} waves hello!`,
+        '#bfe6ff',
+      );
     }
     remote.lastWaveId = row.waveId;
 
@@ -745,18 +757,17 @@ export class WorldMultiplayer {
     if (remote.waveStartedAt !== null && waveFrame === null) remote.waveStartedAt = null;
     if (waveFrame !== null) {
       remote.player.stop().setFlipX(false).setTexture(remotePenguinWaveTextureKey(remote.color), waveFrame);
-      remote.player.setScale(penguinDrawScale(this.scene));
+      configurePlayerPenguin(remote.player);
     } else if (remote.danceStartedAt !== null && this.scene.textures.exists(remotePenguinDanceTextureKey(remote.color))) {
       const danceFrame = danceAnimationFrame(now - remote.danceStartedAt);
       remote.player.stop().setFlipX(false).setTexture(remotePenguinDanceTextureKey(remote.color), danceFrame);
-      const h = remote.player.frame.height || 1;
-      remote.player.setScale(PENGUIN_DISPLAY_HEIGHT / h);
+      configureDancePenguin(remote.player);
     } else if (playerDecision.walking) {
       remote.player.play(remotePenguinWalkAnimKey(playerDecision.facing, remote.color), true);
-      remote.player.setScale(penguinDrawScale(this.scene));
+      configurePlayerPenguin(remote.player);
     } else {
       remote.player.stop().setTexture(remotePenguinTextureKey(playerDecision.facing, remote.color), 0);
-      remote.player.setScale(penguinDrawScale(this.scene));
+      configurePlayerPenguin(remote.player);
     }
 
     const petFrom = { x: remote.pet.x, y: remote.pet.y };
@@ -768,11 +779,14 @@ export class WorldMultiplayer {
     else remote.pet.stop().setTexture(petTextureKey(remote.petSpecies, 'idle1'));
     this.syncRemoteAccessories(remote);
 
-    remote.player.setDepth(this.depthFor(remote.player));
+    remote.player.setDepth(this.depthFor(penguinDepthTarget(remote.player)));
     remote.pet.setDepth(this.depthFor(remote.pet));
     remote.playerLabel
-      .setPosition(remote.player.x, remote.player.y - remote.player.displayHeight / 2 - 4)
-      .setDepth(this.depthFor(remote.player) + 2);
+      .setPosition(
+        remote.player.x,
+        remote.player.y - penguinHeadAboveCentre(remote.player) - 4,
+      )
+      .setDepth(this.depthFor(penguinDepthTarget(remote.player)) + 2);
     remote.petLabel
       .setPosition(remote.pet.x, remote.pet.y - remote.pet.displayHeight / 2 - 3)
       .setDepth(this.depthFor(remote.pet) + 2);
@@ -780,7 +794,7 @@ export class WorldMultiplayer {
       remote.chat,
       remote.player.x,
       remote.playerLabel.y - remote.playerLabel.height,
-      this.depthFor(remote.player) + 3,
+      this.depthFor(penguinDepthTarget(remote.player)) + 3,
       now,
     );
   }

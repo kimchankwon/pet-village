@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { worldSceneSpawn } from '@pet-village/multiplayer-protocol';
-import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
+import { configurePlayerPenguin, generateTextures, penguinDepthTarget } from '../sprites/pixelart';
 import { State, WELCOME_KEY } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
@@ -831,7 +831,8 @@ export class TownScene extends Phaser.Scene {
         0,
       );
     }
-    this.player.setDepth(characterDepth(this.player));
+    // Sort by the feet, not the sprite box: the dance sheet is a different size.
+    this.player.setDepth(characterDepth(penguinDepthTarget(this.player)));
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);
     State.rememberTownPosition({ x: this.player.x, y: this.player.y, facing: this.facing });
