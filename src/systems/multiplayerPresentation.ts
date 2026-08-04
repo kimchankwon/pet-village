@@ -95,8 +95,13 @@ export function remotePetMovementDecision(from: Point, to: Point, previousFlipX:
   };
 }
 
-const WAVE_FRAME_MS = 130;
-const WAVE_FRAME_SEQUENCE = [0, 1, 2, 3, 2, 1] as const;
+/**
+ * Classic Club Penguin wave GIF (Tenor, 16 unique frames).
+ * Source delays are 70–80 ms; 75 ms keeps a steady one-shot (~1.2 s).
+ * Must match WAVE_FRAME_* in scripts/penguin-wave-plates.mts.
+ */
+export const WAVE_FRAME_MS = 75;
+export const WAVE_FRAME_COUNT = 16;
 
 /**
  * Classic Club Penguin dance GIF (Tenor, 76 unique frames).
@@ -166,11 +171,12 @@ export function pendingWaveDecision(input: {
   return input.targetMovedPx >= WAVE_RETARGET_MIN_MOVE_PX ? 'retarget' : 'cancel';
 }
 
-/** Returns the authored wave frame, or null once the one-shot is complete. */
+/** Returns the Tenor wave frame index, or null once the one-shot is complete. */
 export function waveAnimationFrame(elapsedMs: number): number | null {
-  if (elapsedMs < 0) return WAVE_FRAME_SEQUENCE[0];
+  if (elapsedMs < 0) return 0;
   const index = Math.floor(elapsedMs / WAVE_FRAME_MS);
-  return WAVE_FRAME_SEQUENCE[index] ?? null;
+  if (index < 0 || index >= WAVE_FRAME_COUNT) return null;
+  return index;
 }
 
 /**

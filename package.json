@@ -1,7 +1,7 @@
 {
   "name": "pet-village",
   "private": true,
-  "version": "1.33.3",
+  "version": "1.34.3",
   "type": "module",
   "workspaces": [
     "packages/*",
@@ -23,6 +23,7 @@
     "sprite:puffles": "tsx scripts/imagine-to-puffles.mts",
     "sprite:bongbongee": "tsx scripts/imagine-to-bongbongee.mts",
     "sprite:penguin": "tsx scripts/imagine-to-penguin.mts",
+    "sprite:penguin-classic": "tsx scripts/penguin-classic-plates.mts",
     "sprite:penguin-wave": "tsx scripts/penguin-wave-plates.mts",
     "sprite:penguin-dance": "tsx scripts/penguin-dance-plates.mts",
     "sprite:expedition": "tsx scripts/imagine-to-expedition.mts",
