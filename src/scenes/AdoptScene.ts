@@ -88,9 +88,11 @@ export class AdoptScene extends Phaser.Scene {
 
     this.nameInput = document.createElement('input');
     this.nameInput.type = 'text';
-    this.nameInput.maxLength = 12;
+    this.nameInput.maxLength = 16;
+    // Empty on open — only a soft placeholder hint. Pre-filling species defaults
+    // made two friends hit the same name and get stuck on adopt.
     this.nameInput.placeholder = PET_SPECIES.mametchi.defaultName;
-    this.nameInput.value = PET_SPECIES.mametchi.defaultName;
+    this.nameInput.value = '';
     this.nameInput.autocomplete = 'off';
     this.nameInput.spellcheck = false;
     Object.assign(this.nameInput.style, {
@@ -205,12 +207,8 @@ export class AdoptScene extends Phaser.Scene {
       card.sprite.setScale(on ? base * SELECTED_SCALE_MULT : base);
     }
     if (this.nameInput) {
-      const def = PET_SPECIES[species];
-      const otherDefaults = PET_SPECIES_LIST.map((s) => s.defaultName);
-      if (!this.nameInput.value.trim() || otherDefaults.includes(this.nameInput.value.trim())) {
-        this.nameInput.value = def.defaultName;
-        this.nameInput.placeholder = def.defaultName;
-      }
+      // Placeholder only — never overwrite a typed name when browsing pets.
+      this.nameInput.placeholder = PET_SPECIES[species].defaultName;
     }
   }
 
