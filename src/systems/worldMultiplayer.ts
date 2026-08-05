@@ -422,7 +422,7 @@ export class WorldMultiplayer {
 
   /**
    * Open the Moves menu (N / Moves chip). Pick Dance, Wave, Breakdance, Sit, or
-   * Hip hop. Choosing the active move again (or Stop) ends it.
+   * Hip hop. Choosing the active move again stops it; walking also cancels.
    */
   openMovesMenu() {
     if (this.disposed) return;
@@ -433,29 +433,19 @@ export class WorldMultiplayer {
     }
     if (this.chatComposer.isOpen() || isUiBlocked()) return;
     const active = this.localEmote;
-    const options = [
-      ...PENGUIN_EMOTE_MENU.map((id) => {
-        const cfg = PENGUIN_EMOTE_CONFIG[id];
-        const on = active === id;
-        return {
-          label: on ? `● ${cfg.label} (stop)` : cfg.label,
-          onSelect: () => {
-            if (on) this.stopLocalEmote();
-            else this.startLocalEmote(id);
-          },
-        };
-      }),
-      ...(active
-        ? [
-            {
-              label: 'Stop',
-              onSelect: () => this.stopLocalEmote(),
-            },
-          ]
-        : []),
-    ];
+    const options = PENGUIN_EMOTE_MENU.map((id) => {
+      const cfg = PENGUIN_EMOTE_CONFIG[id];
+      const on = active === id;
+      return {
+        label: on ? `● ${cfg.label} (stop)` : cfg.label,
+        onSelect: () => {
+          if (on) this.stopLocalEmote();
+          else this.startLocalEmote(id);
+        },
+      };
+    });
     this.movesMenu = new Menu(this.scene, 'Moves', options, {
-      subtitle: 'N · walk to cancel',
+      subtitle: 'N · pick again or walk to stop',
       anchor: 'bottom',
     });
     this.movesMenu.onClose = () => {
