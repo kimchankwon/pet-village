@@ -214,7 +214,7 @@ export class ParkScene extends Phaser.Scene {
         { label: '[ Inventory · I ]', shortLabel: '[Inv]', onTap: () => { if (!this.menuOpen) this.openInventory(); } },
         { label: '[ Pet · P ]', shortLabel: '[Pet]', onTap: () => { if (!this.menuOpen) this.openPetMenu(); } },
         { label: '[ Chat · T ]', shortLabel: '[Chat]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.openChat(); } },
-        { label: '[ Dance · N ]', shortLabel: '[Dance]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.toggleLocalDance(); } },
+        { label: '[ Moves · N ]', shortLabel: '[Moves]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.openMovesMenu(); } },
       ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;

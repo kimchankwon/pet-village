@@ -532,7 +532,7 @@ export function bottomButtonsCompact(scene: Phaser.Scene): boolean {
 }
 
 /**
- * Bottom-right action chips (Inventory / Pet / Chat / Dance).
+ * Bottom-right action chips (Inventory / Pet / Chat / Moves).
  * Desktop: full labels. Mobile/narrow: shorter labels + smaller type so four
  * chips still fit beside the left-hand joystick.
  */

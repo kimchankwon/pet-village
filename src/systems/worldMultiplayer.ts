@@ -19,26 +19,29 @@ import {
   approachPointForWave,
   handleRemotePlayerPointerDown,
   canInitiateWave,
-  danceAnimationFrame,
   danceExitPose,
   isNewWave,
   pendingWaveDecision,
   isNewWaveForLocalPlayer,
   normalizePenguinColor,
   positionCorrectionAction,
-  LOCAL_PENGUIN_DANCE_TEXTURE_KEY,
-  LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
   remoteMovementDecision,
   remotePetMovementDecision,
   remotePlayerPresentation,
-  remotePenguinDanceTextureKey,
   remotePenguinTextureKey,
   remotePenguinWalkAnimKey,
-  remotePenguinWaveTextureKey,
   stepRemotePosition,
   visibleSceneRows,
-  waveAnimationFrame,
 } from './multiplayerPresentation';
+import {
+  emoteAnimationFrame,
+  isPenguinEmote,
+  PENGUIN_EMOTE_CONFIG,
+  PENGUIN_EMOTE_MENU,
+  remotePenguinEmoteTextureKey,
+  type PenguinEmote,
+} from './penguinEmotes';
+import { Menu } from './UI';
 import { shouldSendPresence, type PresencePose } from './multiplayerPolicy';
 import {
   isClassicSpecies,
@@ -80,9 +83,9 @@ type RemoteAvatar = {
   accessoryKey: string;
   accessoryRetryAt: number;
   lastWaveId?: string;
-  waveStartedAt: number | null;
-  /** Set while row.dancing is true — drives the shared 76-frame loop. */
-  danceStartedAt: number | null;
+  /** Active remote emote + when it started (for frame timing). */
+  emote: PenguinEmote | null;
+  emoteStartedAt: number | null;
   chat: ChatBubble;
   lastChatId?: string;
 };
@@ -207,13 +210,14 @@ export class WorldMultiplayer {
   private readonly releaseWorld: () => void;
   private lastPose: PresencePose;
   private lastSentAt = -Infinity;
-  private localWaveStartedAt: number | null = null;
-  /** Set while the local player is looping the Club Penguin dance (N key). */
-  private localDanceStartedAt: number | null = null;
-  /** Idle pose captured when the dance began, so stopping restores it. */
-  private localDanceIdlePose: { facing: WorldPose['facing']; flipX: boolean } | null = null;
-  /** Facing the scene reported last frame — the dance overwrites the sprite. */
+  /** Active local move emote (N menu / Moves chip), or null when idle. */
+  private localEmote: PenguinEmote | null = null;
+  private localEmoteStartedAt: number | null = null;
+  /** Idle pose captured when an emote began, so stopping restores it. */
+  private localEmoteIdlePose: { facing: WorldPose['facing']; flipX: boolean } | null = null;
+  /** Facing the scene reported last frame — emotes overwrite the sprite. */
   private lastFacing: WorldPose['facing'] = 'down';
+  private movesMenu: Menu | null = null;
   private pendingWave: {
     sessionId: string;
     startedAt: number;
@@ -309,22 +313,22 @@ export class WorldMultiplayer {
   update(facing: WorldPose['facing'], moving: boolean, deltaMs: number) {
     if (this.disposed) return;
     const now = this.scene.time.now;
-    // `moving` describes the frame *before* the N check, so a dance started
+    // `moving` describes the frame *before* the N check, so an emote started
     // below must not be cancelled by it — otherwise pressing N mid-walk starts
-    // and stops the dance in one frame and a walking player can never dance.
-    const wasDancing = this.localDanceStartedAt !== null;
-    // Remembered before the N check so starting a dance can capture this pose.
+    // and stops the move in one frame.
+    const wasEmoting = this.localEmote !== null;
+    // Remembered before the N check so starting an emote can capture this pose.
     this.lastFacing = facing;
 
-    // N toggles dance — scene-scoped so overlays cannot double-fire.
-    // Chat owns the keyboard while open; menus block via isUiBlocked().
+    // N opens the Moves menu (or closes it). Scene-scoped so overlays cannot
+    // double-fire. Chat owns the keyboard while open.
     if (
       this.keyN &&
       Phaser.Input.Keyboard.JustDown(this.keyN) &&
       !this.chatComposer.isOpen() &&
       !isUiBlocked()
     ) {
-      this.toggleLocalDance();
+      this.openMovesMenu();
     }
 
     const pose = this.currentPose(facing, moving);
@@ -354,13 +358,12 @@ export class WorldMultiplayer {
       this.depthFor(penguinDepthTarget(this.localPlayer)) + 3,
       now,
     );
-    // Walking cancels the dance (Club Penguin style: move to stop) — but only a
-    // dance that was already running when this frame began.
-    if (moving && wasDancing && this.localDanceStartedAt !== null) {
-      this.stopLocalDance(facing);
+    // Walking cancels an emote (Club Penguin style: move to stop) — but only one
+    // that was already running when this frame began.
+    if (moving && wasEmoting && this.localEmote !== null) {
+      this.stopLocalEmote(facing);
     }
-    this.applyLocalWave(now);
-    this.applyLocalDance(now);
+    this.applyLocalEmote(now);
     for (const remote of this.remotes.values()) this.updateRemote(remote, now, deltaMs);
     this.updatePendingWave(now);
   }
@@ -402,61 +405,115 @@ export class WorldMultiplayer {
     return true;
   }
 
-  playLocalWave() {
-    if (this.disposed) return;
-    this.stopLocalDance();
-    this.cancelLocalMovement();
-    this.localPlayer.setVelocity(0, 0);
-    this.localWaveStartedAt = this.scene.time.now;
-    this.applyLocalWave(this.scene.time.now);
+  /** True while any local move emote is playing. */
+  isEmoting() {
+    return this.localEmote !== null;
   }
 
-  /** True while the local dance loop is playing. */
+  /** @deprecated Prefer isEmoting — kept for scene chips that still ask about dance. */
   isDancing() {
-    return this.localDanceStartedAt !== null;
+    return this.localEmote === 'dance';
+  }
+
+  /** True while the local wave one-shot is playing (scenes suppress input). */
+  isWaving() {
+    return this.localEmote === 'wave';
   }
 
   /**
-   * Toggle the Club Penguin dance (N / Dance chip). Starts the 76-frame GIF
-   * loop, or stops if already dancing. Requires the dance sheet in Boot.
+   * Open the Moves menu (N / Moves chip). Pick Dance, Wave, Breakdance, Sit, or
+   * Hip hop. Choosing the active move again (or Stop) ends it.
    */
-  toggleLocalDance() {
+  openMovesMenu() {
     if (this.disposed) return;
-    if (this.localDanceStartedAt !== null) {
-      this.stopLocalDance();
+    if (this.movesMenu) {
+      this.movesMenu.close();
+      this.movesMenu = null;
       return;
     }
-    if (!this.scene.textures.exists(LOCAL_PENGUIN_DANCE_TEXTURE_KEY)) return;
-    // A one-shot wave wins over starting a dance mid-wave.
-    if (this.localWaveStartedAt !== null) return;
-    this.cancelLocalMovement();
-    this.localPlayer.setVelocity(0, 0);
-    // Dance frames are front-facing and unflipped, so bank the pose we came from.
-    this.localDanceIdlePose = { facing: this.lastFacing, flipX: this.localPlayer.flipX };
-    this.localDanceStartedAt = this.scene.time.now;
-    multiplayerBridge.dance(true);
-    this.applyLocalDance(this.scene.time.now);
+    if (this.chatComposer.isOpen() || isUiBlocked()) return;
+    const active = this.localEmote;
+    const options = [
+      ...PENGUIN_EMOTE_MENU.map((id) => {
+        const cfg = PENGUIN_EMOTE_CONFIG[id];
+        const on = active === id;
+        return {
+          label: on ? `● ${cfg.label} (stop)` : cfg.label,
+          onSelect: () => {
+            if (on) this.stopLocalEmote();
+            else this.startLocalEmote(id);
+          },
+        };
+      }),
+      ...(active
+        ? [
+            {
+              label: 'Stop',
+              onSelect: () => this.stopLocalEmote(),
+            },
+          ]
+        : []),
+    ];
+    this.movesMenu = new Menu(this.scene, 'Moves', options, {
+      subtitle: 'N · walk to cancel',
+      anchor: 'bottom',
+    });
+    this.movesMenu.onClose = () => {
+      this.movesMenu = null;
+    };
+  }
+
+  /** @deprecated Prefer openMovesMenu. */
+  toggleLocalDance() {
+    this.openMovesMenu();
+  }
+
+  playLocalWave() {
+    this.startLocalEmote('wave');
   }
 
   /**
-   * End the dance loop. `facing` is the live movement facing (walk-cancel);
-   * without it we restore the pose the player held when the dance started, so
-   * dancing while facing up or left doesn't leave them facing down or unflipped.
+   * Start a move emote. One-shots (wave) end themselves; loops run until stop
+   * or walk. Requires the matching Boot sheet / texture.
    */
-  stopLocalDance(facing?: WorldPose['facing']) {
-    if (this.localDanceStartedAt === null) return;
-    this.localDanceStartedAt = null;
-    const idle = this.localDanceIdlePose;
-    this.localDanceIdlePose = null;
-    multiplayerBridge.dance(false);
+  startLocalEmote(emote: PenguinEmote) {
+    if (this.disposed) return;
+    const cfg = PENGUIN_EMOTE_CONFIG[emote];
+    if (!this.scene.textures.exists(cfg.localTextureKey)) return;
+    // Restarting the same emote is a no-op stop when wave is mid-shot; for
+    // loops, re-pick from the menu uses stop via openMovesMenu.
+    this.stopLocalEmote();
+    this.cancelLocalMovement();
+    this.localPlayer.setVelocity(0, 0);
+    this.localEmoteIdlePose = { facing: this.lastFacing, flipX: this.localPlayer.flipX };
+    this.localEmote = emote;
+    this.localEmoteStartedAt = this.scene.time.now;
+    multiplayerBridge.emote(emote);
+    this.applyLocalEmote(this.scene.time.now);
+  }
+
+  /**
+   * End the active emote. `facing` is the live movement facing (walk-cancel);
+   * without it we restore the pose held when the emote started.
+   */
+  stopLocalEmote(facing?: WorldPose['facing']) {
+    if (this.localEmote === null) return;
+    this.localEmote = null;
+    this.localEmoteStartedAt = null;
+    const idle = this.localEmoteIdlePose;
+    this.localEmoteIdlePose = null;
+    multiplayerBridge.emote('');
     const exit = danceExitPose(facing, idle);
-    const key =
-      `penguin-${exit.facing}`;
+    const key = `penguin-${exit.facing}`;
     if (exit.flipX !== null) this.localPlayer.setFlipX(exit.flipX);
     else if (exit.facing !== 'side') this.localPlayer.setFlipX(false);
     this.localPlayer.stop().setTexture(key, 0);
-    // Dance and walk plates share the 220×214 classic cell — restore walk scale.
     configurePlayerPenguin(this.localPlayer);
+  }
+
+  /** @deprecated Prefer stopLocalEmote. */
+  stopLocalDance(facing?: WorldPose['facing']) {
+    this.stopLocalEmote(facing);
   }
 
   waveTo(remote: RemotePresence | string) {
@@ -559,38 +616,25 @@ export class WorldMultiplayer {
     };
   }
 
-  /** True while the local wave one-shot is playing (scenes suppress input). */
-  isWaving() {
-    return this.localWaveStartedAt !== null;
-  }
-
-  private applyLocalWave(now: number) {
-    if (this.localWaveStartedAt === null) return;
-    const frame = waveAnimationFrame(now - this.localWaveStartedAt);
+  private applyLocalEmote(now: number) {
+    if (this.localEmote === null || this.localEmoteStartedAt === null) return;
+    const emote = this.localEmote;
+    const cfg = PENGUIN_EMOTE_CONFIG[emote];
+    if (!this.scene.textures.exists(cfg.localTextureKey)) {
+      this.stopLocalEmote();
+      return;
+    }
+    const frame = emoteAnimationFrame(emote, now - this.localEmoteStartedAt);
     if (frame === null) {
-      this.localWaveStartedAt = null;
+      // One-shot finished (wave).
+      this.stopLocalEmote();
       return;
     }
-    // Scene movement runs before this, so hold the penguin still every frame —
-    // otherwise the wave plays while the player slides.
     this.localPlayer.setVelocity(0, 0);
-    this.localPlayer.stop().setFlipX(false).setTexture(LOCAL_PENGUIN_WAVE_TEXTURE_KEY, frame);
-  }
-
-  private applyLocalDance(now: number) {
-    if (this.localDanceStartedAt === null) return;
-    if (!this.scene.textures.exists(LOCAL_PENGUIN_DANCE_TEXTURE_KEY)) {
-      this.localDanceStartedAt = null;
-      return;
-    }
-    // Wave one-shot takes the sprite if both somehow race; dance yields.
-    if (this.localWaveStartedAt !== null) return;
-    const frame = danceAnimationFrame(now - this.localDanceStartedAt);
-    this.localPlayer.setVelocity(0, 0);
-    this.localPlayer.stop().setFlipX(false).setTexture(LOCAL_PENGUIN_DANCE_TEXTURE_KEY, frame);
-    // Dance cells reserve room below the feet for the floor spin, so they need
-    // their own scale and origin to stand the same height as the walk plates.
-    configureDancePenguin(this.localPlayer);
+    this.localPlayer.stop().setFlipX(false).setTexture(cfg.localTextureKey, frame);
+    // All move sheets use dance-style registration so they stand idle-tall.
+    if (cfg.danceScale) configureDancePenguin(this.localPlayer);
+    else configurePlayerPenguin(this.localPlayer);
   }
 
   private syncRows(rows: RemotePresence[]) {
@@ -638,8 +682,8 @@ export class WorldMultiplayer {
       accessoryKey: '',
       accessoryRetryAt: 0,
       lastWaveId: row.waveId,
-      waveStartedAt: null,
-      danceStartedAt: row.dancing ? this.scene.time.now : null,
+      emote: isPenguinEmote(row.emote) ? row.emote : null,
+      emoteStartedAt: isPenguinEmote(row.emote) ? this.scene.time.now : null,
       chat: createChatBubble(this.scene, local.x, local.y),
       lastChatId: row.chatId,
     };
@@ -679,9 +723,10 @@ export class WorldMultiplayer {
     this.refreshRemoteAccessories(remote);
 
     // Everyone nearby sees the flipper go up; only the target gets the toast.
+    // Directed waves also set emote=wave on the sender for the one-shot.
     if (isNewWave(previousWaveId, row.waveId)) {
-      remote.waveStartedAt = this.scene.time.now;
-      remote.danceStartedAt = null;
+      remote.emote = 'wave';
+      remote.emoteStartedAt = this.scene.time.now;
     }
     if (isNewWaveForLocalPlayer(previousWaveId, row.waveId, row.waveTarget, row.localSessionId)) {
       toast(
@@ -694,11 +739,15 @@ export class WorldMultiplayer {
     }
     remote.lastWaveId = row.waveId;
 
-    // Dance is a continuous state: latch the loop when it starts, clear when it stops.
-    if (row.dancing) {
-      if (remote.danceStartedAt === null) remote.danceStartedAt = this.scene.time.now;
-    } else {
-      remote.danceStartedAt = null;
+    // Continuous / menu emotes: latch when the id changes, clear when empty.
+    // A directed wave already stamped emoteStartedAt above — don't reset it.
+    const nextEmote = isPenguinEmote(row.emote) ? row.emote : null;
+    if (nextEmote !== remote.emote) {
+      remote.emote = nextEmote;
+      remote.emoteStartedAt = nextEmote ? this.scene.time.now : null;
+    } else if (!nextEmote) {
+      remote.emote = null;
+      remote.emoteStartedAt = null;
     }
 
     // A message shows once: the id changes per send, so a state patch about
@@ -774,15 +823,26 @@ export class WorldMultiplayer {
     const playerPosition = stepRemotePosition(playerFrom, local, deltaMs);
     remote.player.setPosition(playerPosition.x, playerPosition.y).setFlipX(playerDecision.flipX);
 
-    const waveFrame = remote.waveStartedAt === null ? null : waveAnimationFrame(now - remote.waveStartedAt);
-    if (remote.waveStartedAt !== null && waveFrame === null) remote.waveStartedAt = null;
-    if (waveFrame !== null) {
-      remote.player.stop().setFlipX(false).setTexture(remotePenguinWaveTextureKey(remote.color), waveFrame);
-      configurePlayerPenguin(remote.player);
-    } else if (remote.danceStartedAt !== null && this.scene.textures.exists(remotePenguinDanceTextureKey(remote.color))) {
-      const danceFrame = danceAnimationFrame(now - remote.danceStartedAt);
-      remote.player.stop().setFlipX(false).setTexture(remotePenguinDanceTextureKey(remote.color), danceFrame);
-      configureDancePenguin(remote.player);
+    const remoteEmote = remote.emote;
+    const emoteFrame =
+      remoteEmote && remote.emoteStartedAt !== null
+        ? emoteAnimationFrame(remoteEmote, now - remote.emoteStartedAt)
+        : null;
+    if (remoteEmote && emoteFrame === null) {
+      // One-shot finished.
+      remote.emote = null;
+      remote.emoteStartedAt = null;
+    }
+    if (remoteEmote && emoteFrame !== null) {
+      const tex = remotePenguinEmoteTextureKey(remoteEmote, remote.color);
+      if (this.scene.textures.exists(tex)) {
+        remote.player.stop().setFlipX(false).setTexture(tex, emoteFrame);
+        const cfg = PENGUIN_EMOTE_CONFIG[remoteEmote];
+        if (cfg.danceScale) configureDancePenguin(remote.player);
+        else configurePlayerPenguin(remote.player);
+      } else {
+        configurePlayerPenguin(remote.player);
+      }
     } else if (playerDecision.walking) {
       remote.player.play(remotePenguinWalkAnimKey(playerDecision.facing, remote.color), true);
       configurePlayerPenguin(remote.player);
@@ -842,13 +902,17 @@ export class WorldMultiplayer {
     this.scene.input.off(Phaser.Input.Events.POINTER_DOWN, this.cancelPendingWave, this);
     // Tell peers the dance ended *before* releasing world access, or a player
     // who leaves the scene mid-dance keeps dancing on everyone else's screen.
-    if (this.localDanceStartedAt !== null) multiplayerBridge.dance(false);
+    if (this.localEmote !== null) multiplayerBridge.emote('');
     this.unsubscribe();
     this.releaseWorld();
     this.pendingWave = null;
-    this.localWaveStartedAt = null;
-    this.localDanceStartedAt = null;
-    this.localDanceIdlePose = null;
+    this.localEmote = null;
+    this.localEmoteStartedAt = null;
+    this.localEmoteIdlePose = null;
+    if (this.movesMenu) {
+      this.movesMenu.close();
+      this.movesMenu = null;
+    }
     this.chatComposer.dispose();
     this.chatLog.dispose();
     this.localMarker.destroy();

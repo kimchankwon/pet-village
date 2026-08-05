@@ -1,6 +1,6 @@
 import { MapSchema, Schema, defineTypes } from '@colyseus/schema';
 
-export const PROTOCOL_VERSION = 12 as const;
+export const PROTOCOL_VERSION = 13 as const;
 export const TICKET_ISSUER = 'pet-village-convex';
 export const TICKET_AUDIENCE = 'pet-village-multiplayer';
 export const ROOM_NAME = 'town_default';
@@ -105,8 +105,18 @@ export type PositionCorrection = { scene: WorldScene; x: number; y: number; petX
 export type ProfileRefreshPayload = { ticket: string; requestId?: string };
 export type ProfileRefreshResult = { ok: boolean; requestId?: string; retryAfterMs?: number };
 export type WavePayload = { targetSessionId: string };
-/** Continuous dance emote — peers loop the GIF while true. */
+/**
+ * Player move emote (N menu). Empty string clears.
+ * `dance` | `wave` | `breakdance` | `sit` | `hiphop`
+ */
+export const PENGUIN_EMOTES = ['dance', 'wave', 'breakdance', 'sit', 'hiphop'] as const;
+export type PenguinEmote = (typeof PENGUIN_EMOTES)[number];
+export function isPenguinEmote(value: unknown): value is PenguinEmote {
+  return typeof value === 'string' && (PENGUIN_EMOTES as readonly string[]).includes(value);
+}
+/** @deprecated Prefer EmotePayload — kept name for older call sites during rollout. */
 export type DancePayload = { dancing: boolean };
+export type EmotePayload = { emote: PenguinEmote | '' };
 export type ChatPayload = { text: string };
 export type TownPositionClaim = { x: number; y: number; facing: Facing };
 export type EquippedAccessoriesClaim = {
@@ -519,8 +529,11 @@ export class PlayerState extends Schema {
   /** Stamped `${sentAt}:${uuid}` — how peers spot a message they have not shown. */
   declare chatId: string;
   declare chatText: string;
-  /** True while the player is looping the Club Penguin dance emote. */
-  declare dancing: boolean;
+  /**
+   * Active move emote id, or empty. Replaces the v12 `dancing` boolean so peers
+   * can play wave / breakdance / sit / hip hop as well as the original dance.
+   */
+  declare emote: string;
 
   constructor() {
     super();
@@ -548,12 +561,12 @@ export class PlayerState extends Schema {
     this.accessoryExtra = '';
     this.chatId = '';
     this.chatText = '';
-    this.dancing = false;
+    this.emote = '';
   }
 }
 // Field order is the wire format: new fields are appended so clients on an older
-// protocol keep decoding the ones they know.
-defineTypes(PlayerState, {userId:'string',displayName:'string',petName:'string',petSpecies:'string',penguinColor:'string',x:'number',y:'number',petX:'number',petY:'number',facing:'string',moving:'boolean',active:'boolean',seq:'number',updatedAt:'number',waveId:'string',waveTarget:'string',activity:'string',scene:'string',accessoryHeadLeft:'string',accessoryHeadRight:'string',accessoryBody:'string',accessoryExtra:'string',chatId:'string',chatText:'string',dancing:'boolean'});
+// protocol keep decoding the ones they know. v13 renames dancing→emote (string).
+defineTypes(PlayerState, {userId:'string',displayName:'string',petName:'string',petSpecies:'string',penguinColor:'string',x:'number',y:'number',petX:'number',petY:'number',facing:'string',moving:'boolean',active:'boolean',seq:'number',updatedAt:'number',waveId:'string',waveTarget:'string',activity:'string',scene:'string',accessoryHeadLeft:'string',accessoryHeadRight:'string',accessoryBody:'string',accessoryExtra:'string',chatId:'string',chatText:'string',emote:'string'});
 
 export class NpcState extends Schema {
   declare id: string;

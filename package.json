@@ -1,7 +1,7 @@
 {
   "name": "pet-village",
   "private": true,
-  "version": "1.35.1",
+  "version": "1.36.0",
   "type": "module",
   "workspaces": [
     "packages/*",
@@ -26,6 +26,7 @@
     "sprite:penguin-classic": "tsx scripts/penguin-classic-plates.mts",
     "sprite:penguin-wave": "tsx scripts/penguin-wave-plates.mts",
     "sprite:penguin-dance": "tsx scripts/penguin-dance-plates.mts",
+    "sprite:penguin-emotes": "tsx scripts/penguin-emote-plates.mts",
     "sprite:expedition": "tsx scripts/imagine-to-expedition.mts",
     "sprite:mametchi": "tsx scripts/generate-mametchi.mts",
     "sprite:kuchipatchi": "tsx scripts/generate-kuchipatchi.mts",
@@ -41,7 +42,7 @@
     "@auth/core": "^0.41.1",
     "@colyseus/sdk": "0.17.43",
     "@convex-dev/auth": "^0.0.94",
-    "@pet-village/multiplayer-protocol": "1.25.0",
+    "@pet-village/multiplayer-protocol": "1.26.0",
     "convex": "^1.42.1",
     "jose": "^6.1.0",
     "phaser": "^3.90.0",

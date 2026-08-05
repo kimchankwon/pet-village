@@ -15,7 +15,8 @@ import {
   type ActivityPayload,
   type AdmissionClaims,
   type ChatPayload,
-  type DancePayload,
+  type EmotePayload,
+  isPenguinEmote,
   type ProfileRefreshPayload,
   type ProfileRefreshResult,
   type WavePayload,
@@ -137,7 +138,7 @@ export class TownRoom extends Room<{ state: TownState }> {
       void this.refreshProfile(client, payload);
     });
     this.onMessage('wave', (client, payload: WavePayload) => this.wave(client, payload));
-    this.onMessage('dance', (client, payload: DancePayload) => this.dance(client, payload));
+    this.onMessage('emote', (client, payload: EmotePayload) => this.setEmote(client, payload));
     this.onMessage('chat', (client, payload: ChatPayload) => this.chat(client, payload));
   }
 
@@ -167,7 +168,7 @@ export class TownRoom extends Room<{ state: TownState }> {
       player.active = false;
       player.activity = '';
       player.moving = false;
-      player.dancing = false;
+      player.emote = '';
       player.updatedAt = Date.now();
     }
     this.reentrySessions.delete(client.sessionId);
@@ -228,7 +229,7 @@ export class TownRoom extends Room<{ state: TownState }> {
     this.reentrySessions.delete(client.sessionId);
     Object.assign(player, result.move, { updatedAt: now });
     // Walking cancels the dance emote for everyone watching.
-    if (result.move.moving) player.dancing = false;
+    if (result.move.moving) player.emote = '';
   }
 
   private setActive(client: Client, value: unknown) {
@@ -294,7 +295,7 @@ export class TownRoom extends Room<{ state: TownState }> {
     player.active = payload.active;
     player.moving = payload.active ? player.moving : false;
     if (payload.active) player.activity = '';
-    if (!payload.active) player.dancing = false;
+    if (!payload.active) player.emote = '';
     player.updatedAt = Date.now();
   }
 
@@ -346,7 +347,7 @@ export class TownRoom extends Room<{ state: TownState }> {
     if (activity) {
       player.active = false;
       player.moving = false;
-      player.dancing = false;
+      player.emote = '';
     }
     player.updatedAt = Date.now();
   }
@@ -366,18 +367,22 @@ export class TownRoom extends Room<{ state: TownState }> {
     ) {
       return;
     }
-    player.dancing = false;
+    // Directed wave also plays the wave emote so peers see the flipper go up.
+    player.emote = 'wave';
+    player.moving = false;
     player.waveId = `${now}:${crypto.randomUUID()}`;
     player.waveTarget = payload.targetSessionId;
+    player.updatedAt = now;
   }
 
-  /** Start or stop the Club Penguin dance loop for everyone in the scene. */
-  private dance(client: Client, payload: DancePayload) {
+  /** Start, switch, or stop a Club Penguin move emote for everyone in the scene. */
+  private setEmote(client: Client, payload: EmotePayload) {
     const player = this.state.players.get(client.sessionId);
     if (!player || !player.active || player.activity) return;
-    if (typeof payload?.dancing !== 'boolean') return;
-    player.dancing = payload.dancing;
-    if (payload.dancing) player.moving = false;
+    const emote = payload?.emote ?? '';
+    if (emote !== '' && !isPenguinEmote(emote)) return;
+    player.emote = emote;
+    if (emote) player.moving = false;
     player.updatedAt = Date.now();
   }
 
