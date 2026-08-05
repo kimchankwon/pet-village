@@ -4,12 +4,15 @@
  * them with configureDancePenguin at the same size as the idle plant.
  *
  * Sources:
- *   Wave  ← dance f40..f51 (flipper wave section of the medley)
- *   Sit   ← dance f35 (seated plant, held as a 1-frame loop)
+ *   Wave  ← dance f40–f41 flipper raise, repeated slowly (no sit / other-side)
+ *   Sit   ← dance f34 (seated plant with feet forward), 2 identical cells
  *   Breakdance ← scripts/reference/penguin/cp-breakdance-gif/penguin-breakdance.gif
  *               https://tenor.com/view/club-penguin-gif-23754816
  *   Hip hop    ← scripts/reference/penguin/cp-hiphop-gif/penguin-hiphop.gif
  *               https://tenor.com/view/club-penguin-gif-16374127956260176203
+ *
+ * GIF frames share one uniform scale (height-only, never shrunk for wide arms)
+ * so hip hop / breakdance do not pulse smaller when limbs stretch.
  *
  *   npm run sprite:penguin-emotes
  */
@@ -101,18 +104,32 @@ function keyWhiteBg(src: InstanceType<typeof PNG>) {
   return out;
 }
 
-function isBodyBlue(r: number, g: number, b: number, a: number) {
+/**
+ * True for recolourable body pixels on either dance-cyan or classic black Tenor
+ * penguins. Skips outline, belly white, and orange beak/feet.
+ */
+function isRemapBody(r: number, g: number, b: number, a: number) {
   if (a < 20) return false;
-  if (r + g + b < 90) return false;
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
-  if (max - min < 28 && r > 150) return false;
+  const lum = (r + g + b) / 3;
+  // Pure outline / near-black stays black.
+  if (lum < 28) return false;
+  // White / light grey belly.
+  if (max - min < 28 && lum > 150) return false;
+  // Orange beak / feet.
   if (r > 160 && g > 70 && g < 210 && b < 110 && r > b + 40) return false;
-  // Greyscale black-penguin body (wave/breakdance Tenor plates).
-  if (max - min < 22 && max < 200 && max > 20) return true;
-  return b > 70 && b >= g - 15 && b > r + 5;
+  // Black-CP greys and dark blues (Tenor breakdance / hip hop).
+  if (max - min <= 30 && lum >= 28 && lum < 210) return true;
+  // Existing dance cyan family.
+  if (b > 60 && b >= g - 20 && b > r + 5) return true;
+  return false;
 }
 
+/**
+ * Map body pixels onto the dance cyan palette. Tenor GIFs are nearly black —
+ * bias midtones to DANCE_BODY (not shade) so the village penguin stays bright.
+ */
 function normalizeBodyToDance(src: InstanceType<typeof PNG>) {
   const out = clone(src);
   for (let i = 0; i < out.data.length; i += 4) {
@@ -120,11 +137,13 @@ function normalizeBodyToDance(src: InstanceType<typeof PNG>) {
     const g = out.data[i + 1]!;
     const b = out.data[i + 2]!;
     const a = out.data[i + 3]!;
-    if (!isBodyBlue(r, g, b, a)) continue;
+    if (!isRemapBody(r, g, b, a)) continue;
     const lum = (r + g + b) / (3 * 255);
     let dest = DANCE_BODY;
-    if (lum > 0.55) dest = DANCE_HI;
-    else if (lum < 0.28) dest = DANCE_SHADE;
+    // Only true highlights → HI; only deep form shadow → shade. Most of a black
+    // GIF body is mid-dark and must land on the main body blue, not shade.
+    if (lum > 0.52) dest = DANCE_HI;
+    else if (lum < 0.12) dest = DANCE_SHADE;
     out.data[i] = dest[0];
     out.data[i + 1] = dest[1];
     out.data[i + 2] = dest[2];
@@ -160,18 +179,19 @@ function sampleBilinear(src: InstanceType<typeof PNG>, fx: number, fy: number): 
   return [blend(0), blend(1), blend(2), Math.min(255, Math.round(a))];
 }
 
+/** Target standing body height inside the dance cell (matches DANCE_STAND_HEIGHT_RATIO). */
+const TARGET_STAND_H = Math.round(CELL_H * (131 / 214));
+const FEET_ROW = Math.round(CELL_H * (155.5 / 214));
+
 /**
- * Fit content into the shared dance cell, planted like the dance stand pose
- * (head near row 25, feet near row 155) so configureDancePenguin sizes match.
+ * Fit a single plate at a fixed scale (shared across an emote). Scale is
+ * height-only — wide arm frames are never shrunk to fit width; they clip if
+ * needed so the body does not pulse smaller mid-animation.
  */
-function fitDanceRegistration(src: InstanceType<typeof PNG>) {
+function fitAtScale(src: InstanceType<typeof PNG>, scale: number) {
   const b = contentBounds(src);
-  const cw = b.x1 - b.x0 + 1;
-  const ch = b.y1 - b.y0 + 1;
-  // Target stand height inside the cell matches DANCE_STAND_HEIGHT_RATIO (~131).
-  const targetH = Math.round(CELL_H * (131 / 214));
-  const targetW = Math.round(CELL_W * 0.72);
-  const scale = Math.min(targetW / cw, targetH / ch);
+  const cw = Math.max(1, b.x1 - b.x0 + 1);
+  const ch = Math.max(1, b.y1 - b.y0 + 1);
   const nw = Math.max(1, Math.round(cw * scale));
   const nh = Math.max(1, Math.round(ch * scale));
   const scaled = blank(nw, nh);
@@ -189,9 +209,7 @@ function fitDanceRegistration(src: InstanceType<typeof PNG>) {
   }
   const out = blank(CELL_W, CELL_H);
   const ox = Math.floor((CELL_W - nw) / 2);
-  // Plant feet at dance stand feet row (~155).
-  const feetRow = Math.round(CELL_H * (155.5 / 214));
-  const oy = feetRow - nh;
+  const oy = FEET_ROW - nh;
   for (let y = 0; y < nh; y++) {
     for (let x = 0; x < nw; x++) {
       const c = getPx(scaled, x, y);
@@ -203,6 +221,19 @@ function fitDanceRegistration(src: InstanceType<typeof PNG>) {
     }
   }
   return asPng(repairExternalOutline(out, { outline: OUTLINE }));
+}
+
+/**
+ * Uniform scale for a whole GIF: based on the tallest frame's body height so
+ * every frame of the loop shares one pixel scale (no jarring shrink on stretch).
+ */
+function uniformScaleForPlates(srcs: InstanceType<typeof PNG>[]) {
+  let maxH = 1;
+  for (const src of srcs) {
+    const b = contentBounds(src);
+    maxH = Math.max(maxH, b.y1 - b.y0 + 1);
+  }
+  return TARGET_STAND_H / maxH;
 }
 
 function extractGifFrames(gifPath: string, frameDir: string): number {
@@ -307,7 +338,7 @@ function loadDanceFrame(index: number) {
   return PNG.sync.read(fs.readFileSync(p));
 }
 
-// ---- Wave from dance f40..f51 (already dance-registered 220×214) ----
+// ---- Wave: first flipper raise only, repeated slowly ----
 {
   const cfg = PENGUIN_EMOTE_CONFIG.wave;
   if (WAVE_FROM_DANCE_FRAMES.length !== cfg.frameCount) {
@@ -321,22 +352,21 @@ function loadDanceFrame(index: number) {
   const dir = path.join(OUT, 'wave');
   writeIndividuals(dir, plates);
   packSheet(plates, plates.length, path.join(OUT, 'wave-sheet.png'));
-  console.log(`wave ← dance f${WAVE_FROM_DANCE_FRAMES[0]}..f${WAVE_FROM_DANCE_FRAMES[WAVE_FROM_DANCE_FRAMES.length - 1]}`);
+  console.log(`wave ← dance f40–f41 ×4 @ ${cfg.frameMs}ms (${plates.length} cells)`);
 }
 
-// ---- Sit from dance f35 (1-frame hold) ----
+// ---- Sit: seated plant with feet forward (2 identical cells) ----
 {
   const cfg = PENGUIN_EMOTE_CONFIG.sit;
   const plate = normalizeBodyToDance(loadDanceFrame(SIT_FROM_DANCE_FRAME));
-  const plates = [plate];
-  if (plates.length !== cfg.frameCount) process.exit(1);
+  const plates = Array.from({ length: cfg.frameCount }, () => plate);
   const dir = path.join(OUT, 'sit');
   writeIndividuals(dir, plates);
-  packSheet(plates, 1, path.join(OUT, 'sit-sheet.png'));
-  console.log(`sit ← dance f${String(SIT_FROM_DANCE_FRAME).padStart(2, '0')}`);
+  packSheet(plates, plates.length, path.join(OUT, 'sit-sheet.png'));
+  console.log(`sit ← dance f${String(SIT_FROM_DANCE_FRAME).padStart(2, '0')} ×${cfg.frameCount}`);
 }
 
-// ---- Breakdance + hip hop from Tenor GIFs ----
+// ---- Breakdance + hip hop from Tenor GIFs (uniform scale, bright body) ----
 function buildFromGif(
   name: 'breakdance' | 'hiphop',
   gifRel: string,
@@ -349,18 +379,19 @@ function buildFromGif(
     console.error(`${name}: GIF has ${n} frames, expected ${expectedFrames}`);
     process.exit(1);
   }
-  const plates: InstanceType<typeof PNG>[] = [];
+  const keyed: InstanceType<typeof PNG>[] = [];
   for (let i = 0; i < n; i++) {
     const raw = PNG.sync.read(fs.readFileSync(path.join(frameDir, `f${String(i).padStart(3, '0')}.png`)));
-    const keyed = keyWhiteBg(raw);
-    const norm = normalizeBodyToDance(keyed);
-    plates.push(fitDanceRegistration(norm));
+    keyed.push(normalizeBodyToDance(keyWhiteBg(raw)));
   }
+  // One scale for the whole loop — never shrink a frame because arms went wide.
+  const scale = uniformScaleForPlates(keyed);
+  const plates = keyed.map((src) => fitAtScale(src, scale));
   const dir = path.join(OUT, name);
   writeIndividuals(dir, plates);
   const cols = name === 'hiphop' ? 10 : 8;
   packSheet(plates, cols, path.join(OUT, `${name}-sheet.png`));
-  console.log(`${name} ← ${gifRel} (${n} frames)`);
+  console.log(`${name} ← ${gifRel} (${n} frames, uniform scale ${scale.toFixed(3)})`);
 }
 
 buildFromGif('breakdance', 'cp-breakdance-gif/penguin-breakdance.gif', PENGUIN_EMOTE_CONFIG.breakdance.frameCount);

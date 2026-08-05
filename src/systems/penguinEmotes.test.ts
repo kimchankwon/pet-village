@@ -15,16 +15,18 @@ test('emote ids and menu config stay in sync', () => {
   assert.equal(isPenguinEmote(''), false);
   assert.equal(isPenguinEmote('spin'), false);
   assert.equal(PENGUIN_EMOTE_CONFIG.wave.frameCount, WAVE_FROM_DANCE_FRAMES.length);
-  assert.equal(PENGUIN_EMOTE_CONFIG.sit.frameCount, 1);
+  assert.equal(PENGUIN_EMOTE_CONFIG.sit.frameCount, 2);
   assert.ok(SIT_FROM_DANCE_FRAME >= 0 && SIT_FROM_DANCE_FRAME < 76);
+  // Wave is only the first flipper-raise pair, not the sit / other-side section.
+  assert.deepEqual([...new Set(WAVE_FROM_DANCE_FRAMES)], [40, 41]);
 });
 
 test('wave is a one-shot; dance and sit loop', () => {
   assert.equal(emoteAnimationFrame('wave', 0), 0);
-  assert.equal(emoteAnimationFrame('wave', 80 * 11), 11);
-  assert.equal(emoteAnimationFrame('wave', 80 * 12), null);
+  assert.equal(emoteAnimationFrame('wave', 160 * 7), 7);
+  assert.equal(emoteAnimationFrame('wave', 160 * 8), null);
   assert.equal(emoteAnimationFrame('dance', 7600), 0);
-  assert.equal(emoteAnimationFrame('sit', 10_000), 0);
+  assert.equal(emoteAnimationFrame('sit', 10_000), 0); // 2-frame loop
   assert.equal(emoteAnimationFrame('breakdance', 80 * 22), 0);
   assert.equal(emoteAnimationFrame('hiphop', 40 * 43), 0);
 });

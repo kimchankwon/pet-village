@@ -53,9 +53,9 @@ export const PENGUIN_EMOTE_CONFIG: Record<PenguinEmote, PenguinEmoteConfig> = {
     label: 'Wave',
     localTextureKey: 'penguin-wave',
     plateSheetKey: 'penguin-plate-wave-sheet',
-    // Dance-harvested flipper wave (f40..f51).
-    frameCount: 12,
-    frameMs: 80,
+    // First flipper-raise gesture only (dance f40–f41), repeated slowly.
+    frameCount: 8,
+    frameMs: 160,
     loop: false,
     danceScale: true,
   },
@@ -74,7 +74,8 @@ export const PENGUIN_EMOTE_CONFIG: Record<PenguinEmote, PenguinEmoteConfig> = {
     label: 'Sit',
     localTextureKey: 'penguin-sit',
     plateSheetKey: 'penguin-plate-sit-sheet',
-    frameCount: 1,
+    // Two identical cells — Phaser is happier with a multi-frame sheet than a 1×1.
+    frameCount: 2,
     frameMs: 200,
     loop: true,
     danceScale: true,
@@ -100,11 +101,18 @@ export const PENGUIN_EMOTE_MENU: readonly PenguinEmote[] = [
   'hiphop',
 ];
 
-/** Dance sheet indices harvested into the wave one-shot (flipper wave section). */
-export const WAVE_FROM_DANCE_FRAMES = [40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51] as const;
+/**
+ * Wave one-shot: only the first flipper-raise pair from the dance medley
+ * (f40–f41), repeated four times. Later dance frames go into a sit / other-side
+ * wave and are deliberately excluded.
+ */
+export const WAVE_FROM_DANCE_FRAMES = [40, 41, 40, 41, 40, 41, 40, 41] as const;
 
-/** Dance sheet index held while sitting. */
-export const SIT_FROM_DANCE_FRAME = 35;
+/**
+ * Dance sheet index for sit — f34 is the seated plant with feet forward
+ * (f35 is a standing pose and looked like “sit does nothing”).
+ */
+export const SIT_FROM_DANCE_FRAME = 34;
 
 export function remotePenguinEmoteTextureKey(emote: PenguinEmote, color: string) {
   const safe = color && color.length > 0 ? color : 'blue';

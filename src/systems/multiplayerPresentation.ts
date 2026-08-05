@@ -107,8 +107,8 @@ export function remotePetMovementDecision(from: Point, to: Point, previousFlipX:
  * Wave one-shot timing — dance-harvested flipper frames (see penguinEmotes).
  * Kept here so existing tests import from one place.
  */
-export const WAVE_FRAME_MS = 80;
-export const WAVE_FRAME_COUNT = 12;
+export const WAVE_FRAME_MS = 160;
+export const WAVE_FRAME_COUNT = 8;
 
 /**
  * Classic Club Penguin dance GIF (Tenor, 76 unique frames).
