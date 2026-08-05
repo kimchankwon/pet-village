@@ -14,7 +14,7 @@ import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZo
 import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
-import { movementFacing } from '../systems/movementFacing';
+import { applyPenguinMotion, movementFacing, penguinTextureKey, type MovementFacing } from '../systems/movementFacing';
 import { bedTuckAvailability, nearestBedInteraction } from '../systems/housePetActions';
 
 const TILE = 48;
@@ -36,7 +36,7 @@ export class HouseScene extends Phaser.Scene {
   private hud!: HUD;
   private prompt!: Prompt;
   private menuOpen = false;
-  private facing: 'up' | 'down' | 'side' = 'down';
+  private facing: MovementFacing = 'down';
   private furnitureSprites: Phaser.GameObjects.Image[] = [];
   private clickMove!: ClickMove;
   private joystick!: Joystick;
@@ -568,23 +568,8 @@ export class HouseScene extends Phaser.Scene {
     const moving = vx !== 0 || vy !== 0;
     if (moving) {
       this.facing = movementFacing(vx, vy, this.facing);
-      if (this.facing === 'side') {
-        this.player.setFlipX(vx < 0);
-        this.player.play('walk-side', true);
-      } else if (this.facing === 'up') {
-        this.player.setFlipX(false);
-        this.player.play('walk-up', true);
-      } else {
-        this.player.setFlipX(false);
-        this.player.play('walk-down', true);
-      }
-    } else {
-      this.player.stop();
-      this.player.setTexture(
-        this.facing === 'up' ? 'penguin-up' : this.facing === 'side' ? 'penguin-side' : 'penguin-down',
-        0,
-      );
     }
+    applyPenguinMotion(this.player, this.facing, vx, moving);
     this.player.setDepth(feetDepth(this.player));
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);

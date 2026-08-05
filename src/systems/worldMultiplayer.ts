@@ -451,8 +451,9 @@ export class WorldMultiplayer {
     multiplayerBridge.dance(false);
     const exit = danceExitPose(facing, idle);
     const key =
-      exit.facing === 'up' ? 'penguin-up' : exit.facing === 'side' ? 'penguin-side' : 'penguin-down';
+      `penguin-${exit.facing}`;
     if (exit.flipX !== null) this.localPlayer.setFlipX(exit.flipX);
+    else if (exit.facing !== 'side') this.localPlayer.setFlipX(false);
     this.localPlayer.stop().setTexture(key, 0);
     // Dance and walk plates share the 220×214 classic cell — restore walk scale.
     configurePlayerPenguin(this.localPlayer);

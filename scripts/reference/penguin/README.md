@@ -11,7 +11,11 @@ dance emote (not the older Grok Imagine pixel plates). Shared cell size is
 | **down-0** idle | Dance plate `f00` (front stand) |
 | **side-0** idle | Dance plate `f07` mirrored to face **right** (scenes use `setFlipX(vx < 0)`) |
 | **up-0** idle | Dance plate `f08` (back stand mid-spin) |
-| **down/side/up 1..8** walk | Tenor Club Penguin walk GIF (8 frames @ 60 ms) |
+| **se-0** idle | Dance plate `f60` (¾ front right — post-tumble plant) |
+| **sw-0** idle | Dance plate `f75` (¾ front left — medley end plant) |
+| **ne-0** idle | Dance plate `f09` (¾ back, beak peek right — spin) |
+| **nw-0** idle | Dance plate `f12` (¾ back, beak peek left — spin) |
+| **{facing} 1..8** walk | Tenor Club Penguin walk GIF (8 frames @ 60 ms), shared by every facing |
 
 ```text
 scripts/reference/penguin/cp-walk-gif/penguin-walk.gif
@@ -27,7 +31,7 @@ npm run sprite:penguin-wave
 Output:
 
 ```text
-public/assets/player/penguin/{down,up,side}-{0..8}.png
+public/assets/player/penguin/{down,up,side,se,sw,ne,nw}-{0..8}.png
 public/assets/player/penguin/walk/f00.png … f07.png
 public/assets/player/penguin/walk-sheet.png
 ```

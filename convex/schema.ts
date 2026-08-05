@@ -21,7 +21,15 @@ const placedItem = v.object({
 const townPosition = v.object({
   x: v.number(),
   y: v.number(),
-  facing: v.union(v.literal("up"), v.literal("down"), v.literal("side")),
+  facing: v.union(
+    v.literal("up"),
+    v.literal("down"),
+    v.literal("side"),
+    v.literal("ne"),
+    v.literal("nw"),
+    v.literal("se"),
+    v.literal("sw"),
+  ),
 });
 
 export default defineSchema({

@@ -49,8 +49,10 @@ function contentBox(png, ox = 0, oy = 0, w = png.width, h = png.height) {
   };
 }
 
+const FACINGS = ['down', 'up', 'side', 'se', 'sw', 'ne', 'nw'];
+
 test('classic idle + walk plates are 220×214 dance-cell sized', () => {
-  for (const facing of ['down', 'up', 'side']) {
+  for (const facing of FACINGS) {
     for (let frame = 0; frame <= WALK_COUNT; frame++) {
       const file = path.join(OUT, `${facing}-${frame}.png`);
       assert.ok(fs.existsSync(file), `missing ${file}`);
@@ -61,6 +63,27 @@ test('classic idle + walk plates are 220×214 dance-cell sized', () => {
       assert.ok(box.height > 100, `${facing}-${frame} body too short`);
     }
   }
+});
+
+test('diagonal idles come from distinct dance angles (not copies of front/side/back)', () => {
+  const down = fs.readFileSync(path.join(OUT, 'down-0.png'));
+  const side = fs.readFileSync(path.join(OUT, 'side-0.png'));
+  const up = fs.readFileSync(path.join(OUT, 'up-0.png'));
+  for (const facing of ['se', 'sw', 'ne', 'nw']) {
+    const plate = fs.readFileSync(path.join(OUT, `${facing}-0.png`));
+    assert.notEqual(Buffer.compare(plate, down), 0, `${facing}-0 matches down-0`);
+    assert.notEqual(Buffer.compare(plate, side), 0, `${facing}-0 matches side-0`);
+    assert.notEqual(Buffer.compare(plate, up), 0, `${facing}-0 matches up-0`);
+  }
+  // Opposite diagonals should differ (not the same mirrored asset by accident).
+  assert.notEqual(
+    Buffer.compare(fs.readFileSync(path.join(OUT, 'se-0.png')), fs.readFileSync(path.join(OUT, 'sw-0.png'))),
+    0,
+  );
+  assert.notEqual(
+    Buffer.compare(fs.readFileSync(path.join(OUT, 'ne-0.png')), fs.readFileSync(path.join(OUT, 'nw-0.png'))),
+    0,
+  );
 });
 
 test('walk sheet packs 8 equal cells', () => {

@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import type { GameActivity } from '@pet-village/multiplayer-protocol';
+import type { Facing, GameActivity } from '@pet-village/multiplayer-protocol';
 
 export function isVisibleRemotePlayer(
   sessionId: string,
@@ -34,11 +34,11 @@ export function normalizePenguinColor(color: string) {
   return PENGUIN_COLOR_IDS.has(color) ? color : 'blue';
 }
 
-export function remotePenguinTextureKey(facing: 'down' | 'up' | 'side', color: string) {
+export function remotePenguinTextureKey(facing: Facing, color: string) {
   return `penguin-remote-${normalizePenguinColor(color)}-${facing}`;
 }
 
-export function remotePenguinWalkAnimKey(facing: 'down' | 'up' | 'side', color: string) {
+export function remotePenguinWalkAnimKey(facing: Facing, color: string) {
   return `penguin-remote-${normalizePenguinColor(color)}-walk-${facing}`;
 }
 
@@ -73,7 +73,7 @@ export function stepRemotePosition(from: Point, to: Point, deltaMs: number): Poi
 export function remoteMovementDecision(
   from: Point,
   to: Point,
-  facing: 'down' | 'up' | 'side',
+  facing: Facing,
   reportedMoving: boolean,
   previousFlipX: boolean,
 ) {
@@ -82,7 +82,13 @@ export function remoteMovementDecision(
   return {
     facing,
     walking: reportedMoving && distance > 0.75,
-    flipX: facing === 'side' && Math.abs(dx) > 0.75 ? dx < 0 : previousFlipX,
+    // Diagonals own their heading in the plate; only pure side flips.
+    flipX:
+      facing === 'side'
+        ? Math.abs(dx) > 0.75
+          ? dx < 0
+          : previousFlipX
+        : false,
   };
 }
 
@@ -195,9 +201,9 @@ export function danceAnimationFrame(elapsedMs: number): number {
  * scene sets flipX from travel direction on the same frame.
  */
 export function danceExitPose(
-  movementFacing: 'down' | 'up' | 'side' | undefined,
-  startPose: { facing: 'down' | 'up' | 'side'; flipX: boolean } | null,
-): { facing: 'down' | 'up' | 'side'; flipX: boolean | null } {
+  movementFacing: Facing | undefined,
+  startPose: { facing: Facing; flipX: boolean } | null,
+): { facing: Facing; flipX: boolean | null } {
   if (movementFacing) return { facing: movementFacing, flipX: null };
   if (startPose) return { facing: startPose.facing, flipX: startPose.flipX };
   return { facing: 'down', flipX: null };

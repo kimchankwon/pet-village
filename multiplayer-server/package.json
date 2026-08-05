@@ -1,7 +1,7 @@
 {
   "name": "multiplayer-server",
   "private": true,
-  "version": "1.24.0",
+  "version": "1.25.0",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -12,7 +12,7 @@
   "dependencies": {
     "@colyseus/core": "0.17.45",
     "@colyseus/ws-transport": "0.17.13",
-    "@pet-village/multiplayer-protocol": "1.24.0",
+    "@pet-village/multiplayer-protocol": "1.25.0",
     "jose": "6.1.0"
   },
   "devDependencies": {

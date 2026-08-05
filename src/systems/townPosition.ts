@@ -1,6 +1,9 @@
 import { TILE, TOWN_WORLD_H, TOWN_WORLD_W } from './townMap';
 
-export type TownFacing = 'up' | 'down' | 'side';
+import type { Facing } from '@pet-village/multiplayer-protocol';
+import { isFacing } from '@pet-village/multiplayer-protocol';
+
+export type TownFacing = Facing;
 
 export interface TownPosition {
   x: number;
@@ -21,7 +24,7 @@ export function normalizeTownPosition(raw: unknown): TownPosition | undefined {
   const value = raw as Partial<TownPosition>;
   if (!Number.isFinite(value.x) || !Number.isFinite(value.y)) return undefined;
   if (!isSafeTownPosition(value.x!, value.y!)) return undefined;
-  if (value.facing !== 'up' && value.facing !== 'down' && value.facing !== 'side') return undefined;
+  if (!isFacing(value.facing)) return undefined;
   return { x: value.x!, y: value.y!, facing: value.facing };
 }
 
