@@ -15,7 +15,7 @@ import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
-import { movementFacing } from '../systems/movementFacing';
+import { applyPenguinMotion, movementFacing, penguinTextureKey, type MovementFacing } from '../systems/movementFacing';
 import { WorldMultiplayer } from '../systems/worldMultiplayer';
 
 const TILE = 48;
@@ -43,7 +43,7 @@ export class ShopScene extends Phaser.Scene {
   private cameraZoom!: CameraZoom;
   private pointerHeld = false;
   private menuOpen = false;
-  private facing: 'up' | 'down' | 'side' = 'up';
+  private facing: MovementFacing = 'up';
   private bunny!: Phaser.GameObjects.Image;
   private doorCenterX = 0;
   private doorCenterY = 0;
@@ -433,23 +433,8 @@ export class ShopScene extends Phaser.Scene {
     const moving = vx !== 0 || vy !== 0;
     if (moving) {
       this.facing = movementFacing(vx, vy, this.facing);
-      if (this.facing === 'side') {
-        this.player.setFlipX(vx < 0);
-        this.player.play('walk-side', true);
-      } else if (this.facing === 'up') {
-        this.player.setFlipX(false);
-        this.player.play('walk-up', true);
-      } else {
-        this.player.setFlipX(false);
-        this.player.play('walk-down', true);
-      }
-    } else {
-      this.player.stop();
-      this.player.setTexture(
-        this.facing === 'up' ? 'penguin-up' : this.facing === 'side' ? 'penguin-side' : 'penguin-down',
-        0,
-      );
     }
+    applyPenguinMotion(this.player, this.facing, vx, moving);
     this.player.setDepth(feetDepth(this.player));
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     this.pet.update(this.player.x, this.player.y, body.velocity.x, body.velocity.y);

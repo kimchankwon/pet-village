@@ -8,6 +8,7 @@ import {
   TICKET_ISSUER,
   PlayerState,
   TownState,
+  isFacing,
   isGameActivity,
   isWorldScene,
   sanitizeChatText,
@@ -40,7 +41,7 @@ function validTownPosition(value: AdmissionClaims['townPosition']) {
     value !== null &&
     Number.isFinite(value.x) && value.x >= 0 && value.x <= TOWN_BOUNDS.width &&
     Number.isFinite(value.y) && value.y >= 0 && value.y <= TOWN_BOUNDS.height &&
-    (value.facing === 'up' || value.facing === 'down' || value.facing === 'side')
+    isFacing(value.facing)
   );
 }
 
@@ -48,7 +49,7 @@ function validActivityPose(value: unknown) {
   if (!value || typeof value !== 'object') return false;
   const pose = value as NonNullable<ActivityPayload['pose']>;
   return [pose.x, pose.y, pose.petX, pose.petY].every(Number.isFinite) &&
-    (pose.facing === 'up' || pose.facing === 'down' || pose.facing === 'side') &&
+    isFacing(pose.facing) &&
     typeof pose.moving === 'boolean' &&
     Math.hypot(pose.petX - pose.x, pose.petY - pose.y) <= 160;
 }

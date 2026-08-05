@@ -8,18 +8,18 @@
  *   Idle down  ← dance plate f00 (front stand)
  *   Idle side  ← dance plate f07 (side stand from the spin wind-up)
  *   Idle up    ← dance plate f08 (back stand from the spin)
+ *   Idle se    ← dance plate f60 (¾ front, beak right — post-tumble plant)
+ *   Idle sw    ← dance plate f75 (¾ front, beak left — end-of-medley plant)
+ *   Idle ne    ← dance plate f09 (¾ back, beak peek right — spin)
+ *   Idle nw    ← dance plate f12 (¾ back, beak peek left — spin)
  *   Walk       ← Tenor Club Penguin walk GIF (8 frames @ 60 ms)
  *                scripts/reference/penguin/cp-walk-gif/penguin-walk.gif
  *
  * Output (shared 220×214 cell, matching the dance sheet):
- *   public/assets/player/penguin/down-0.png          idle front
- *   public/assets/player/penguin/down-1..8.png        walk cycle
- *   public/assets/player/penguin/side-0.png           idle side
- *   public/assets/player/penguin/side-1..8.png        walk (GIF frames)
- *   public/assets/player/penguin/up-0.png             idle back
- *   public/assets/player/penguin/up-1..8.png          walk (GIF frames)
- *   public/assets/player/penguin/walk/f00..f07.png    walk cells
- *   public/assets/player/penguin/walk-sheet.png       8-wide row
+ *   public/assets/player/penguin/{down,side,up,se,sw,ne,nw}-0.png   idle
+ *   public/assets/player/penguin/{facing}-1..8.png                   walk
+ *   public/assets/player/penguin/walk/f00..f07.png                   walk cells
+ *   public/assets/player/penguin/walk-sheet.png                      8-wide row
  *
  *   npm run sprite:penguin-classic
  */
@@ -55,11 +55,19 @@ const OUT = path.resolve('public/assets/player/penguin');
 const WALK_OUT = path.join(OUT, 'walk');
 const SHEET_OUT = path.join(OUT, 'walk-sheet.png');
 const DANCE_DIR = path.join(OUT, 'dance');
-/** Standing poses harvested from the dance medley (same art family as the emote). */
+/**
+ * Standing poses harvested from the dance medley (same art family as the emote).
+ * Diagonals come from the spin / tumble plants that already face SW/SE/NW/NE —
+ * no new art; only re-fit into the classic idle cell.
+ */
 const DANCE_IDLE = {
   down: path.join(DANCE_DIR, 'f00.png'), // front plant
   side: path.join(DANCE_DIR, 'f07.png'), // side plant mid-spin
   up: path.join(DANCE_DIR, 'f08.png'), // back plant mid-spin
+  se: path.join(DANCE_DIR, 'f60.png'), // ¾ front right
+  sw: path.join(DANCE_DIR, 'f75.png'), // ¾ front left
+  ne: path.join(DANCE_DIR, 'f09.png'), // ¾ back right
+  nw: path.join(DANCE_DIR, 'f12.png'), // ¾ back left
 } as const;
 
 function blank(w: number, h: number) {
@@ -349,9 +357,10 @@ function flipHorizontal(src: InstanceType<typeof PNG>) {
 /**
  * Dance idle plates (already keyed, hard-edged).
  * Side stand (f07) faces left in the GIF — mirror so it faces right, matching
- * every scene's `setFlipX(vx < 0)` convention (unflipped = east / SE / NE).
+ * every scene's `setFlipX(vx < 0)` convention (unflipped = east).
+ * Diagonal plates keep their native heading (se/sw/ne/nw are not flipped).
  */
-function processDanceIdle(src: InstanceType<typeof PNG>, facing: 'down' | 'up' | 'side') {
+function processDanceIdle(src: InstanceType<typeof PNG>, facing: keyof typeof DANCE_IDLE) {
   let img = normalizeBodyToDance(src);
   if (facing === 'side') img = flipHorizontal(img);
   return fitBottomCenter(img, 0.9, true);
@@ -480,12 +489,17 @@ for (const [facing, srcPath] of Object.entries(DANCE_IDLE) as [keyof typeof DANC
   console.log(`  ${facing}-0 ← ${path.relative(process.cwd(), srcPath)}${note}`);
 }
 
-// Side/up walk: same GIF so walking is the Tenor cycle in every facing.
+// Walk for every facing: same Tenor GIF so walking is the cycle in every direction.
 // Full 1..8 walk plates per facing keep Boot/anim code uniform.
+const walkFacings = Object.keys(DANCE_IDLE) as (keyof typeof DANCE_IDLE)[];
 for (let i = 0; i < WALK_FRAME_COUNT; i++) {
   const walkFile = path.join(WALK_OUT, `f${String(i).padStart(2, '0')}.png`);
-  fs.copyFileSync(walkFile, path.join(OUT, `side-${i + 1}.png`));
-  fs.copyFileSync(walkFile, path.join(OUT, `up-${i + 1}.png`));
+  for (const facing of walkFacings) {
+    if (facing === 'down') continue; // already written as down-1..8 above
+    fs.copyFileSync(walkFile, path.join(OUT, `${facing}-${i + 1}.png`));
+  }
 }
 
-console.log(`classic CP plates ready (${CLASSIC_CELL_W}×${CLASSIC_CELL_H}, walk ×${WALK_FRAME_COUNT})`);
+console.log(
+  `classic CP plates ready (${CLASSIC_CELL_W}×${CLASSIC_CELL_H}, walk ×${WALK_FRAME_COUNT}, facings ${walkFacings.join('/')})`,
+);

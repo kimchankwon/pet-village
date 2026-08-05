@@ -1,6 +1,6 @@
 import { MapSchema, Schema, defineTypes } from '@colyseus/schema';
 
-export const PROTOCOL_VERSION = 11 as const;
+export const PROTOCOL_VERSION = 12 as const;
 export const TICKET_ISSUER = 'pet-village-convex';
 export const TICKET_AUDIENCE = 'pet-village-multiplayer';
 export const ROOM_NAME = 'town_default';
@@ -82,7 +82,12 @@ export const WAVE_COOLDOWN_MS = 1_000;
 export const CHAT_MAX_LENGTH = 120;
 /** The server's floor between two messages from the same player. */
 export const CHAT_COOLDOWN_MS = 600;
-export type Facing = 'up' | 'down' | 'side';
+/** Player penguin facing — cardinals + diagonals (dance-harvested plates). */
+export const FACINGS = ['up', 'down', 'side', 'ne', 'nw', 'se', 'sw'] as const;
+export type Facing = (typeof FACINGS)[number];
+export function isFacing(value: unknown): value is Facing {
+  return typeof value === 'string' && (FACINGS as readonly string[]).includes(value);
+}
 export const GAME_ACTIVITIES = [
   'fishing',
   'get',
@@ -208,7 +213,7 @@ function moveFields(value: unknown) {
   if (!value || typeof value !== 'object') return null;
   const p = value as Partial<MovePayload>;
   return [p.x,p.y,p.petX,p.petY,p.seq].every(Number.isFinite) && Number.isInteger(p.seq) && (p.seq ?? 0) >= 0 &&
-    (p.facing === 'up' || p.facing === 'down' || p.facing === 'side') && typeof p.moving === 'boolean'
+    isFacing(p.facing) && typeof p.moving === 'boolean'
     ? p
     : null;
 }

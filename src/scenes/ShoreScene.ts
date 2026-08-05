@@ -33,7 +33,7 @@ import {
 } from '../systems/townMap';
 import { MiniteenNpc } from '../systems/miniteen';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
-import { movementFacing } from '../systems/movementFacing';
+import { applyPenguinMotion, movementFacing, penguinTextureKey, type MovementFacing } from '../systems/movementFacing';
 import { npcDefsForScene, rememberSceneNpcs, takeSceneNpcSnaps } from '../systems/npcScenePresence';
 import { addWorldBezel } from '../systems/worldBezel';
 import { fishingBaitCount, hasFishingBait } from '../systems/fishingRules';
@@ -67,7 +67,7 @@ export class ShoreScene extends Phaser.Scene {
   private prompt!: Prompt;
   private interactables: Interactable[] = [];
   private menuOpen = false;
-  private facing: 'up' | 'down' | 'side' = 'down';
+  private facing: MovementFacing = 'down';
   private clickMove!: ClickMove;
   private joystick!: Joystick;
   private cameraZoom!: CameraZoom;
@@ -552,23 +552,8 @@ export class ShoreScene extends Phaser.Scene {
     const moving = vx !== 0 || vy !== 0;
     if (moving) {
       this.facing = movementFacing(vx, vy, this.facing);
-      if (this.facing === 'side') {
-        this.player.setFlipX(vx < 0);
-        this.player.play('walk-side', true);
-      } else if (this.facing === 'up') {
-        this.player.setFlipX(false);
-        this.player.play('walk-up', true);
-      } else {
-        this.player.setFlipX(false);
-        this.player.play('walk-down', true);
-      }
-    } else {
-      this.player.stop();
-      this.player.setTexture(
-        this.facing === 'up' ? 'penguin-up' : this.facing === 'side' ? 'penguin-side' : 'penguin-down',
-        0,
-      );
     }
+    applyPenguinMotion(this.player, this.facing, vx, moving);
     // Sort by the feet, not the sprite box: the dance sheet is a different size.
     this.player.setDepth(characterDepth(penguinDepthTarget(this.player)));
     const body = this.player.body as Phaser.Physics.Arcade.Body;

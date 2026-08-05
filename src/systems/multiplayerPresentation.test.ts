@@ -130,10 +130,15 @@ test('remote penguin walk decisions preserve facing and horizontal flip', () => 
   assert.deepEqual(remoteMovementDecision({ x: 20, y: 10 }, { x: 4, y: 11 }, 'side', true, false), {
     facing: 'side', walking: true, flipX: true,
   });
+  // Non-side facings never flip — diagonal/cardinal plates own their heading.
   assert.deepEqual(remoteMovementDecision({ x: 4, y: 10 }, { x: 4, y: 30 }, 'down', false, true), {
-    facing: 'down', walking: false, flipX: true,
+    facing: 'down', walking: false, flipX: false,
+  });
+  assert.deepEqual(remoteMovementDecision({ x: 10, y: 10 }, { x: 40, y: 40 }, 'se', true, true), {
+    facing: 'se', walking: true, flipX: false,
   });
   assert.equal(remotePenguinWalkAnimKey('side', 'red'), 'penguin-remote-red-walk-side');
+  assert.equal(remotePenguinWalkAnimKey('nw', 'blue'), 'penguin-remote-blue-walk-nw');
 });
 
 test('remote pets walk and face their horizontal travel direction', () => {
@@ -217,6 +222,15 @@ test('stopping a dance returns to the pose it started from, not front-facing', (
   });
   // No captured pose (dance started before we tracked one): safe front-facing idle.
   assert.deepEqual(danceExitPose(undefined, null), { facing: 'down', flipX: null });
+  // Diagonal start pose is restored with its flip bit (always false for diagonals).
+  assert.deepEqual(danceExitPose(undefined, { facing: 'se', flipX: false }), {
+    facing: 'se',
+    flipX: false,
+  });
+  assert.deepEqual(danceExitPose('nw', { facing: 'se', flipX: false }), {
+    facing: 'nw',
+    flipX: null,
+  });
 });
 
 test('prefers an active Town session over a newer game session for the same user', () => {

@@ -1586,7 +1586,8 @@ function makeCobbleTile(scene: Phaser.Scene, key: string, size = 16) {
  */
 export const PENGUIN_DISPLAY_HEIGHT = CHARACTER_PENGUIN_DISPLAY_HEIGHT;
 /** Boot loads classic CP plates under this key prefix when present. */
-export const PENGUIN_PLATE_KEY = (facing: 'down' | 'up' | 'side', frame: number) =>
+export type PenguinPlateFacing = 'down' | 'up' | 'side' | 'se' | 'sw' | 'ne' | 'nw';
+export const PENGUIN_PLATE_KEY = (facing: PenguinPlateFacing, frame: number) =>
   `penguin-plate-${facing}-${frame}`;
 /**
  * Classic Club Penguin wave spritesheet (16 GIF frames, single row).
@@ -1612,7 +1613,13 @@ export const PENGUIN_WALK_FRAME_COUNT = 8;
 /** Frame delay of the source walk GIF (centiseconds × 10 → ms). */
 export const PENGUIN_WALK_FRAME_MS = 60;
 
-const PENGUIN_FACINGS = ['down', 'up', 'side'] as const;
+const PENGUIN_FACINGS = ['down', 'up', 'side', 'se', 'sw', 'ne', 'nw'] as const satisfies readonly PenguinPlateFacing[];
+/** Clothes grids only have cardinal art — diagonals reuse the nearest. */
+function clothesFacingForPlate(facing: PenguinPlateFacing): keyof PenguinOverlay {
+  if (facing === 'up' || facing === 'ne' || facing === 'nw') return 'up';
+  if (facing === 'side') return 'side';
+  return 'down';
+}
 /** 0 = idle plant (stop); 1..WALK = Tenor walk cycle. */
 const PENGUIN_FRAME_COUNT = 1 + PENGUIN_WALK_FRAME_COUNT;
 
@@ -1885,7 +1892,7 @@ function makePenguinFromPlates(scene: Phaser.Scene) {
       const imgData = tctx.getImageData(0, 0, fw, fh);
       recolorPenguinPlateData(imgData.data, body, shade, hi);
       tctx.putImageData(imgData, 0, 0);
-      stampClothesOnPlate(tctx, facing, fw, fh);
+      stampClothesOnPlate(tctx, clothesFacingForPlate(facing), fw, fh);
       sctx.drawImage(tmp, frame * fw, 0);
     }
 
@@ -1900,29 +1907,20 @@ function makePenguinFromPlates(scene: Phaser.Scene) {
   }
 
   const anims = scene.anims;
-  for (const key of ['walk-down', 'walk-up', 'walk-side'] as const) {
+  for (const facing of PENGUIN_FACINGS) {
+    const key = `walk-${facing}`;
     if (anims.exists(key)) anims.remove(key);
   }
   // Walk cycles frames 1..8 (Tenor GIF). Frame 0 is idle plant for stop.
   const walkEnd = PENGUIN_WALK_FRAME_COUNT;
-  anims.create({
-    key: 'walk-down',
-    frames: anims.generateFrameNumbers('penguin-down', { start: 1, end: walkEnd }),
-    frameRate: walkFrameRate,
-    repeat: -1,
-  });
-  anims.create({
-    key: 'walk-up',
-    frames: anims.generateFrameNumbers('penguin-up', { start: 1, end: walkEnd }),
-    frameRate: walkFrameRate,
-    repeat: -1,
-  });
-  anims.create({
-    key: 'walk-side',
-    frames: anims.generateFrameNumbers('penguin-side', { start: 1, end: walkEnd }),
-    frameRate: walkFrameRate,
-    repeat: -1,
-  });
+  for (const facing of PENGUIN_FACINGS) {
+    anims.create({
+      key: `walk-${facing}`,
+      frames: anims.generateFrameNumbers(`penguin-${facing}`, { start: 1, end: walkEnd }),
+      frameRate: walkFrameRate,
+      repeat: -1,
+    });
+  }
 }
 
 /**
@@ -2081,6 +2079,11 @@ export function ensureRemotePenguinTextures(scene: Phaser.Scene, requestedColor:
     makeTexture(scene, remotePenguinTextureKey('down', color), [PENGUIN_DOWN_IDLE, PENGUIN_DOWN_0, PENGUIN_DOWN_1]);
     makeTexture(scene, remotePenguinTextureKey('up', color), [PENGUIN_UP_IDLE, PENGUIN_UP_0, PENGUIN_UP_1]);
     makeTexture(scene, remotePenguinTextureKey('side', color), [PENGUIN_SIDE_IDLE, PENGUIN_SIDE_0, PENGUIN_SIDE_1]);
+    // Grid fallback has no true diagonals — reuse front/back so remote SE/SW/NE/NW still draw.
+    makeTexture(scene, remotePenguinTextureKey('se', color), [PENGUIN_DOWN_IDLE, PENGUIN_DOWN_0, PENGUIN_DOWN_1]);
+    makeTexture(scene, remotePenguinTextureKey('sw', color), [PENGUIN_DOWN_IDLE, PENGUIN_DOWN_0, PENGUIN_DOWN_1]);
+    makeTexture(scene, remotePenguinTextureKey('ne', color), [PENGUIN_UP_IDLE, PENGUIN_UP_0, PENGUIN_UP_1]);
+    makeTexture(scene, remotePenguinTextureKey('nw', color), [PENGUIN_UP_IDLE, PENGUIN_UP_0, PENGUIN_UP_1]);
     Object.assign(PALETTE, previous);
   } else {
     const body = hexToRgb(palette.v);
@@ -2151,14 +2154,30 @@ function makePenguin(scene: Phaser.Scene) {
     return;
   }
   // Classic 18×20 grid fallback (pre-plate path): idle plant + 2 walk strides.
+  // Diagonals reuse nearest cardinal so 8-way movement never selects a missing key.
   makeTexture(scene, 'penguin-down', dressPenguin([PENGUIN_DOWN_IDLE, PENGUIN_DOWN_0, PENGUIN_DOWN_1], 'down'));
   makeTexture(scene, 'penguin-up', dressPenguin([PENGUIN_UP_IDLE, PENGUIN_UP_0, PENGUIN_UP_1], 'up'));
   makeTexture(scene, 'penguin-side', dressPenguin([PENGUIN_SIDE_IDLE, PENGUIN_SIDE_0, PENGUIN_SIDE_1], 'side'));
+  makeTexture(scene, 'penguin-se', dressPenguin([PENGUIN_DOWN_IDLE, PENGUIN_DOWN_0, PENGUIN_DOWN_1], 'down'));
+  makeTexture(scene, 'penguin-sw', dressPenguin([PENGUIN_DOWN_IDLE, PENGUIN_DOWN_0, PENGUIN_DOWN_1], 'down'));
+  makeTexture(scene, 'penguin-ne', dressPenguin([PENGUIN_UP_IDLE, PENGUIN_UP_0, PENGUIN_UP_1], 'up'));
+  makeTexture(scene, 'penguin-nw', dressPenguin([PENGUIN_UP_IDLE, PENGUIN_UP_0, PENGUIN_UP_1], 'up'));
   const anims = scene.anims;
   if (!anims.exists('walk-down')) {
-    anims.create({ key: 'walk-down', frames: anims.generateFrameNumbers('penguin-down', { start: 1, end: 2 }), frameRate: 6, repeat: -1 });
-    anims.create({ key: 'walk-up', frames: anims.generateFrameNumbers('penguin-up', { start: 1, end: 2 }), frameRate: 6, repeat: -1 });
-    anims.create({ key: 'walk-side', frames: anims.generateFrameNumbers('penguin-side', { start: 1, end: 2 }), frameRate: 6, repeat: -1 });
+    const walk = (key: string, texture: string) =>
+      anims.create({
+        key,
+        frames: anims.generateFrameNumbers(texture, { start: 1, end: 2 }),
+        frameRate: 6,
+        repeat: -1,
+      });
+    walk('walk-down', 'penguin-down');
+    walk('walk-up', 'penguin-up');
+    walk('walk-side', 'penguin-side');
+    walk('walk-se', 'penguin-se');
+    walk('walk-sw', 'penguin-sw');
+    walk('walk-ne', 'penguin-ne');
+    walk('walk-nw', 'penguin-nw');
   }
   makeWaveTexture(
     scene,
@@ -2174,6 +2193,10 @@ const PENGUIN_TEXTURE_KEYS = [
   'penguin-down',
   'penguin-up',
   'penguin-side',
+  'penguin-se',
+  'penguin-sw',
+  'penguin-ne',
+  'penguin-nw',
   LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
   LOCAL_PENGUIN_DANCE_TEXTURE_KEY,
 ];
