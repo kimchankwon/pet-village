@@ -176,6 +176,8 @@ export class TownRoom extends Room<{ state: TownState }> {
       player.activity = '';
       player.moving = false;
       player.emote = '';
+      player.petEmote = '';
+      player.petEmoteId = '';
       player.updatedAt = Date.now();
     }
     this.reentrySessions.delete(client.sessionId);
@@ -303,7 +305,11 @@ export class TownRoom extends Room<{ state: TownState }> {
     player.active = payload.active;
     player.moving = payload.active ? player.moving : false;
     if (payload.active) player.activity = '';
-    if (!payload.active) player.emote = '';
+    if (!payload.active) {
+      player.emote = '';
+      player.petEmote = '';
+      player.petEmoteId = '';
+    }
     player.updatedAt = Date.now();
   }
 
@@ -356,6 +362,8 @@ export class TownRoom extends Room<{ state: TownState }> {
       player.active = false;
       player.moving = false;
       player.emote = '';
+      player.petEmote = '';
+      player.petEmoteId = '';
     }
     player.updatedAt = Date.now();
   }

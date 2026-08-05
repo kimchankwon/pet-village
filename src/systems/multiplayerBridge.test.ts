@@ -73,6 +73,20 @@ test('emote start and stop reach the installed connection, and only it', () => {
   multiplayerBridge.uninstall(firstId);
 });
 
+test('petEmote start and clear reach the installed connection', () => {
+  const sent: string[] = [];
+  const id = multiplayerBridge.install({
+    ...actions([]),
+    petEmote: (expression: string) => sent.push(expression),
+  });
+  multiplayerBridge.petEmote('happy');
+  multiplayerBridge.petEmote('');
+  assert.deepEqual(sent, ['happy', '']);
+  multiplayerBridge.uninstall(id);
+  multiplayerBridge.petEmote('sad');
+  assert.deepEqual(sent, ['happy', '']);
+});
+
 test('scene transitions discard delayed position corrections from the previous world', () => {
   const id = multiplayerBridge.install(actions([]));
   const releaseTown = multiplayerBridge.activateWorld('town', pose);

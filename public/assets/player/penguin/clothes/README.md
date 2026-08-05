@@ -2,9 +2,8 @@
 
 Imagine-authored RGBA overlays aligned to idle plates (`down-0` / `up-0` / `side-0`).
 
-Runtime (`pixelart.ts`) stamps these onto every walk frame and every move-emote
-frame by warping each overlay from the idle body bbox to the destination body
-bbox, so a scarf or hat stays on the penguin through dance, wave, sit, etc.
+Runtime (`pixelart.ts`) stamps these onto the **idle plant only** (sheet frame 0 —
+the pose when you stop). Walk strides and move emotes (dance, wave, sit, …) stay
+undressed for now.
 
-Source Imagine plates (and extraction notes) live under
-`scripts/reference/penguin/clothes/`.
+Source notes: `scripts/reference/penguin/CLOTHES.md`.
