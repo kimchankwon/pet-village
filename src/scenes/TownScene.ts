@@ -236,7 +236,7 @@ export class TownScene extends Phaser.Scene {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
       // Typing a message: a click must not walk off, open a menu or change scene.
-      if (isPointerUiBlocked()) return;
+      if (isPointerUiBlocked() || isUiBlocked() || isInteractSuppressed()) return;
       if (this.joystick.owns(pointer) || this.cameraZoom.ownsPointer(pointer)) return;
       if (this.cameraZoom.isPinching()) return;
       // Clicking anywhere on the house enters it when near; otherwise walk

@@ -270,7 +270,12 @@ export class Menu {
       .setScrollFactor(0)
       .setDepth(2000)
       .setInteractive();
-    dim.on('pointerdown', () => this.goBackOrClose(layout));
+    // Stop the event so the scene never sees this pointer as “click to walk”
+    // (which would cancel a move emote started from the same tap).
+    dim.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, event?: Phaser.Types.Input.EventData) => {
+      event?.stopPropagation();
+      this.goBackOrClose(layout);
+    });
 
     const panel = scene.add
       .rectangle(cx, cy, w, panelH, 0x2a2440, 0.97)
@@ -278,6 +283,9 @@ export class Menu {
       .setDepth(2001)
       .setStrokeStyle(3, 0xffb3d1)
       .setInteractive();
+    panel.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, event?: Phaser.Types.Input.EventData) => {
+      event?.stopPropagation();
+    });
 
     const headerLeft = cx - w / 2 + faceSlot;
     const titleX = hasFace ? headerLeft + 12 : cx;
@@ -349,7 +357,10 @@ export class Menu {
           this.selected = this.enabledIndexes.indexOf(i);
           this.paintSelection();
         });
-        row.on('pointerdown', () => this.activate(i));
+        row.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, event?: Phaser.Types.Input.EventData) => {
+          event?.stopPropagation();
+          this.activate(i);
+        });
         this.enabledIndexes.push(i);
       }
       let tx = cx - w / 2 + 24;
