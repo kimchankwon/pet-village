@@ -39,6 +39,10 @@ export type RemotePresence = {
   chatText?: string;
   /** Active move emote id (`dance`/`wave`/…), or empty. */
   emote?: string;
+  /** Pet face flash pose (`happy`/`sad`/…), or empty. */
+  petEmote?: string;
+  /** Changes on every pet flash so a repeat happy still plays for peers. */
+  petEmoteId?: string;
 };
 
 export type RemoteNpc = {
@@ -82,6 +86,8 @@ type Actions = {
   wave: (id: string) => void;
   /** Start/switch/stop a move emote (`''` clears). */
   emote: (emote: string) => void;
+  /** Flash the companion pet's expression for peers (`''` clears). */
+  petEmote: (expression: string) => void;
   chat: (text: string) => void;
   /** Re-snapshot peers now — scene filtering changed, so cached rows are stale. */
   resync?: () => void;
@@ -315,6 +321,10 @@ export const multiplayerBridge = {
   /** Broadcast the active move emote (or `''` to stop). */
   emote(emote: string) {
     actions?.emote(emote);
+  },
+  /** Broadcast a companion pet expression flash (or `''` to clear). */
+  petEmote(expression: string) {
+    actions?.petEmote(expression);
   },
   /**
    * Send a message, and say what became of it.

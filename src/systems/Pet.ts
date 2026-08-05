@@ -12,6 +12,7 @@ import {
   type AccessoryId,
 } from './accessories';
 import { clampToMovementBounds, type MovementBounds } from './movementBounds';
+import { multiplayerBridge } from './multiplayerBridge';
 
 /**
  * Companion that stays a short distance *behind* the player along their
@@ -283,15 +284,27 @@ export class Pet {
       this.emitHearts();
     } else if (expr === 'ok') {
       this.showEmotion('happy', 900);
+    } else if (expr === 'hungry' || expr === 'sad') {
+      // Keep the needy face locally and show it to nearby villagers.
+      this.showEmotion('sad', 1200);
+    } else if (expr === 'tired') {
+      this.showEmotion('sleep', 1200);
     }
-    // Needy pets keep their hungry/tired/sad face while they talk.
   }
 
-  showEmotion(pose: Extract<PetPose, 'happy' | 'sleep' | 'jump'>, ms: number) {
+  showEmotion(pose: Extract<PetPose, 'happy' | 'sleep' | 'jump' | 'sad'>, ms: number) {
     this.emotionUntil = this.scene.time.now + ms;
     this.sprite.stop();
     this.sprite.setTexture(this.tex(pose));
     this.syncAccessories();
+    // Peers see the same face flash when you click / feed / tuck your pet.
+    multiplayerBridge.petEmote(pose);
+    this.scene.time.delayedCall(ms, () => {
+      // Only clear if nothing newer replaced this flash.
+      if (this.scene.time.now >= this.emotionUntil - 16) {
+        multiplayerBridge.petEmote('');
+      }
+    });
   }
 
   /** Pause player-follow so the scene can script a walk / sleep. */

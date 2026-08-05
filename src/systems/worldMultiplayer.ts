@@ -71,6 +71,13 @@ import {
 
 const REMOTE_INTERACTION_RADIUS = 92;
 
+/** Pet face flashes peers can play (matches Pet.showEmotion poses). */
+type RemotePetExpression = 'happy' | 'sad' | 'sleep' | 'jump';
+
+function isRemotePetExpression(value: unknown): value is RemotePetExpression {
+  return value === 'happy' || value === 'sad' || value === 'sleep' || value === 'jump';
+}
+
 type RemoteAvatar = {
   row: RemotePresence;
   player: Phaser.GameObjects.Sprite;
@@ -88,6 +95,11 @@ type RemoteAvatar = {
   emoteStartedAt: number | null;
   chat: ChatBubble;
   lastChatId?: string;
+  /** Last pet-expression id we already flashed (like chatId). */
+  lastPetEmoteId?: string;
+  /** Active pet face flash + when it ends. */
+  petExpression: RemotePetExpression | null;
+  petExpressionUntil: number;
 };
 
 /** One speech bubble and how long it still has to live. */
@@ -677,6 +689,9 @@ export class WorldMultiplayer {
       emoteStartedAt: isPenguinEmote(row.emote) ? this.scene.time.now : null,
       chat: createChatBubble(this.scene, local.x, local.y),
       lastChatId: row.chatId,
+      lastPetEmoteId: row.petEmoteId,
+      petExpression: null,
+      petExpressionUntil: 0,
     };
     player.on('pointerdown', (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
       if (isPointerUiBlocked()) return;
@@ -689,6 +704,7 @@ export class WorldMultiplayer {
   private refreshRemote(remote: RemoteAvatar, row: RemotePresence) {
     const previousWaveId = remote.lastWaveId;
     const previousChatId = remote.lastChatId;
+    const previousPetEmoteId = remote.lastPetEmoteId;
     remote.row = row;
     const presentation = remotePlayerPresentation(row);
     remote.playerLabel.setText(presentation.playerLabel).setColor(presentation.labelColor);
@@ -747,6 +763,17 @@ export class WorldMultiplayer {
       appendChatLog({ kind: 'message', name: row.name, text: row.chatText, at: performance.now() });
     }
     remote.lastChatId = row.chatId;
+
+    // Companion face flash: new petEmoteId → play the pose for a short beat.
+    if (
+      row.petEmoteId &&
+      row.petEmoteId !== previousPetEmoteId &&
+      isRemotePetExpression(row.petEmote)
+    ) {
+      remote.petExpression = row.petEmote;
+      remote.petExpressionUntil = this.scene.time.now + 1200;
+    }
+    remote.lastPetEmoteId = row.petEmoteId;
   }
 
   private refreshRemoteAccessories(remote: RemoteAvatar) {
@@ -844,8 +871,16 @@ export class WorldMultiplayer {
     const petDecision = remotePetMovementDecision(petFrom, petTarget, remote.pet.flipX);
     const petPosition = stepRemotePosition(petFrom, petTarget, deltaMs);
     remote.pet.setPosition(petPosition.x, petPosition.y).setFlipX(petDecision.flipX);
-    if (petDecision.walking) remote.pet.play(petAnimKey(remote.petSpecies, 'walk'), true);
-    else remote.pet.stop().setTexture(petTextureKey(remote.petSpecies, 'idle1'));
+    if (remote.petExpression && now < remote.petExpressionUntil) {
+      remote.pet.stop().setTexture(petTextureKey(remote.petSpecies, remote.petExpression));
+    } else {
+      if (remote.petExpression && now >= remote.petExpressionUntil) {
+        remote.petExpression = null;
+        remote.petExpressionUntil = 0;
+      }
+      if (petDecision.walking) remote.pet.play(petAnimKey(remote.petSpecies, 'walk'), true);
+      else remote.pet.stop().setTexture(petTextureKey(remote.petSpecies, 'idle1'));
+    }
     this.syncRemoteAccessories(remote);
 
     remote.player.setDepth(this.depthFor(penguinDepthTarget(remote.player)));

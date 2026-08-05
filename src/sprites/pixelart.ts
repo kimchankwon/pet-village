@@ -1,5 +1,13 @@
 import Phaser from 'phaser';
-import { ACCESSORIES, type AccessoryId, type AccessorySlot } from '../systems/accessories';
+import {
+  ACCESSORIES,
+  isPenguinAccessoryId,
+  penguinClothesOverlayKey,
+  type AccessoryId,
+  type AccessorySlot,
+  type PenguinAccessoryId,
+  type PenguinClothesFacing,
+} from '../systems/accessories';
 import {
   CHARACTER_PENGUIN_DISPLAY_HEIGHT,
   DANCE_STAND_FEET_RATIO,
@@ -597,18 +605,24 @@ function overlayGrid(base: Grid, over: Grid): Grid {
   });
 }
 
-/** Apply the equipped penguin clothes to a facing's walk frames. */
+/**
+ * Apply equipped penguin clothes to the **idle** frame only (index 0).
+ * Walk / move frames stay bare for now — clothes return when the player stops.
+ */
 function dressPenguin(grids: Grid[], facing: keyof PenguinOverlay): Grid[] {
   const fit = State.data.equippedPenguinAccessories ?? {};
   // Draw order: body, then neck wrap, then headwear on top.
   const order: AccessorySlot[] = ['body', 'extra', 'headLeft', 'headRight'];
-  let out = grids;
-  for (const slot of order) {
-    const id = fit[slot];
-    const overlay = id ? PENGUIN_CLOTHES[id] : undefined;
-    if (overlay) out = out.map((g) => overlayGrid(g, overlay[facing]));
-  }
-  return out;
+  return grids.map((grid, index) => {
+    if (index !== 0) return grid;
+    let out = grid;
+    for (const slot of order) {
+      const id = fit[slot];
+      const overlay = id ? PENGUIN_CLOTHES[id] : undefined;
+      if (overlay) out = overlayGrid(out, overlay[facing]);
+    }
+    return out;
+  });
 }
 
 // ---- Shopkeeper NPC: cute white bunny with bow (16x16) ----
@@ -1834,33 +1848,220 @@ function recolorPenguinPlateData(
   }
 }
 
-/** Stamp clothes overlays (18×20 grids) onto a plate-sized frame. */
+type ContentBBox = { minX: number; minY: number; maxX: number; maxY: number; w: number; h: number };
+
+/** Opaque content bounds of an ImageData / canvas frame (alpha > 20). */
+function contentBBoxFromImageData(data: Uint8ClampedArray, width: number, height: number): ContentBBox | null {
+  let minX = width;
+  let maxX = 0;
+  let minY = height;
+  let maxY = 0;
+  let found = false;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * 4 + 3]! < 20) continue;
+      found = true;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (!found) return null;
+  return { minX, minY, maxX, maxY, w: maxX - minX + 1, h: maxY - minY + 1 };
+}
+
+function contentBBoxFromCanvas(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): ContentBBox | null {
+  return contentBBoxFromImageData(ctx.getImageData(x, y, w, h).data, w, h);
+}
+
+/** Memoized idle-plate bbox + overlay pixels keyed by clothes texture key. */
+const clothesSrcCache = new Map<
+  string,
+  { srcBBox: ContentBBox; overlay: Uint8ClampedArray; srcW: number; srcH: number }
+>();
+
+function clearClothesSrcCache() {
+  clothesSrcCache.clear();
+}
+
+/**
+ * Draw an Imagine clothes PNG (aligned to the idle plate for `clothesFacing`)
+ * onto a destination idle frame. Dest-driven sampling so every body pixel is
+ * covered without holes when src/dest bboxes differ by a few pixels.
+ */
+function stampClothesPngOnFrame(
+  scene: Phaser.Scene,
+  ctx: CanvasRenderingContext2D,
+  id: PenguinAccessoryId,
+  clothesFacing: PenguinClothesFacing,
+  destX: number,
+  destY: number,
+  destW: number,
+  destH: number,
+  destBBox: ContentBBox,
+) {
+  const key = penguinClothesOverlayKey(id, clothesFacing);
+  if (!scene.textures.exists(key)) return false;
+
+  let cached = clothesSrcCache.get(key);
+  if (!cached) {
+    const srcImg = scene.textures.get(key).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    const srcW = (srcImg as HTMLImageElement).width || (srcImg as HTMLCanvasElement).width;
+    const srcH = (srcImg as HTMLImageElement).height || (srcImg as HTMLCanvasElement).height;
+    if (srcW < 8 || srcH < 8) return false;
+
+    // Idle plate for this clothes facing — overlays are authored against frame 0.
+    const plateKey = PENGUIN_PLATE_KEY(
+      clothesFacing === 'side' ? 'side' : clothesFacing === 'up' ? 'up' : 'down',
+      0,
+    );
+    let srcBBox: ContentBBox | null = null;
+    if (scene.textures.exists(plateKey)) {
+      const plate = scene.textures.get(plateKey).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+      const pw = (plate as HTMLImageElement).width || (plate as HTMLCanvasElement).width;
+      const ph = (plate as HTMLImageElement).height || (plate as HTMLCanvasElement).height;
+      const tmp = document.createElement('canvas');
+      tmp.width = pw;
+      tmp.height = ph;
+      const tctx = tmp.getContext('2d')!;
+      tctx.drawImage(plate as CanvasImageSource, 0, 0);
+      srcBBox = contentBBoxFromImageData(tctx.getImageData(0, 0, pw, ph).data, pw, ph);
+    }
+    if (!srcBBox || srcBBox.w < 4 || srcBBox.h < 4) {
+      const tmp = document.createElement('canvas');
+      tmp.width = srcW;
+      tmp.height = srcH;
+      const tctx = tmp.getContext('2d')!;
+      tctx.drawImage(srcImg as CanvasImageSource, 0, 0);
+      srcBBox = contentBBoxFromImageData(tctx.getImageData(0, 0, srcW, srcH).data, srcW, srcH);
+    }
+    if (!srcBBox || srcBBox.w < 4 || srcBBox.h < 4) return false;
+
+    const sample = document.createElement('canvas');
+    sample.width = srcW;
+    sample.height = srcH;
+    const sctx = sample.getContext('2d')!;
+    sctx.drawImage(srcImg as CanvasImageSource, 0, 0);
+    cached = {
+      srcBBox,
+      overlay: sctx.getImageData(0, 0, srcW, srcH).data,
+      srcW,
+      srcH,
+    };
+    clothesSrcCache.set(key, cached);
+  }
+
+  const { srcBBox, overlay, srcW, srcH } = cached;
+  const dest = ctx.getImageData(destX, destY, destW, destH);
+  // Dest-driven: every dest body pixel samples its corresponding overlay pixel.
+  for (let dy = destBBox.minY; dy <= destBBox.maxY; dy++) {
+    for (let dx = destBBox.minX; dx <= destBBox.maxX; dx++) {
+      if (dx < 0 || dy < 0 || dx >= destW || dy >= destH) continue;
+      const di = (dy * destW + dx) * 4;
+      if (dest.data[di + 3]! < 20) continue;
+      const u = (dx - destBBox.minX) / destBBox.w;
+      const v = (dy - destBBox.minY) / destBBox.h;
+      const sx = Math.min(
+        srcBBox.maxX,
+        Math.max(srcBBox.minX, Math.round(srcBBox.minX + u * srcBBox.w)),
+      );
+      const sy = Math.min(
+        srcBBox.maxY,
+        Math.max(srcBBox.minY, Math.round(srcBBox.minY + v * srcBBox.h)),
+      );
+      if (sx < 0 || sy < 0 || sx >= srcW || sy >= srcH) continue;
+      const si = (sy * srcW + sx) * 4;
+      const a = overlay[si + 3]!;
+      if (a < 20) continue;
+      dest.data[di] = overlay[si]!;
+      dest.data[di + 1] = overlay[si + 1]!;
+      dest.data[di + 2] = overlay[si + 2]!;
+      dest.data[di + 3] = 255;
+    }
+  }
+  ctx.putImageData(dest, destX, destY);
+  return true;
+}
+
+/**
+ * Classic 18×20 grid clothes, mapped onto the body content bbox (not the full
+ * cell) so side views and padded plates keep the item on the penguin.
+ */
+function stampClothesGridOnFrame(
+  ctx: CanvasRenderingContext2D,
+  facing: keyof PenguinOverlay,
+  destX: number,
+  destY: number,
+  destW: number,
+  destH: number,
+  destBBox: ContentBBox,
+  id: AccessoryId,
+) {
+  const overlay = PENGUIN_CLOTHES[id];
+  if (!overlay) return;
+  const grid = overlay[facing];
+  const cellW = destBBox.w / 18;
+  const cellH = destBBox.h / 20;
+  for (let y = 0; y < grid.length; y++) {
+    const row = grid[y]!;
+    for (let x = 0; x < row.length; x++) {
+      const ch = row[x]!;
+      if (ch === '.') continue;
+      const color = PALETTE[ch];
+      if (!color) continue;
+      ctx.fillStyle = color;
+      const px = destX + destBBox.minX + x * cellW;
+      const py = destY + destBBox.minY + y * cellH;
+      ctx.fillRect(Math.floor(px), Math.floor(py), Math.ceil(cellW), Math.ceil(cellH));
+    }
+  }
+}
+
+/**
+ * Stamp equipped penguin clothes onto one idle plant frame.
+ * Prefer Imagine PNG overlays; fall back to the classic pixel grid on the body bbox.
+ * `originX`/`originY` are the cell origin in `ctx` (0,0 for a single-frame temp canvas).
+ */
 function stampClothesOnPlate(
+  scene: Phaser.Scene,
   ctx: CanvasRenderingContext2D,
   facing: keyof PenguinOverlay,
   frameW: number,
   frameH: number,
+  originX = 0,
+  originY = 0,
 ) {
   const fit = State.data.equippedPenguinAccessories ?? {};
   const order: AccessorySlot[] = ['body', 'extra', 'headLeft', 'headRight'];
-  const cellW = frameW / 18;
-  const cellH = frameH / 20;
+  const destBBox = contentBBoxFromCanvas(ctx, originX, originY, frameW, frameH);
+  if (!destBBox) return;
+  const clothesFacing: PenguinClothesFacing =
+    facing === 'up' ? 'up' : facing === 'side' ? 'side' : 'down';
   for (const slot of order) {
     const id = fit[slot];
-    const overlay = id ? PENGUIN_CLOTHES[id] : undefined;
-    if (!overlay) continue;
-    const grid = overlay[facing];
-    for (let y = 0; y < grid.length; y++) {
-      const row = grid[y]!;
-      for (let x = 0; x < row.length; x++) {
-        const ch = row[x]!;
-        if (ch === '.') continue;
-        const color = PALETTE[ch];
-        if (!color) continue;
-        ctx.fillStyle = color;
-        ctx.fillRect(Math.floor(x * cellW), Math.floor(y * cellH), Math.ceil(cellW), Math.ceil(cellH));
-      }
+    if (!id) continue;
+    if (isPenguinAccessoryId(id)) {
+      const ok = stampClothesPngOnFrame(
+        scene,
+        ctx,
+        id,
+        clothesFacing,
+        originX,
+        originY,
+        frameW,
+        frameH,
+        destBBox,
+      );
+      if (ok) continue;
     }
+    stampClothesGridOnFrame(ctx, facing, originX, originY, frameW, frameH, destBBox, id);
   }
 }
 
@@ -1899,7 +2100,10 @@ function makePenguinFromPlates(scene: Phaser.Scene) {
       const imgData = tctx.getImageData(0, 0, fw, fh);
       recolorPenguinPlateData(imgData.data, body, shade, hi);
       tctx.putImageData(imgData, 0, 0);
-      stampClothesOnPlate(tctx, clothesFacingForPlate(facing), fw, fh);
+      // Clothes only on the idle plant (frame 0). Walk strides stay undressed.
+      if (frame === 0) {
+        stampClothesOnPlate(scene, tctx, clothesFacingForPlate(facing), fw, fh);
+      }
       sctx.drawImage(tmp, frame * fw, 0);
     }
 
@@ -1960,6 +2164,7 @@ function makeEmoteTextureFromSheet(scene: Phaser.Scene, emote: PenguinEmote, key
   const image = ctx.getImageData(0, 0, sheetW, sheetH);
   recolorPenguinPlateData(image.data, body, shade, hi);
   ctx.putImageData(image, 0, 0);
+  // Move emotes stay undressed — clothes only on idle plant stop frames.
 
   scene.textures.addSpriteSheet(key, canvas as unknown as HTMLImageElement, {
     frameWidth: fw,
@@ -1975,7 +2180,7 @@ function makeAllEmoteTextures(scene: Phaser.Scene, color: string, local: boolean
     const key = local ? cfg.localTextureKey : remotePenguinEmoteTextureKey(emote, color);
     if (emote === 'wave' && !scene.textures.exists(cfg.plateSheetKey)) {
       // Fall back to hand-authored grids only for wave when the sheet is missing.
-      if (local) makeAuthoredWaveTexture(scene, key, color, 'penguin-down', true);
+      if (local) makeAuthoredWaveTexture(scene, key, color, 'penguin-down');
       continue;
     }
     makeEmoteTextureFromSheet(scene, emote, key, color);
@@ -1988,7 +2193,6 @@ function makeAuthoredWaveTexture(
   key: string,
   color: string,
   referenceKey: string,
-  includeClothes: boolean,
 ) {
   if (scene.textures.exists(key)) scene.textures.remove(key);
   const frame = scene.textures.getFrame(referenceKey);
@@ -2012,12 +2216,6 @@ function makeAuthoredWaveTexture(
         ctx.fillStyle = paletteColor;
         ctx.fillRect(offsetX + Math.floor(x * cellW), Math.floor(y * cellH), Math.ceil(cellW), Math.ceil(cellH));
       }
-    }
-    if (includeClothes) {
-      ctx.save();
-      ctx.translate(offsetX, 0);
-      stampClothesOnPlate(ctx, 'down', frameW, frameH);
-      ctx.restore();
     }
   });
   Object.assign(PALETTE, previous);
@@ -2153,6 +2351,7 @@ export function refreshPenguin(scene: Phaser.Scene) {
       wearers.push([obj, obj.texture.key]);
     }
   }
+  clearClothesSrcCache();
   for (const key of PENGUIN_TEXTURE_KEYS) {
     if (scene.textures.exists(key)) scene.textures.remove(key);
   }

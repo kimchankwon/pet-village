@@ -19,6 +19,7 @@ function actions(sent: number[]) {
     leave: () => {},
     wave: () => {},
     emote: () => {},
+    petEmote: () => {},
     chat: () => {},
   };
 }
@@ -70,6 +71,20 @@ test('emote start and stop reach the installed connection, and only it', () => {
   multiplayerBridge.emote('wave');
   assert.deepEqual(second, ['dance', '']);
   multiplayerBridge.uninstall(firstId);
+});
+
+test('petEmote start and clear reach the installed connection', () => {
+  const sent: string[] = [];
+  const id = multiplayerBridge.install({
+    ...actions([]),
+    petEmote: (expression: string) => sent.push(expression),
+  });
+  multiplayerBridge.petEmote('happy');
+  multiplayerBridge.petEmote('');
+  assert.deepEqual(sent, ['happy', '']);
+  multiplayerBridge.uninstall(id);
+  multiplayerBridge.petEmote('sad');
+  assert.deepEqual(sent, ['happy', '']);
 });
 
 test('scene transitions discard delayed position corrections from the previous world', () => {

@@ -13,8 +13,8 @@ Tamagotchi P's Deco Pierce era.
 |------|----------------|
 | neutral1 | `Mame Kitty.png` |
 | neutral2 | `MameKittyBlush.png` |
-| walk1 | `MameKittyWalk.png` |
-| walk2 | `MameKittyWalk2.png` |
+| walk1 | `MameKittyWalk.png` (mirrored to lean screen-right for `flipX`) |
+| walk2 | `MameKittyWalk2.png` (mirrored to lean screen-right for `flipX`) |
 | happy | `MameKittyHappy.png` |
 | sad | `MameKittySad.png` |
 | sleep | `MameKittySleep.png` |

@@ -18,6 +18,10 @@ import { generateGalleryPet } from './lib/gallery-pet-generator.mjs';
 // of the 32×32 plate instead of shrinking the whole kitty when she walks.
 // Exterior cleaning would damage the yellow face/white ear fur; gallery outline
 // repair would add a second pure-black ring.
+//
+// Walk reference frames lean **screen-right** so Pet.setFlipX faces travel
+// direction (left walk → flipX true → faces left). Gallery sources that face
+// the other way were mirrored in scripts/reference/mamekitty/frames/.
 generateGalleryPet({
   name: 'mamekitty',
   referenceDir: path.resolve('scripts/reference/mamekitty/frames'),

@@ -7,6 +7,7 @@ import {
   isChatCharacter,
   isGameActivity,
   isMovePayload,
+  isPetExpression,
   isWorldScene,
   NpcState,
   PlayerState,
@@ -19,8 +20,25 @@ import {
   worldSceneSpawn,
 } from '../src/index.ts';
 
+test('protocol v14 pet expressions are a closed set with empty defaults on PlayerState', () => {
+  assert.equal(isPetExpression('happy'), true);
+  assert.equal(isPetExpression('sad'), true);
+  assert.equal(isPetExpression('sleep'), true);
+  assert.equal(isPetExpression('jump'), true);
+  assert.equal(isPetExpression(''), false);
+  assert.equal(isPetExpression('wave'), false);
+  assert.equal(isPetExpression('dance'), false);
+  const player = new PlayerState();
+  assert.equal(player.petEmote, '');
+  assert.equal(player.petEmoteId, '');
+  player.petEmote = 'happy';
+  player.petEmoteId = '1:uuid';
+  assert.equal(player.petEmote, 'happy');
+  assert.equal(player.petEmoteId, '1:uuid');
+});
+
 test('protocol v10 validates scene-scoped moves within each world bounds', () => {
-  assert.equal(PROTOCOL_VERSION, 13);
+  assert.equal(PROTOCOL_VERSION, 14);
   // Expanded ice town: 32×22, parks/shore 24×16.
   assert.deepEqual(TOWN_BOUNDS, { width: 1536, height: 1056 });
   assert.deepEqual(WORLD_SCENES, [

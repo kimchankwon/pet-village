@@ -1,6 +1,6 @@
 import { MapSchema, Schema, defineTypes } from '@colyseus/schema';
 
-export const PROTOCOL_VERSION = 13 as const;
+export const PROTOCOL_VERSION = 14 as const;
 export const TICKET_ISSUER = 'pet-village-convex';
 export const TICKET_AUDIENCE = 'pet-village-multiplayer';
 export const ROOM_NAME = 'town_default';
@@ -117,6 +117,16 @@ export function isPenguinEmote(value: unknown): value is PenguinEmote {
 /** @deprecated Prefer EmotePayload — kept name for older call sites during rollout. */
 export type DancePayload = { dancing: boolean };
 export type EmotePayload = { emote: PenguinEmote | '' };
+/**
+ * Pet face flash (happy/sad/sleep/jump) when a villager clicks their pet.
+ * Empty string clears. Peers key off `petEmoteId` so a repeat happy still plays.
+ */
+export const PET_EXPRESSIONS = ['happy', 'sad', 'sleep', 'jump'] as const;
+export type PetExpression = (typeof PET_EXPRESSIONS)[number];
+export function isPetExpression(value: unknown): value is PetExpression {
+  return typeof value === 'string' && (PET_EXPRESSIONS as readonly string[]).includes(value);
+}
+export type PetEmotePayload = { expression: PetExpression | '' };
 export type ChatPayload = { text: string };
 export type TownPositionClaim = { x: number; y: number; facing: Facing };
 export type EquippedAccessoriesClaim = {
@@ -534,6 +544,10 @@ export class PlayerState extends Schema {
    * can play wave / breakdance / sit / hip hop as well as the original dance.
    */
   declare emote: string;
+  /** Active pet expression pose, or empty. */
+  declare petEmote: string;
+  /** Stamped `${sentAt}:${uuid}` — peers spot a new flash even if pose repeats. */
+  declare petEmoteId: string;
 
   constructor() {
     super();
@@ -562,11 +576,14 @@ export class PlayerState extends Schema {
     this.chatId = '';
     this.chatText = '';
     this.emote = '';
+    this.petEmote = '';
+    this.petEmoteId = '';
   }
 }
 // Field order is the wire format: new fields are appended so clients on an older
 // protocol keep decoding the ones they know. v13 renames dancing→emote (string).
-defineTypes(PlayerState, {userId:'string',displayName:'string',petName:'string',petSpecies:'string',penguinColor:'string',x:'number',y:'number',petX:'number',petY:'number',facing:'string',moving:'boolean',active:'boolean',seq:'number',updatedAt:'number',waveId:'string',waveTarget:'string',activity:'string',scene:'string',accessoryHeadLeft:'string',accessoryHeadRight:'string',accessoryBody:'string',accessoryExtra:'string',chatId:'string',chatText:'string',emote:'string'});
+// v14 adds petEmote + petEmoteId (click-to-emote the companion for peers).
+defineTypes(PlayerState, {userId:'string',displayName:'string',petName:'string',petSpecies:'string',penguinColor:'string',x:'number',y:'number',petX:'number',petY:'number',facing:'string',moving:'boolean',active:'boolean',seq:'number',updatedAt:'number',waveId:'string',waveTarget:'string',activity:'string',scene:'string',accessoryHeadLeft:'string',accessoryHeadRight:'string',accessoryBody:'string',accessoryExtra:'string',chatId:'string',chatText:'string',emote:'string',petEmote:'string',petEmoteId:'string'});
 
 export class NpcState extends Schema {
   declare id: string;

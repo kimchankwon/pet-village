@@ -432,11 +432,30 @@ export const ACCESSORY_ASSET_PATH: Record<NonPenguinAccessoryId, string> = {
   'ribbon-tie': 'assets/accessories/ribbon-tie.png',
 };
 
-/** PNG path for loaded accessories; penguin clothes are generated at runtime. */
+/** PNG path for loaded accessories; penguin clothes use plate overlays below. */
 export function accessoryAssetPath(id: AccessoryId): string | undefined {
   return id in ACCESSORY_ASSET_PATH
     ? ACCESSORY_ASSET_PATH[id as NonPenguinAccessoryId]
     : undefined;
+}
+
+/**
+ * Imagine-authored clothes overlays aligned to idle plates (down/up/side).
+ * Stamped onto walk frames and move-emote sheets in pixelart.ts.
+ */
+export const PENGUIN_CLOTHES_FACINGS = ['down', 'up', 'side'] as const;
+export type PenguinClothesFacing = (typeof PENGUIN_CLOTHES_FACINGS)[number];
+
+export function penguinClothesOverlayKey(id: PenguinAccessoryId, facing: PenguinClothesFacing): string {
+  return `penguin-clothes-${id}-${facing}`;
+}
+
+export function penguinClothesOverlayPath(id: PenguinAccessoryId, facing: PenguinClothesFacing): string {
+  return `assets/player/penguin/clothes/${id}-${facing}.png`;
+}
+
+export function isPenguinAccessoryId(value: unknown): value is PenguinAccessoryId {
+  return typeof value === 'string' && (PENGUIN_ACCESSORY_IDS as readonly string[]).includes(value);
 }
 
 export function isAccessoryId(value: unknown): value is AccessoryId {

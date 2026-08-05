@@ -17,6 +17,8 @@ import {
   type ChatPayload,
   type EmotePayload,
   isPenguinEmote,
+  isPetExpression,
+  type PetEmotePayload,
   type ProfileRefreshPayload,
   type ProfileRefreshResult,
   type WavePayload,
@@ -143,6 +145,7 @@ export class TownRoom extends Room<{ state: TownState }> {
     });
     this.onMessage('wave', (client, payload: WavePayload) => this.wave(client, payload));
     this.onMessage('emote', (client, payload: EmotePayload) => this.setEmote(client, payload));
+    this.onMessage('pet-emote', (client, payload: PetEmotePayload) => this.setPetEmote(client, payload));
     this.onMessage('chat', (client, payload: ChatPayload) => this.chat(client, payload));
   }
 
@@ -173,6 +176,8 @@ export class TownRoom extends Room<{ state: TownState }> {
       player.activity = '';
       player.moving = false;
       player.emote = '';
+      player.petEmote = '';
+      player.petEmoteId = '';
       player.updatedAt = Date.now();
     }
     this.reentrySessions.delete(client.sessionId);
@@ -300,7 +305,11 @@ export class TownRoom extends Room<{ state: TownState }> {
     player.active = payload.active;
     player.moving = payload.active ? player.moving : false;
     if (payload.active) player.activity = '';
-    if (!payload.active) player.emote = '';
+    if (!payload.active) {
+      player.emote = '';
+      player.petEmote = '';
+      player.petEmoteId = '';
+    }
     player.updatedAt = Date.now();
   }
 
@@ -353,6 +362,8 @@ export class TownRoom extends Room<{ state: TownState }> {
       player.active = false;
       player.moving = false;
       player.emote = '';
+      player.petEmote = '';
+      player.petEmoteId = '';
     }
     player.updatedAt = Date.now();
   }
@@ -395,6 +406,25 @@ export class TownRoom extends Room<{ state: TownState }> {
     this.lastEmoteAt.set(client.sessionId, now);
     player.emote = emote;
     if (emote) player.moving = false;
+    player.updatedAt = now;
+  }
+
+  /**
+   * Flash the companion pet's expression (happy/sad/…) so villagers nearby see
+   * the same face the owner gets when they click their pet.
+   */
+  private setPetEmote(client: Client, payload: PetEmotePayload) {
+    const player = this.state.players.get(client.sessionId);
+    if (!player || !player.active || player.activity) return;
+    const expression = payload?.expression ?? '';
+    if (expression !== '' && !isPetExpression(expression)) return;
+    const now = Date.now();
+    const lastAt = this.lastEmoteAt.get(client.sessionId) ?? 0;
+    // Share the move-emote floor so spam-clicking the pet cannot flood peers.
+    if (now - lastAt < EMOTE_MIN_INTERVAL_MS) return;
+    this.lastEmoteAt.set(client.sessionId, now);
+    player.petEmote = expression;
+    player.petEmoteId = expression ? `${now}:${crypto.randomUUID()}` : '';
     player.updatedAt = now;
   }
 
