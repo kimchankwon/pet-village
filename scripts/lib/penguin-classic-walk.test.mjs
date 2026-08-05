@@ -75,15 +75,22 @@ test('diagonal idles come from distinct dance angles (not copies of front/side/b
     assert.notEqual(Buffer.compare(plate, side), 0, `${facing}-0 matches side-0`);
     assert.notEqual(Buffer.compare(plate, up), 0, `${facing}-0 matches up-0`);
   }
-  // Opposite diagonals should differ (not the same mirrored asset by accident).
-  assert.notEqual(
-    Buffer.compare(fs.readFileSync(path.join(OUT, 'se-0.png')), fs.readFileSync(path.join(OUT, 'sw-0.png'))),
-    0,
-  );
-  assert.notEqual(
-    Buffer.compare(fs.readFileSync(path.join(OUT, 'ne-0.png')), fs.readFileSync(path.join(OUT, 'nw-0.png'))),
-    0,
-  );
+  // Every unordered pair of diagonals must differ (including true opposites se/nw, sw/ne).
+  const diagonals = ['se', 'sw', 'ne', 'nw'];
+  for (let index = 0; index < diagonals.length; index++) {
+    for (let other = index + 1; other < diagonals.length; other++) {
+      const left = diagonals[index];
+      const right = diagonals[other];
+      assert.notEqual(
+        Buffer.compare(
+          fs.readFileSync(path.join(OUT, `${left}-0.png`)),
+          fs.readFileSync(path.join(OUT, `${right}-0.png`)),
+        ),
+        0,
+        `${left}-0 matches ${right}-0`,
+      );
+    }
+  }
 });
 
 test('walk sheet packs 8 equal cells', () => {

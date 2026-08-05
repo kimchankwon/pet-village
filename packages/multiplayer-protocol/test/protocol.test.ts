@@ -34,6 +34,8 @@ test('protocol v10 validates scene-scoped moves within each world bounds', () =>
   assert.equal(isMovePayload({ scene: 'shore', x: 1, y: 2, petX: 3, petY: 4, facing: 'down', moving: true, seq: 1 }), true);
   // Diagonal facings (dance-harvested plates) are first-class on the wire.
   assert.equal(isMovePayload({ scene: 'town', x: 1, y: 2, petX: 3, petY: 4, facing: 'se', moving: true, seq: 1 }), true);
+  assert.equal(isMovePayload({ scene: 'town', x: 1, y: 2, petX: 3, petY: 4, facing: 'sw', moving: true, seq: 1 }), true);
+  assert.equal(isMovePayload({ scene: 'town', x: 1, y: 2, petX: 3, petY: 4, facing: 'ne', moving: true, seq: 1 }), true);
   assert.equal(isMovePayload({ scene: 'town', x: 1, y: 2, petX: 3, petY: 4, facing: 'nw', moving: false, seq: 2 }), true);
   assert.equal(isMovePayload({ scene: 'town', x: 1, y: 2, petX: 3, petY: 4, facing: 'diagonal', moving: true, seq: 1 }), false);
   assert.equal(isMovePayload({ scene: 'shore', x: Infinity, y: 2, petX: 3, petY: 4, facing: 'down', moving: true, seq: 1 }), false);

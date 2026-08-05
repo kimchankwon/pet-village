@@ -90,7 +90,7 @@ White plate is keyed to transparent; registration matches the GIF so the loop
 closes cleanly. The multi-row sheet stays under WebGL max texture size (a
 single 76-wide row of walk-plate-resolution cells would not). Press **N**
 again or walk to stop. Peers in the same scene see the loop via the
-`dancing` multiplayer field (protocol v11).
+`dancing` multiplayer field (protocol v12).
 
 Cells keep the GIF's own registration, so the penguin fills only part of the
 cell: the standing pose occupies rows 25–155 of 214, and the rest is headroom

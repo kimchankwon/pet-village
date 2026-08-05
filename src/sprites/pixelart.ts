@@ -2154,14 +2154,30 @@ function makePenguin(scene: Phaser.Scene) {
     return;
   }
   // Classic 18×20 grid fallback (pre-plate path): idle plant + 2 walk strides.
+  // Diagonals reuse nearest cardinal so 8-way movement never selects a missing key.
   makeTexture(scene, 'penguin-down', dressPenguin([PENGUIN_DOWN_IDLE, PENGUIN_DOWN_0, PENGUIN_DOWN_1], 'down'));
   makeTexture(scene, 'penguin-up', dressPenguin([PENGUIN_UP_IDLE, PENGUIN_UP_0, PENGUIN_UP_1], 'up'));
   makeTexture(scene, 'penguin-side', dressPenguin([PENGUIN_SIDE_IDLE, PENGUIN_SIDE_0, PENGUIN_SIDE_1], 'side'));
+  makeTexture(scene, 'penguin-se', dressPenguin([PENGUIN_DOWN_IDLE, PENGUIN_DOWN_0, PENGUIN_DOWN_1], 'down'));
+  makeTexture(scene, 'penguin-sw', dressPenguin([PENGUIN_DOWN_IDLE, PENGUIN_DOWN_0, PENGUIN_DOWN_1], 'down'));
+  makeTexture(scene, 'penguin-ne', dressPenguin([PENGUIN_UP_IDLE, PENGUIN_UP_0, PENGUIN_UP_1], 'up'));
+  makeTexture(scene, 'penguin-nw', dressPenguin([PENGUIN_UP_IDLE, PENGUIN_UP_0, PENGUIN_UP_1], 'up'));
   const anims = scene.anims;
   if (!anims.exists('walk-down')) {
-    anims.create({ key: 'walk-down', frames: anims.generateFrameNumbers('penguin-down', { start: 1, end: 2 }), frameRate: 6, repeat: -1 });
-    anims.create({ key: 'walk-up', frames: anims.generateFrameNumbers('penguin-up', { start: 1, end: 2 }), frameRate: 6, repeat: -1 });
-    anims.create({ key: 'walk-side', frames: anims.generateFrameNumbers('penguin-side', { start: 1, end: 2 }), frameRate: 6, repeat: -1 });
+    const walk = (key: string, texture: string) =>
+      anims.create({
+        key,
+        frames: anims.generateFrameNumbers(texture, { start: 1, end: 2 }),
+        frameRate: 6,
+        repeat: -1,
+      });
+    walk('walk-down', 'penguin-down');
+    walk('walk-up', 'penguin-up');
+    walk('walk-side', 'penguin-side');
+    walk('walk-se', 'penguin-se');
+    walk('walk-sw', 'penguin-sw');
+    walk('walk-ne', 'penguin-ne');
+    walk('walk-nw', 'penguin-nw');
   }
   makeWaveTexture(
     scene,
@@ -2177,6 +2193,10 @@ const PENGUIN_TEXTURE_KEYS = [
   'penguin-down',
   'penguin-up',
   'penguin-side',
+  'penguin-se',
+  'penguin-sw',
+  'penguin-ne',
+  'penguin-nw',
   LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
   LOCAL_PENGUIN_DANCE_TEXTURE_KEY,
 ];
