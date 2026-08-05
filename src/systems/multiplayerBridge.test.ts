@@ -18,7 +18,7 @@ function actions(sent: number[]) {
     updateProfile: () => {},
     leave: () => {},
     wave: () => {},
-    dance: () => {},
+    emote: () => {},
     chat: () => {},
   };
 }
@@ -54,21 +54,21 @@ test('stale connection cleanup cannot uninstall or update the current bridge', (
   unsubscribe();
 });
 
-test('dance start and stop reach the installed connection, and only it', () => {
-  const first: boolean[] = [];
-  const second: boolean[] = [];
-  const firstId = multiplayerBridge.install({ ...actions([]), dance: (d: boolean) => first.push(d) });
-  const secondId = multiplayerBridge.install({ ...actions([]), dance: (d: boolean) => second.push(d) });
+test('emote start and stop reach the installed connection, and only it', () => {
+  const first: string[] = [];
+  const second: string[] = [];
+  const firstId = multiplayerBridge.install({ ...actions([]), emote: (e: string) => first.push(e) });
+  const secondId = multiplayerBridge.install({ ...actions([]), emote: (e: string) => second.push(e) });
 
-  multiplayerBridge.dance(true);
-  multiplayerBridge.dance(false);
+  multiplayerBridge.emote('dance');
+  multiplayerBridge.emote('');
   // Only the live connection carries the emote; the superseded one stays silent.
-  assert.deepEqual(second, [true, false]);
+  assert.deepEqual(second, ['dance', '']);
   assert.deepEqual(first, []);
 
   multiplayerBridge.uninstall(secondId);
-  multiplayerBridge.dance(true);
-  assert.deepEqual(second, [true, false]);
+  multiplayerBridge.emote('wave');
+  assert.deepEqual(second, ['dance', '']);
   multiplayerBridge.uninstall(firstId);
 });
 

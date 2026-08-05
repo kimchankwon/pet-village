@@ -1,23 +1,25 @@
 /**
- * Geometry checks for the 16-frame wave sheet (npm run sprite:penguin-wave).
+ * Geometry checks for the wave sheet harvested from the dance plates
+ * (npm run sprite:penguin-emotes). Frame count comes from PENGUIN_EMOTE_CONFIG.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { PENGUIN_EMOTE_CONFIG } from '../../src/systems/penguinEmotes.ts';
 
 const require = createRequire(import.meta.url);
 const { PNG } = require('pngjs');
 
 const SHEET = path.resolve('public/assets/player/penguin/wave-sheet.png');
 const FRAME_DIR = path.resolve('public/assets/player/penguin/wave');
-const FRAME_COUNT = 16;
+const FRAME_COUNT = PENGUIN_EMOTE_CONFIG.wave.frameCount;
 const CELL_W = 220;
 const CELL_H = 214;
 
-test('wave sheet packs 16 equal 220×214 cells in a single row', () => {
-  assert.ok(fs.existsSync(SHEET), 'wave-sheet.png missing — run npm run sprite:penguin-wave');
+test(`wave sheet packs ${FRAME_COUNT} equal 220×214 cells in a single row`, () => {
+  assert.ok(fs.existsSync(SHEET), 'wave-sheet.png missing — run npm run sprite:penguin-emotes');
   const sheet = PNG.sync.read(fs.readFileSync(SHEET));
   assert.equal(sheet.width, CELL_W * FRAME_COUNT);
   assert.equal(sheet.height, CELL_H);

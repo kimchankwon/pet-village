@@ -50,7 +50,9 @@ export function remotePenguinDanceTextureKey(color: string) {
   return `penguin-remote-${normalizePenguinColor(color)}-dance`;
 }
 
+/** @deprecated Prefer PENGUIN_EMOTE_CONFIG — kept for Boot / tests. */
 export const LOCAL_PENGUIN_WAVE_TEXTURE_KEY = 'penguin-wave';
+/** @deprecated Prefer PENGUIN_EMOTE_CONFIG — kept for Boot / tests. */
 export const LOCAL_PENGUIN_DANCE_TEXTURE_KEY = 'penguin-dance';
 
 type Point = { x: number; y: number };
@@ -102,12 +104,11 @@ export function remotePetMovementDecision(from: Point, to: Point, previousFlipX:
 }
 
 /**
- * Classic Club Penguin wave GIF (Tenor, 16 unique frames).
- * Source delays are 70–80 ms; 75 ms keeps a steady one-shot (~1.2 s).
- * Must match WAVE_FRAME_* in scripts/penguin-wave-plates.mts.
+ * Wave one-shot timing — dance-harvested flipper frames (see penguinEmotes).
+ * Kept here so existing tests import from one place.
  */
-export const WAVE_FRAME_MS = 75;
-export const WAVE_FRAME_COUNT = 16;
+export const WAVE_FRAME_MS = 160;
+export const WAVE_FRAME_COUNT = 8;
 
 /**
  * Classic Club Penguin dance GIF (Tenor, 76 unique frames).
@@ -177,7 +178,7 @@ export function pendingWaveDecision(input: {
   return input.targetMovedPx >= WAVE_RETARGET_MIN_MOVE_PX ? 'retarget' : 'cancel';
 }
 
-/** Returns the Tenor wave frame index, or null once the one-shot is complete. */
+/** Returns the wave frame index, or null once the one-shot is complete. */
 export function waveAnimationFrame(elapsedMs: number): number | null {
   if (elapsedMs < 0) return 0;
   const index = Math.floor(elapsedMs / WAVE_FRAME_MS);

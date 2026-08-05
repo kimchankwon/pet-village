@@ -1,8 +1,11 @@
 import Phaser from 'phaser';
 import {
   generateTextures,
+  PENGUIN_BREAKDANCE_SHEET_KEY,
   PENGUIN_DANCE_SHEET_KEY,
+  PENGUIN_HIPHOP_SHEET_KEY,
   PENGUIN_PLATE_KEY,
+  PENGUIN_SIT_SHEET_KEY,
   PENGUIN_WAVE_SHEET_KEY,
 } from '../sprites/pixelart';
 import {
@@ -213,12 +216,13 @@ export class BootScene extends Phaser.Scene {
         );
       }
     }
-    // Classic Club Penguin wave (16 GIF frames, single-row sheet).
-    // npm run sprite:penguin-wave
+    // Club Penguin move sheets (dance + wave + breakdance + sit + hip hop).
+    // npm run sprite:penguin-dance && npm run sprite:penguin-emotes
     this.load.image(PENGUIN_WAVE_SHEET_KEY, 'assets/player/penguin/wave-sheet.png');
-    // Classic Club Penguin dance (76 GIF frames, multi-row sheet).
-    // npm run sprite:penguin-dance
     this.load.image(PENGUIN_DANCE_SHEET_KEY, 'assets/player/penguin/dance-sheet.png');
+    this.load.image(PENGUIN_BREAKDANCE_SHEET_KEY, 'assets/player/penguin/breakdance-sheet.png');
+    this.load.image(PENGUIN_SIT_SHEET_KEY, 'assets/player/penguin/sit-sheet.png');
+    this.load.image(PENGUIN_HIPHOP_SHEET_KEY, 'assets/player/penguin/hiphop-sheet.png');
     // Outdoor hub Imagine plates (override grid fallbacks in generateTextures).
     for (const key of WORLD_PROP_KEYS) {
       this.load.image(key, `assets/world/${key}.png`);
@@ -245,11 +249,16 @@ export class BootScene extends Phaser.Scene {
         this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
       }
     }
-    if (this.textures.exists(PENGUIN_WAVE_SHEET_KEY)) {
-      this.textures.get(PENGUIN_WAVE_SHEET_KEY).setFilter(Phaser.Textures.FilterMode.LINEAR);
-    }
-    if (this.textures.exists(PENGUIN_DANCE_SHEET_KEY)) {
-      this.textures.get(PENGUIN_DANCE_SHEET_KEY).setFilter(Phaser.Textures.FilterMode.LINEAR);
+    for (const key of [
+      PENGUIN_WAVE_SHEET_KEY,
+      PENGUIN_DANCE_SHEET_KEY,
+      PENGUIN_BREAKDANCE_SHEET_KEY,
+      PENGUIN_SIT_SHEET_KEY,
+      PENGUIN_HIPHOP_SHEET_KEY,
+    ]) {
+      if (this.textures.exists(key)) {
+        this.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR);
+      }
     }
 
     // Source-plate frames (≫64px) scale down in-game — force nearest-neighbour

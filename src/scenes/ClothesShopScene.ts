@@ -199,7 +199,7 @@ export class ClothesShopScene extends Phaser.Scene {
         { label: '[ Inventory · I ]', shortLabel: '[Inv]', onTap: () => this.openInventory() },
         { label: '[ Pet · P ]', shortLabel: '[Pet]', onTap: () => this.openPetMenu() },
         { label: '[ Chat · T ]', shortLabel: '[Chat]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.openChat(); } },
-        { label: '[ Dance · N ]', shortLabel: '[Dance]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.toggleLocalDance(); } },
+        { label: '[ Moves · N ]', shortLabel: '[Moves]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.openMovesMenu(); } },
       ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;
@@ -231,7 +231,7 @@ export class ClothesShopScene extends Phaser.Scene {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
       // Typing a message: a click must not walk off, open a menu or change scene.
-      if (isPointerUiBlocked()) return;
+      if (isPointerUiBlocked() || isUiBlocked() || isInteractSuppressed()) return;
       if (this.joystick.owns(pointer) || this.cameraZoom.ownsPointer(pointer)) return;
       if (this.cameraZoom.isPinching()) return;
       const near = this.nearestInteractable();

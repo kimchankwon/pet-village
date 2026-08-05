@@ -185,13 +185,13 @@ test('a queued wave fires on arrival, retargets a mover, and gives up eventually
   assert.equal(pendingWaveDecision({ ...base, distance: 300, active: false }), 'cancel');
 });
 
-test('wave timing plays all 16 Tenor GIF frames then ends', () => {
+test('wave timing plays the slow 8-frame flipper raise then ends', () => {
   assert.equal(waveAnimationFrame(0), 0);
-  assert.equal(waveAnimationFrame(75), 1);
-  assert.equal(waveAnimationFrame(150), 2);
-  assert.equal(waveAnimationFrame(75 * 15), 15);
-  assert.equal(waveAnimationFrame(75 * 16), null);
-  assert.equal(waveAnimationFrame(75 * 20), null);
+  assert.equal(waveAnimationFrame(160), 1);
+  assert.equal(waveAnimationFrame(320), 2);
+  assert.equal(waveAnimationFrame(160 * 7), 7);
+  assert.equal(waveAnimationFrame(160 * 8), null);
+  assert.equal(waveAnimationFrame(160 * 12), null);
 });
 
 test('dance timing loops all 76 GIF frames at 100 ms', () => {

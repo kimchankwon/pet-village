@@ -20,7 +20,7 @@ import {
 } from '../src/index.ts';
 
 test('protocol v10 validates scene-scoped moves within each world bounds', () => {
-  assert.equal(PROTOCOL_VERSION, 12);
+  assert.equal(PROTOCOL_VERSION, 13);
   // Expanded ice town: 32×22, parks/shore 24×16.
   assert.deepEqual(TOWN_BOUNDS, { width: 1536, height: 1056 });
   assert.deepEqual(WORLD_SCENES, [

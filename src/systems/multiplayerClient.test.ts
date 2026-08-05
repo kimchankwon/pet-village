@@ -27,7 +27,7 @@ test('multiplayer client excludes disconnected and wrong-scene peers', () => {
     userId: 'shore-user', sessionId: 'shore-session', localSessionId: 'local-session', name: 'Shore User',
     petName: 'Mame', petSpecies: 'mametchi', penguinColor: 'blue', equippedAccessories: { headLeft: 'mini-crown', body: 'ribbon-tie' }, x: 10, y: 20, petX: 5, petY: 25,
     facing: 'down', moving: false, active: true, activity: '', sceneId: 'shore', updatedAt: 2, waveId: undefined,
-    waveTarget: undefined, chatId: undefined, chatText: undefined, dancing: false,
+    waveTarget: undefined, chatId: undefined, chatText: undefined, emote: '',
   }]);
 });
 

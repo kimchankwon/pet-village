@@ -10,14 +10,17 @@ import {
 } from '../systems/characterScale';
 import { State } from '../systems/GameState';
 import {
-  LOCAL_PENGUIN_DANCE_TEXTURE_KEY,
-  LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
   normalizePenguinColor,
-  remotePenguinDanceTextureKey,
   remotePenguinTextureKey,
   remotePenguinWalkAnimKey,
-  remotePenguinWaveTextureKey,
 } from '../systems/multiplayerPresentation';
+import {
+  PENGUIN_EMOTE_CONFIG,
+  remotePenguinEmoteTextureKey,
+  isPenguinEmoteTexture,
+  type PenguinEmote,
+  PENGUIN_EMOTES,
+} from '../systems/penguinEmotes';
 
 // Pixel-art textures generated at runtime from character grids.
 // Each sprite is an array of strings; each character maps to a palette color,
@@ -1593,17 +1596,20 @@ export const PENGUIN_PLATE_KEY = (facing: PenguinPlateFacing, frame: number) =>
  * Classic Club Penguin wave spritesheet (16 GIF frames, single row).
  * Built by `npm run sprite:penguin-wave` from the Tenor reference GIF.
  */
-export const PENGUIN_WAVE_SHEET_KEY = 'penguin-plate-wave-sheet';
-/** Must match WAVE_FRAME_COUNT in scripts/penguin-wave-plates.mts. */
-export const PENGUIN_WAVE_FRAME_COUNT = 16;
+export const PENGUIN_WAVE_SHEET_KEY = PENGUIN_EMOTE_CONFIG.wave.plateSheetKey;
+/** Must match PENGUIN_EMOTE_CONFIG.wave (dance-harvested flipper wave). */
+export const PENGUIN_WAVE_FRAME_COUNT = PENGUIN_EMOTE_CONFIG.wave.frameCount;
 /**
  * Classic Club Penguin dance spritesheet (76 GIF frames, 10-col grid).
  * Built by `npm run sprite:penguin-dance` from the Tenor reference GIF.
  */
-export const PENGUIN_DANCE_SHEET_KEY = 'penguin-plate-dance-sheet';
+export const PENGUIN_DANCE_SHEET_KEY = PENGUIN_EMOTE_CONFIG.dance.plateSheetKey;
 /** Must match `DANCE_FRAME_COUNT` / sheet packing in scripts/penguin-dance-plates.mts. */
-export const PENGUIN_DANCE_FRAME_COUNT = 76;
+export const PENGUIN_DANCE_FRAME_COUNT = PENGUIN_EMOTE_CONFIG.dance.frameCount;
 export const PENGUIN_DANCE_SHEET_COLS = 10;
+export const PENGUIN_BREAKDANCE_SHEET_KEY = PENGUIN_EMOTE_CONFIG.breakdance.plateSheetKey;
+export const PENGUIN_SIT_SHEET_KEY = PENGUIN_EMOTE_CONFIG.sit.plateSheetKey;
+export const PENGUIN_HIPHOP_SHEET_KEY = PENGUIN_EMOTE_CONFIG.hiphop.plateSheetKey;
 
 /**
  * Tenor Club Penguin walk GIF — 8 unique frames @ 60 ms (~16.7 fps).
@@ -1699,7 +1705,8 @@ export function penguinDanceOriginY(frameHeight: number): number {
  * caller's "is dancing" flag can disagree with what is actually drawn.
  */
 export function isPenguinDanceTexture(key: string): boolean {
-  return key === LOCAL_PENGUIN_DANCE_TEXTURE_KEY || key.endsWith('-dance');
+  // All move sheets (dance, wave, breakdance, sit, hip hop) share dance scale.
+  return isPenguinEmoteTexture(key);
 }
 
 /**
@@ -1923,79 +1930,23 @@ function makePenguinFromPlates(scene: Phaser.Scene) {
   }
 }
 
-/**
- * Wave spritesheet from the Tenor Club Penguin wave GIF (16 frames, one row).
- * Recolours body blues for the active colourway. Clothes are skipped: the raised
- * flipper has no stable attach points matching the idle down clothes grid.
- */
-function makeWaveTextureFromSheet(scene: Phaser.Scene, key: string, color: string) {
+
+function makeEmoteTextureFromSheet(scene: Phaser.Scene, emote: PenguinEmote, key: string, color: string) {
   if (scene.textures.exists(key)) scene.textures.remove(key);
-  if (!hasPenguinWaveSheet(scene)) return;
+  const cfg = PENGUIN_EMOTE_CONFIG[emote];
+  if (!scene.textures.exists(cfg.plateSheetKey)) return;
   const palette = PENGUIN_COLORS[normalizePenguinColor(color)] ?? PENGUIN_COLORS.blue!;
   const body = hexToRgb(palette.v);
   const shade = hexToRgb(palette.V);
   const hi = hexToRgb(palette.u);
-  const source = scene.textures.get(PENGUIN_WAVE_SHEET_KEY).getSourceImage() as
+  const source = scene.textures.get(cfg.plateSheetKey).getSourceImage() as
     | HTMLImageElement
     | HTMLCanvasElement;
   const sheetW = source.width;
   const sheetH = source.height;
-  const fw = Math.floor(sheetW / PENGUIN_WAVE_FRAME_COUNT);
-  const fh = sheetH;
-  if (fw < 8 || fh < 8) return;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = sheetW;
-  canvas.height = sheetH;
-  const ctx = canvas.getContext('2d')!;
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(source as CanvasImageSource, 0, 0, sheetW, sheetH);
-  const image = ctx.getImageData(0, 0, sheetW, sheetH);
-  recolorPenguinPlateData(image.data, body, shade, hi);
-  ctx.putImageData(image, 0, 0);
-
-  scene.textures.addSpriteSheet(key, canvas as unknown as HTMLImageElement, {
-    frameWidth: fw,
-    frameHeight: fh,
-    endFrame: PENGUIN_WAVE_FRAME_COUNT - 1,
-  });
-  scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR);
-}
-
-/** Tenor wave sheet when Boot loaded it; hand-authored grids otherwise. */
-function makeWaveTexture(
-  scene: Phaser.Scene,
-  key: string,
-  color: string,
-  referenceKey: string,
-  includeClothes: boolean,
-) {
-  if (hasPenguinWaveSheet(scene)) {
-    makeWaveTextureFromSheet(scene, key, color);
-    return;
-  }
-  makeAuthoredWaveTexture(scene, key, color, referenceKey, includeClothes);
-}
-
-/**
- * Dance spritesheet from the Club Penguin GIF (76 frames, multi-row grid).
- * Recolours body blues for the active colourway. Clothes are skipped: spin and
- * tumble frames have no stable down-facing attach points.
- */
-function makeDanceTextureFromSheet(scene: Phaser.Scene, key: string, color: string) {
-  if (scene.textures.exists(key)) scene.textures.remove(key);
-  if (!hasPenguinDanceSheet(scene)) return;
-  const palette = PENGUIN_COLORS[normalizePenguinColor(color)] ?? PENGUIN_COLORS.blue!;
-  const body = hexToRgb(palette.v);
-  const shade = hexToRgb(palette.V);
-  const hi = hexToRgb(palette.u);
-  const source = scene.textures.get(PENGUIN_DANCE_SHEET_KEY).getSourceImage() as
-    | HTMLImageElement
-    | HTMLCanvasElement;
-  const sheetW = source.width;
-  const sheetH = source.height;
-  const cols = PENGUIN_DANCE_SHEET_COLS;
-  const rows = Math.ceil(PENGUIN_DANCE_FRAME_COUNT / cols);
+  // sheetCols is shared with scripts/penguin-emote-plates.mts via PENGUIN_EMOTE_CONFIG.
+  const cols = cfg.sheetCols;
+  const rows = Math.ceil(cfg.frameCount / cols);
   const fw = Math.floor(sheetW / cols);
   const fh = Math.floor(sheetH / rows);
   if (fw < 8 || fh < 8) return;
@@ -2013,14 +1964,24 @@ function makeDanceTextureFromSheet(scene: Phaser.Scene, key: string, color: stri
   scene.textures.addSpriteSheet(key, canvas as unknown as HTMLImageElement, {
     frameWidth: fw,
     frameHeight: fh,
-    endFrame: PENGUIN_DANCE_FRAME_COUNT - 1,
+    endFrame: cfg.frameCount - 1,
   });
   scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR);
 }
 
-function makeDanceTexture(scene: Phaser.Scene, key: string, color: string, _includeClothes: boolean) {
-  makeDanceTextureFromSheet(scene, key, color);
+function makeAllEmoteTextures(scene: Phaser.Scene, color: string, local: boolean) {
+  for (const emote of PENGUIN_EMOTES) {
+    const cfg = PENGUIN_EMOTE_CONFIG[emote];
+    const key = local ? cfg.localTextureKey : remotePenguinEmoteTextureKey(emote, color);
+    if (emote === 'wave' && !scene.textures.exists(cfg.plateSheetKey)) {
+      // Fall back to hand-authored grids only for wave when the sheet is missing.
+      if (local) makeAuthoredWaveTexture(scene, key, color, 'penguin-down', true);
+      continue;
+    }
+    makeEmoteTextureFromSheet(scene, emote, key, color);
+  }
 }
+
 
 function makeAuthoredWaveTexture(
   scene: Phaser.Scene,
@@ -2130,27 +2091,13 @@ export function ensureRemotePenguinTextures(scene: Phaser.Scene, requestedColor:
       });
     }
   }
-  makeWaveTexture(
-    scene,
-    remotePenguinWaveTextureKey(color),
-    color,
-    remotePenguinTextureKey('down', color),
-    false,
-  );
-  makeDanceTexture(scene, remotePenguinDanceTextureKey(color), color, false);
+  makeAllEmoteTextures(scene, color, false);
 }
 
 function makePenguin(scene: Phaser.Scene) {
   if (hasPenguinPlates(scene)) {
     makePenguinFromPlates(scene);
-    makeWaveTexture(
-      scene,
-      LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
-      State.data.penguinColor ?? 'blue',
-      'penguin-down',
-      true,
-    );
-    makeDanceTexture(scene, LOCAL_PENGUIN_DANCE_TEXTURE_KEY, State.data.penguinColor ?? 'blue', true);
+    makeAllEmoteTextures(scene, State.data.penguinColor ?? 'blue', true);
     return;
   }
   // Classic 18×20 grid fallback (pre-plate path): idle plant + 2 walk strides.
@@ -2179,14 +2126,7 @@ function makePenguin(scene: Phaser.Scene) {
     walk('walk-ne', 'penguin-ne');
     walk('walk-nw', 'penguin-nw');
   }
-  makeWaveTexture(
-    scene,
-    LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
-    State.data.penguinColor ?? 'blue',
-    'penguin-down',
-    true,
-  );
-  makeDanceTexture(scene, LOCAL_PENGUIN_DANCE_TEXTURE_KEY, State.data.penguinColor ?? 'blue', true);
+  makeAllEmoteTextures(scene, State.data.penguinColor ?? 'blue', true);
 }
 
 const PENGUIN_TEXTURE_KEYS = [
@@ -2197,8 +2137,7 @@ const PENGUIN_TEXTURE_KEYS = [
   'penguin-sw',
   'penguin-ne',
   'penguin-nw',
-  LOCAL_PENGUIN_WAVE_TEXTURE_KEY,
-  LOCAL_PENGUIN_DANCE_TEXTURE_KEY,
+  ...PENGUIN_EMOTES.map((e) => PENGUIN_EMOTE_CONFIG[e].localTextureKey),
 ];
 
 /**

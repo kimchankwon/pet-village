@@ -122,7 +122,7 @@ export function snapshotPlayers(
       waveTarget: player.waveTarget || undefined,
       chatId: player.chatId || undefined,
       chatText: player.chatText || undefined,
-      dancing: Boolean(player.dancing),
+      emote: typeof player.emote === 'string' ? player.emote : '',
     });
   });
   return dedupeRemotePlayers(rows);
@@ -209,7 +209,7 @@ export async function connectMultiplayer(
       void room.leave();
     },
     wave: (id) => room.send('wave', { targetSessionId: id }),
-    dance: (dancing) => room.send('dance', { dancing }),
+    emote: (emote) => room.send('emote', { emote }),
     chat: (text) => room.send('chat', { text }),
   });
   room.onMessage('positionCorrection', (next: PositionCorrection) => {
