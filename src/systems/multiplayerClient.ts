@@ -123,6 +123,8 @@ export function snapshotPlayers(
       chatId: player.chatId || undefined,
       chatText: player.chatText || undefined,
       emote: typeof player.emote === 'string' ? player.emote : '',
+      petEmote: typeof player.petEmote === 'string' ? player.petEmote : '',
+      petEmoteId: typeof player.petEmoteId === 'string' ? player.petEmoteId : '',
     });
   });
   return dedupeRemotePlayers(rows);
@@ -210,6 +212,7 @@ export async function connectMultiplayer(
     },
     wave: (id) => room.send('wave', { targetSessionId: id }),
     emote: (emote) => room.send('emote', { emote }),
+    petEmote: (expression) => room.send('pet-emote', { expression }),
     chat: (text) => room.send('chat', { text }),
   });
   room.onMessage('positionCorrection', (next: PositionCorrection) => {

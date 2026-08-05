@@ -19,6 +19,7 @@ function actions(sent: number[]) {
     leave: () => {},
     wave: () => {},
     emote: () => {},
+    petEmote: () => {},
     chat: () => {},
   };
 }
