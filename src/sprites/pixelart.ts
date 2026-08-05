@@ -1931,14 +1931,6 @@ function makePenguinFromPlates(scene: Phaser.Scene) {
 }
 
 
-/** Pack columns for multi-row emote sheets (must match penguin-emote-plates.mts). */
-function emoteSheetCols(emote: PenguinEmote): number {
-  if (emote === 'dance') return PENGUIN_DANCE_SHEET_COLS;
-  if (emote === 'breakdance') return 8;
-  if (emote === 'hiphop') return 10;
-  return PENGUIN_EMOTE_CONFIG[emote].frameCount; // single-row packs
-}
-
 function makeEmoteTextureFromSheet(scene: Phaser.Scene, emote: PenguinEmote, key: string, color: string) {
   if (scene.textures.exists(key)) scene.textures.remove(key);
   const cfg = PENGUIN_EMOTE_CONFIG[emote];
@@ -1952,7 +1944,8 @@ function makeEmoteTextureFromSheet(scene: Phaser.Scene, emote: PenguinEmote, key
     | HTMLCanvasElement;
   const sheetW = source.width;
   const sheetH = source.height;
-  const cols = emoteSheetCols(emote);
+  // sheetCols is shared with scripts/penguin-emote-plates.mts via PENGUIN_EMOTE_CONFIG.
+  const cols = cfg.sheetCols;
   const rows = Math.ceil(cfg.frameCount / cols);
   const fw = Math.floor(sheetW / cols);
   const fh = Math.floor(sheetH / rows);

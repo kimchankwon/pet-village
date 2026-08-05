@@ -351,7 +351,7 @@ function loadDanceFrame(index: number) {
   });
   const dir = path.join(OUT, 'wave');
   writeIndividuals(dir, plates);
-  packSheet(plates, plates.length, path.join(OUT, 'wave-sheet.png'));
+  packSheet(plates, cfg.sheetCols, path.join(OUT, 'wave-sheet.png'));
   console.log(`wave ← dance f40–f41 ×4 @ ${cfg.frameMs}ms (${plates.length} cells)`);
 }
 
@@ -362,7 +362,7 @@ function loadDanceFrame(index: number) {
   const plates = Array.from({ length: cfg.frameCount }, () => plate);
   const dir = path.join(OUT, 'sit');
   writeIndividuals(dir, plates);
-  packSheet(plates, plates.length, path.join(OUT, 'sit-sheet.png'));
+  packSheet(plates, cfg.sheetCols, path.join(OUT, 'sit-sheet.png'));
   console.log(`sit ← dance f${String(SIT_FROM_DANCE_FRAME).padStart(2, '0')} ×${cfg.frameCount}`);
 }
 
@@ -389,7 +389,7 @@ function buildFromGif(
   const plates = keyed.map((src) => fitAtScale(src, scale));
   const dir = path.join(OUT, name);
   writeIndividuals(dir, plates);
-  const cols = name === 'hiphop' ? 10 : 8;
+  const cols = PENGUIN_EMOTE_CONFIG[name].sheetCols;
   packSheet(plates, cols, path.join(OUT, `${name}-sheet.png`));
   console.log(`${name} ← ${gifRel} (${n} frames, uniform scale ${scale.toFixed(3)})`);
 }

@@ -22,6 +22,12 @@ export type PenguinEmoteConfig = {
   /** Boot plate sheet key. */
   plateSheetKey: string;
   frameCount: number;
+  /**
+   * Spritesheet column count for multi-row packs. Must match
+   * `scripts/penguin-emote-plates.mts` (and the dance sheet for `dance`).
+   * Single-row sheets use `frameCount`.
+   */
+  sheetCols: number;
   /** ms per frame. */
   frameMs: number;
   /** Loop until cancelled (sit/dance/breakdance/hiphop). Wave is one-shot. */
@@ -44,6 +50,7 @@ export const PENGUIN_EMOTE_CONFIG: Record<PenguinEmote, PenguinEmoteConfig> = {
     localTextureKey: 'penguin-dance',
     plateSheetKey: 'penguin-plate-dance-sheet',
     frameCount: 76,
+    sheetCols: 10,
     frameMs: 100,
     loop: true,
     danceScale: true,
@@ -55,6 +62,7 @@ export const PENGUIN_EMOTE_CONFIG: Record<PenguinEmote, PenguinEmoteConfig> = {
     plateSheetKey: 'penguin-plate-wave-sheet',
     // First flipper-raise gesture only (dance f40–f41), repeated slowly.
     frameCount: 8,
+    sheetCols: 8,
     frameMs: 160,
     loop: false,
     danceScale: true,
@@ -65,6 +73,7 @@ export const PENGUIN_EMOTE_CONFIG: Record<PenguinEmote, PenguinEmoteConfig> = {
     localTextureKey: 'penguin-breakdance',
     plateSheetKey: 'penguin-plate-breakdance-sheet',
     frameCount: 22,
+    sheetCols: 8,
     frameMs: 80,
     loop: true,
     danceScale: true,
@@ -76,6 +85,7 @@ export const PENGUIN_EMOTE_CONFIG: Record<PenguinEmote, PenguinEmoteConfig> = {
     plateSheetKey: 'penguin-plate-sit-sheet',
     // Two identical cells — Phaser is happier with a multi-frame sheet than a 1×1.
     frameCount: 2,
+    sheetCols: 2,
     frameMs: 200,
     loop: true,
     danceScale: true,
@@ -86,6 +96,7 @@ export const PENGUIN_EMOTE_CONFIG: Record<PenguinEmote, PenguinEmoteConfig> = {
     localTextureKey: 'penguin-hiphop',
     plateSheetKey: 'penguin-plate-hiphop-sheet',
     frameCount: 43,
+    sheetCols: 10,
     frameMs: 40,
     loop: true,
     danceScale: true,
@@ -137,7 +148,9 @@ export function emoteAnimationFrame(
 
 /** True when this Phaser texture is a dance-scale emote sheet. */
 export function isPenguinEmoteTexture(key: string): boolean {
-  if (key === 'penguin-wave' || key === 'penguin-dance') return true;
-  if (key === 'penguin-breakdance' || key === 'penguin-sit' || key === 'penguin-hiphop') return true;
-  return /penguin-remote-[^-]+-(dance|wave|breakdance|sit|hiphop)$/.test(key);
+  for (const emote of PENGUIN_EMOTES) {
+    if (key === PENGUIN_EMOTE_CONFIG[emote].localTextureKey) return true;
+    if (key.startsWith('penguin-remote-') && key.endsWith(`-${emote}`)) return true;
+  }
+  return false;
 }

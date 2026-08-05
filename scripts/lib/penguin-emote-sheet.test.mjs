@@ -39,7 +39,7 @@ for (const id of ['sit', 'breakdance', 'hiphop']) {
     const sheetPath = path.join(OUT, `${id}-sheet.png`);
     assert.ok(fs.existsSync(sheetPath), `${id}-sheet.png missing — run npm run sprite:penguin-emotes`);
     const sheet = PNG.sync.read(fs.readFileSync(sheetPath));
-    const cols = id === 'hiphop' ? 10 : id === 'breakdance' ? 8 : cfg.frameCount;
+    const cols = cfg.sheetCols;
     const rows = Math.ceil(cfg.frameCount / cols);
     assert.equal(sheet.width, CELL_W * cols);
     assert.equal(sheet.height, CELL_H * rows);

@@ -201,7 +201,9 @@ export class HouseScene extends Phaser.Scene {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.menuOpen || this.time.now < this.ignoreClicksUntil || pointer.button !== 0) return;
       // Menu just closed (Escape / row tap): don't also walk or place furniture.
-      if (isUiBlocked() || isInteractSuppressed()) return;
+      // Placement mode calls blockUi() but still needs floor clicks to place.
+      if (isInteractSuppressed()) return;
+      if (isUiBlocked() && !this.placing) return;
       if (this.joystick.owns(pointer) || this.cameraZoom.ownsPointer(pointer)) return; // joystick / zoom slider
       if (this.cameraZoom.isPinching()) return;
       const g = this.pointerToGrid(pointer);

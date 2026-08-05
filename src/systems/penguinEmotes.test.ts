@@ -5,6 +5,8 @@ import {
   isPenguinEmote,
   isPenguinEmoteTexture,
   PENGUIN_EMOTE_CONFIG,
+  PENGUIN_EMOTE_MENU,
+  PENGUIN_EMOTES,
   WAVE_FROM_DANCE_FRAMES,
   SIT_FROM_DANCE_FRAME,
 } from './penguinEmotes';
@@ -19,6 +21,11 @@ test('emote ids and menu config stay in sync', () => {
   assert.ok(SIT_FROM_DANCE_FRAME >= 0 && SIT_FROM_DANCE_FRAME < 76);
   // Wave is only the first flipper-raise pair, not the sit / other-side section.
   assert.deepEqual([...new Set(WAVE_FROM_DANCE_FRAMES)], [40, 41]);
+  assert.deepEqual([...PENGUIN_EMOTE_MENU].sort(), [...PENGUIN_EMOTES].sort());
+  for (const id of PENGUIN_EMOTES) {
+    assert.ok(PENGUIN_EMOTE_CONFIG[id].sheetCols >= 1);
+    assert.ok(PENGUIN_EMOTE_CONFIG[id].frameCount % PENGUIN_EMOTE_CONFIG[id].sheetCols !== undefined);
+  }
 });
 
 test('wave is a one-shot; dance and sit loop', () => {

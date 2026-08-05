@@ -1,6 +1,6 @@
 /**
- * Geometry checks for the 12-frame wave sheet harvested from the dance GIF
- * (npm run sprite:penguin-emotes).
+ * Geometry checks for the wave sheet harvested from the dance plates
+ * (npm run sprite:penguin-emotes). Frame count comes from PENGUIN_EMOTE_CONFIG.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';

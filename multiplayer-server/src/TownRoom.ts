@@ -112,11 +112,15 @@ export async function verifyAdmission(token: string): Promise<AdmissionClaims> {
     : { ...claims, townPosition: undefined };
 }
 
+/** Floor between accepted emote changes from one client (spam / broadcast amp). */
+const EMOTE_MIN_INTERVAL_MS = 250;
+
 export class TownRoom extends Room<{ state: TownState }> {
   maxClients = 100;
   private readonly reentrySessions = new Map<string, WorldScene>();
   private readonly restoringSessions = new Set<string>();
   private readonly lastProfileRefreshAt = new Map<string, number>();
+  private readonly lastEmoteAt = new Map<string, number>();
   private npcSimulation?: TownNpcSimulation;
   state = new TownState();
 
@@ -184,6 +188,7 @@ export class TownRoom extends Room<{ state: TownState }> {
     this.reentrySessions.delete(client.sessionId);
     this.restoringSessions.delete(client.sessionId);
     this.lastProfileRefreshAt.delete(client.sessionId);
+    this.lastEmoteAt.delete(client.sessionId);
     this.state.players.delete(client.sessionId);
   }
 
@@ -370,6 +375,7 @@ export class TownRoom extends Room<{ state: TownState }> {
     // Directed wave also plays the wave emote so peers see the flipper go up.
     player.emote = 'wave';
     player.moving = false;
+    this.lastEmoteAt.set(client.sessionId, now);
     player.waveId = `${now}:${crypto.randomUUID()}`;
     player.waveTarget = payload.targetSessionId;
     player.updatedAt = now;
@@ -381,9 +387,15 @@ export class TownRoom extends Room<{ state: TownState }> {
     if (!player || !player.active || player.activity) return;
     const emote = payload?.emote ?? '';
     if (emote !== '' && !isPenguinEmote(emote)) return;
+    // Peers only re-latch when the id changes — skip no-ops to avoid broadcast spam.
+    if (emote === player.emote) return;
+    const now = Date.now();
+    const lastAt = this.lastEmoteAt.get(client.sessionId) ?? 0;
+    if (now - lastAt < EMOTE_MIN_INTERVAL_MS) return;
+    this.lastEmoteAt.set(client.sessionId, now);
     player.emote = emote;
     if (emote) player.moving = false;
-    player.updatedAt = Date.now();
+    player.updatedAt = now;
   }
 
   /**

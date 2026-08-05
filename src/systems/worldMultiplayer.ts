@@ -321,12 +321,13 @@ export class WorldMultiplayer {
     this.lastFacing = facing;
 
     // N opens the Moves menu (or closes it). Scene-scoped so overlays cannot
-    // double-fire. Chat owns the keyboard while open.
+    // double-fire. Chat owns the keyboard while open. Allow N while *our* moves
+    // menu is up (Menu raises isUiBlocked) so the same key toggles it shut.
     if (
       this.keyN &&
       Phaser.Input.Keyboard.JustDown(this.keyN) &&
       !this.chatComposer.isOpen() &&
-      !isUiBlocked()
+      (!isUiBlocked() || this.movesMenu !== null)
     ) {
       this.openMovesMenu();
     }
@@ -729,15 +730,12 @@ export class WorldMultiplayer {
     }
     remote.lastWaveId = row.waveId;
 
-    // Continuous / menu emotes: latch when the id changes, clear when empty.
+    // Continuous / menu emotes: latch when the id changes (null clears).
     // A directed wave already stamped emoteStartedAt above — don't reset it.
     const nextEmote = isPenguinEmote(row.emote) ? row.emote : null;
     if (nextEmote !== remote.emote) {
       remote.emote = nextEmote;
       remote.emoteStartedAt = nextEmote ? this.scene.time.now : null;
-    } else if (!nextEmote) {
-      remote.emote = null;
-      remote.emoteStartedAt = null;
     }
 
     // A message shows once: the id changes per send, so a state patch about
