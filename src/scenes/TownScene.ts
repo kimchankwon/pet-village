@@ -1,5 +1,10 @@
 import Phaser from 'phaser';
-import { worldSceneSpawn } from '@pet-village/multiplayer-protocol';
+import {
+  BONGBONGEE_TOWN,
+  TOWN_ROSTER_SHIFT_MS,
+  townRosterAt,
+  worldSceneSpawn,
+} from '@pet-village/multiplayer-protocol';
 import { configurePlayerPenguin, generateTextures, penguinDepthTarget } from '../sprites/pixelart';
 import { State, WELCOME_KEY } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
@@ -38,7 +43,6 @@ import { applyPenguinMotion, movementFacing, penguinTextureKey, type MovementFac
 import { multiplayerBridge, type RemoteNpc } from '../systems/multiplayerBridge';
 import { partitionTownNpcSnapshot } from '../systems/networkNpcMotion';
 import { WorldMultiplayer } from '../systems/worldMultiplayer';
-import { TOWN_ROSTER_SHIFT_MS, townRosterAt } from '@pet-village/multiplayer-protocol';
 
 /** Expanded ice town — Club Penguin square + Dream Land winter whimsy. */
 const MAP_W = TOWN_MAP_W;
@@ -177,13 +181,11 @@ export class TownScene extends Phaser.Scene {
     // Town NPC movement is multiplayer-authoritative when connected; otherwise
     // subscribeNpcs falls back to a local clock-matched roster so the plaza is
     // never empty for guests or during reconnect gaps.
-    this.bongbongee = new BongbongeeNpc(this, [
-      { x: 10 * TILE, y: 12.5 * TILE },
-      { x: 20 * TILE, y: 9.5 * TILE },
-      { x: 26 * TILE, y: 13 * TILE },
-      { x: 11 * TILE, y: 16 * TILE },
-      { x: 20 * TILE, y: 15.5 * TILE },
-    ]);
+    // Same plaza route the multiplayer server uses (shared protocol constant).
+    this.bongbongee = new BongbongeeNpc(
+      this,
+      BONGBONGEE_TOWN.waypoints.map(({ x, y }) => ({ x, y })),
+    );
     this.bongbongee.setServerControlled();
     this.bongbongee.setServerPresent(false);
     this.npcs = [this.bongbongee];
