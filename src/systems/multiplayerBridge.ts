@@ -120,14 +120,19 @@ function currentPendingProfileTicket() {
   return pendingProfileTicket;
 }
 
+/**
+ * Clear peer presence. Town NPC poses are kept on purpose: they are decorative
+ * villagers, and wiping them on every reconnect made Bongbongee and the
+ * MINITEEN blink out of Town until the next snapshot arrived (or forever for
+ * guests who never join multiplayer). Solo mode fills an empty NPC list via a
+ * local fallback; multiplayer replaces poses with `setNpcs`.
+ */
 function clearRemote() {
   rows = [];
-  npcRows = [];
   // The roster is emptied here by a teardown, not by everybody walking out, so
   // the log must not read it as one.
   resetChatLogPresence();
   listeners.forEach((fn) => fn([]));
-  npcListeners.forEach((fn) => fn([]));
 }
 
 function publishPresence() {
@@ -183,6 +188,14 @@ export const multiplayerBridge = {
     npcListeners.add(fn);
     fn(npcRows);
     return () => npcListeners.delete(fn);
+  },
+  /** True while a Colyseus connection is installed (may still be empty of peers). */
+  isConnected() {
+    return connectionId !== null && actions !== null;
+  },
+  /** Last Town NPC snapshot (frozen across reconnects until replaced). */
+  getNpcs(): readonly RemoteNpc[] {
+    return npcRows;
   },
   setNpcs(id: ConnectionId, next: RemoteNpc[]) {
     if (connectionId !== id) return;

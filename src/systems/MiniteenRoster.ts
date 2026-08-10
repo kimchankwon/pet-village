@@ -7,7 +7,12 @@ export const MINITEEN_FADE_MS = 500;
 
 /**
  * Renders the Town roster selected and moved by the multiplayer server.
- * The browser never chooses residents or advances their patrol positions.
+ * The browser never chooses residents or advances their patrol positions
+ * while multiplayer is live.
+ *
+ * When multiplayer is offline (guest, server down, reconnect gap with no
+ * prior snapshot), {@link syncLocal} walks the same clock roster with local AI
+ * so Town is never an empty plaza.
  *
  * The server rotates the roster while the scene is open, so this also owns the
  * comings and goings: an arrival fades in, a departure fades out and is only
@@ -18,10 +23,43 @@ export class MiniteenRoster {
   private readonly active = new Map<string, MiniteenNpc>();
   /** Fading out: still drawn, no longer available to talk to. */
   private readonly leaving = new Set<string>();
+  /** True while driving from {@link syncLocal} instead of server poses. */
+  private localMode = false;
 
   constructor(private readonly scene: Phaser.Scene) {}
 
+  /** Solo / offline: local waypoint patrol for these resident ids. */
+  syncLocal(ids: readonly string[]) {
+    this.localMode = true;
+    const idSet = new Set(ids);
+
+    for (const [id, npc] of this.active) {
+      if (idSet.has(id)) {
+        this.cancelDeparture(id, npc);
+        // Drop any leftover server pose control so they walk again.
+        npc.setLocalControl(true);
+        continue;
+      }
+      if (npc.isConversing()) continue;
+      this.retire(id, npc);
+    }
+
+    for (const id of ids) {
+      const definitionIndex = MINITEEN.findIndex((definition) => definition.id === id);
+      const definition = MINITEEN[definitionIndex];
+      if (!definition) continue;
+      let npc = this.active.get(id);
+      if (!npc) {
+        npc = new MiniteenNpc(this.scene, definition, definitionIndex);
+        this.active.set(id, npc);
+        this.fade(npc, 0, 1);
+      }
+      npc.setLocalControl(true);
+    }
+  }
+
   sync(rows: RemoteNpc[]) {
+    this.localMode = false;
     const knownRows = rows.filter((row) => MINITEEN.some((definition) => definition.id === row.id));
     const ids = new Set(knownRows.map((row) => row.id));
 
@@ -47,6 +85,10 @@ export class MiniteenRoster {
       }
       npc.setNetworkPose(row);
     }
+  }
+
+  isLocalMode() {
+    return this.localMode;
   }
 
   private fade(npc: MiniteenNpc, from: number, to: number, onComplete?: () => void) {

@@ -38,6 +38,7 @@ import { applyPenguinMotion, movementFacing, penguinTextureKey, type MovementFac
 import { multiplayerBridge, type RemoteNpc } from '../systems/multiplayerBridge';
 import { partitionTownNpcSnapshot } from '../systems/networkNpcMotion';
 import { WorldMultiplayer } from '../systems/worldMultiplayer';
+import { TOWN_ROSTER_SHIFT_MS, townRosterAt } from '@pet-village/multiplayer-protocol';
 
 /** Expanded ice town — Club Penguin square + Dream Land winter whimsy. */
 const MAP_W = TOWN_MAP_W;
@@ -103,6 +104,10 @@ export class TownScene extends Phaser.Scene {
   private worldMultiplayer!: WorldMultiplayer;
   private unsubscribeNpcs?: () => void;
   private wasMoving = false;
+  /** True while Town is driving villagers with local AI (no multiplayer roster). */
+  private localTownNpcs = false;
+  /** Clock shift index for {@link useLocalTownNpcs} roster rotation. */
+  private localRosterShift = -1;
 
   constructor() {
     super('Town');
@@ -773,10 +778,31 @@ export class TownScene extends Phaser.Scene {
   }
 
   private syncNpcs(rows: RemoteNpc[]) {
+    // Empty list = multiplayer has never delivered a roster (guest, offline, or
+    // first frame). Keep Town populated with the same clock roster the server
+    // uses. A non-empty list always comes from the live Colyseus room.
+    if (rows.length === 0) {
+      this.useLocalTownNpcs();
+      return;
+    }
+    this.localTownNpcs = false;
     const { bongbongee, miniteens } = partitionTownNpcSnapshot(rows);
     if (bongbongee) this.bongbongee.setNetworkPose(bongbongee);
     else this.bongbongee.setServerPresent(false);
     this.miniteens.sync(miniteens);
+  }
+
+  /** Solo / offline plaza: Bongbongee + the current Town shift, local AI. */
+  private useLocalTownNpcs() {
+    const now = Date.now();
+    const shift = Math.floor(Math.max(now, 0) / TOWN_ROSTER_SHIFT_MS);
+    if (this.localTownNpcs && this.miniteens.isLocalMode() && this.localRosterShift === shift) {
+      return;
+    }
+    this.localTownNpcs = true;
+    this.localRosterShift = shift;
+    this.bongbongee.setLocalControl(true);
+    this.miniteens.syncLocal(townRosterAt(now));
   }
 
   update() {
@@ -841,6 +867,8 @@ export class TownScene extends Phaser.Scene {
     this.wasMoving = moving;
     this.worldMultiplayer.update(this.facing, moving, this.game.loop.delta);
     for (const npc of this.npcs) npc.update();
+    // Solo roster advances on the same 90s clock as the multiplayer server.
+    if (this.localTownNpcs) this.useLocalTownNpcs();
     this.miniteens.update();
 
     // Walk off the south ice road → shore (no interact prompt needed).

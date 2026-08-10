@@ -1,75 +1,23 @@
 import type { MapSchema } from '@colyseus/schema';
-import { NpcState } from '@pet-village/multiplayer-protocol';
+import {
+  BONGBONGEE_TOWN,
+  NpcState,
+  TOWN_RESIDENT_COUNT,
+  TOWN_RESIDENT_DEFS,
+  TOWN_ROSTER_SHIFT_MS,
+  townRosterAt,
+  type TownNpcPoint,
+} from '@pet-village/multiplayer-protocol';
 
-type Point = { x: number; y: number };
-type NpcDefinition = { id: string; speed: number; waypoints: Point[] };
+export { TOWN_RESIDENT_COUNT, TOWN_ROSTER_SHIFT_MS, townRosterAt };
+
+type NpcDefinition = { id: string; speed: number; waypoints: readonly TownNpcPoint[] };
 type Runtime = { definition: NpcDefinition; destination: number; pauseUntil: number };
 
-const TILE = 48;
 const PAUSE_MS = 2_000;
 
-function homeWaypoints(tx: number, ty: number, index: number): Point[] {
-  const direction = index % 2 === 0 ? 1 : -1;
-  return [
-    [0, 0],
-    [1.6 * direction, 0.25],
-    [-1.5 * direction, -0.35],
-    [0.4, 1.2],
-    [-0.5 * direction, -1.1],
-  ].map(([ox, oy]) => ({ x: (tx + ox!) * TILE, y: (ty + oy!) * TILE }));
-}
-
-/** Bongbongee lives in Town permanently and walks the whole ice plaza. */
-const BONGBONGEE: NpcDefinition = {
-  id: 'bongbongee',
-  speed: 50,
-  waypoints: [
-    { x: 10 * TILE, y: 12.5 * TILE },
-    { x: 20 * TILE, y: 9.5 * TILE },
-    { x: 26 * TILE, y: 13 * TILE },
-    { x: 11 * TILE, y: 16 * TILE },
-    { x: 20 * TILE, y: 15.5 * TILE },
-  ],
-};
-
-/**
- * The MINITEEN who take turns living in Town, each on the home patch the client
- * draws them at (see `src/systems/miniteen.ts`). The four reserved for the Shore
- * and the two Greens are not in here: a villager is only ever in one place.
- */
-const TOWN_RESIDENTS: NpcDefinition[] = [
-  { id: 'shuasumi', speed: 40, waypoints: homeWaypoints(11.5, 8.5, 0) },
-  { id: 'ocl', speed: 46, waypoints: homeWaypoints(20, 8, 1) },
-  { id: 'tamtam', speed: 52, waypoints: homeWaypoints(26.5, 11, 2) },
-  { id: 'foxdungee', speed: 58, waypoints: homeWaypoints(27.5, 15, 3) },
-  { id: 'ppyopuli', speed: 42, waypoints: homeWaypoints(10, 16.5, 4) },
-  { id: 'doa', speed: 56, waypoints: homeWaypoints(18.5, 16.8, 5) },
-  { id: 'kimja', speed: 38, waypoints: homeWaypoints(5, 16.5, 6) },
-  { id: 'bboogyuli', speed: 48, waypoints: homeWaypoints(22, 18.2, 7) },
-  { id: 'nonver', speed: 44, waypoints: homeWaypoints(28, 8, 8) },
-];
-/** How many of them are out at once. */
-export const TOWN_RESIDENT_COUNT = 4;
-/**
- * How often the roster moves along. One villager leaves and one arrives each
- * time, rather than the whole square changing at once, so Town looks like a
- * place people come and go from — and everybody's shift comes round often
- * enough that a single visit sees new faces.
- */
-export const TOWN_ROSTER_SHIFT_MS = 90_000;
-
-/**
- * Who is in Town at `now`. Derived from the clock alone, never from a random
- * draw, so every client — and a second server process — agrees without being
- * told, and a room that restarts does not reshuffle the village.
- */
-export function townRosterAt(now: number): string[] {
-  const start = Math.floor(Math.max(now, 0) / TOWN_ROSTER_SHIFT_MS) % TOWN_RESIDENTS.length;
-  return Array.from(
-    { length: TOWN_RESIDENT_COUNT },
-    (_unused, offset) => TOWN_RESIDENTS[(start + offset) % TOWN_RESIDENTS.length]!.id,
-  );
-}
+const BONGBONGEE: NpcDefinition = BONGBONGEE_TOWN;
+const TOWN_RESIDENTS: readonly NpcDefinition[] = TOWN_RESIDENT_DEFS;
 
 export class TownNpcSimulation {
   private readonly runtimes = new Map<string, Runtime>();
