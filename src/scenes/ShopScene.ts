@@ -7,6 +7,7 @@ import { Pet } from '../systems/Pet';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
 import { feedPetMenuOption } from '../systems/petFeedMenu';
 import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
+import { openQuestMenu as showQuestMenu } from '../systems/questMenu';
 import { ClickMove } from '../systems/ClickMove';
 import { feetDepth } from '../systems/depth';
 import { placeDoorMat } from '../systems/doorMat';
@@ -35,6 +36,7 @@ export class ShopScene extends Phaser.Scene {
   private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
   private keyP!: Phaser.Input.Keyboard.Key;
+  private keyQ!: Phaser.Input.Keyboard.Key;
   private keyEsc!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
   private prompt!: Prompt;
@@ -164,6 +166,7 @@ export class ShopScene extends Phaser.Scene {
     this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
     this.keyP = kb.addKey(Phaser.Input.Keyboard.KeyCodes.P);
+    this.keyQ = kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.hud = new HUD(this);
@@ -191,6 +194,7 @@ export class ShopScene extends Phaser.Scene {
       [
         { label: '[ Inventory · I ]', shortLabel: '[Inv]', onTap: () => this.openInventory() },
         { label: '[ Pet · P ]', shortLabel: '[Pet]', onTap: () => this.openPetMenu() },
+        { label: '[ Quest · Q ]', shortLabel: '[Quest]', onTap: () => this.openQuests() },
         { label: '[ Chat · T ]', shortLabel: '[Chat]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.openChat(); } },
         { label: '[ Moves · N ]', shortLabel: '[Moves]', onTap: () => { if (!this.menuOpen) this.worldMultiplayer.openMovesMenu(); } },
       ],
@@ -391,6 +395,17 @@ export class ShopScene extends Phaser.Scene {
     });
   }
 
+  private openQuests() {
+    if (this.menuOpen) return;
+    this.menuOpen = true;
+    showQuestMenu(this, {
+      closeMenu: () => this.closeMenu(),
+      keepMenuOpen: () => {
+        this.menuOpen = true;
+      },
+    });
+  }
+
   update() {
     if (!this.player) return;
 
@@ -459,7 +474,7 @@ export class ShopScene extends Phaser.Scene {
       this.setHighlight(undefined);
     }
 
-    // I owns player inventory; P owns pet care.
+    // I owns player inventory; P owns pet care; Q owns the quest log.
     if (Phaser.Input.Keyboard.JustDown(this.keyI)) {
       if (this.menuOpen) Menu.closeTop();
       else if (!isUiBlocked()) this.openInventory();
@@ -467,6 +482,10 @@ export class ShopScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keyP)) {
       if (this.menuOpen) Menu.closeTop();
       else if (!isUiBlocked()) this.openPetMenu();
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keyQ)) {
+      if (this.menuOpen) Menu.closeTop();
+      else if (!isUiBlocked()) this.openQuests();
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && !this.menuOpen && !isUiBlocked()) {

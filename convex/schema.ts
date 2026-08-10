@@ -69,6 +69,8 @@ export default defineSchema({
     equippedAccessories: equippedAccessoriesValidator,
     penguinColor: v.optional(v.string()),
     townPosition: v.optional(townPosition),
+    /** Quest progress keyed by id: "active" | "completed". Missing = available. */
+    quests: v.optional(v.record(v.string(), v.union(v.literal("active"), v.literal("completed")))),
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),
 });

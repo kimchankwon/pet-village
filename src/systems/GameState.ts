@@ -35,6 +35,15 @@ import {
 } from './expeditionRules';
 import { normalizeTownPosition, type TownPosition } from './townPosition';
 import { validatePetName } from './profileNameRules';
+import {
+  canTurnInQuest,
+  isQuestId,
+  normalizeQuestProgress,
+  questDef,
+  questStatus,
+  type QuestProgress,
+  type QuestProgressState,
+} from './quests';
 
 export const MULTIPLAYER_PROFILE_CHANGED_EVENT = 'pet-village:multiplayer-profile-changed';
 
@@ -91,6 +100,11 @@ export interface SaveData {
    * gift. Device-local like penguinColor: NOT in snapshot().
    */
   npcGiftDays?: Record<string, string>;
+  /**
+   * Quest progress keyed by quest id. Missing key = available (not accepted).
+   * Synced via cloud saves like inventory.
+   */
+  quests?: QuestProgress;
 }
 
 export interface ItemDef {
@@ -212,7 +226,7 @@ export const ITEMS: Record<string, ItemDef> = {
   tv: { id: 'tv', name: 'Retro TV', texture: 'item-tv', kind: 'furniture', price: 60 },
   lightstick: {
     id: 'lightstick',
-    name: 'SVT Lightstick VER.3 Anniversary',
+    name: 'Carat Lightstick',
     texture: 'item-lightstick',
     kind: 'furniture',
     price: 88,
@@ -260,6 +274,7 @@ export function defaultSave(): SaveData {
     penguinColor: 'blue',
     equippedPenguinAccessories: {},
     npcGiftDays: {},
+    quests: {},
   };
 }
 
@@ -366,6 +381,7 @@ export function normalizeSave(raw: unknown): SaveData {
     equippedPenguinAccessories: normalizeEquipped(parsed.equippedPenguinAccessories, true),
     townPosition: normalizeTownPosition(parsed.townPosition),
     npcGiftDays: normalizeStringRecord(parsed.npcGiftDays),
+    quests: normalizeQuestProgress(parsed.quests),
   };
 }
 
@@ -434,6 +450,7 @@ export class GameStateStore {
       equippedAccessories: { ...this.data.equippedAccessories },
       penguinColor: this.data.penguinColor ?? 'blue',
       ...(this.data.townPosition ? { townPosition: { ...this.data.townPosition } } : {}),
+      quests: { ...(this.data.quests ?? {}) },
     };
   }
 
@@ -663,10 +680,58 @@ export class GameStateStore {
   }
 
   removeItem(id: string): boolean {
+    return this.removeItems(id, 1);
+  }
+
+  /** Remove several of one item at once. No-op (returns false) if the bag is short. */
+  removeItems(id: string, count: number): boolean {
+    const n = Math.max(0, Math.floor(count));
+    if (n <= 0) return true;
     const have = this.data.inventory[id] ?? 0;
-    if (have <= 0) return false;
-    if (have === 1) delete this.data.inventory[id];
-    else this.data.inventory[id] = have - 1;
+    if (have < n) return false;
+    if (have === n) delete this.data.inventory[id];
+    else this.data.inventory[id] = have - n;
+    this.save();
+    return true;
+  }
+
+  /** Available / active / completed for a known quest id. */
+  getQuestStatus(questId: string): 'available' | 'active' | 'completed' {
+    if (!isQuestId(questId)) return 'available';
+    return questStatus(this.data.quests, questId);
+  }
+
+  /** Accept a quest that is still available. */
+  acceptQuest(questId: string): boolean {
+    if (!isQuestId(questId)) return false;
+    if (this.getQuestStatus(questId) !== 'available') return false;
+    const quests = this.data.quests ?? (this.data.quests = {});
+    quests[questId] = 'active' satisfies QuestProgressState;
+    this.save();
+    return true;
+  }
+
+  /**
+   * Turn in an active quest: remove the required items, grant rewards, mark
+   * completed. Returns false if the quest is not active or the bag is short.
+   * All mutations land in one save so a mid-step crash cannot strand the bag.
+   */
+  completeQuest(questId: string): boolean {
+    const def = questDef(questId);
+    if (!def) return false;
+    if (this.getQuestStatus(questId) !== 'active') return false;
+    if (!canTurnInQuest(def, this.data.inventory)) return false;
+    const have = this.data.inventory[def.itemId] ?? 0;
+    if (have < def.itemCount) return false;
+    if (have === def.itemCount) delete this.data.inventory[def.itemId];
+    else this.data.inventory[def.itemId] = have - def.itemCount;
+    this.data.coins += def.rewardCoins;
+    for (const reward of def.rewardItems) {
+      this.data.inventory[reward.id] = (this.data.inventory[reward.id] ?? 0) + reward.count;
+    }
+    const quests = this.data.quests ?? (this.data.quests = {});
+    quests[questId] = 'completed';
+    this.data.pet.happiness = clamp(this.data.pet.happiness + 6);
     this.save();
     return true;
   }

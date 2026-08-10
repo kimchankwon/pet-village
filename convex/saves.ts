@@ -67,6 +67,7 @@ const saveFields = {
   equippedAccessories: equippedAccessoriesValidator,
   penguinColor: v.optional(v.string()),
   townPosition: v.optional(townPosition),
+  quests: v.optional(v.record(v.string(), v.union(v.literal("active"), v.literal("completed")))),
 };
 
 type SaveFields = ObjectType<typeof saveFields>;

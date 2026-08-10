@@ -1,20 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameStateStore } from './GameState';
+import { BONGBONGEE_FISH_QUEST_ID } from './quests';
 
-test('failed adoption restores and re-persists the previous local save', async () => {
+function withLocalStorage(run: (storage: Storage & { values: Map<string, string> }) => void | Promise<void>) {
   const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   const values = new Map<string, string>();
   const storage = {
+    values,
     get length() { return values.size; },
     clear: () => values.clear(),
     getItem: (key: string) => values.get(key) ?? null,
     key: (index: number) => [...values.keys()][index] ?? null,
     removeItem: (key: string) => { values.delete(key); },
     setItem: (key: string, value: string) => { values.set(key, value); },
-  } satisfies Storage;
+  } satisfies Storage & { values: Map<string, string> };
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
-  try {
+  // Run inside .then so a sync throw still hits finally and restores localStorage.
+  return Promise.resolve()
+    .then(() => run(storage))
+    .finally(() => {
+      if (previousStorage) Object.defineProperty(globalThis, 'localStorage', previousStorage);
+      else Reflect.deleteProperty(globalThis, 'localStorage');
+    });
+}
+
+test('failed adoption restores and re-persists the previous local save', async () => {
+  await withLocalStorage(async (storage) => {
     const state = new GameStateStore();
     const before = state.snapshot();
     state.setAdoptionSaver(async () => { throw new Error('name taken'); });
@@ -26,8 +38,29 @@ test('failed adoption restores and re-persists the previous local save', async (
     const persisted = JSON.parse(storage.getItem('pet-village-save-v1') ?? '{}') as { adopted?: boolean; petName?: string };
     assert.equal(persisted.adopted, false);
     assert.equal(persisted.petName, before.petName);
-  } finally {
-    if (previousStorage) Object.defineProperty(globalThis, 'localStorage', previousStorage);
-    else Reflect.deleteProperty(globalThis, 'localStorage');
-  }
+  });
+});
+
+test('Bongbongee fish quest: accept, turn in 3 Mint Bass, grant coins + lightstick', async () => {
+  await withLocalStorage(() => {
+    const state = new GameStateStore();
+    assert.equal(state.getQuestStatus(BONGBONGEE_FISH_QUEST_ID), 'available');
+    assert.equal(state.acceptQuest(BONGBONGEE_FISH_QUEST_ID), true);
+    assert.equal(state.getQuestStatus(BONGBONGEE_FISH_QUEST_ID), 'active');
+    assert.equal(state.acceptQuest(BONGBONGEE_FISH_QUEST_ID), false, 'cannot accept twice');
+
+    const coinsBefore = state.coins;
+    assert.equal(state.completeQuest(BONGBONGEE_FISH_QUEST_ID), false, 'need 3 fish first');
+    state.addItem('oceanfish-uncommon', 2);
+    assert.equal(state.completeQuest(BONGBONGEE_FISH_QUEST_ID), false);
+    state.addItem('oceanfish-uncommon', 1);
+    assert.equal(state.completeQuest(BONGBONGEE_FISH_QUEST_ID), true);
+
+    assert.equal(state.getQuestStatus(BONGBONGEE_FISH_QUEST_ID), 'completed');
+    assert.equal(state.data.inventory['oceanfish-uncommon'] ?? 0, 0);
+    assert.equal(state.coins, coinsBefore + 100);
+    assert.equal(state.data.inventory.lightstick, 1);
+    assert.equal(state.completeQuest(BONGBONGEE_FISH_QUEST_ID), false, 'already done');
+    assert.equal(state.snapshot().quests?.[BONGBONGEE_FISH_QUEST_ID], 'completed');
+  });
 });
