@@ -688,4 +688,4 @@ export {
   TOWN_ROSTER_SHIFT_MS,
   townRosterAt,
   type TownNpcPoint,
-} from './townNpcs';
+} from './townNpcs.js';
