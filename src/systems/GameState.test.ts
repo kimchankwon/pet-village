@@ -16,10 +16,13 @@ function withLocalStorage(run: (storage: Storage & { values: Map<string, string>
     setItem: (key: string, value: string) => { values.set(key, value); },
   } satisfies Storage & { values: Map<string, string> };
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
-  return Promise.resolve(run(storage)).finally(() => {
-    if (previousStorage) Object.defineProperty(globalThis, 'localStorage', previousStorage);
-    else Reflect.deleteProperty(globalThis, 'localStorage');
-  });
+  // Run inside .then so a sync throw still hits finally and restores localStorage.
+  return Promise.resolve()
+    .then(() => run(storage))
+    .finally(() => {
+      if (previousStorage) Object.defineProperty(globalThis, 'localStorage', previousStorage);
+      else Reflect.deleteProperty(globalThis, 'localStorage');
+    });
 }
 
 test('failed adoption restores and re-persists the previous local save', async () => {
