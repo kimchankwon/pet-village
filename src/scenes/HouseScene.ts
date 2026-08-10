@@ -12,6 +12,7 @@ import { blockUi, isInteractSuppressed, isUiBlocked, unblockUi } from '../system
 import { Joystick } from '../systems/Joystick';
 import { attachCameraZoom, markAsUi, type CameraZoom } from '../systems/cameraZoom';
 import { openInventoryMenu as showInventoryMenu } from '../systems/inventoryMenu';
+import { openQuestMenu as showQuestMenu } from '../systems/questMenu';
 import { updateInteractionHighlight } from '../systems/interactionHighlight';
 import { addWorldBezel } from '../systems/worldBezel';
 import { applyPenguinMotion, movementFacing, penguinTextureKey, type MovementFacing } from '../systems/movementFacing';
@@ -33,6 +34,7 @@ export class HouseScene extends Phaser.Scene {
   private keySpace!: Phaser.Input.Keyboard.Key;
   private keyI!: Phaser.Input.Keyboard.Key;
   private keyP!: Phaser.Input.Keyboard.Key;
+  private keyQ!: Phaser.Input.Keyboard.Key;
   private hud!: HUD;
   private prompt!: Prompt;
   private menuOpen = false;
@@ -119,6 +121,7 @@ export class HouseScene extends Phaser.Scene {
     this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I);
     this.keyP = kb.addKey(Phaser.Input.Keyboard.KeyCodes.P);
+    this.keyQ = kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     this.keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
     this.hud = new HUD(this);
@@ -133,6 +136,7 @@ export class HouseScene extends Phaser.Scene {
       [
         { label: '[ Inventory · I ]', shortLabel: '[Inv]', onTap: () => { if (!this.menuOpen && !this.placing) this.openInventory(); } },
         { label: '[ Pet · P ]', shortLabel: '[Pet]', onTap: () => { if (!this.menuOpen && !this.placing) this.openPetMenuInHouse(); } },
+        { label: '[ Quest · Q ]', shortLabel: '[Quest]', onTap: () => { if (!this.menuOpen && !this.placing) this.openQuests(); } },
       ],
       () => {
         this.ignoreClicksUntil = this.time.now + 150;
@@ -489,6 +493,20 @@ export class HouseScene extends Phaser.Scene {
     });
   }
 
+  private openQuests() {
+    if (this.menuOpen || this.placing) return;
+    this.menuOpen = true;
+    showQuestMenu(this, {
+      closeMenu: () => {
+        this.menuOpen = false;
+        this.ignoreClicksUntil = this.time.now + 200;
+      },
+      keepMenuOpen: () => {
+        this.menuOpen = true;
+      },
+    });
+  }
+
   /** Walk to the placed bed, sleep (energy up, hunger/happy down), then return. */
   private tuckPetIntoBed() {
     if (this.petTucking) return;
@@ -596,7 +614,7 @@ export class HouseScene extends Phaser.Scene {
       this.scene.start('Town', { spawn: 'house' });
     }
 
-    // I owns player inventory; P owns pet care.
+    // I owns player inventory; P owns pet care; Q owns the quest log.
     if (!this.placing && Phaser.Input.Keyboard.JustDown(this.keyI)) {
       if (this.menuOpen) Menu.closeTop();
       else if (!isUiBlocked()) this.openInventory();
@@ -604,6 +622,10 @@ export class HouseScene extends Phaser.Scene {
     if (!this.placing && Phaser.Input.Keyboard.JustDown(this.keyP)) {
       if (this.menuOpen) Menu.closeTop();
       else if (!isUiBlocked()) this.openPetMenuInHouse();
+    }
+    if (!this.placing && Phaser.Input.Keyboard.JustDown(this.keyQ)) {
+      if (this.menuOpen) Menu.closeTop();
+      else if (!isUiBlocked()) this.openQuests();
     }
 
     if (!this.menuOpen && !this.placing) {

@@ -62,12 +62,13 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
 | E / click | Interact when close (door, shop, arcade) |
 | I | open your inventory (your clothes · food · furniture) — pick a snack from Food & treats to feed your pet on the spot |
 | P | open the pet menu (chat · feed · pet clothes) |
+| Q | open the quest log (active + completed quests) |
 | Decorate button | (in house) open the decorate menu |
 | Click furniture | (in house) pick it up into inventory |
 | Drag + release | (paper toss) slingshot the paper ball |
 | ESC / click outside | go back in a nested menu, or close it |
 | ESC (in town) | game menu — resume, penguin colour, change pet, exit |
-| [ Inventory ] / [ Pet ] / [ Menu ] | your items · pet care · game menu, no walking required |
+| [ Inventory ] / [ Pet ] / [ Quest ] / [ Menu ] | your items · pet care · quest log · game menu, no walking required |
 | Exit / Back / Sign out | asks for confirmation first |
 
 - **Mochi** (your pet) follows you everywhere. Its Food / Happy / Energy
@@ -87,9 +88,14 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   coins per energy. Expedition sits above that band on purpose (long boss
   fights). Fishing is the exception by design: it pays a fish and a cheer
   rather than coins.
+- **Quests** — Bongbongee in Town wears a yellow `!` until you accept his
+  ask (3× Mint Bass from the Shore). After accept the mark turns gray; it
+  leaves when you turn the fish in for **100 coins** and a **Carat Lightstick**.
+  Press **Q** or the Quest chip for active + completed quests. Rewards are
+  shown before you accept.
 - **Daniel's Shop** — walk up to the shop building and step inside;
   Daniel the bunny waits at the counter selling food and furniture for
-  coins, including the SVT Lightstick VER.3 Anniversary for superfan
+  coins, including the Carat Lightstick for superfan
   rooms.
 - **Paper Toss** (arcade cabinet) earns coins, and your pet does the
   tossing. 4 stages: sink 3 baskets within 5 throws to clear a stage and
