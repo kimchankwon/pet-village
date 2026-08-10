@@ -174,7 +174,9 @@ export class TownScene extends Phaser.Scene {
       if (!this.menuOpen && !isUiBlocked()) this.pet.speak();
     });
 
-    // Town NPC movement and roster membership are authoritative server state.
+    // Town NPC movement is multiplayer-authoritative when connected; otherwise
+    // subscribeNpcs falls back to a local clock-matched roster so the plaza is
+    // never empty for guests or during reconnect gaps.
     this.bongbongee = new BongbongeeNpc(this, [
       { x: 10 * TILE, y: 12.5 * TILE },
       { x: 20 * TILE, y: 9.5 * TILE },
