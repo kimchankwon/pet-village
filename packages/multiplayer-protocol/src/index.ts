@@ -680,3 +680,12 @@ defineTypes(SledRunState, {
   racers:{map:SledPlayerState},phase:'string',leader:'string',difficulty:'string',seed:'string',
   countdownAt:'number',startedAt:'number',serverTime:'number',round:'number',
 });
+
+export {
+  BONGBONGEE_TOWN,
+  TOWN_RESIDENT_DEFS,
+  TOWN_RESIDENT_COUNT,
+  TOWN_ROSTER_SHIFT_MS,
+  townRosterAt,
+  type TownNpcPoint,
+} from './townNpcs.js';

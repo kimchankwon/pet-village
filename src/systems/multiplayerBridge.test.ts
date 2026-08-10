@@ -140,19 +140,28 @@ test('entering a world re-snapshots peers instead of waiting for the next patch'
   multiplayerBridge.uninstall(id);
 });
 
-test('NPC snapshots are connection-scoped and cleared on uninstall', () => {
+test('NPC snapshots are connection-scoped and freeze across reconnects', () => {
+  // Wipe any frozen poses left by earlier tests.
+  const wipeId = multiplayerBridge.install(actions([]));
+  multiplayerBridge.setNpcs(wipeId, []);
+  multiplayerBridge.uninstall(wipeId);
+
   const npc: RemoteNpc = { id: 'bongbongee', x: 360, y: 456, facing: 'right', moving: true, updatedAt: 1 };
   const seen: RemoteNpc[][] = [];
   const unsubscribe = multiplayerBridge.subscribeNpcs((rows) => seen.push(rows));
   const firstId = multiplayerBridge.install(actions([]));
   const secondId = multiplayerBridge.install(actions([]));
 
+  // Stale connection cannot overwrite the active one.
   multiplayerBridge.setNpcs(firstId, [npc]);
-  assert.deepEqual(seen[seen.length - 1], []);
+  assert.deepEqual(multiplayerBridge.getNpcs(), []);
   multiplayerBridge.setNpcs(secondId, [npc]);
   assert.deepEqual(seen[seen.length - 1], [npc]);
+  assert.deepEqual(multiplayerBridge.getNpcs(), [npc]);
+  // Uninstall must not wipe Town villagers — they freeze until the next setNpcs.
   multiplayerBridge.uninstall(secondId);
-  assert.deepEqual(seen[seen.length - 1], []);
+  assert.deepEqual(multiplayerBridge.getNpcs(), [npc]);
+  assert.equal(multiplayerBridge.isConnected(), false);
   unsubscribe();
 });
 

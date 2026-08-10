@@ -267,6 +267,23 @@ export class WandererNpc {
     }
   }
 
+  /**
+   * Solo / offline Town: walk the local waypoint patrol again.
+   * Used when multiplayer has not delivered a roster (guest, server down).
+   */
+  setLocalControl(present = true) {
+    this.serverControlled = false;
+    this.networkPose = null;
+    this.present = present;
+    this.sprite.setActive(present).setVisible(present);
+    if (present) {
+      this.sprite.setAlpha(1);
+      this.playBounce();
+    } else {
+      this.sprite.stop();
+    }
+  }
+
   setNetworkPose(pose: RemoteNpc) {
     this.serverControlled = true;
     if (!this.networkPose) this.sprite.setPosition(pose.x, pose.y);

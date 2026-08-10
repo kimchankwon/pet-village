@@ -1,5 +1,10 @@
 import Phaser from 'phaser';
-import { worldSceneSpawn } from '@pet-village/multiplayer-protocol';
+import {
+  BONGBONGEE_TOWN,
+  TOWN_ROSTER_SHIFT_MS,
+  townRosterAt,
+  worldSceneSpawn,
+} from '@pet-village/multiplayer-protocol';
 import { configurePlayerPenguin, generateTextures, penguinDepthTarget } from '../sprites/pixelart';
 import { State, WELCOME_KEY } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
@@ -103,6 +108,10 @@ export class TownScene extends Phaser.Scene {
   private worldMultiplayer!: WorldMultiplayer;
   private unsubscribeNpcs?: () => void;
   private wasMoving = false;
+  /** True while Town is driving villagers with local AI (no multiplayer roster). */
+  private localTownNpcs = false;
+  /** Clock shift index for {@link useLocalTownNpcs} roster rotation. */
+  private localRosterShift = -1;
 
   constructor() {
     super('Town');
@@ -169,14 +178,14 @@ export class TownScene extends Phaser.Scene {
       if (!this.menuOpen && !isUiBlocked()) this.pet.speak();
     });
 
-    // Town NPC movement and roster membership are authoritative server state.
-    this.bongbongee = new BongbongeeNpc(this, [
-      { x: 10 * TILE, y: 12.5 * TILE },
-      { x: 20 * TILE, y: 9.5 * TILE },
-      { x: 26 * TILE, y: 13 * TILE },
-      { x: 11 * TILE, y: 16 * TILE },
-      { x: 20 * TILE, y: 15.5 * TILE },
-    ]);
+    // Town NPC movement is multiplayer-authoritative when connected; otherwise
+    // subscribeNpcs falls back to a local clock-matched roster so the plaza is
+    // never empty for guests or during reconnect gaps.
+    // Same plaza route the multiplayer server uses (shared protocol constant).
+    this.bongbongee = new BongbongeeNpc(
+      this,
+      BONGBONGEE_TOWN.waypoints.map(({ x, y }) => ({ x, y })),
+    );
     this.bongbongee.setServerControlled();
     this.bongbongee.setServerPresent(false);
     this.npcs = [this.bongbongee];
@@ -773,10 +782,31 @@ export class TownScene extends Phaser.Scene {
   }
 
   private syncNpcs(rows: RemoteNpc[]) {
+    // Empty list = multiplayer has never delivered a roster (guest, offline, or
+    // first frame). Keep Town populated with the same clock roster the server
+    // uses. A non-empty list always comes from the live Colyseus room.
+    if (rows.length === 0) {
+      this.useLocalTownNpcs();
+      return;
+    }
+    this.localTownNpcs = false;
     const { bongbongee, miniteens } = partitionTownNpcSnapshot(rows);
     if (bongbongee) this.bongbongee.setNetworkPose(bongbongee);
     else this.bongbongee.setServerPresent(false);
     this.miniteens.sync(miniteens);
+  }
+
+  /** Solo / offline plaza: Bongbongee + the current Town shift, local AI. */
+  private useLocalTownNpcs() {
+    const now = Date.now();
+    const shift = Math.floor(Math.max(now, 0) / TOWN_ROSTER_SHIFT_MS);
+    if (this.localTownNpcs && this.miniteens.isLocalMode() && this.localRosterShift === shift) {
+      return;
+    }
+    this.localTownNpcs = true;
+    this.localRosterShift = shift;
+    this.bongbongee.setLocalControl(true);
+    this.miniteens.syncLocal(townRosterAt(now));
   }
 
   update() {
@@ -841,6 +871,8 @@ export class TownScene extends Phaser.Scene {
     this.wasMoving = moving;
     this.worldMultiplayer.update(this.facing, moving, this.game.loop.delta);
     for (const npc of this.npcs) npc.update();
+    // Solo roster advances on the same 90s clock as the multiplayer server.
+    if (this.localTownNpcs) this.useLocalTownNpcs();
     this.miniteens.update();
 
     // Walk off the south ice road → shore (no interact prompt needed).
