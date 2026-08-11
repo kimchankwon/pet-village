@@ -68,6 +68,7 @@ const saveFields = {
   penguinColor: v.optional(v.string()),
   townPosition: v.optional(townPosition),
   quests: v.optional(v.record(v.string(), v.union(v.literal("active"), v.literal("completed")))),
+  questCounters: v.optional(v.record(v.string(), v.number())),
 };
 
 type SaveFields = ObjectType<typeof saveFields>;

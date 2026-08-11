@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameStateStore } from './GameState';
-import { BONGBONGEE_FISH_QUEST_ID } from './quests';
+import { BONGBONGEE_FISH_QUEST_ID, BONGBONGEE_SKIP_QUEST_ID } from './quests';
 
 function withLocalStorage(run: (storage: Storage & { values: Map<string, string> }) => void | Promise<void>) {
   const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
@@ -62,5 +62,53 @@ test('Bongbongee fish quest: accept, turn in 3 Mint Bass, grant coins + lightsti
     assert.equal(state.data.inventory.lightstick, 1);
     assert.equal(state.completeQuest(BONGBONGEE_FISH_QUEST_ID), false, 'already done');
     assert.equal(state.snapshot().quests?.[BONGBONGEE_FISH_QUEST_ID], 'completed');
+  });
+});
+
+test('Bongbongee skip-rope quest: locked until fish done, 3 clears, 120c + snack sampler', async () => {
+  await withLocalStorage(() => {
+    const state = new GameStateStore();
+    assert.equal(state.getQuestStatus(BONGBONGEE_SKIP_QUEST_ID), 'locked');
+    assert.equal(state.acceptQuest(BONGBONGEE_SKIP_QUEST_ID), false);
+
+    // Finish the fish quest first.
+    state.acceptQuest(BONGBONGEE_FISH_QUEST_ID);
+    state.addItem('oceanfish-uncommon', 3);
+    assert.equal(state.completeQuest(BONGBONGEE_FISH_QUEST_ID), true);
+
+    assert.equal(state.getQuestStatus(BONGBONGEE_SKIP_QUEST_ID), 'available');
+    // Clears before accept do not create progress.
+    state.rewardSkipRopeWin();
+    assert.equal(state.data.questCounters?.[BONGBONGEE_SKIP_QUEST_ID], undefined);
+
+    assert.equal(state.acceptQuest(BONGBONGEE_SKIP_QUEST_ID), true);
+    assert.equal(state.getQuestStatus(BONGBONGEE_SKIP_QUEST_ID), 'active');
+    assert.equal(state.data.questCounters?.[BONGBONGEE_SKIP_QUEST_ID], 0);
+    assert.equal(state.completeQuest(BONGBONGEE_SKIP_QUEST_ID), false);
+
+    // Clears only count while the quest is active (each win also pays the usual skip-rope coins).
+    state.rewardSkipRopeWin();
+    state.rewardSkipRopeWin();
+    assert.equal(state.data.questCounters?.[BONGBONGEE_SKIP_QUEST_ID], 2);
+    assert.equal(state.completeQuest(BONGBONGEE_SKIP_QUEST_ID), false);
+    state.rewardSkipRopeWin();
+    assert.equal(state.data.questCounters?.[BONGBONGEE_SKIP_QUEST_ID], 3);
+    // Cap stays at 3/3 — extra clears do not inflate the counter.
+    state.rewardSkipRopeWin();
+    assert.equal(state.data.questCounters?.[BONGBONGEE_SKIP_QUEST_ID], 3);
+
+    const coinsBefore = state.coins;
+    assert.equal(state.completeQuest(BONGBONGEE_SKIP_QUEST_ID), true);
+
+    assert.equal(state.getQuestStatus(BONGBONGEE_SKIP_QUEST_ID), 'completed');
+    assert.equal(state.coins, coinsBefore + 120);
+    assert.equal(state.data.inventory.muffin, 3);
+    assert.equal(state.data.inventory.toast, 3);
+    assert.equal(state.data.inventory.popsicle, 3);
+    assert.equal(state.data.inventory.candy, 3);
+    assert.equal(state.data.inventory.macaron, 3);
+    assert.equal(state.completeQuest(BONGBONGEE_SKIP_QUEST_ID), false);
+    // Counter cleared on turn-in so a future repeat would start clean.
+    assert.equal(state.snapshot().questCounters?.[BONGBONGEE_SKIP_QUEST_ID], undefined);
   });
 });

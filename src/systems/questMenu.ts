@@ -4,6 +4,7 @@ import {
   listActiveQuestDefs,
   listCompletedQuestDefs,
   objectiveProgressLabel,
+  progressKindOf,
   rewardSummary,
   type QuestDef,
 } from './quests';
@@ -58,7 +59,7 @@ export function openQuestMenu(scene: Phaser.Scene, cbs: QuestMenuCallbacks) {
 }
 
 function itemIcon(quest: QuestDef): string {
-  // Fish textures share their inventory id; fall back to the shop fish snack.
+  // Fish textures share their inventory id; cookies/icons fall back fine too.
   return quest.itemId || 'fish';
 }
 
@@ -71,7 +72,7 @@ function openQuestDetail(
   cbs.keepMenuOpen();
   const progressLine =
     status === 'active'
-      ? `Progress: ${objectiveProgressLabel(quest, State.data.inventory)}`
+      ? `Progress: ${objectiveProgressLabel(quest, State.data.inventory, State.data.questCounters)}`
       : 'Completed — rewards already claimed';
   const subtitle = [
     quest.objective,
@@ -80,12 +81,15 @@ function openQuestDetail(
     `From: ${quest.npcName}`,
   ].join('\n');
 
+  const keepGoing =
+    progressKindOf(quest) === 'skipRopeClear' ? 'Keep jumping!' : 'Keep fishing!';
+
   const menu = new Menu(
     scene,
     status === 'active' ? quest.title : `${quest.title} ✓`,
     [
       {
-        label: status === 'active' ? 'Keep fishing!' : 'Nice work!',
+        label: status === 'active' ? keepGoing : 'Nice work!',
         onSelect: () => undefined,
       },
     ],

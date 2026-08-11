@@ -89,14 +89,16 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   fights). Fishing is the exception by design: it pays a fish and a cheer
   rather than coins.
 - **Quests** — Bongbongee in Town wears a yellow `!` until you accept his
-  ask (3× Mint Bass from the Shore). After accept the mark turns gray; it
-  leaves when you turn the fish in for **100 coins** and a **Carat Lightstick**.
-  Press **Q** or the Quest chip for active + completed quests. Rewards are
-  shown before you accept.
+  asks. First: 3× Mint Bass from the Shore for **100 coins** and a
+  **Carat Lightstick**. After accepting **Jump Rope Sparkle**, clear **Skip Rope**
+  (25 jumps) **3 times** — only clears while the quest is active count — then
+  return for **120 coins** and a **sampler of Daniel’s new snacks** (3× each).
+  The mark turns gray while a quest is active and leaves when that chain is done.
+  Press **Q** or the Quest chip for active + completed quests. Rewards are shown
+  before you accept.
 - **Daniel's Shop** — walk up to the shop building and step inside;
-  Daniel the bunny waits at the counter selling food and furniture for
-  coins, including the Carat Lightstick for superfan
-  rooms.
+  Daniel the bunny waits at the counter with separate menus for **food**,
+  **bait**, and **furniture** (including the Carat Lightstick for superfan rooms).
 - **Paper Toss** (arcade cabinet) earns coins, and your pet does the
   tossing. 4 stages: sink 3 baskets within 5 throws to clear a stage and
   unlock the next; run out of throws and you retry the same stage

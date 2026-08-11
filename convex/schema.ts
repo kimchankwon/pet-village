@@ -71,6 +71,8 @@ export default defineSchema({
     townPosition: v.optional(townPosition),
     /** Quest progress keyed by id: "active" | "completed". Missing = available. */
     quests: v.optional(v.record(v.string(), v.union(v.literal("active"), v.literal("completed")))),
+    /** Activity-quest counters (e.g. Skip Rope clears), keyed by quest id. */
+    questCounters: v.optional(v.record(v.string(), v.number())),
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),
 });
