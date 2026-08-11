@@ -192,14 +192,17 @@ export const ITEMS: Record<string, ItemDef> = {
     happiness: 5,
   },
   cookie: { id: 'cookie', name: 'Choco Cookie', texture: 'cookie', kind: 'food', price: 8, hunger: 15, happiness: 15 },
+  // Premium snacks target ~3.75 total-stat/coin (same band as Choco Cookie)
+  // so a higher price is a gate, not a worse deal. Muffin/toast lean hunger;
+  // popsicle/candy lean happy; macaron is the balanced top shelf.
   muffin: {
     id: 'muffin',
     name: 'Berry Muffin',
     texture: 'muffin',
     kind: 'food',
     price: 10,
-    hunger: 20,
-    happiness: 12,
+    hunger: 22,
+    happiness: 16,
   },
   popsicle: {
     id: 'popsicle',
@@ -207,8 +210,8 @@ export const ITEMS: Record<string, ItemDef> = {
     texture: 'popsicle',
     kind: 'food',
     price: 12,
-    hunger: 10,
-    happiness: 20,
+    hunger: 12,
+    happiness: 33,
   },
   candy: {
     id: 'candy',
@@ -216,8 +219,8 @@ export const ITEMS: Record<string, ItemDef> = {
     texture: 'candy',
     kind: 'food',
     price: 14,
-    hunger: 8,
-    happiness: 22,
+    hunger: 10,
+    happiness: 43,
   },
   toast: {
     id: 'toast',
@@ -225,8 +228,8 @@ export const ITEMS: Record<string, ItemDef> = {
     texture: 'toast',
     kind: 'food',
     price: 11,
-    hunger: 24,
-    happiness: 10,
+    hunger: 28,
+    happiness: 14,
   },
   macaron: {
     id: 'macaron',
@@ -234,8 +237,8 @@ export const ITEMS: Record<string, ItemDef> = {
     texture: 'macaron',
     kind: 'food',
     price: 16,
-    hunger: 14,
-    happiness: 18,
+    hunger: 25,
+    happiness: 35,
   },
   'oceanfish-common': {
     id: 'oceanfish-common',
@@ -653,8 +656,9 @@ export class GameStateStore {
   /**
    * Count a full Skip Rope clear toward any active skip-rope quest.
    * Caps at the quest target so turn-in stays at e.g. 3/3.
+   * Private: only {@link rewardSkipRopeWin} calls this, then saves once.
    */
-  noteSkipRopeClear() {
+  private noteSkipRopeClear() {
     const progress = this.data.quests ?? {};
     for (const questId of Object.keys(progress)) {
       if (progress[questId] !== 'active') continue;
@@ -810,6 +814,10 @@ export class GameStateStore {
     }
     const quests = this.data.quests ?? (this.data.quests = {});
     quests[questId] = 'completed';
+    // Drop activity counters so a future repeatable quest starts clean.
+    if (this.data.questCounters && questId in this.data.questCounters) {
+      delete this.data.questCounters[questId];
+    }
     this.data.pet.happiness = clamp(this.data.pet.happiness + 6);
     this.save();
     return true;

@@ -90,10 +90,12 @@ For production auth redirects, set Convex `SITE_URL` to your live origin
   rather than coins.
 - **Quests** — Bongbongee in Town wears a yellow `!` until you accept his
   asks. First: 3× Mint Bass from the Shore for **100 coins** and a
-  **Carat Lightstick**. After that, clear **Skip Rope** (25 jumps) **3 times**
-  and return for **120 coins** and **15× Choco Cookies**. The mark turns gray
-  while a quest is active and leaves when that chain is done. Press **Q** or
-  the Quest chip for active + completed quests. Rewards are shown before you accept.
+  **Carat Lightstick**. After accepting **Jump Rope Sparkle**, clear **Skip Rope**
+  (25 jumps) **3 times** — only clears while the quest is active count — then
+  return for **120 coins** and a **sampler of Daniel’s new snacks** (3× each).
+  The mark turns gray while a quest is active and leaves when that chain is done.
+  Press **Q** or the Quest chip for active + completed quests. Rewards are shown
+  before you accept.
 - **Daniel's Shop** — walk up to the shop building and step inside;
   Daniel the bunny waits at the counter with separate menus for **food**,
   **bait**, and **furniture** (including the Carat Lightstick for superfan rooms).

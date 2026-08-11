@@ -217,7 +217,7 @@ export class BongbongeeNpc extends WandererNpc {
       },
     });
     options.push({
-      label: 'Remind me what you need?',
+      label: `Remind me about ${def.title}?`,
       onSelect: () => {
         cbs.keepMenuOpen();
         this.emote('happy', 900);
@@ -314,7 +314,7 @@ function turnInToast(def: QuestDef): string {
     return `+${def.rewardCoins}c · Carat Lightstick!`;
   }
   if (def.id === BONGBONGEE_SKIP_QUEST_ID) {
-    return `+${def.rewardCoins}c · 15× Choco Cookie!`;
+    return `+${def.rewardCoins}c · snack sampler!`;
   }
   return `+${def.rewardCoins}c · ${rewardSummary(def)}`;
 }

@@ -92,7 +92,14 @@ export const QUESTS: Record<string, QuestDef> = {
     itemCount: 3,
     itemLabel: 'Skip Rope clear',
     rewardCoins: 120,
-    rewardItems: [{ id: 'cookie', count: 15, label: 'Choco Cookie' }],
+    // Sampler of Daniel's new snacks so the quest introduces the food aisle.
+    rewardItems: [
+      { id: 'muffin', count: 3, label: 'Berry Muffin' },
+      { id: 'toast', count: 3, label: 'Honey Toast' },
+      { id: 'popsicle', count: 3, label: 'Rainbow Popsicle' },
+      { id: 'candy', count: 3, label: 'Star Candy' },
+      { id: 'macaron', count: 3, label: 'Mint Macaron' },
+    ],
     offerLine:
       'Bong! Bong! My feet want to sparkle! Clear Skip Rope 3 times — 25 jumps in a row each time — then bounce back to me!',
     completeLine:

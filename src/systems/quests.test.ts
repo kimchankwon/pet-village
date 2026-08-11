@@ -28,14 +28,20 @@ test('Bongbongee fish quest asks for 3 Mint Bass and pays coins + lightstick', (
   assert.match(rewardSummary(fish), /Carat Lightstick/);
 });
 
-test('Bongbongee skip-rope quest unlocks after fish, needs 3 clears, pays cookies', () => {
+test('Bongbongee skip-rope quest unlocks after fish, needs 3 clears, pays snack sampler', () => {
   assert.equal(skip.requiresQuestId, BONGBONGEE_FISH_QUEST_ID);
   assert.equal(skip.progressKind, 'skipRopeClear');
   assert.equal(skip.itemCount, 3);
   assert.equal(skip.rewardCoins, 120);
-  assert.deepEqual(skip.rewardItems, [{ id: 'cookie', count: 15, label: 'Choco Cookie' }]);
+  assert.deepEqual(skip.rewardItems, [
+    { id: 'muffin', count: 3, label: 'Berry Muffin' },
+    { id: 'toast', count: 3, label: 'Honey Toast' },
+    { id: 'popsicle', count: 3, label: 'Rainbow Popsicle' },
+    { id: 'candy', count: 3, label: 'Star Candy' },
+    { id: 'macaron', count: 3, label: 'Mint Macaron' },
+  ]);
   assert.match(rewardSummary(skip), /120 coins/);
-  assert.match(rewardSummary(skip), /15× Choco Cookie/);
+  assert.match(rewardSummary(skip), /3× Mint Macaron/);
 });
 
 test('quest status and marker: available → yellow, active → gray, completed → hidden', () => {

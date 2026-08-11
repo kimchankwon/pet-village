@@ -321,7 +321,7 @@ export class ShopScene extends Phaser.Scene {
         },
       ],
       {
-        subtitle: `You have ${State.coins} coins · food and furniture are separate`,
+        subtitle: `You have ${State.coins} coins · food, bait, and furniture are separate`,
         anchor: 'bottom',
         face: 'bunny',
       },

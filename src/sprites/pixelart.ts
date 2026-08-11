@@ -1493,34 +1493,34 @@ const COOKIE: Grid = [
   '..kkkk..',
   '........',
 ];
-/** Berry muffin — golden dome with pink berry bits. */
+/** Berry muffin — golden dome with pink berry bits (centred on col 3). */
 const MUFFIN: Grid = [
   '........',
   '...kk...',
   '..kCCk..',
-  '.kCPCPCk',
+  '.kPCPCk.',
   '.kCCCCk.',
   '..kNNk..',
   '...kk...',
   '........',
 ];
-/** Rainbow popsicle on a stick. */
+/** Rainbow popsicle on a stick (closed bottom corners on the body). */
 const POPSICLE: Grid = [
   '........',
   '..krrk..',
   '..kyyk..',
   '..keek..',
   '..kbbk..',
-  '...kk...',
+  '..kkkk..',
   '...nn...',
   '........',
 ];
-/** Star-shaped hard candy. */
+/** Star-shaped hard candy (arms symmetric around col 3). */
 const CANDY: Grid = [
   '........',
   '...y....',
   '..ypy...',
-  '.ypPpPy.',
+  '.ypPpy..',
   '..ypy...',
   '...y....',
   '........',
@@ -1537,12 +1537,12 @@ const TOAST: Grid = [
   '.kkkkkk.',
   '........',
 ];
-/** Mint macaron sandwich cookie. */
+/** Mint macaron sandwich cookie (cream fills the full shell width). */
 const MACARON: Grid = [
   '........',
   '..keek..',
   '.keeeek.',
-  '.kwwwk..',
+  '.kwwwwk.',
   '.keeeek.',
   '..keek..',
   '........',
