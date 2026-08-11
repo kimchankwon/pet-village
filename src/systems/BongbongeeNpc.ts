@@ -5,12 +5,16 @@ import { Menu, toast, type MenuOption } from './UI';
 import { miniteenDrawScale } from './miniteen';
 import {
   BONGBONGEE_FISH_QUEST_ID,
+  BONGBONGEE_QUEST_IDS,
+  BONGBONGEE_SKIP_QUEST_ID,
   canTurnInQuest,
+  combinedQuestMarkerState,
   objectiveProgressLabel,
+  progressKindOf,
   QUEST_MARKER_COLOR,
   questDef,
-  questMarkerState,
   rewardSummary,
+  type QuestDef,
 } from './quests';
 import { WandererNpc, type NpcTalkCallbacks } from './WandererNpc';
 
@@ -23,11 +27,9 @@ const LINES = [
   'Visit Cafe Cinnamon if you want diamond clothes for a Bongbongee pet!',
 ];
 
-const QUEST = questDef(BONGBONGEE_FISH_QUEST_ID)!;
-
 /**
- * SEVENTEEN CARAT mascot NPC. Wanders town, chats, and offers a fish quest.
- * Outfits are sold at Cafe Cinnamon (not gifted here).
+ * SEVENTEEN CARAT mascot NPC. Wanders town, chats, and offers a fish quest
+ * then a Skip Rope follow-up. Outfits are sold at Cafe Cinnamon (not gifted here).
  */
 export class BongbongeeNpc extends WandererNpc {
   private questMarker: Phaser.GameObjects.Text;
@@ -65,9 +67,9 @@ export class BongbongeeNpc extends WandererNpc {
     this.refreshQuestMarker();
   }
 
-  /** Yellow ! before accept, gray ! while active, hidden once complete. */
+  /** Yellow ! if any quest is available, gray while any is active, hidden when all done. */
   refreshQuestMarker() {
-    const state = questMarkerState(State.data.quests, BONGBONGEE_FISH_QUEST_ID);
+    const state = combinedQuestMarkerState(State.data.quests, BONGBONGEE_QUEST_IDS);
     if (!this.isPresent() || !state) {
       this.questMarker.setVisible(false);
       return;
@@ -84,78 +86,10 @@ export class BongbongeeNpc extends WandererNpc {
   protected override openTalk(cbs: NpcTalkCallbacks) {
     const line = this.pickLine(LINES);
     this.playBounce();
-    const status = State.getQuestStatus(BONGBONGEE_FISH_QUEST_ID);
     const options: MenuOption[] = [];
 
-    if (status === 'available') {
-      options.push({
-        label: 'I need your help! (quest)',
-        icon: 'oceanfish-uncommon',
-        onSelect: () => {
-          cbs.keepMenuOpen();
-          this.openQuestOffer(cbs);
-        },
-      });
-    } else if (status === 'active') {
-      const ready = canTurnInQuest(QUEST, State.data.inventory);
-      const progress = objectiveProgressLabel(QUEST, State.data.inventory);
-      options.push({
-        label: ready
-          ? `Give 3× Mint Bass — claim reward!`
-          : `Hand over Mint Bass (${progress})`,
-        icon: 'oceanfish-uncommon',
-        disabled: !ready,
-        onSelect: () => {
-          if (!State.completeQuest(BONGBONGEE_FISH_QUEST_ID)) return;
-          this.emote('happy', 1400);
-          toast(
-            this.scene,
-            this.sprite.x,
-            this.sprite.y - 30,
-            `+${QUEST.rewardCoins}c · Carat Lightstick!`,
-            '#ffe066',
-          );
-          this.refreshQuestMarker();
-          cbs.onAccessoriesChanged?.();
-          cbs.keepMenuOpen();
-          const thanks = new Menu(
-            this.scene,
-            'Bongbongee',
-            [{ label: 'Shine on, Bong!', onSelect: () => undefined }],
-            {
-              subtitle: `${QUEST.completeLine}\nReward: ${rewardSummary(QUEST)}`,
-              anchor: 'bottom',
-              face: this.faceKey(),
-            },
-          );
-          thanks.onClose = cbs.onClose;
-        },
-      });
-      options.push({
-        label: 'Remind me what you need?',
-        onSelect: () => {
-          cbs.keepMenuOpen();
-          this.emote('happy', 900);
-          const follow = new Menu(
-            this.scene,
-            'Bongbongee',
-            [{ label: 'On it!', onSelect: () => undefined }],
-            {
-              subtitle: `${QUEST.objective}\n${objectiveProgressLabel(QUEST, State.data.inventory)}\nReward: ${rewardSummary(QUEST)}`,
-              anchor: 'bottom',
-              face: this.faceKey(),
-              back: {
-                label: '← Back to Bongbongee',
-                onSelect: () => {
-                  cbs.keepMenuOpen();
-                  this.openTalk(cbs);
-                },
-              },
-            },
-          );
-          follow.onClose = cbs.onClose;
-        },
-      });
+    for (const questId of BONGBONGEE_QUEST_IDS) {
+      this.pushQuestTalkOptions(cbs, options, questId);
     }
 
     options.push(
@@ -210,18 +144,128 @@ export class BongbongeeNpc extends WandererNpc {
     menu.onClose = cbs.onClose;
   }
 
+  private pushQuestTalkOptions(
+    cbs: NpcTalkCallbacks,
+    options: MenuOption[],
+    questId: string,
+  ) {
+    const def = questDef(questId);
+    if (!def) return;
+    const status = State.getQuestStatus(questId);
+
+    if (status === 'available') {
+      const offerLabel =
+        questId === BONGBONGEE_SKIP_QUEST_ID
+          ? 'Another sparkle job? (quest)'
+          : 'I need your help! (quest)';
+      options.push({
+        label: offerLabel,
+        icon: def.itemId,
+        onSelect: () => {
+          cbs.keepMenuOpen();
+          this.openQuestOffer(cbs, def);
+        },
+      });
+      return;
+    }
+
+    if (status !== 'active') return;
+
+    const ready = canTurnInQuest(def, State.data.inventory, State.data.questCounters);
+    const progress = objectiveProgressLabel(
+      def,
+      State.data.inventory,
+      State.data.questCounters,
+    );
+    const turnInLabel =
+      progressKindOf(def) === 'skipRopeClear'
+        ? ready
+          ? 'I cleared Skip Rope 3× — claim reward!'
+          : `Skip Rope progress (${progress})`
+        : ready
+          ? `Give 3× Mint Bass — claim reward!`
+          : `Hand over Mint Bass (${progress})`;
+
+    options.push({
+      label: turnInLabel,
+      icon: def.itemId,
+      disabled: !ready,
+      onSelect: () => {
+        if (!State.completeQuest(questId)) return;
+        this.emote('happy', 1400);
+        toast(
+          this.scene,
+          this.sprite.x,
+          this.sprite.y - 30,
+          turnInToast(def),
+          '#ffe066',
+        );
+        this.refreshQuestMarker();
+        cbs.onAccessoriesChanged?.();
+        cbs.keepMenuOpen();
+        const thanks = new Menu(
+          this.scene,
+          'Bongbongee',
+          [{ label: 'Shine on, Bong!', onSelect: () => undefined }],
+          {
+            subtitle: `${def.completeLine}\nReward: ${rewardSummary(def)}`,
+            anchor: 'bottom',
+            face: this.faceKey(),
+          },
+        );
+        thanks.onClose = cbs.onClose;
+      },
+    });
+    options.push({
+      label: 'Remind me what you need?',
+      onSelect: () => {
+        cbs.keepMenuOpen();
+        this.emote('happy', 900);
+        const follow = new Menu(
+          this.scene,
+          'Bongbongee',
+          [{ label: 'On it!', onSelect: () => undefined }],
+          {
+            subtitle: `${def.objective}\n${objectiveProgressLabel(def, State.data.inventory, State.data.questCounters)}\nReward: ${rewardSummary(def)}`,
+            anchor: 'bottom',
+            face: this.faceKey(),
+            back: {
+              label: '← Back to Bongbongee',
+              onSelect: () => {
+                cbs.keepMenuOpen();
+                this.openTalk(cbs);
+              },
+            },
+          },
+        );
+        follow.onClose = cbs.onClose;
+      },
+    });
+  }
+
   /** Offer screen lists the reward before the player accepts. */
-  private openQuestOffer(cbs: NpcTalkCallbacks) {
+  private openQuestOffer(cbs: NpcTalkCallbacks, def: QuestDef) {
     this.emote('happy', 1000);
+    const needLine =
+      progressKindOf(def) === 'skipRopeClear'
+        ? `Need: ${def.itemCount}× Skip Rope clear (25 jumps each)`
+        : `Need: ${def.itemCount}× ${def.itemLabel}`;
+    const acceptHint =
+      progressKindOf(def) === 'skipRopeClear'
+        ? 'Yay! Hit the Skip Rope booth in the arcade greens — 25 jumps in a row counts as one clear. Press Q to track the quest!'
+        : 'Yay! Catch Mint Bass at the Shore — cast farther for better odds. Press Q to track the quest!';
+    const acceptLabel =
+      progressKindOf(def) === 'skipRopeClear' ? 'I’ll hop to it!' : 'I’ll bring the bass!';
+
     const menu = new Menu(
       this.scene,
-      'Minty Diamonds',
+      def.title,
       [
         {
           label: 'Accept quest',
           icon: 'coin',
           onSelect: () => {
-            if (!State.acceptQuest(BONGBONGEE_FISH_QUEST_ID)) return;
+            if (!State.acceptQuest(def.id)) return;
             this.emote('happy', 1200);
             toast(this.scene, this.sprite.x, this.sprite.y - 30, 'Quest accepted!', '#a8e6cf');
             this.refreshQuestMarker();
@@ -229,10 +273,9 @@ export class BongbongeeNpc extends WandererNpc {
             const follow = new Menu(
               this.scene,
               'Bongbongee',
-              [{ label: 'I’ll bring the bass!', onSelect: () => undefined }],
+              [{ label: acceptLabel, onSelect: () => undefined }],
               {
-                subtitle:
-                  'Yay! Catch Mint Bass at the Shore — cast farther for better odds. Press Q to track the quest!',
+                subtitle: acceptHint,
                 anchor: 'bottom',
                 face: this.faceKey(),
               },
@@ -250,7 +293,7 @@ export class BongbongeeNpc extends WandererNpc {
       ],
       {
         // Rewards shown before accept — player knows the payout up front.
-        subtitle: `${QUEST.offerLine}\n\nNeed: 3× Mint Bass\nReward: ${rewardSummary(QUEST)}`,
+        subtitle: `${def.offerLine}\n\n${needLine}\nReward: ${rewardSummary(def)}`,
         anchor: 'bottom',
         face: this.faceKey(),
         back: {
@@ -264,4 +307,14 @@ export class BongbongeeNpc extends WandererNpc {
     );
     menu.onClose = cbs.onClose;
   }
+}
+
+function turnInToast(def: QuestDef): string {
+  if (def.id === BONGBONGEE_FISH_QUEST_ID) {
+    return `+${def.rewardCoins}c · Carat Lightstick!`;
+  }
+  if (def.id === BONGBONGEE_SKIP_QUEST_ID) {
+    return `+${def.rewardCoins}c · 15× Choco Cookie!`;
+  }
+  return `+${def.rewardCoins}c · ${rewardSummary(def)}`;
 }

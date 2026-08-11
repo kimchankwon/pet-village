@@ -38,7 +38,9 @@ import { validatePetName } from './profileNameRules';
 import {
   canTurnInQuest,
   isQuestId,
+  normalizeQuestCounters,
   normalizeQuestProgress,
+  progressKindOf,
   questDef,
   questStatus,
   type QuestProgress,
@@ -105,6 +107,11 @@ export interface SaveData {
    * Synced via cloud saves like inventory.
    */
   quests?: QuestProgress;
+  /**
+   * Activity-quest counters (e.g. Skip Rope clears while a quest is active).
+   * Keyed by quest id. Synced via cloud saves like quests.
+   */
+  questCounters?: Record<string, number>;
 }
 
 export interface ItemDef {
@@ -185,6 +192,51 @@ export const ITEMS: Record<string, ItemDef> = {
     happiness: 5,
   },
   cookie: { id: 'cookie', name: 'Choco Cookie', texture: 'cookie', kind: 'food', price: 8, hunger: 15, happiness: 15 },
+  muffin: {
+    id: 'muffin',
+    name: 'Berry Muffin',
+    texture: 'muffin',
+    kind: 'food',
+    price: 10,
+    hunger: 20,
+    happiness: 12,
+  },
+  popsicle: {
+    id: 'popsicle',
+    name: 'Rainbow Popsicle',
+    texture: 'popsicle',
+    kind: 'food',
+    price: 12,
+    hunger: 10,
+    happiness: 20,
+  },
+  candy: {
+    id: 'candy',
+    name: 'Star Candy',
+    texture: 'candy',
+    kind: 'food',
+    price: 14,
+    hunger: 8,
+    happiness: 22,
+  },
+  toast: {
+    id: 'toast',
+    name: 'Honey Toast',
+    texture: 'toast',
+    kind: 'food',
+    price: 11,
+    hunger: 24,
+    happiness: 10,
+  },
+  macaron: {
+    id: 'macaron',
+    name: 'Mint Macaron',
+    texture: 'macaron',
+    kind: 'food',
+    price: 16,
+    hunger: 14,
+    happiness: 18,
+  },
   'oceanfish-common': {
     id: 'oceanfish-common',
     name: 'Silver Minnow',
@@ -275,6 +327,7 @@ export function defaultSave(): SaveData {
     equippedPenguinAccessories: {},
     npcGiftDays: {},
     quests: {},
+    questCounters: {},
   };
 }
 
@@ -382,6 +435,7 @@ export function normalizeSave(raw: unknown): SaveData {
     townPosition: normalizeTownPosition(parsed.townPosition),
     npcGiftDays: normalizeStringRecord(parsed.npcGiftDays),
     quests: normalizeQuestProgress(parsed.quests),
+    questCounters: normalizeQuestCounters(parsed.questCounters),
   };
 }
 
@@ -451,6 +505,7 @@ export class GameStateStore {
       penguinColor: this.data.penguinColor ?? 'blue',
       ...(this.data.townPosition ? { townPosition: { ...this.data.townPosition } } : {}),
       quests: { ...(this.data.quests ?? {}) },
+      questCounters: { ...(this.data.questCounters ?? {}) },
     };
   }
 
@@ -591,7 +646,24 @@ export class GameStateStore {
   rewardSkipRopeWin() {
     this.data.coins += SKIP_ROPE_WIN_COINS;
     this.data.pet.happiness = clamp(this.data.pet.happiness + SKIP_ROPE_WIN_HAPPINESS);
+    this.noteSkipRopeClear();
     this.save();
+  }
+
+  /**
+   * Count a full Skip Rope clear toward any active skip-rope quest.
+   * Caps at the quest target so turn-in stays at e.g. 3/3.
+   */
+  noteSkipRopeClear() {
+    const progress = this.data.quests ?? {};
+    for (const questId of Object.keys(progress)) {
+      if (progress[questId] !== 'active') continue;
+      const def = questDef(questId);
+      if (!def || progressKindOf(def) !== 'skipRopeClear') continue;
+      const counters = this.data.questCounters ?? (this.data.questCounters = {});
+      const have = counters[questId] ?? 0;
+      if (have < def.itemCount) counters[questId] = have + 1;
+    }
   }
 
   rewardSledRun(coins: number, happiness: number) {
@@ -695,36 +767,43 @@ export class GameStateStore {
     return true;
   }
 
-  /** Available / active / completed for a known quest id. */
-  getQuestStatus(questId: string): 'available' | 'active' | 'completed' {
+  /** Locked / available / active / completed for a known quest id. */
+  getQuestStatus(questId: string): 'locked' | 'available' | 'active' | 'completed' {
     if (!isQuestId(questId)) return 'available';
     return questStatus(this.data.quests, questId);
   }
 
-  /** Accept a quest that is still available. */
+  /** Accept a quest that is still available (prerequisites already done). */
   acceptQuest(questId: string): boolean {
     if (!isQuestId(questId)) return false;
     if (this.getQuestStatus(questId) !== 'available') return false;
     const quests = this.data.quests ?? (this.data.quests = {});
     quests[questId] = 'active' satisfies QuestProgressState;
+    // Activity quests start their counter at zero when accepted.
+    if (progressKindOf(questDef(questId)!) === 'skipRopeClear') {
+      const counters = this.data.questCounters ?? (this.data.questCounters = {});
+      counters[questId] = 0;
+    }
     this.save();
     return true;
   }
 
   /**
-   * Turn in an active quest: remove the required items, grant rewards, mark
-   * completed. Returns false if the quest is not active or the bag is short.
+   * Turn in an active quest: remove required items (item quests only), grant
+   * rewards, mark completed. Returns false if not active or progress is short.
    * All mutations land in one save so a mid-step crash cannot strand the bag.
    */
   completeQuest(questId: string): boolean {
     const def = questDef(questId);
     if (!def) return false;
     if (this.getQuestStatus(questId) !== 'active') return false;
-    if (!canTurnInQuest(def, this.data.inventory)) return false;
-    const have = this.data.inventory[def.itemId] ?? 0;
-    if (have < def.itemCount) return false;
-    if (have === def.itemCount) delete this.data.inventory[def.itemId];
-    else this.data.inventory[def.itemId] = have - def.itemCount;
+    if (!canTurnInQuest(def, this.data.inventory, this.data.questCounters)) return false;
+    if (progressKindOf(def) === 'item') {
+      const have = this.data.inventory[def.itemId] ?? 0;
+      if (have < def.itemCount) return false;
+      if (have === def.itemCount) delete this.data.inventory[def.itemId];
+      else this.data.inventory[def.itemId] = have - def.itemCount;
+    }
     this.data.coins += def.rewardCoins;
     for (const reward of def.rewardItems) {
       this.data.inventory[reward.id] = (this.data.inventory[reward.id] ?? 0) + reward.count;

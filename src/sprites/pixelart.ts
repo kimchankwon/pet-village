@@ -1493,6 +1493,61 @@ const COOKIE: Grid = [
   '..kkkk..',
   '........',
 ];
+/** Berry muffin — golden dome with pink berry bits. */
+const MUFFIN: Grid = [
+  '........',
+  '...kk...',
+  '..kCCk..',
+  '.kCPCPCk',
+  '.kCCCCk.',
+  '..kNNk..',
+  '...kk...',
+  '........',
+];
+/** Rainbow popsicle on a stick. */
+const POPSICLE: Grid = [
+  '........',
+  '..krrk..',
+  '..kyyk..',
+  '..keek..',
+  '..kbbk..',
+  '...kk...',
+  '...nn...',
+  '........',
+];
+/** Star-shaped hard candy. */
+const CANDY: Grid = [
+  '........',
+  '...y....',
+  '..ypy...',
+  '.ypPpPy.',
+  '..ypy...',
+  '...y....',
+  '........',
+  '........',
+];
+/** Honey toast — bread slab with golden drizzle. */
+const TOAST: Grid = [
+  '........',
+  '.kkkkkk.',
+  'kCCCCCCk',
+  'kCyCyCCk',
+  'kCCyCCCk',
+  'kCCCCCCk',
+  '.kkkkkk.',
+  '........',
+];
+/** Mint macaron sandwich cookie. */
+const MACARON: Grid = [
+  '........',
+  '..keek..',
+  '.keeeek.',
+  '.kwwwk..',
+  '.keeeek.',
+  '..keek..',
+  '........',
+  '........',
+];
 const HEART: Grid = [
   '........',
   '.kk..kk.',
@@ -2400,6 +2455,11 @@ export function generateTextures(scene: Phaser.Scene) {
     makeTexture(scene, 'fish', [FISH]);
     makeTexture(scene, 'bait', [BAIT]);
     makeTexture(scene, 'cookie', [COOKIE]);
+    makeTexture(scene, 'muffin', [MUFFIN]);
+    makeTexture(scene, 'popsicle', [POPSICLE]);
+    makeTexture(scene, 'candy', [CANDY]);
+    makeTexture(scene, 'toast', [TOAST]);
+    makeTexture(scene, 'macaron', [MACARON]);
     makeTexture(scene, 'heart', [HEART]);
 
     makeTexture(scene, 'item-plant', [PLANT]);

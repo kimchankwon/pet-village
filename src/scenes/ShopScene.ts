@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { worldSceneSpawn } from '@pet-village/multiplayer-protocol';
 import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
-import { State, ITEMS } from '../systems/GameState';
+import { State, ITEMS, type ItemDef } from '../systems/GameState';
 import { bottomButtons, HUD, Menu, Prompt, toast } from '../systems/UI';
 import { Pet } from '../systems/Pet';
 import { clothesPetMenuOption } from '../systems/petClothesMenu';
@@ -297,24 +297,74 @@ export class ShopScene extends Phaser.Scene {
 
   private openShop() {
     this.menuOpen = true;
-    const options = Object.values(ITEMS)
-      .filter((item) => !item.catchOnly)
-      .map((item) => ({
-        label: `${item.name} — ${item.price}c`,
-        icon: item.texture,
-        disabled: State.coins < item.price,
-        onSelect: () => this.confirmBuy(item.id, item.name, item.price),
-      }));
-    const menu = new Menu(this, "Daniel's Shop", options, {
+    const foodCount = shopItems('food').length;
+    const baitCount = shopItems('bait').length;
+    const furnitureCount = shopItems('furniture').length;
+    const menu = new Menu(
+      this,
+      "Daniel's Shop",
+      [
+        {
+          label: `Food & snacks · ${foodCount} kinds`,
+          icon: 'cookie',
+          onSelect: () => this.openShopCategory('food', 'Food & snacks'),
+        },
+        {
+          label: `Fishing bait · ${baitCount} kinds`,
+          icon: 'bait',
+          onSelect: () => this.openShopCategory('bait', 'Fishing bait'),
+        },
+        {
+          label: `Furniture · ${furnitureCount} pieces`,
+          icon: 'item-plant',
+          onSelect: () => this.openShopCategory('furniture', 'Furniture'),
+        },
+      ],
+      {
+        subtitle: `You have ${State.coins} coins · food and furniture are separate`,
+        anchor: 'bottom',
+        face: 'bunny',
+      },
+    );
+    menu.onClose = () => this.closeMenu();
+  }
+
+  private openShopCategory(kind: ItemDef['kind'], title: string) {
+    this.menuOpen = true;
+    const options = shopItems(kind).map((item) => ({
+      label: `${item.name} — ${item.price}c`,
+      icon: item.texture,
+      disabled: State.coins < item.price,
+      onSelect: () => this.confirmBuy(item.id, item.name, item.price, kind, title),
+    }));
+    if (options.length === 0) {
+      options.push({
+        label: 'Nothing in stock right now',
+        icon: 'coin',
+        disabled: true,
+        onSelect: () => undefined,
+      });
+    }
+    const menu = new Menu(this, title, options, {
       subtitle: `You have ${State.coins} coins`,
       anchor: 'bottom',
       face: 'bunny',
       pageSize: 5,
+      back: {
+        label: "← Back to Daniel's Shop",
+        onSelect: () => this.openShop(),
+      },
     });
     menu.onClose = () => this.closeMenu();
   }
 
-  private confirmBuy(id: string, name: string, price: number) {
+  private confirmBuy(
+    id: string,
+    name: string,
+    price: number,
+    kind: ItemDef['kind'],
+    categoryTitle: string,
+  ) {
     this.menuOpen = true;
     const menu = new Menu(
       this,
@@ -328,15 +378,15 @@ export class ShopScene extends Phaser.Scene {
               toast(this, this.player.x, this.player.y - 50, `Bought ${name}!`, '#a8e6cf');
               this.hud.refresh();
             }
-            this.openShop();
+            this.openShopCategory(kind, categoryTitle);
           },
         },
       ],
       {
         subtitle: `You have ${State.coins} coins`,
         back: {
-          label: "← Back to Daniel's Shop",
-          onSelect: () => this.openShop(),
+          label: `← Back to ${categoryTitle}`,
+          onSelect: () => this.openShopCategory(kind, categoryTitle),
         },
       },
     );
@@ -492,4 +542,9 @@ export class ShopScene extends Phaser.Scene {
       this.scene.start('Town', { spawn: 'shop' });
     }
   }
+}
+
+/** Shop stock: purchasable items of one kind (never catch-only wild fish). */
+function shopItems(kind: ItemDef['kind']): ItemDef[] {
+  return Object.values(ITEMS).filter((item) => item.kind === kind && !item.catchOnly);
 }
