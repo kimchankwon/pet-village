@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as lib_admissionProfile from "../lib/admissionProfile.js";
 import type * as lib_profileNames from "../lib/profileNames.js";
@@ -17,7 +18,9 @@ import type * as multiplayer from "../multiplayer.js";
 import type * as multiplayerProfile from "../multiplayerProfile.js";
 import type * as profiles from "../profiles.js";
 import type * as saves from "../saves.js";
+import type * as sled from "../sled.js";
 import type * as users from "../users.js";
+import type * as world from "../world.js";
 
 import type {
   ApiFromModules,
@@ -27,6 +30,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  crons: typeof crons;
   http: typeof http;
   "lib/admissionProfile": typeof lib_admissionProfile;
   "lib/profileNames": typeof lib_profileNames;
@@ -35,7 +39,9 @@ declare const fullApi: ApiFromModules<{
   multiplayerProfile: typeof multiplayerProfile;
   profiles: typeof profiles;
   saves: typeof saves;
+  sled: typeof sled;
   users: typeof users;
+  world: typeof world;
 }>;
 
 /**

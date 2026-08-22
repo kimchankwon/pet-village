@@ -1,19 +1,17 @@
 {
   "name": "pet-village",
   "private": true,
-  "version": "1.39.0",
+  "version": "1.40.0",
   "type": "module",
   "workspaces": [
-    "packages/*",
-    "multiplayer-server"
+    "packages/*"
   ],
   "scripts": {
     "dev": "convex dev --start vite",
     "dev:frontend": "vite",
-    "dev:multiplayer": "npm run dev -w multiplayer-server",
-    "build": "npm run build -w @pet-village/multiplayer-protocol && npm run build -w multiplayer-server && tsc && vite build",
+    "build": "npm run build -w @pet-village/multiplayer-protocol && tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest run && npx tsx --test scripts/lib/*.test.mjs src/systems/*.test.ts && npm test -w @pet-village/multiplayer-protocol && npm test -w multiplayer-server",
+    "test": "vitest run && npx tsx --test scripts/lib/*.test.mjs src/systems/*.test.ts && npm test -w @pet-village/multiplayer-protocol",
     "sim:fishing": "tsx scripts/fishing-sim.mts",
     "smoke:sled": "tsx scripts/sled-smoke.mts",
     "smoke:worlds": "tsx scripts/smoke-multiplayer-worlds.mts",
@@ -40,7 +38,6 @@
   },
   "dependencies": {
     "@auth/core": "^0.41.1",
-    "@colyseus/sdk": "0.17.43",
     "@convex-dev/auth": "^0.0.94",
     "@pet-village/multiplayer-protocol": "1.27.0",
     "convex": "^1.42.1",
@@ -51,6 +48,7 @@
   },
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
+    "@types/node": "^22.19.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.7.0",

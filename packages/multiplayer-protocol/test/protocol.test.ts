@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Decoder, Encoder, MapSchema, Schema, defineTypes } from '@colyseus/schema';
 import {
   CHAT_MAX_LENGTH,
   GAME_ACTIVITIES,
@@ -12,8 +11,8 @@ import {
   NpcState,
   PlayerState,
   PROTOCOL_VERSION,
-  sanitizeChatText,
   TownState,
+  sanitizeChatText,
   TOWN_BOUNDS,
   WORLD_SCENE_BOUNDS,
   WORLD_SCENES,
@@ -38,7 +37,7 @@ test('protocol v14 pet expressions are a closed set with empty defaults on Playe
 });
 
 test('protocol v10 validates scene-scoped moves within each world bounds', () => {
-  assert.equal(PROTOCOL_VERSION, 14);
+  assert.equal(PROTOCOL_VERSION, 15);
   // Expanded ice town: 32×22, parks/shore 24×16.
   assert.deepEqual(TOWN_BOUNDS, { width: 1536, height: 1056 });
   assert.deepEqual(WORLD_SCENES, [
@@ -88,64 +87,6 @@ test('east-green has an expedition named spawn', () => {
   assert.equal(spawn.y, 4.5 * 48);
 });
 
-test('protocol v4 clients keep existing player fields during the v7 rollout', () => {
-  class ProtocolV4PlayerState extends Schema {
-    declare userId: string;
-    declare displayName: string;
-    declare petName: string;
-    declare petSpecies: string;
-    declare penguinColor: string;
-    declare x: number;
-    declare y: number;
-    declare petX: number;
-    declare petY: number;
-    declare facing: string;
-    declare moving: boolean;
-    declare active: boolean;
-    declare seq: number;
-    declare updatedAt: number;
-    declare waveId: string;
-    declare waveTarget: string;
-    declare activity: string;
-  }
-  defineTypes(ProtocolV4PlayerState, {
-    userId: 'string', displayName: 'string', petName: 'string', petSpecies: 'string',
-    penguinColor: 'string', x: 'number', y: 'number', petX: 'number', petY: 'number',
-    facing: 'string', moving: 'boolean', active: 'boolean', seq: 'number', updatedAt: 'number',
-    waveId: 'string', waveTarget: 'string', activity: 'string',
-  });
-  class ProtocolV4TownState extends Schema {
-    players = new MapSchema<ProtocolV4PlayerState>();
-    npcs = new MapSchema<NpcState>();
-  }
-  defineTypes(ProtocolV4TownState, {
-    players: { map: ProtocolV4PlayerState },
-    npcs: { map: NpcState },
-  });
-
-  const state = new TownState();
-  const player = new PlayerState();
-  Object.assign(player, {
-    userId: 'user-1', active: false, activity: 'fishing', seq: 7, updatedAt: 123,
-    waveId: 'wave-1', waveTarget: 'session-2', chatId: '123:chat-1', chatText: 'hello village',
-  });
-  state.players.set('session-1', player);
-
-  const decoded = new ProtocolV4TownState();
-  const encoder = new Encoder(state);
-  const decoder = new Decoder(decoded);
-  assert.doesNotThrow(() => decoder.decode(encoder.encodeAll()));
-  player.seq = 8;
-  player.updatedAt = 124;
-  player.activity = 'bump';
-  assert.doesNotThrow(() => decoder.decode(encoder.encode()));
-  assert.deepEqual(decoded.players.get('session-1')?.toJSON(), {
-    userId: 'user-1', displayName: 'Player', petName: 'Pet', petSpecies: '', penguinColor: 'blue',
-    x: 0, y: 0, petX: 0, petY: 0, facing: 'down', moving: false, active: false,
-    seq: 8, updatedAt: 124, waveId: 'wave-1', waveTarget: 'session-2', activity: 'bump',
-  });
-});
-
 test('chat text is a single printable line, capped and never empty', () => {
   assert.equal(sanitizeChatText('  hello   village  '), 'hello village');
   assert.equal(sanitizeChatText('penguins 🐧 rule'), 'penguins 🐧 rule');
@@ -193,7 +134,7 @@ test('a typed chat character may be a space, but never a control key name', () =
   assert.equal(isChatCharacter(''), false);
 });
 
-test('town state serializes player scene, activity, and server-owned NPC maps for Colyseus synchronization', () => {
+test('town state holds player scene, activity, and NPC maps', () => {
   const state = new TownState();
   const player = new PlayerState();
   player.activity = 'fishing';
@@ -210,24 +151,8 @@ test('town state serializes player scene, activity, and server-owned NPC maps fo
   const npc = new NpcState();
   Object.assign(npc, { id: 'bongbongee', x: 360, y: 456, moving: true, facing: 'right', updatedAt: 123 });
   state.npcs.set(npc.id, npc);
-  const bytes = new Encoder(state).encodeAll();
-  const decoded = new TownState();
-  assert.doesNotThrow(() => new Decoder(decoded).decode(bytes));
-  assert.equal(decoded.players.get('session-1')?.activity, 'fishing');
-  assert.equal(decoded.players.get('session-1')?.scene, 'shore');
-  assert.equal(decoded.players.get('session-1')?.chatId, '123:chat-1');
-  assert.equal(decoded.players.get('session-1')?.chatText, 'hello village');
-  assert.deepEqual(
-    {
-      headLeft: decoded.players.get('session-1')?.accessoryHeadLeft,
-      headRight: decoded.players.get('session-1')?.accessoryHeadRight,
-      body: decoded.players.get('session-1')?.accessoryBody,
-      extra: decoded.players.get('session-1')?.accessoryExtra,
-    },
-    { headLeft: 'aqua-clip', headRight: 'ear-cloud', body: 'diamond-tee', extra: 'carat-sash' },
-  );
-  assert.deepEqual(
-    decoded.npcs.get('bongbongee')?.toJSON(),
-    { id: 'bongbongee', x: 360, y: 456, facing: 'right', moving: true, updatedAt: 123 },
-  );
+  assert.equal(state.players.get('session-1')?.activity, 'fishing');
+  assert.equal(state.players.get('session-1')?.scene, 'shore');
+  assert.equal(state.players.get('session-1')?.chatId, '123:chat-1');
+  assert.equal(state.npcs.get('bongbongee')?.x, 360);
 });

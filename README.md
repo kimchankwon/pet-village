@@ -7,7 +7,9 @@ needs keep decaying even while the game is closed.
 Built with Phaser 3 + TypeScript + Vite + Convex.
 
 Saves: `localStorage` for guests; signed-in players sync durable cloud
-saves via Convex (Google or email/password).
+saves via Convex (Google or email/password). Town presence, chat, waves,
+emotes, wandering villagers, and Sled Run also run on that Convex
+deployment. There is no separate game server.
 
 ## Play
 
@@ -221,5 +223,4 @@ feet, tails, and facial features.
 
 - More minigames feeding the same coin economy
 - Pet evolution stages based on care quality
-- Async multiplayer (visit friends' rooms, leave gifts) via Convex
-- Real-time town square via Colyseus once the core loop is fun
+- Visit friends' rooms and leave gifts, async, via Convex
