@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { MapSchema } from '@colyseus/schema';
-import { NpcState, TOWN_BOUNDS } from '@pet-village/multiplayer-protocol';
+import { TOWN_BOUNDS } from '../src/index.ts';
 import {
   TOWN_RESIDENT_COUNT,
   TOWN_ROSTER_SHIFT_MS,
   TownNpcSimulation,
   townRosterAt,
+  type NpcSnapshot,
 } from '../src/npcSimulation.ts';
 
 test('server initializes the authoritative Town NPC roster', () => {
-  const states = new MapSchema<NpcState>();
+  const states = new Map<string, NpcSnapshot>();
   new TownNpcSimulation(states, 1_000);
 
   assert.deepEqual([...states.keys()].sort(), ['bongbongee', ...townRosterAt(1_000)].sort());
@@ -23,8 +23,8 @@ test('server initializes the authoritative Town NPC roster', () => {
 });
 
 test('server advances NPC positions deterministically for every client snapshot', () => {
-  const firstStates = new MapSchema<NpcState>();
-  const secondStates = new MapSchema<NpcState>();
+  const firstStates = new Map<string, NpcSnapshot>();
+  const secondStates = new Map<string, NpcSnapshot>();
   const first = new TownNpcSimulation(firstStates, 1_000);
   const second = new TownNpcSimulation(secondStates, 1_000);
   const before = firstStates.get('bongbongee')!.x;
@@ -64,7 +64,7 @@ test('the Town roster moves along on the clock, one villager at a time', () => {
 });
 
 test('a running room swaps residents in and out without disturbing the rest', () => {
-  const states = new MapSchema<NpcState>();
+  const states = new Map<string, NpcSnapshot>();
   const simulation = new TownNpcSimulation(states, 0);
   const leaving = townRosterAt(0).find((id) => !townRosterAt(TOWN_ROSTER_SHIFT_MS).includes(id))!;
   const staying = townRosterAt(0).find((id) => id !== leaving)!;

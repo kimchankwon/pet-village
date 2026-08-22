@@ -19,7 +19,7 @@ import {
   type SledCourseItem,
   type SledEffect,
 } from '@pet-village/multiplayer-protocol';
-import { SledRaceSimulation } from '../../multiplayer-server/src/sledSimulation';
+import { SledRaceSimulation } from '@pet-village/multiplayer-protocol';
 import { SteerAckClock, SteerTrace } from './sledRunLatency';
 import { newLocalSled, stepLocalSled, type LocalSled } from './sledLocalSled';
 import { reconcileLocalProgress, reconcileLocalX, steerDeadZone } from './sledRunPrediction';

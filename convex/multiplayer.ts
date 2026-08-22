@@ -3,19 +3,20 @@
 import { SignJWT } from 'jose';
 import { v } from 'convex/values';
 import {
-  PROTOCOL_VERSION,
-  TICKET_AUDIENCE,
-  TICKET_ISSUER,
   type AdmissionProfile,
 } from '@pet-village/multiplayer-protocol';
 import { internal } from './_generated/api';
 import { action } from './_generated/server';
+
+const TICKET_ISSUER = 'pet-village-convex';
+const TICKET_AUDIENCE = 'pet-village-multiplayer';
 
 const PENGUIN_COLORS = new Set([
   'blue', 'green', 'pink', 'black', 'red', 'purple',
   'orange', 'darkpurple', 'brown', 'peach', 'darkgreen', 'lightblue',
 ]);
 
+/** Kept so the current GitHub Pages build can still mint Colyseus tickets until this PR ships. */
 export const issueTicket = action({
   args: { penguinColor: v.string() },
   returns: v.string(),
@@ -35,7 +36,7 @@ export const issueTicket = action({
         : profile.penguinColor,
       equippedAccessories: profile.equippedAccessories,
       townPosition: profile.townPosition,
-      protocolVersion: PROTOCOL_VERSION,
+      protocolVersion: 14,
     })
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .setIssuer(TICKET_ISSUER)

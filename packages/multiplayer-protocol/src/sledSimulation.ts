@@ -19,7 +19,7 @@ import {
   type SledInputPayload,
   type SledLaneSample,
   type SledRunState,
-} from '@pet-village/multiplayer-protocol';
+} from './index.js';
 
 /** A claim the server took back, for the room to tell the client that made it. */
 export type SledRejectedClaim = { sessionId: string; itemId: string };
@@ -363,4 +363,62 @@ export class SledRaceSimulation {
     this.course = [];
   }
 
+}
+
+export type SledSimSnapshot = {
+  course: SledCourseItem[];
+  finishCount: number;
+  hitItems: Record<string, string[]>;
+  lastInputAt: Record<string, number>;
+  lanes: Record<string, SledLaneSample[]>;
+  effectSource: Record<string, string>;
+  sweptIndex: Record<string, number>;
+  rejectedClaims: SledRejectedClaim[];
+};
+
+export function dumpSledSimulation(sim: SledRaceSimulation): SledSimSnapshot {
+  const anySim = sim as unknown as {
+    course: SledCourseItem[];
+    finishCount: number;
+    hitItems: Map<string, Set<string>>;
+    lastInputAt: Map<string, number>;
+    lanes: Map<string, SledLaneSample[]>;
+    effectSource: Map<string, string>;
+    sweptIndex: Map<string, number>;
+    rejectedClaims: SledRejectedClaim[];
+  };
+  return {
+    course: anySim.course,
+    finishCount: anySim.finishCount,
+    hitItems: Object.fromEntries([...anySim.hitItems].map(([id, hits]) => [id, [...hits]])),
+    lastInputAt: Object.fromEntries(anySim.lastInputAt),
+    lanes: Object.fromEntries(anySim.lanes),
+    effectSource: Object.fromEntries(anySim.effectSource),
+    sweptIndex: Object.fromEntries(anySim.sweptIndex),
+    rejectedClaims: anySim.rejectedClaims,
+  };
+}
+
+export function loadSledSimulation(state: SledRunState, snapshot?: SledSimSnapshot, seedFactory?: () => string) {
+  const sim = new SledRaceSimulation(state, seedFactory);
+  if (!snapshot) return sim;
+  const anySim = sim as unknown as {
+    course: SledCourseItem[];
+    finishCount: number;
+    hitItems: Map<string, Set<string>>;
+    lastInputAt: Map<string, number>;
+    lanes: Map<string, SledLaneSample[]>;
+    effectSource: Map<string, string>;
+    sweptIndex: Map<string, number>;
+    rejectedClaims: SledRejectedClaim[];
+  };
+  anySim.course = snapshot.course;
+  anySim.finishCount = snapshot.finishCount;
+  anySim.hitItems = new Map(Object.entries(snapshot.hitItems).map(([id, hits]) => [id, new Set(hits)]));
+  anySim.lastInputAt = new Map(Object.entries(snapshot.lastInputAt));
+  anySim.lanes = new Map(Object.entries(snapshot.lanes));
+  anySim.effectSource = new Map(Object.entries(snapshot.effectSource));
+  anySim.sweptIndex = new Map(Object.entries(snapshot.sweptIndex));
+  anySim.rejectedClaims = snapshot.rejectedClaims;
+  return sim;
 }

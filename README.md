@@ -4,7 +4,7 @@ You walk like Club Penguin, decorate a house like Animal Crossing, and look afte
 
 Built with Phaser 3, TypeScript, Vite, and Convex.
 
-Guests save in `localStorage`. Signed-in players (Google or email/password) sync cloud saves through Convex.
+Guests save in `localStorage`. Signed-in players (Google or email/password) sync cloud saves through Convex. Town presence, chat, waves, emotes, wandering villagers, and Sled Run also run on that Convex deployment. There is no separate game server.
 
 ## Play
 
@@ -142,4 +142,3 @@ feet, tails, and facial features.
 - More minigames on the same coin economy
 - Pet evolution stages based on care quality
 - Visit friends' rooms and leave gifts, async, via Convex
-- Real-time town square via Colyseus once the core loop is fun

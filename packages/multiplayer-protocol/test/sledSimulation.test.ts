@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SledRunState, generateSledCourse, sledDifficultyConfig } from '@pet-village/multiplayer-protocol';
+import { SledRunState, generateSledCourse, sledDifficultyConfig } from '../src/index.ts';
 import { SledRaceSimulation } from '../src/sledSimulation.ts';
 
 const profile = (id: string) => ({ userId: `user-${id}`, displayName: id, penguinColor: id === 'one' ? 'blue' : 'pink' });
