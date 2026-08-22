@@ -45,7 +45,7 @@ export function AuthPanel({ onGuest }: { onGuest: () => void }) {
         <p className="brand">Pet Village</p>
         <h1>{mode === 'signIn' ? 'Sign in' : 'Create account'}</h1>
         <p className="lede">
-          Cloud saves keep your pet safe across devices. Or play as a guest with local saves only.
+          Cloud saves follow you between devices. Guests keep a save in this browser only.
         </p>
 
         <button type="button" className="btn google" onClick={onGoogle} disabled={busy}>
