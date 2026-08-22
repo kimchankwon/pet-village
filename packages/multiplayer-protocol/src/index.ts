@@ -1,8 +1,4 @@
-import { MapSchema, Schema, defineTypes } from '@colyseus/schema';
-
-export const PROTOCOL_VERSION = 14 as const;
-export const TICKET_ISSUER = 'pet-village-convex';
-export const TICKET_AUDIENCE = 'pet-village-multiplayer';
+export const PROTOCOL_VERSION = 15 as const;
 export const ROOM_NAME = 'town_default';
 export const SLED_RUN_ROOM = 'sled_run';
 /** Expanded ice-town hub (32×22 tiles × 48px). */
@@ -513,173 +509,76 @@ export function isSledClaimContradicted(
   return !window.some((sample) => overlaps(sample, item));
 }
 
-export class PlayerState extends Schema {
-  declare userId: string;
-  declare displayName: string;
-  declare petName: string;
-  declare petSpecies: string;
-  declare penguinColor: string;
-  declare x: number;
-  declare y: number;
-  declare petX: number;
-  declare petY: number;
-  declare facing: Facing;
-  declare moving: boolean;
-  declare active: boolean;
-  declare seq: number;
-  declare updatedAt: number;
-  declare waveId: string;
-  declare waveTarget: string;
-  declare activity: string;
-  declare scene: WorldScene;
-  declare accessoryHeadLeft: string;
-  declare accessoryHeadRight: string;
-  declare accessoryBody: string;
-  declare accessoryExtra: string;
-  /** Stamped `${sentAt}:${uuid}` — how peers spot a message they have not shown. */
-  declare chatId: string;
-  declare chatText: string;
-  /**
-   * Active move emote id, or empty. Replaces the v12 `dancing` boolean so peers
-   * can play wave / breakdance / sit / hip hop as well as the original dance.
-   */
-  declare emote: string;
-  /** Active pet expression pose, or empty. */
-  declare petEmote: string;
-  /** Stamped `${sentAt}:${uuid}` — peers spot a new flash even if pose repeats. */
-  declare petEmoteId: string;
-
-  constructor() {
-    super();
-    this.userId = '';
-    this.displayName = 'Player';
-    this.petName = 'Pet';
-    this.petSpecies = '';
-    this.penguinColor = 'blue';
-    this.x = 0;
-    this.y = 0;
-    this.petX = 0;
-    this.petY = 0;
-    this.facing = 'down';
-    this.moving = false;
-    this.active = false;
-    this.seq = 0;
-    this.updatedAt = 0;
-    this.waveId = '';
-    this.waveTarget = '';
-    this.activity = '';
-    this.scene = 'town';
-    this.accessoryHeadLeft = '';
-    this.accessoryHeadRight = '';
-    this.accessoryBody = '';
-    this.accessoryExtra = '';
-    this.chatId = '';
-    this.chatText = '';
-    this.emote = '';
-    this.petEmote = '';
-    this.petEmoteId = '';
-  }
+export class PlayerState {
+  userId = '';
+  displayName = 'Player';
+  petName = 'Pet';
+  petSpecies = '';
+  penguinColor = 'blue';
+  x = 0;
+  y = 0;
+  petX = 0;
+  petY = 0;
+  facing: Facing = 'down';
+  moving = false;
+  active = false;
+  seq = 0;
+  updatedAt = 0;
+  waveId = '';
+  waveTarget = '';
+  activity = '';
+  scene: WorldScene = 'town';
+  accessoryHeadLeft = '';
+  accessoryHeadRight = '';
+  accessoryBody = '';
+  accessoryExtra = '';
+  chatId = '';
+  chatText = '';
+  emote = '';
+  petEmote = '';
+  petEmoteId = '';
 }
-// Field order is the wire format: new fields are appended so clients on an older
-// protocol keep decoding the ones they know. v13 renames dancing→emote (string).
-// v14 adds petEmote + petEmoteId (click-to-emote the companion for peers).
-defineTypes(PlayerState, {userId:'string',displayName:'string',petName:'string',petSpecies:'string',penguinColor:'string',x:'number',y:'number',petX:'number',petY:'number',facing:'string',moving:'boolean',active:'boolean',seq:'number',updatedAt:'number',waveId:'string',waveTarget:'string',activity:'string',scene:'string',accessoryHeadLeft:'string',accessoryHeadRight:'string',accessoryBody:'string',accessoryExtra:'string',chatId:'string',chatText:'string',emote:'string',petEmote:'string',petEmoteId:'string'});
 
-export class NpcState extends Schema {
-  declare id: string;
-  declare x: number;
-  declare y: number;
-  declare facing: 'left' | 'right';
-  declare moving: boolean;
-  declare updatedAt: number;
-
-  constructor() {
-    super();
-    this.id = '';
-    this.x = 0;
-    this.y = 0;
-    this.facing = 'right';
-    this.moving = false;
-    this.updatedAt = 0;
-  }
+export class NpcState {
+  id = '';
+  x = 0;
+  y = 0;
+  facing: 'left' | 'right' = 'right';
+  moving = false;
+  updatedAt = 0;
 }
-defineTypes(NpcState, {id:'string',x:'number',y:'number',facing:'string',moving:'boolean',updatedAt:'number'});
 
-export class SledPlayerState extends Schema {
-  declare userId: string;
-  declare displayName: string;
-  declare penguinColor: string;
-  declare x: number;
-  declare progress: number;
-  declare speed: number;
-  declare steering: number;
-  declare inputSeq: number;
-  declare effect: SledEffect;
-  declare effectUntil: number;
-  declare finishedAt: number;
-  declare rank: number;
-
-  constructor() {
-    super();
-    this.userId = '';
-    this.displayName = 'Player';
-    this.penguinColor = 'blue';
-    this.x = 0;
-    this.progress = 0;
-    this.speed = 0;
-    this.steering = 0;
-    this.inputSeq = 0;
-    this.effect = '';
-    this.effectUntil = 0;
-    this.finishedAt = 0;
-    this.rank = 0;
-  }
+export class SledPlayerState {
+  userId = '';
+  displayName = 'Player';
+  penguinColor = 'blue';
+  x = 0;
+  progress = 0;
+  speed = 0;
+  steering = 0;
+  inputSeq = 0;
+  effect: SledEffect = '';
+  effectUntil = 0;
+  finishedAt = 0;
+  rank = 0;
 }
-defineTypes(SledPlayerState, {
-  userId:'string',displayName:'string',penguinColor:'string',x:'number',progress:'number',speed:'number',
-  steering:'number',inputSeq:'number',effect:'string',effectUntil:'number',finishedAt:'number',rank:'number',
-});
 
-export class TownState extends Schema {
-  declare players: MapSchema<PlayerState>;
-  declare npcs: MapSchema<NpcState>;
-
-  constructor() {
-    super();
-    this.players = new MapSchema<PlayerState>();
-    this.npcs = new MapSchema<NpcState>();
-  }
+export class TownState {
+  players = new Map<string, PlayerState>();
+  npcs = new Map<string, NpcState>();
 }
-defineTypes(TownState, {players:{map:PlayerState},npcs:{map:NpcState}});
 
-export class SledRunState extends Schema {
-  declare racers: MapSchema<SledPlayerState>;
-  declare phase: SledPhase;
-  declare leader: string;
-  declare difficulty: SledDifficulty;
-  declare seed: string;
-  declare countdownAt: number;
-  declare startedAt: number;
-  declare serverTime: number;
-  declare round: number;
-
-  constructor() {
-    super();
-    this.racers = new MapSchema<SledPlayerState>();
-    this.phase = 'lobby';
-    this.leader = '';
-    this.difficulty = 'easy';
-    this.seed = '';
-    this.countdownAt = 0;
-    this.startedAt = 0;
-    this.serverTime = 0;
-    this.round = 0;
-  }
+export class SledRunState {
+  racers = new Map<string, SledPlayerState>();
+  phase: SledPhase = 'lobby';
+  leader = '';
+  difficulty: SledDifficulty = 'easy';
+  seed = '';
+  countdownAt = 0;
+  startedAt = 0;
+  serverTime = 0;
+  round = 0;
 }
-defineTypes(SledRunState, {
-  racers:{map:SledPlayerState},phase:'string',leader:'string',difficulty:'string',seed:'string',
-  countdownAt:'number',startedAt:'number',serverTime:'number',round:'number',
-});
 
 export {
   BONGBONGEE_TOWN,
@@ -689,3 +588,102 @@ export {
   townRosterAt,
   type TownNpcPoint,
 } from './townNpcs.js';
+
+/** Server move validator is looser than the advertised walk speed. */
+export const MAX_MOVE_SPEED = 280;
+export const MAX_MOVE_ELAPSED_SECONDS = 2;
+export const MAX_PET_DISTANCE = 160;
+export const SPAWN_RADIUS = 48;
+export const TOWN_SPAWNS = WORLD_SCENE_SPAWNS.town;
+
+export function canTransitionWorldScene(from: WorldScene, to: WorldScene) {
+  if (from === to) return true;
+  return from === 'town' || to === 'town';
+}
+
+export type PlayerVector = {
+  x: number;
+  y: number;
+  scene?: WorldScene;
+  lastSeq: number;
+  lastMoveAt: number;
+  lastWaveAt: number;
+};
+
+export function isApprovedWorldSpawn(scene: WorldScene, x: number, y: number) {
+  return WORLD_SCENE_SPAWNS[scene].some(
+    (spawn) => Math.hypot(x - spawn.x, y - spawn.y) <= SPAWN_RADIUS,
+  );
+}
+
+export function validateMove(
+  current: PlayerVector,
+  payload: unknown,
+  now: number,
+  allowSpawn: boolean | WorldScene = false,
+) {
+  const move = normalizeMovePayload(payload, current.scene ?? 'town');
+  if (!move || move.seq <= current.lastSeq) {
+    return { ok: false as const, reason: 'invalid' };
+  }
+
+  const petDx = move.petX - move.x;
+  const petDy = move.petY - move.y;
+  const petDistance = Math.hypot(petDx, petDy);
+
+  if (allowSpawn) {
+    if (typeof allowSpawn === 'string' && move.scene !== allowSpawn) {
+      return { ok: false as const, reason: 'scene' };
+    }
+    if (!isApprovedWorldSpawn(move.scene, move.x, move.y)) {
+      return { ok: false as const, reason: 'spawn' };
+    }
+  } else if (move.scene !== (current.scene ?? 'town')) {
+    return { ok: false as const, reason: 'scene' };
+  } else if (current.lastSeq === 0) {
+    // Multiplayer may finish connecting after the local player has already
+    // walked away from the scene entrance. Scene bounds still constrain this
+    // initial position; speed checks apply to every later move.
+  } else {
+    const elapsed = Math.min(
+      Math.max(0, now - current.lastMoveAt) / 1000,
+      MAX_MOVE_ELAPSED_SECONDS,
+    );
+    if (Math.hypot(move.x - current.x, move.y - current.y) > MAX_MOVE_SPEED * elapsed + MOVE_SLACK) {
+      return { ok: false as const, reason: 'speed' };
+    }
+  }
+
+  const accepted: MovePayload = { ...move };
+  if (petDistance > MAX_PET_DISTANCE) {
+    const scale = MAX_PET_DISTANCE / petDistance;
+    accepted.petX = move.x + petDx * scale;
+    accepted.petY = move.y + petDy * scale;
+  }
+
+  return { ok: true as const, move: accepted };
+}
+
+export function canChat(source: { lastChatAt: number }, now: number) {
+  return now - source.lastChatAt >= CHAT_COOLDOWN_MS;
+}
+
+export function canWave(
+  source: Pick<PlayerVector, 'x' | 'y' | 'lastWaveAt'>,
+  target: Pick<PlayerVector, 'x' | 'y'>,
+  now: number,
+) {
+  return (
+    now - source.lastWaveAt >= WAVE_COOLDOWN_MS &&
+    Math.hypot(source.x - target.x, source.y - target.y) <= WAVE_RADIUS
+  );
+}
+
+export { TownNpcSimulation, type NpcSnapshot } from './npcSimulation.js';
+export {
+  SledRaceSimulation,
+  dumpSledSimulation,
+  loadSledSimulation,
+  type SledRejectedClaim,
+  type SledSimSnapshot,
+} from './sledSimulation.js';

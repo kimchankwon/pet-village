@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Authenticated, Unauthenticated, AuthLoading, useAction, useConvexAuth, useMutation, useQuery } from 'convex/react';
+import { Authenticated, Unauthenticated, AuthLoading, useConvex, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { api } from '../convex/_generated/api';
 import { AuthPanel } from './ui/AuthPanel';
@@ -10,9 +10,10 @@ import { migratePetSpecies } from './systems/pets';
 import { blockUi, resetUiBlock, setLeaveHandler, unblockUi } from './systems/nav';
 import type Phaser from 'phaser';
 import { APP_VERSION } from './appVersion';
-import { connectMultiplayer, type MultiplayerConnection } from './systems/multiplayerClient';
+import { connectMultiplayer, pushVillageSnapshot, type MultiplayerConnection, type VillageSnapshot } from './systems/multiplayerClient';
 import { multiplayerBridge } from './systems/multiplayerBridge';
-import { setMultiplayerTicketIssuer } from './systems/multiplayerTickets';
+import { setConvexWorldClient } from './systems/convexWorld';
+import { setSledServerSnapshot } from './systems/sledRunClient';
 import { validateProfileNames } from './systems/profileNameRules';
 import { setLocalDisplayName } from './systems/localProfile';
 import { beginTextEntry, endTextEntry, textEntryKeyAction } from './systems/textEntry';
@@ -331,7 +332,9 @@ function CloudGame() {
   const upsert = useMutation(api.saves.upsertMine);
   const viewer = useQuery(api.users.viewer);
   const updateNames = useMutation(api.profiles.updateMine);
-  const issueTicket = useAction(api.multiplayer.issueTicket);
+  const convex = useConvex();
+  const villageSnap = useQuery(api.world.snapshot);
+  const sledSnap = useQuery(api.sled.snapshot);
   const { signOut } = useAuthActions();
   const [hydrated, setHydrated] = useState(false);
   const [gameKey, setGameKey] = useState(0);
@@ -405,12 +408,37 @@ function CloudGame() {
   }, [upsert]);
 
   useEffect(() => {
-    setMultiplayerTicketIssuer(() => issueTicket({ penguinColor: State.data.penguinColor ?? 'blue' }));
-    return () => setMultiplayerTicketIssuer(null);
-  }, [issueTicket]);
+    setConvexWorldClient({
+      join: (penguinColor) => convex.mutation(api.world.join, { penguinColor }),
+      leave: (sessionId) => convex.mutation(api.world.leave, { sessionId }),
+      move: (args) => convex.mutation(api.world.move, args),
+      setActive: (args) => convex.mutation(api.world.setActive, args),
+      setActivity: (sessionId, activity) => convex.mutation(api.world.setActivity, { sessionId, activity }),
+      refreshProfile: (sessionId, penguinColor) => convex.mutation(api.world.refreshProfile, { sessionId, penguinColor }),
+      wave: (sessionId, targetSessionId) => convex.mutation(api.world.wave, { sessionId, targetSessionId }),
+      emote: (sessionId, emote) => convex.mutation(api.world.emote, { sessionId, emote }),
+      petEmote: (sessionId, expression) => convex.mutation(api.world.petEmote, { sessionId, expression }),
+      chat: (sessionId, text) => convex.mutation(api.world.chat, { sessionId, text }),
+      sledJoin: (args) => convex.mutation(api.sled.join, args),
+      sledLeave: (sessionId) => convex.mutation(api.sled.leave, { sessionId }),
+      sledDifficulty: (sessionId, difficulty) => convex.mutation(api.sled.setDifficulty, { sessionId, difficulty }),
+      sledStart: (sessionId) => convex.mutation(api.sled.start, { sessionId }),
+      sledInput: (sessionId, steering, seq) => convex.mutation(api.sled.input, { sessionId, steering, seq }),
+      sledHit: (sessionId, itemId) => convex.mutation(api.sled.hit, { sessionId, itemId }),
+    });
+    return () => setConvexWorldClient(null);
+  }, [convex]);
 
   useEffect(() => {
-    if (!hydrated || !import.meta.env.VITE_MULTIPLAYER_URL) return;
+    pushVillageSnapshot((villageSnap as VillageSnapshot | null | undefined) ?? null);
+  }, [villageSnap]);
+
+  useEffect(() => {
+    setSledServerSnapshot(sledSnap ?? null);
+  }, [sledSnap]);
+
+  useEffect(() => {
+    if (!hydrated) return;
 
     let cancelled = false;
     let connection: MultiplayerConnection | undefined;
@@ -420,9 +448,7 @@ function CloudGame() {
       let delayMs = 1_000;
       while (!cancelled) {
         try {
-          const ticket = await issueTicket({ penguinColor: State.data.penguinColor ?? 'blue' });
-          if (cancelled) break;
-          connection = await connectMultiplayer(ticket, isCurrent);
+          connection = await connectMultiplayer(State.data.penguinColor ?? 'blue', isCurrent);
           delayMs = 1_000;
           await connection.closed;
           connection = undefined;
@@ -455,7 +481,7 @@ function CloudGame() {
       wakeMultiplayerRetryRef.current = null;
       void connection?.disconnect();
     };
-  }, [hydrated, issueTicket]);
+  }, [hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -468,8 +494,7 @@ function CloudGame() {
           const snapshot = State.snapshot();
           const { petName } = await upsert(snapshot);
           State.applyCanonicalPetName(snapshot.petName, petName);
-          const ticket = await issueTicket({ penguinColor: State.data.penguinColor ?? 'blue' });
-          multiplayerBridge.updateProfile(ticket);
+          multiplayerBridge.updateProfile('convex');
           // If ticket admission was backing off (for example while the player was
           // still on the adoption screen), retry immediately now that the
           // canonical profile exists.
@@ -482,7 +507,7 @@ function CloudGame() {
       window.removeEventListener(MULTIPLAYER_PROFILE_CHANGED_EVENT, publish);
       if (publishTimer !== null) window.clearTimeout(publishTimer);
     };
-  }, [hydrated, issueTicket, upsert]);
+  }, [hydrated, upsert]);
 
   useEffect(() => {
     if (!hydrated || !hostRef.current) return;
@@ -507,8 +532,7 @@ function CloudGame() {
     if (scene) applyPenguinColor(scene, id);
     void (async () => {
       await upsert(State.snapshot());
-      const ticket = await issueTicket({ penguinColor: id });
-      multiplayerBridge.updateProfile(ticket);
+      multiplayerBridge.updateProfile('convex');
     })().catch((error) => console.warn('Could not publish penguin colour update', error));
   }
 
@@ -516,8 +540,7 @@ function CloudGame() {
     const saved = await updateNames({ displayName, petName });
     State.renamePet(saved.petName);
     await upsert(State.snapshot());
-    const ticket = await issueTicket({ penguinColor: State.data.penguinColor ?? 'blue' });
-    multiplayerBridge.updateProfile(ticket);
+    multiplayerBridge.updateProfile('convex');
   }
 
   // Return to adopt without wiping the village; push the adopt=false

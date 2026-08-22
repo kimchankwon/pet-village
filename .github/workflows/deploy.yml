@@ -49,11 +49,7 @@ jobs:
       - run: npm ci
       - run: npm test
       # Vite picks up the committed .env.production (VITE_CONVEX_URL) for prod builds.
-      # VITE_MULTIPLAYER_URL must be configured as the public wss:// Colyseus endpoint;
-      # this Pages workflow intentionally does not host the long-lived server.
       - run: npm run build
-        env:
-          VITE_MULTIPLAYER_URL: ${{ vars.VITE_MULTIPLAYER_URL }}
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

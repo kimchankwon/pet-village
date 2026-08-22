@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateMove, canChat, canTransitionWorldScene, canWave, MAX_PET_DISTANCE } from '../src/policy.ts';
+import { validateMove, canChat, canTransitionWorldScene, canWave, MAX_PET_DISTANCE } from '../src/index.ts';
 
 const player = { x: 100, y: 100, lastSeq: 4, lastMoveAt: 1000, lastWaveAt: 0 };
 test('move policy enforces monotonic sequence, town bounds and speed plus slack', () => {

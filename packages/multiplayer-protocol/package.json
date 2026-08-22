@@ -8,9 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "test": "tsx --test test/*.test.ts"
   },
-  "dependencies": {
-    "@colyseus/schema": "4.0.30"
-  },
+  "dependencies": {},
   "devDependencies": {
     "tsx": "^4.23.1",
     "typescript": "^5.6.0"
