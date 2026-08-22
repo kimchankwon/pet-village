@@ -57,7 +57,7 @@ export class AdoptScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(cx, 92, 'Pick a companion — then give them a name.', {
+      .text(cx, 92, 'Pick a companion, then give them a name.', {
         ...FONT,
         fontSize: '12px',
         color: '#a89bc4',
