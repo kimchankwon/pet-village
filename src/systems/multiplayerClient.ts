@@ -1,13 +1,12 @@
-import { Client, type Room } from '@colyseus/sdk';
 import {
-  ROOM_NAME,
   isGameActivity,
   isWorldScene,
-  type ProfileRefreshResult,
-  type PlayerState,
+  NpcState,
+  PlayerState,
+  TownState,
   type PositionCorrection,
-  type TownState,
 } from '@pet-village/multiplayer-protocol';
+import { convexWorld } from './convexWorld';
 import {
   multiplayerBridge,
   type ConnectionId,
@@ -130,147 +129,162 @@ export function snapshotPlayers(
   return dedupeRemotePlayers(rows);
 }
 
-export async function connectMultiplayer(
-  ticket: string,
-  isCurrent: () => boolean,
-  url = import.meta.env.VITE_MULTIPLAYER_URL as string | undefined,
-): Promise<MultiplayerConnection> {
-  if (!url) throw new Error('VITE_MULTIPLAYER_URL is not configured');
+export type VillageSnapshot = {
+  userId: string;
+  players: Array<Partial<PlayerState> & { sessionId: string; userId: string }>;
+  npcs: Array<{ id: string; x: number; y: number; facing: 'left' | 'right'; moving: boolean; updatedAt: number }>;
+};
 
-  const client = new Client(url);
-  client.auth.token = ticket;
-  const room: Room<TownState> = await client.joinOrCreate<TownState>(ROOM_NAME);
+export function townStateFromSnapshot(snapshot: VillageSnapshot): TownState {
+  const state = new TownState();
+  for (const player of snapshot.players) {
+    const row = new PlayerState();
+    Object.assign(row, player);
+    state.players.set(player.sessionId, row);
+  }
+  for (const npc of snapshot.npcs) {
+    const row = new NpcState();
+    Object.assign(row, npc);
+    state.npcs.set(npc.id, row);
+  }
+  return state;
+}
+
+export function applyVillageSnapshot(
+  connectionId: ConnectionId,
+  snapshot: VillageSnapshot,
+  localSessionId: string,
+) {
+  const state = townStateFromSnapshot(snapshot);
+  multiplayerBridge.setRemote(
+    connectionId,
+    snapshotPlayers(state, localSessionId, snapshot.userId, multiplayerBridge.activeSceneId() ?? 'town'),
+  );
+  multiplayerBridge.setRoster(connectionId, snapshotRoster(state, localSessionId, snapshot.userId));
+  multiplayerBridge.setNpcs(connectionId, snapshotNpcs(state));
+}
+
+type VillageListener = (snapshot: VillageSnapshot) => void;
+const villageListeners = new Set<VillageListener>();
+let latestVillage: VillageSnapshot | null = null;
+
+export function pushVillageSnapshot(snapshot: VillageSnapshot | null) {
+  latestVillage = snapshot;
+  if (snapshot) villageListeners.forEach((listener) => listener(snapshot));
+}
+
+function applyCorrection(connectionId: ConnectionId, next?: PositionCorrection) {
+  if (next && [next.x, next.y, next.petX, next.petY].every(Number.isFinite)) {
+    multiplayerBridge.setPositionCorrection(connectionId, next);
+  }
+}
+
+export async function connectMultiplayer(
+  penguinColor: string,
+  isCurrent: () => boolean,
+): Promise<MultiplayerConnection & { sessionId: string; userId: string }> {
+  const world = convexWorld();
+  const joined = await world.join(penguinColor);
   if (!isCurrent()) {
-    await room.leave();
+    await world.leave(joined.sessionId);
     throw new Error('Stale multiplayer connection');
   }
 
   let connectionId: ConnectionId;
   let resolveClosed!: () => void;
   let finished = false;
-  let profileRequestSeq = 0;
   let profileRetryTimer: ReturnType<typeof setTimeout> | null = null;
-  let profileRetryTicket: string | null = null;
+  let profileRetryColor: string | null = null;
   let profileRetryAttempts = 0;
-  const profileRequests = new Map<string, string>();
   const closed = new Promise<void>((resolve) => {
     resolveClosed = resolve;
   });
+
+  const onVillage = (snapshot: VillageSnapshot) => {
+    applyVillageSnapshot(connectionId, snapshot, joined.sessionId);
+  };
 
   const finish = () => {
     if (finished) return;
     finished = true;
     if (profileRetryTimer) clearTimeout(profileRetryTimer);
     profileRetryTimer = null;
+    villageListeners.delete(onVillage);
     multiplayerBridge.uninstall(connectionId);
     resolveClosed();
   };
 
-  const sync = () => {
-    if (!room.state?.players) return;
-    const ownUserId = room.state.players.get(room.sessionId)?.userId;
-    multiplayerBridge.setRemote(
-      connectionId,
-      snapshotPlayers(
-        room.state,
-        room.sessionId,
-        ownUserId,
-        multiplayerBridge.activeSceneId() ?? 'town',
-      ),
-    );
-    // Separate from the scene-filtered rows above: comings and goings are about
-    // the server, not the room you happen to be standing in.
-    multiplayerBridge.setRoster(
-      connectionId,
-      snapshotRoster(room.state, room.sessionId, ownUserId),
-    );
-    multiplayerBridge.setNpcs(connectionId, snapshotNpcs(room.state));
-  };
-
   connectionId = multiplayerBridge.install({
-    send: ({ sceneId, ...pose }) => room.send('move', { ...pose, scene: sceneId }),
-    setActive: (active) => room.send('active', active),
-    setScene: ({ sceneId, ...pose }) => room.send('active', { active: true, scene: sceneId, pose }),
-    setActivity: (activity) => room.send('activity', activity),
-    resync: () => sync(),
-    updateProfile: (profileTicket) => {
-      if (profileRetryTicket !== profileTicket) {
-        profileRetryTicket = profileTicket;
-        profileRetryAttempts = 0;
-      }
-      const requestId = `${room.sessionId}:${++profileRequestSeq}`;
-      profileRequests.set(requestId, profileTicket);
-      while (profileRequests.size > 16) {
-        const oldest = profileRequests.keys().next().value;
-        if (oldest === undefined) break;
-        profileRequests.delete(oldest);
-      }
-      room.send('profile', { ticket: profileTicket, requestId });
+    send: ({ sceneId, ...pose }) => {
+      void world.move({ sessionId: joined.sessionId, scene: sceneId, ...pose }).then((result) => {
+        applyCorrection(connectionId, result?.correction);
+      });
+    },
+    setActive: (active) => {
+      void world.setActive({ sessionId: joined.sessionId, active }).then((result) => {
+        applyCorrection(connectionId, result?.correction);
+      });
+    },
+    setScene: ({ sceneId, ...pose }) => {
+      void world.setActive({
+        sessionId: joined.sessionId,
+        active: true,
+        scene: sceneId,
+        pose,
+      }).then((result) => {
+        applyCorrection(connectionId, result?.correction);
+      });
+    },
+    setActivity: (activity) => {
+      void world.setActivity(joined.sessionId, activity);
+    },
+    resync: () => undefined,
+    updateProfile: () => {
+      profileRetryColor = penguinColor;
+      profileRetryAttempts = 0;
+      void world.refreshProfile(joined.sessionId, penguinColor).then((result) => {
+        multiplayerBridge.profileRefreshResult(connectionId, 'convex', result.ok);
+        if (
+          !result.ok &&
+          profileRetryColor &&
+          Number.isFinite(result.retryAfterMs) &&
+          result.retryAfterMs! > 0 &&
+          ++profileRetryAttempts <= MAX_PROFILE_RETRIES
+        ) {
+          if (profileRetryTimer) clearTimeout(profileRetryTimer);
+          profileRetryTimer = setTimeout(() => {
+            profileRetryTimer = null;
+            if (!finished) multiplayerBridge.retryProfile(connectionId, 'convex');
+          }, Math.min(MAX_PROFILE_RETRY_DELAY_MS, Math.max(1, result.retryAfterMs!)));
+        }
+      });
     },
     leave: () => {
-      void room.leave();
+      void world.leave(joined.sessionId).finally(finish);
     },
-    wave: (id) => room.send('wave', { targetSessionId: id }),
-    emote: (emote) => room.send('emote', { emote }),
-    petEmote: (expression) => room.send('pet-emote', { expression }),
-    chat: (text) => room.send('chat', { text }),
+    wave: (id) => {
+      void world.wave(joined.sessionId, id);
+    },
+    emote: (emote) => {
+      void world.emote(joined.sessionId, emote);
+    },
+    petEmote: (expression) => {
+      void world.petEmote(joined.sessionId, expression);
+    },
+    chat: (text) => {
+      void world.chat(joined.sessionId, text);
+    },
   });
-  room.onMessage('positionCorrection', (next: PositionCorrection) => {
-    if ([next?.x, next?.y, next?.petX, next?.petY].every(Number.isFinite)) {
-      multiplayerBridge.setPositionCorrection(connectionId, next);
-    }
-  });
-  room.onMessage('profileRefreshed', (result: ProfileRefreshResult) => {
-    if (!result?.requestId) return;
-    const profileTicket = profileRequests.get(result.requestId);
-    profileRequests.delete(result.requestId);
-    if (profileTicket) {
-      const ok = result.ok === true;
-      multiplayerBridge.profileRefreshResult(connectionId, profileTicket, ok);
-      if (ok && profileRetryTicket === profileTicket) {
-        if (profileRetryTimer) clearTimeout(profileRetryTimer);
-        profileRetryTimer = null;
-        profileRetryTicket = null;
-        profileRetryAttempts = 0;
-      }
-      if (
-        !ok &&
-        profileRetryTicket === profileTicket &&
-        Number.isFinite(result.retryAfterMs) &&
-        result.retryAfterMs! > 0 &&
-        ++profileRetryAttempts <= MAX_PROFILE_RETRIES
-      ) {
-        if (profileRetryTimer) clearTimeout(profileRetryTimer);
-        profileRetryTimer = setTimeout(() => {
-          profileRetryTimer = null;
-          if (!finished) multiplayerBridge.retryProfile(connectionId, profileTicket);
-        }, Math.min(MAX_PROFILE_RETRY_DELAY_MS, Math.max(1, result.retryAfterMs!)));
-      }
-    }
-  });
-  room.onStateChange(sync);
-  room.onReconnect(() => {
-    if (finished) {
-      void room.leave();
-      return;
-    }
-    multiplayerBridge.republish(connectionId);
-  });
-  room.onLeave(finish);
-  room.onError((_code, message) => {
-    console.warn('Multiplayer connection error', message);
-    room.reconnection.enabled = false;
-    finish();
-    if (room.connection?.isOpen) void room.leave();
-  });
-  sync();
+  villageListeners.add(onVillage);
+  if (latestVillage) onVillage(latestVillage);
 
   return {
+    sessionId: joined.sessionId,
+    userId: joined.userId,
     closed,
     disconnect: async () => {
-      room.reconnection.enabled = false;
       finish();
-      if (room.connection?.isOpen) await room.leave();
+      await world.leave(joined.sessionId).catch(() => undefined);
     },
   };
 }

@@ -12,7 +12,7 @@ import {
 } from '@pet-village/multiplayer-protocol';
 import { configurePlayerPenguin, generateTextures } from '../sprites/pixelart';
 import { bindGameActivity } from '../systems/multiplayerGameActivity';
-import { hasMultiplayerTicketIssuer, requestMultiplayerTicket } from '../systems/multiplayerTickets';
+import { hasConvexWorldClient } from '../systems/convexWorld';
 import {
   connectSledRun,
   type SledRacerSnapshot,
@@ -30,6 +30,7 @@ import {
 } from '../systems/sledRunPrediction';
 import { sledRunReward } from '../systems/sledRunRewards';
 import { State } from '../systems/GameState';
+import { localDisplayName } from '../systems/localProfile';
 import { SLED_RUN_ENERGY_COST, tooTiredMessage } from '../systems/gameEnergy';
 
 const COLOR_TINT: Record<string, number> = {
@@ -138,7 +139,7 @@ export class SledRunScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
     this.events.once(Phaser.Scenes.Events.DESTROY, cleanup);
 
-    if (hasMultiplayerTicketIssuer() && import.meta.env.VITE_MULTIPLAYER_URL) {
+    if (hasConvexWorldClient()) {
       this.statusText.setText('Connecting to the mountain…');
       void this.connect(epoch);
     } else {
@@ -148,8 +149,11 @@ export class SledRunScene extends Phaser.Scene {
 
   private async connect(epoch: number) {
     try {
-      const ticket = await requestMultiplayerTicket();
-      const connection = await connectSledRun(ticket, () => this.sceneEpoch === epoch && this.scene.isActive());
+      const connection = await connectSledRun(
+        State.data.penguinColor ?? 'blue',
+        localDisplayName(),
+        () => this.sceneEpoch === epoch && this.scene.isActive(),
+      );
       if (this.sceneEpoch !== epoch) {
         await connection.disconnect();
         return;
