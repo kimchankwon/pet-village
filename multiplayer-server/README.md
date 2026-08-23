@@ -1,6 +1,6 @@
 # Pet Village multiplayer server
 
-Long-lived Colyseus 0.17 server for the authenticated `town_default` room. Convex remains responsible for authentication and durable saves. It issues one-use, 60-second admission JWTs.
+Long-lived Colyseus 0.17 server for the authenticated `town_default` room. Convex remains responsible for authentication and durable saves. It issues short-lived, 60-second admission JWTs.
 
 ## Local
 
@@ -50,8 +50,8 @@ docker run --rm -p 2567:2567 \
   pet-village-multiplayer
 ```
 
-Configure `PORT`, `MULTIPLAYER_TICKET_SECRET`, and comma-separated `CORS_ORIGINS` on the host. Configure the identical secret in the production Convex deployment, then set the GitHub Actions repository variable `VITE_MULTIPLAYER_URL=wss://your-host`. The Pages workflow injects it during the production build. Keep `https://kimchankwon.github.io` in allowed origins.
+This example listens on 2567, matching `-p 2567:2567`. If you set `PORT` to something else, publish that same port. Also set `MULTIPLAYER_TICKET_SECRET` and comma-separated `CORS_ORIGINS` on the host. Configure the identical secret in the production Convex deployment, then set the GitHub Actions repository variable `VITE_MULTIPLAYER_URL=wss://your-host`. The Pages workflow injects it during the production build. Keep `https://kimchankwon.github.io` in allowed origins.
 
-The current HS256 design is used because Convex actions and Node both support it. The server and Convex jointly hold the signing key. Rotate both together. An EdDSA/ES256 key pair would reduce trust at the game server but needs managed private/public key provisioning.
+The current HS256 design is used because Convex actions and Node both support it. The server and Convex jointly hold the signing key. Rotate both together. An EdDSA/ES256 key pair would reduce trust at the game server but requires managed private/public-key provisioning.
 
 `GET /healthz` reports process/protocol health. This repository's Pages workflow deploys only `dist` and Convex. It does not deploy the long-lived server.
