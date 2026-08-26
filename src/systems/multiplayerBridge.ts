@@ -189,7 +189,7 @@ export const multiplayerBridge = {
     fn(npcRows);
     return () => npcListeners.delete(fn);
   },
-  /** True while a Colyseus connection is installed (may still be empty of peers). */
+  /** True while a village connection is installed (may still be empty of peers). */
   isConnected() {
     return connectionId !== null && actions !== null;
   },

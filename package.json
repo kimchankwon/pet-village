@@ -13,9 +13,6 @@
     "preview": "vite preview",
     "test": "vitest run && npx tsx --test scripts/lib/*.test.mjs src/systems/*.test.ts && npm test -w @pet-village/multiplayer-protocol",
     "sim:fishing": "tsx scripts/fishing-sim.mts",
-    "smoke:sled": "tsx scripts/sled-smoke.mts",
-    "smoke:worlds": "tsx scripts/smoke-multiplayer-worlds.mts",
-    "smoke:presence": "tsx scripts/sanity-chat-log-presence.mts",
     "sprite:repair": "node scripts/repair-sprite-outline.mjs",
     "sprite:miniteen": "tsx scripts/imagine-to-miniteen.mts",
     "sprite:puffles": "tsx scripts/imagine-to-puffles.mts",
@@ -41,7 +38,6 @@
     "@convex-dev/auth": "^0.0.94",
     "@pet-village/multiplayer-protocol": "1.27.0",
     "convex": "^1.42.1",
-    "jose": "^6.1.0",
     "phaser": "^3.90.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

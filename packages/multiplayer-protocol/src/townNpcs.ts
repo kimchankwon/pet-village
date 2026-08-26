@@ -1,5 +1,5 @@
 /**
- * Authoritative Town villager roster — shared by the Colyseus server and the
+ * Authoritative Town villager roster — shared by the Convex simulation and the
  * browser's offline fallback so solo play and multiplayer agree on who is out.
  */
 

@@ -14,8 +14,6 @@ import type * as http from "../http.js";
 import type * as lib_admissionProfile from "../lib/admissionProfile.js";
 import type * as lib_profileNames from "../lib/profileNames.js";
 import type * as lib_validators from "../lib/validators.js";
-import type * as multiplayer from "../multiplayer.js";
-import type * as multiplayerProfile from "../multiplayerProfile.js";
 import type * as profiles from "../profiles.js";
 import type * as saves from "../saves.js";
 import type * as sled from "../sled.js";
@@ -35,8 +33,6 @@ declare const fullApi: ApiFromModules<{
   "lib/admissionProfile": typeof lib_admissionProfile;
   "lib/profileNames": typeof lib_profileNames;
   "lib/validators": typeof lib_validators;
-  multiplayer: typeof multiplayer;
-  multiplayerProfile: typeof multiplayerProfile;
   profiles: typeof profiles;
   saves: typeof saves;
   sled: typeof sled;
