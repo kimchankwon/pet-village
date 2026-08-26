@@ -5,15 +5,15 @@ import { useAuthActions } from '@convex-dev/auth/react';
 import { api } from '../convex/_generated/api';
 import { AuthPanel } from './ui/AuthPanel';
 import { startGame } from './game/startGame';
-import { State, MULTIPLAYER_PROFILE_CHANGED_EVENT, type SaveData } from './systems/GameState';
+import { State, MULTIPLAYER_PROFILE_CHANGED_EVENT } from './systems/GameState';
 import { applyPenguinColor, PENGUIN_COLORS } from './sprites/pixelart';
-import { migratePetSpecies } from './systems/pets';
 import { blockUi, resetUiBlock, setLeaveHandler, unblockUi } from './systems/nav';
 import type Phaser from 'phaser';
 import { APP_VERSION } from './appVersion';
 import { connectMultiplayer, pushVillageSnapshot, type MultiplayerConnection, type VillageSnapshot } from './systems/multiplayerClient';
 import { multiplayerBridge } from './systems/multiplayerBridge';
 import { setConvexWorldClient } from './systems/convexWorld';
+import { hydrationFromCloudSave } from './systems/cloudSave';
 import { setSledServerSnapshot } from './systems/sledRunClient';
 import { validateProfileNames } from './systems/profileNameRules';
 import { setLocalDisplayName } from './systems/localProfile';
@@ -439,27 +439,7 @@ function CloudGame() {
       unsubscribe();
 
       if (cloudSave) {
-        State.hydrate({
-          version: cloudSave.version,
-          coins: cloudSave.coins,
-          petName: cloudSave.petName,
-          petSpecies: migratePetSpecies(cloudSave.petSpecies),
-          adopted: cloudSave.adopted,
-          pet: cloudSave.pet,
-          lastSeen: cloudSave.lastSeen,
-          inventory: cloudSave.inventory,
-          placed: cloudSave.placed,
-          bestPaperToss: cloudSave.bestPaperToss,
-          biggestCatch: cloudSave.biggestCatch ?? 0,
-          // Keep the better personal best if the device scored offline.
-          bestSkipRope: Math.max(State.data.bestSkipRope, cloudSave.bestSkipRope ?? 0),
-          ownedAccessories: cloudSave.ownedAccessories as SaveData['ownedAccessories'] | undefined,
-          equippedAccessories: cloudSave.equippedAccessories as
-            | SaveData['equippedAccessories']
-            | undefined,
-          penguinColor: cloudSave.penguinColor,
-          townPosition: cloudSave.townPosition,
-        });
+        State.hydrate(hydrationFromCloudSave(cloudSave, State.data.bestSkipRope));
         // hydrate() applied offline decay locally; push that (and the fresh
         // lastSeen) to the cloud so an immediate sign-out can't leave the
         // cloud stale. The saver was registered by the effect above on mount.
