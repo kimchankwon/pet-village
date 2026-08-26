@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Authenticated, Unauthenticated, AuthLoading, useConvex, useConvexAuth, useMutation, useQuery } from 'convex/react';
+import { Authenticated, Unauthenticated, AuthLoading, useConvex, useConvexAuth, useMutation, useQuery, type ConvexReactClient } from 'convex/react';
+import type { FunctionReference, FunctionReturnType } from 'convex/server';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { api } from '../convex/_generated/api';
 import { AuthPanel } from './ui/AuthPanel';
@@ -327,14 +328,60 @@ function PlayChrome({
   );
 }
 
+/**
+ * Feed a Convex query into a sink that is not React.
+ *
+ * `useQuery` re-renders its component on every server patch, and the village
+ * publishes one for every step any player takes — plus one per Sled Run tick
+ * (20/s) to everyone signed in, racing or not. None of that is drawn by React:
+ * it reaches Phaser through module-level sinks. Watching the query imperatively
+ * keeps those patches off the render path, where they were re-rendering the
+ * whole play shell dozens of times a second and stealing frames from the game
+ * loop.
+ */
+function useConvexSink<Query extends FunctionReference<'query'>>(
+  convex: ConvexReactClient,
+  query: Query,
+  sink: (value: FunctionReturnType<Query>) => void,
+) {
+  useEffect(() => {
+    const watch = convex.watchQuery(query, {});
+    const publish = () => {
+      let value: FunctionReturnType<Query> | undefined;
+      try {
+        value = watch.localQueryResult();
+      } catch (error) {
+        console.warn('Village subscription failed', error);
+        return;
+      }
+      // Undefined is "not loaded yet", not an empty village — the sinks keep
+      // showing the last snapshot until a real one lands.
+      if (value === undefined) return;
+      sink(value);
+    };
+    const unsubscribe = watch.onUpdate(publish);
+    // onUpdate only fires on *changes*, so a result the client already holds
+    // (a remount inside one session) needs reading out by hand.
+    publish();
+    return unsubscribe;
+  }, [convex, query, sink]);
+}
+
+// Module scope so their identities are stable across renders and the
+// subscriptions above are never torn down and rebuilt.
+function publishVillage(snapshot: FunctionReturnType<typeof api.world.snapshot>) {
+  pushVillageSnapshot((snapshot as VillageSnapshot | null) ?? null);
+}
+
+function publishSled(snapshot: FunctionReturnType<typeof api.sled.snapshot>) {
+  setSledServerSnapshot(snapshot ?? null);
+}
+
 function CloudGame() {
-  const cloudSave = useQuery(api.saves.getMine);
   const upsert = useMutation(api.saves.upsertMine);
   const viewer = useQuery(api.users.viewer);
   const updateNames = useMutation(api.profiles.updateMine);
   const convex = useConvex();
-  const villageSnap = useQuery(api.world.snapshot);
-  const sledSnap = useQuery(api.sled.snapshot);
   const { signOut } = useAuthActions();
   const [hydrated, setHydrated] = useState(false);
   const [gameKey, setGameKey] = useState(0);
@@ -348,45 +395,6 @@ function CloudGame() {
   useEffect(() => {
     setLocalDisplayName(viewer?.name ?? '');
   }, [viewer?.name]);
-
-  // Hydrate exactly once, from the first cloud snapshot. Every save echoes
-  // back through this subscription; re-hydrating from an echo would clobber
-  // anything the player did since that (already stale) snapshot was taken.
-  useEffect(() => {
-    if (cloudSave === undefined || hydratedRef.current) return;
-    hydratedRef.current = true;
-
-    if (cloudSave) {
-      State.hydrate({
-        version: cloudSave.version,
-        coins: cloudSave.coins,
-        petName: cloudSave.petName,
-        petSpecies: migratePetSpecies(cloudSave.petSpecies),
-        adopted: cloudSave.adopted,
-        pet: cloudSave.pet,
-        lastSeen: cloudSave.lastSeen,
-        inventory: cloudSave.inventory,
-        placed: cloudSave.placed,
-        bestPaperToss: cloudSave.bestPaperToss,
-        biggestCatch: cloudSave.biggestCatch ?? 0,
-        // Keep the better personal best if the device scored offline.
-        bestSkipRope: Math.max(State.data.bestSkipRope, cloudSave.bestSkipRope ?? 0),
-        ownedAccessories: cloudSave.ownedAccessories as SaveData['ownedAccessories'] | undefined,
-        equippedAccessories: cloudSave.equippedAccessories as
-          | SaveData['equippedAccessories']
-          | undefined,
-        penguinColor: cloudSave.penguinColor,
-        townPosition: cloudSave.townPosition,
-      });
-      // hydrate() applied offline decay locally; push that (and the fresh
-      // lastSeen) to the cloud so an immediate sign-out can't leave the
-      // cloud stale. The saver was registered by the effect below on mount.
-      State.save();
-    } else {
-      void upsert(State.snapshot());
-    }
-    setHydrated(true);
-  }, [cloudSave, upsert]);
 
   useEffect(() => {
     State.setCloudSaver((data) => {
@@ -406,6 +414,65 @@ function CloudGame() {
       State.setAdoptionSaver(null);
     };
   }, [upsert]);
+
+  // Hydrate exactly once, from the first cloud snapshot, then drop the
+  // subscription. Every save echoes back through it; re-hydrating from an echo
+  // would clobber anything the player did since that (already stale) snapshot
+  // was taken, and staying subscribed re-rendered the whole shell on every
+  // autosave for a value that is read once. Declared after the saver effect so
+  // the `State.save()` below always has somewhere to write.
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    const watch = convex.watchQuery(api.saves.getMine, {});
+    let unsubscribe = () => {};
+    const consume = () => {
+      if (hydratedRef.current) return;
+      let cloudSave: FunctionReturnType<typeof api.saves.getMine> | undefined;
+      try {
+        cloudSave = watch.localQueryResult();
+      } catch (error) {
+        console.warn('Could not load your saved village', error);
+        return;
+      }
+      if (cloudSave === undefined) return;
+      hydratedRef.current = true;
+      unsubscribe();
+
+      if (cloudSave) {
+        State.hydrate({
+          version: cloudSave.version,
+          coins: cloudSave.coins,
+          petName: cloudSave.petName,
+          petSpecies: migratePetSpecies(cloudSave.petSpecies),
+          adopted: cloudSave.adopted,
+          pet: cloudSave.pet,
+          lastSeen: cloudSave.lastSeen,
+          inventory: cloudSave.inventory,
+          placed: cloudSave.placed,
+          bestPaperToss: cloudSave.bestPaperToss,
+          biggestCatch: cloudSave.biggestCatch ?? 0,
+          // Keep the better personal best if the device scored offline.
+          bestSkipRope: Math.max(State.data.bestSkipRope, cloudSave.bestSkipRope ?? 0),
+          ownedAccessories: cloudSave.ownedAccessories as SaveData['ownedAccessories'] | undefined,
+          equippedAccessories: cloudSave.equippedAccessories as
+            | SaveData['equippedAccessories']
+            | undefined,
+          penguinColor: cloudSave.penguinColor,
+          townPosition: cloudSave.townPosition,
+        });
+        // hydrate() applied offline decay locally; push that (and the fresh
+        // lastSeen) to the cloud so an immediate sign-out can't leave the
+        // cloud stale. The saver was registered by the effect above on mount.
+        State.save();
+      } else {
+        void upsert(State.snapshot());
+      }
+      setHydrated(true);
+    };
+    unsubscribe = watch.onUpdate(consume);
+    consume();
+    return () => unsubscribe();
+  }, [convex, upsert]);
 
   useEffect(() => {
     setConvexWorldClient({
@@ -429,13 +496,16 @@ function CloudGame() {
     return () => setConvexWorldClient(null);
   }, [convex]);
 
-  useEffect(() => {
-    pushVillageSnapshot((villageSnap as VillageSnapshot | null | undefined) ?? null);
-  }, [villageSnap]);
+  useConvexSink(convex, api.world.snapshot, publishVillage);
+  useConvexSink(convex, api.sled.snapshot, publishSled);
 
-  useEffect(() => {
-    setSledServerSnapshot(sledSnap ?? null);
-  }, [sledSnap]);
+  // The sinks are module state and outlive this component. Signing out has to
+  // empty them, or the next player to sign in on the same page starts out
+  // looking at the previous one's village.
+  useEffect(() => () => {
+    pushVillageSnapshot(null);
+    setSledServerSnapshot(null);
+  }, []);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -554,7 +624,7 @@ function CloudGame() {
     setGameKey((k) => k + 1);
   }
 
-  if (cloudSave === undefined || !hydrated) {
+  if (!hydrated) {
     return (
       <div className="boot">
         <div className="boot-stack">

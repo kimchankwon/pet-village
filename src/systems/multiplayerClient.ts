@@ -12,6 +12,7 @@ import {
   type ConnectionId,
   type RemoteNpc,
   type RemotePresence,
+  type ScenePayload,
   type WorldSceneId,
 } from './multiplayerBridge';
 import { dedupeRemotePlayers, isVisibleRemotePlayer } from './multiplayerPresentation';
@@ -150,18 +151,43 @@ export function townStateFromSnapshot(snapshot: VillageSnapshot): TownState {
   return state;
 }
 
+/**
+ * What the last snapshot resolved to, so an identical one can be dropped.
+ *
+ * Your own steps land in the same presence table everyone else's do, so walking
+ * across an empty Town has the server push a fresh snapshot ten times a second
+ * — every one of them describing peers that have not moved. Applying those
+ * re-ran the whole roster diff and re-positioned every remote sprite and
+ * nametag for nothing. Keyed by connection so a reconnect always starts fresh.
+ */
+let appliedVillage: { connectionId: ConnectionId; players: string; roster: string; npcs: string } | null = null;
+
+/** The roster only ever reads session ids and names; the rest is churn. */
+function rosterSignature(rows: ReadonlyArray<{ sessionId: string; name: string }>) {
+  return rows.map((row) => `${row.sessionId}\u0000${row.name}`).join('\u0001');
+}
+
 export function applyVillageSnapshot(
   connectionId: ConnectionId,
   snapshot: VillageSnapshot,
   localSessionId: string,
+  force = false,
 ) {
   const state = townStateFromSnapshot(snapshot);
-  multiplayerBridge.setRemote(
+  const players = snapshotPlayers(state, localSessionId, snapshot.userId, multiplayerBridge.activeSceneId() ?? 'town');
+  const roster = snapshotRoster(state, localSessionId, snapshot.userId);
+  const npcs = snapshotNpcs(state);
+  const next = {
     connectionId,
-    snapshotPlayers(state, localSessionId, snapshot.userId, multiplayerBridge.activeSceneId() ?? 'town'),
-  );
-  multiplayerBridge.setRoster(connectionId, snapshotRoster(state, localSessionId, snapshot.userId));
-  multiplayerBridge.setNpcs(connectionId, snapshotNpcs(state));
+    players: JSON.stringify(players),
+    roster: rosterSignature(roster),
+    npcs: JSON.stringify(npcs),
+  };
+  const previous = !force && appliedVillage?.connectionId === connectionId ? appliedVillage : null;
+  appliedVillage = next;
+  if (!previous || previous.players !== next.players) multiplayerBridge.setRemote(connectionId, players);
+  if (!previous || previous.roster !== next.roster) multiplayerBridge.setRoster(connectionId, roster);
+  if (!previous || previous.npcs !== next.npcs) multiplayerBridge.setNpcs(connectionId, npcs);
 }
 
 type VillageListener = (snapshot: VillageSnapshot) => void;
@@ -193,6 +219,17 @@ export async function connectMultiplayer(
   let connectionId: ConnectionId;
   let resolveClosed!: () => void;
   let finished = false;
+  // At most one move mutation in flight, holding only the newest pose.
+  //
+  // The scene offers a pose every 100ms whether or not the last one has landed.
+  // Firing each one regardless piles them up on a slow link, and the server
+  // measures speed between *arrivals*: a burst that arrives back-to-back reads
+  // as teleporting, gets rejected, and answers with a correction that yanks the
+  // penguin backwards. Waiting for the previous mutation paces the sends to the
+  // round trip on its own, and dropping the poses that went stale while waiting
+  // costs nothing — only the latest one is true.
+  let moveInFlight = false;
+  let pendingMove: (ScenePayload & { seq: number }) | null = null;
   let profileRetryTimer: ReturnType<typeof setTimeout> | null = null;
   let profileRetryColor: string | null = null;
   let profileRetryAttempts = 0;
@@ -200,8 +237,25 @@ export async function connectMultiplayer(
     resolveClosed = resolve;
   });
 
-  const onVillage = (snapshot: VillageSnapshot) => {
-    applyVillageSnapshot(connectionId, snapshot, joined.sessionId);
+  const flushMove = () => {
+    if (moveInFlight || finished) return;
+    const next = pendingMove;
+    if (!next) return;
+    pendingMove = null;
+    moveInFlight = true;
+    const { sceneId, ...pose } = next;
+    void world
+      .move({ sessionId: joined.sessionId, scene: sceneId, ...pose })
+      .then((result) => applyCorrection(connectionId, result?.correction))
+      .catch(() => undefined)
+      .finally(() => {
+        moveInFlight = false;
+        flushMove();
+      });
+  };
+
+  const onVillage = (snapshot: VillageSnapshot, force = false) => {
+    applyVillageSnapshot(connectionId, snapshot, joined.sessionId, force);
   };
 
   const finish = () => {
@@ -209,16 +263,16 @@ export async function connectMultiplayer(
     finished = true;
     if (profileRetryTimer) clearTimeout(profileRetryTimer);
     profileRetryTimer = null;
+    pendingMove = null;
     villageListeners.delete(onVillage);
     multiplayerBridge.uninstall(connectionId);
     resolveClosed();
   };
 
   connectionId = multiplayerBridge.install({
-    send: ({ sceneId, ...pose }) => {
-      void world.move({ sessionId: joined.sessionId, scene: sceneId, ...pose }).then((result) => {
-        applyCorrection(connectionId, result?.correction);
-      });
+    send: (pose) => {
+      pendingMove = pose;
+      flushMove();
     },
     setActive: (active) => {
       void world.setActive({ sessionId: joined.sessionId, active }).then((result) => {
@@ -238,7 +292,12 @@ export async function connectMultiplayer(
     setActivity: (activity) => {
       void world.setActivity(joined.sessionId, activity);
     },
-    resync: () => undefined,
+    // Peers are filtered by the scene being drawn, so a scene change has to
+    // re-derive the roster from the snapshot already in hand instead of waiting
+    // for the next server patch to bring everyone back.
+    resync: () => {
+      if (latestVillage) onVillage(latestVillage, true);
+    },
     updateProfile: () => {
       profileRetryColor = penguinColor;
       profileRetryAttempts = 0;
