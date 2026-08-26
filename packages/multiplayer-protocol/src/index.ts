@@ -1,6 +1,4 @@
 export const PROTOCOL_VERSION = 15 as const;
-export const ROOM_NAME = 'town_default';
-export const SLED_RUN_ROOM = 'sled_run';
 /** Expanded ice-town hub (32×22 tiles × 48px). */
 export const TOWN_BOUNDS = { width: 32 * 48, height: 22 * 48 } as const;
 export const WORLD_SCENES = [
@@ -98,8 +96,6 @@ export type MovePayload = {scene:WorldScene;x:number;y:number;petX:number;petY:n
 export type ActivityPose = Omit<MovePayload, 'scene' | 'seq'>;
 export type ActivityPayload = { active: boolean; scene: WorldScene; pose?: ActivityPose };
 export type PositionCorrection = { scene: WorldScene; x: number; y: number; petX: number; petY: number; recoverScene?: boolean };
-export type ProfileRefreshPayload = { ticket: string; requestId?: string };
-export type ProfileRefreshResult = { ok: boolean; requestId?: string; retryAfterMs?: number };
 export type WavePayload = { targetSessionId: string };
 /**
  * Player move emote (N menu). Empty string clears.
@@ -124,37 +120,6 @@ export function isPetExpression(value: unknown): value is PetExpression {
 }
 export type PetEmotePayload = { expression: PetExpression | '' };
 export type ChatPayload = { text: string };
-export type TownPositionClaim = { x: number; y: number; facing: Facing };
-export type EquippedAccessoriesClaim = {
-  headLeft?: string;
-  headRight?: string;
-  body?: string;
-  extra?: string;
-};
-export type AdmissionClaims = {
-  sub: string;
-  displayName: string;
-  petName: string;
-  petSpecies: string;
-  penguinColor: string;
-  equippedAccessories?: EquippedAccessoriesClaim;
-  townPosition?: TownPositionClaim;
-  protocolVersion: number;
-  jti: string;
-  iat: number;
-  exp: number;
-  iss: string;
-  aud: string | string[];
-};
-export type AdmissionProfile = {
-  identity: string;
-  displayName: string;
-  petName: string;
-  petSpecies: string;
-  penguinColor: string;
-  equippedAccessories?: EquippedAccessoriesClaim;
-  townPosition?: TownPositionClaim;
-};
 
 export function isGameActivity(value: unknown): value is GameActivity {
   return typeof value === 'string' && (GAME_ACTIVITIES as readonly string[]).includes(value);

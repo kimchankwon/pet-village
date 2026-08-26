@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { sanitizeEquippedAccessories } from './lib/admissionProfile';
+import { sanitizeEquippedAccessories } from './admissionProfile';
 
 describe('multiplayer admission profile', () => {
   test('drops malformed and overlong accessory ids without rejecting admission', () => {

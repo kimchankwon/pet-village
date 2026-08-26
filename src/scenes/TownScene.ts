@@ -784,7 +784,7 @@ export class TownScene extends Phaser.Scene {
   private syncNpcs(rows: RemoteNpc[]) {
     // Empty list = multiplayer has never delivered a roster (guest, offline, or
     // first frame). Keep Town populated with the same clock roster the server
-    // uses. A non-empty list always comes from the live Colyseus room.
+    // uses. A non-empty list always comes from the live village snapshot.
     if (rows.length === 0) {
       this.useLocalTownNpcs();
       return;

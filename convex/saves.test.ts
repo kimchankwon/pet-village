@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest } from 'convex-test';
 import { describe, expect, test } from 'vitest';
-import { api, internal } from './_generated/api';
+import { api } from './_generated/api';
 import schema from './schema';
 import { upsertCanonicalSave } from './saves';
 
@@ -237,21 +237,29 @@ describe('canonical cloud saves', () => {
     expect(docs.save?.petName).toBe('Fluffy');
   });
 
-  test('admission reads only the canonical profile provisioned with the save', async () => {
+  // Admission used to be read by the JWT ticket action that fed the Colyseus
+  // host. That is gone; `world.join` is what gates the village now, so this
+  // asserts against the path that actually runs.
+  test('joining the village reads only the canonical profile provisioned with the save', async () => {
     const t = convexTest(schema, modules);
     const userId = await t.run((ctx) => ctx.db.insert('users', { name: 'Alice' }));
     const asUser = t.withIdentity({ subject: String(userId), issuer: 'test' });
 
-    await expect(asUser.query(internal.multiplayerProfile.admissionProfile)).rejects.toThrow(
+    await expect(asUser.mutation(api.world.join, { penguinColor: 'blue' })).rejects.toThrow(
       'Canonical adopted profile required',
     );
     await t.mutation((ctx) => upsertCanonicalSave(ctx, userId, save('Mochi')));
 
-    await expect(asUser.query(internal.multiplayerProfile.admissionProfile)).resolves.toMatchObject({
-      identity: String(userId),
+    const joined = await asUser.mutation(api.world.join, { penguinColor: 'blue' });
+    expect(joined.userId).toBe(String(userId));
+    const presence = await t.run((ctx) =>
+      ctx.db.query('presence').withIndex('by_session', (q) => q.eq('sessionId', joined.sessionId)).unique(),
+    );
+    expect(presence).toMatchObject({
       displayName: 'Alice',
       petName: 'Mochi',
       petSpecies: 'mametchi',
+      penguinColor: 'blue',
     });
   });
 });
