@@ -1,34 +1,23 @@
+import type { FunctionReturnType } from 'convex/server';
 import { migratePetSpecies } from './pets';
+import type { api } from '../../convex/_generated/api';
 import type { SaveData } from './GameState';
 
 /**
- * A cloud save row, as `saves.getMine` returns it.
+ * A cloud save row, minus the fields that belong to the document rather than to
+ * the player's progress.
  *
- * Deliberately structural rather than the generated Convex type: this module is
- * the seam between the two shapes, and it has to be importable by a plain node
- * test with no codegen in reach.
+ * Derived from the query's own return type rather than hand-written, so a column
+ * added to the `saves` table in `convex/schema.ts` lands here on its own — the
+ * generated data model reads that schema directly, with no codegen step in
+ * between. That is what makes the fixture in the tests, declared
+ * `Required<CloudSaveRow>`, fail to compile until the new field is accounted
+ * for, and the projection test fail until it is actually carried across.
  */
-export type CloudSaveRow = {
-  version: number;
-  coins: number;
-  petName: string;
-  petSpecies?: string;
-  adopted?: boolean;
-  pet: SaveData['pet'];
-  lastSeen: number;
-  inventory: Record<string, number>;
-  placed: SaveData['placed'];
-  bestPaperToss: number;
-  biggestCatch?: number;
-  bestSkipRope?: number;
-  expeditionWins?: Record<string, number>;
-  ownedAccessories?: readonly string[];
-  equippedAccessories?: Record<string, string>;
-  penguinColor?: string;
-  townPosition?: SaveData['townPosition'];
-  quests?: Record<string, 'active' | 'completed'>;
-  questCounters?: Record<string, number>;
-};
+export type CloudSaveRow = Omit<
+  NonNullable<FunctionReturnType<typeof api.saves.getMine>>,
+  '_id' | '_creationTime' | 'userId' | 'updatedAt'
+>;
 
 /**
  * Project a cloud save onto the payload `State.hydrate` expects.
@@ -38,7 +27,9 @@ export type CloudSaveRow = {
  * `State.save()` that follows — a field missed here is silent data loss, not a
  * missing read. That is what happened to expedition and quest progress, which
  * the cloud has always stored and this projection used to drop, wiping both on
- * every sign-in. `cloudSaveIsFullyProjected` in the tests guards the shape.
+ * every sign-in. The tests guard the shape from both ends: the fixture cannot
+ * compile while a cloud field is unaccounted for, and the projection test walks
+ * the row's own keys.
  *
  * Device-local fields (`penguinColor` aside) are not listed on purpose: the
  * cloud does not store `npcGiftDays` or `equippedPenguinAccessories`, and

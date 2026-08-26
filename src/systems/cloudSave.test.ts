@@ -5,8 +5,12 @@ import { hydrationFromCloudSave, type CloudSaveRow } from './cloudSave';
 /**
  * A cloud row with every field set to something distinguishable from its
  * default, so a dropped field shows up as a default rather than as itself.
+ *
+ * `Required<CloudSaveRow>` is the point: `CloudSaveRow` is derived from
+ * `saves.getMine`, so adding a field to the cloud breaks this fixture at compile
+ * time rather than letting it quietly go untested.
  */
-function fullCloudSave(): CloudSaveRow {
+function fullCloudSave(): Required<CloudSaveRow> {
   return {
     version: 3,
     coins: 420,
