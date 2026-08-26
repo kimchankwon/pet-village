@@ -5,4 +5,4 @@
  * feature ships. Patch for fixes, minor for features, major for breaking
  * changes. Keep both files in sync.
  */
-export const APP_VERSION = '1.40.0';
+export const APP_VERSION = '1.40.1';
