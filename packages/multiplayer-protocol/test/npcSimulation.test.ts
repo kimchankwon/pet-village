@@ -2,12 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { TOWN_BOUNDS } from '../src/index.ts';
 import {
+  NPC_MAX_CATCH_UP_MS,
+  NPC_SIM_STEP_MS,
   TOWN_RESIDENT_COUNT,
   TOWN_ROSTER_SHIFT_MS,
   TownNpcSimulation,
+  advanceTownNpcSimulation,
   townRosterAt,
   type NpcSnapshot,
 } from '../src/npcSimulation.ts';
+import { townNpcDef, townNpcPoint } from '../src/townNpcs.ts';
 
 test('server initializes the authoritative Town NPC roster', () => {
   const states = new Map<string, NpcSnapshot>();
@@ -79,4 +83,50 @@ test('a running room swaps residents in and out without disturbing the rest', ()
   assert.notDeepEqual({ x: states.get(staying)!.x, y: states.get(staying)!.y }, stayingAt);
   const arriving = states.get(townRosterAt(TOWN_ROSTER_SHIFT_MS).find((id) => !townRosterAt(0).includes(id))!)!;
   assert.equal(arriving.updatedAt, TOWN_ROSTER_SHIFT_MS, 'arrivals start on their home patch');
+});
+
+test('a long tick gap resumes from stored poses instead of replaying the hour', () => {
+  const states = new Map<string, NpcSnapshot>();
+  const start = 1_000;
+  new TownNpcSimulation(states, start);
+  const frozen = states.get('bongbongee')!;
+  const before = { x: frozen.x, y: frozen.y };
+  const now = start + 60 * 60 * 1000;
+  const t = advanceTownNpcSimulation(states, start, now);
+  assert.equal(t, now);
+  assert.ok(now - t <= NPC_SIM_STEP_MS);
+  const after = states.get('bongbongee')!;
+  const moved = Math.hypot(after.x - before.x, after.y - before.y);
+  assert.ok(moved > 0, 'they take a step from where they were');
+  assert.ok(moved < 80, 'they do not teleport through an hour of waypoints');
+  assert.equal(t - start > NPC_MAX_CATCH_UP_MS, true);
+});
+
+test('incomplete snapshots still walk toward a waypoint instead of throwing', () => {
+  const states = new Map<string, NpcSnapshot>();
+  states.set('bongbongee', {
+    id: 'bongbongee',
+    x: 200,
+    y: 200,
+    facing: 'right',
+    moving: false,
+    updatedAt: 1_000,
+    destination: Number.NaN,
+    pauseUntil: Number.NaN,
+  });
+  const t = advanceTownNpcSimulation(states, 1_000, 1_000 + NPC_SIM_STEP_MS * 3);
+  assert.equal(t, 1_000 + NPC_SIM_STEP_MS * 3);
+  const bong = states.get('bongbongee')!;
+  assert.notDeepEqual({ x: bong.x, y: bong.y }, { x: 200, y: 200 });
+  assert.equal(Number.isInteger(bong.destination), true);
+});
+
+test('plaza points are the shared waypoint list, not live poses', () => {
+  const def = townNpcDef('bongbongee');
+  assert.ok(def);
+  assert.equal(def.waypoints.length, 5);
+  assert.deepEqual(townNpcPoint('bongbongee', 1), def.waypoints[1]);
+  assert.deepEqual(townNpcPoint('bongbongee', 6), def.waypoints[1]);
+  assert.equal(townNpcPoint('nobody', 0), null);
+  assert.ok(townNpcDef('ocl'));
 });

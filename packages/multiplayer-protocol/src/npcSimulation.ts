@@ -9,6 +9,15 @@ import {
 
 export { TOWN_RESIDENT_COUNT, TOWN_ROSTER_SHIFT_MS, townRosterAt };
 
+/** How often Convex writes the next plaza point. The browser walks in between. */
+export const NPC_TICK_MS = 1_000;
+/** Inner sim step used to pick those points. Not a render interval. */
+export const NPC_SIM_STEP_MS = 200;
+/** How long a villager stands on a point before the next one. */
+export const NPC_PAUSE_MS = 2_000;
+/** Skip replaying hours of missed ticks; resume walking from the stored poses. */
+export const NPC_MAX_CATCH_UP_MS = 2_000;
+
 export type NpcSnapshot = {
   id: string;
   x: number;
@@ -20,10 +29,55 @@ export type NpcSnapshot = {
   pauseUntil: number;
 };
 
+export function normalizeNpcSnapshot(row: {
+  id: string;
+  x: number;
+  y: number;
+  facing: 'left' | 'right';
+  moving: boolean;
+  updatedAt: number;
+  destination?: number;
+  pauseUntil?: number;
+}): NpcSnapshot {
+  return {
+    id: row.id,
+    x: row.x,
+    y: row.y,
+    facing: row.facing,
+    moving: row.moving,
+    updatedAt: row.updatedAt,
+    destination: Number.isInteger(row.destination) ? row.destination! : 1,
+    pauseUntil: Number.isFinite(row.pauseUntil) ? row.pauseUntil! : 0,
+  };
+}
+
+/**
+ * Walk the plaza simulation from `lastStepAt` to `now`.
+ *
+ * Used on the server to pick the next destination point. The browser walks
+ * toward those points on its own clock; this must not be the render path.
+ */
+export function advanceTownNpcSimulation(
+  states: Map<string, NpcSnapshot>,
+  lastStepAt: number,
+  now: number,
+  tickMs = NPC_SIM_STEP_MS,
+  maxCatchUpMs = NPC_MAX_CATCH_UP_MS,
+): number {
+  const sim = new TownNpcSimulation(states, lastStepAt);
+  let t = lastStepAt;
+  if (now - t > maxCatchUpMs) t = now - tickMs;
+  while (t + tickMs <= now) {
+    sim.step(tickMs, t + tickMs);
+    t += tickMs;
+  }
+  return t;
+}
+
 type NpcDefinition = { id: string; speed: number; waypoints: readonly TownNpcPoint[] };
 type Runtime = { definition: NpcDefinition; destination: number; pauseUntil: number };
 
-const PAUSE_MS = 2_000;
+
 
 const BONGBONGEE: NpcDefinition = BONGBONGEE_TOWN;
 const TOWN_RESIDENTS: readonly NpcDefinition[] = TOWN_RESIDENT_DEFS;
@@ -44,10 +98,12 @@ export class TownNpcSimulation {
     for (const [id, state] of states) {
       const definition = defs.get(id);
       if (!definition) continue;
+      const restored = normalizeNpcSnapshot(state);
+      states.set(id, restored);
       this.runtimes.set(id, {
         definition,
-        destination: state.destination,
-        pauseUntil: state.pauseUntil,
+        destination: restored.destination,
+        pauseUntil: restored.pauseUntil,
       });
     }
     this.setRoster(now);
@@ -93,7 +149,10 @@ export class TownNpcSimulation {
         continue;
       }
 
-      const destination = runtime.definition.waypoints[runtime.destination]!;
+      const waypoints = runtime.definition.waypoints;
+      const destIndex = ((runtime.destination % waypoints.length) + waypoints.length) % waypoints.length;
+      const destination = waypoints[destIndex]!;
+      runtime.destination = destIndex;
       const dx = destination.x - state.x;
       const dy = destination.y - state.y;
       const distance = Math.hypot(dx, dy);
@@ -103,7 +162,7 @@ export class TownNpcSimulation {
         state.moving = false;
         state.updatedAt = now;
         runtime.destination = (runtime.destination + 1) % runtime.definition.waypoints.length;
-        runtime.pauseUntil = now + PAUSE_MS;
+        runtime.pauseUntil = now + NPC_PAUSE_MS;
         state.destination = runtime.destination;
         state.pauseUntil = runtime.pauseUntil;
         continue;

@@ -178,9 +178,8 @@ export class TownScene extends Phaser.Scene {
       if (!this.menuOpen && !isUiBlocked()) this.pet.speak();
     });
 
-    // Town NPC movement is multiplayer-authoritative when connected; otherwise
-    // subscribeNpcs falls back to a local clock-matched roster so the plaza is
-    // never empty for guests or during reconnect gaps.
+    // Multiplayer names the plaza points; sprites walk them locally.
+    // Offline, subscribeNpcs falls back to the same clock-matched roster.
     // Same plaza route the multiplayer server uses (shared protocol constant).
     this.bongbongee = new BongbongeeNpc(
       this,
@@ -784,14 +783,15 @@ export class TownScene extends Phaser.Scene {
   private syncNpcs(rows: RemoteNpc[]) {
     // Empty list = multiplayer has never delivered a roster (guest, offline, or
     // first frame). Keep Town populated with the same clock roster the server
-    // uses. A non-empty list always comes from the live village snapshot.
+    // uses. A non-empty list is who is out and which plaza point they walk to.
+    // The sprites walk those points on the frame clock; we do not follow poses.
     if (rows.length === 0) {
       this.useLocalTownNpcs();
       return;
     }
     this.localTownNpcs = false;
     const { bongbongee, miniteens } = partitionTownNpcSnapshot(rows);
-    if (bongbongee) this.bongbongee.setNetworkPose(bongbongee);
+    if (bongbongee) this.bongbongee.setNetworkRoute(bongbongee);
     else this.bongbongee.setServerPresent(false);
     this.miniteens.sync(miniteens);
   }

@@ -6,9 +6,8 @@ import { MINITEEN, MiniteenNpc } from './miniteen';
 export const MINITEEN_FADE_MS = 500;
 
 /**
- * Renders the Town roster selected and moved by the multiplayer server.
- * The browser never chooses residents or advances their patrol positions
- * while multiplayer is live.
+ * Renders the Town roster the server selected. Destinations are plaza
+ * points; the sprites walk them on the frame clock.
  *
  * When multiplayer is offline (guest, server down, reconnect gap with no
  * prior snapshot), {@link syncLocal} walks the same clock roster with local AI
@@ -83,7 +82,7 @@ export class MiniteenRoster {
         this.active.set(row.id, npc);
         this.fade(npc, 0, 1);
       }
-      npc.setNetworkPose(row);
+      npc.setNetworkRoute(row);
     }
   }
 

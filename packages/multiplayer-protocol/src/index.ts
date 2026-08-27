@@ -511,6 +511,8 @@ export class NpcState {
   facing: 'left' | 'right' = 'right';
   moving = false;
   updatedAt = 0;
+  destination = 1;
+  pauseUntil = 0;
 }
 
 export class SledPlayerState {
@@ -551,7 +553,10 @@ export {
   TOWN_RESIDENT_COUNT,
   TOWN_ROSTER_SHIFT_MS,
   townRosterAt,
+  townNpcDef,
+  townNpcPoint,
   type TownNpcPoint,
+  type TownNpcDef,
 } from './townNpcs.js';
 
 /** Server move validator is looser than the advertised walk speed. */
@@ -644,7 +649,16 @@ export function canWave(
   );
 }
 
-export { TownNpcSimulation, type NpcSnapshot } from './npcSimulation.js';
+export {
+  TownNpcSimulation,
+  advanceTownNpcSimulation,
+  normalizeNpcSnapshot,
+  NPC_TICK_MS,
+  NPC_SIM_STEP_MS,
+  NPC_PAUSE_MS,
+  NPC_MAX_CATCH_UP_MS,
+  type NpcSnapshot,
+} from './npcSimulation.js';
 export {
   SledRaceSimulation,
   dumpSledSimulation,

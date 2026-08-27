@@ -52,6 +52,8 @@ export type RemoteNpc = {
   facing: 'left' | 'right';
   moving: boolean;
   updatedAt: number;
+  destination?: number;
+  pauseUntil?: number;
 };
 
 export type WorldPose = {
@@ -95,6 +97,7 @@ type Actions = {
 
 let rows: RemotePresence[] = [];
 let npcRows: RemoteNpc[] = [];
+let npcSimAt = 0;
 const listeners = new Set<Listener>();
 const npcListeners = new Set<NpcListener>();
 let actions: Actions | null = null;
@@ -197,9 +200,14 @@ export const multiplayerBridge = {
   getNpcs(): readonly RemoteNpc[] {
     return npcRows;
   },
-  setNpcs(id: ConnectionId, next: RemoteNpc[]) {
+  /** Server clock the last NPC snapshot was stepped to, if known. */
+  getNpcSimAt() {
+    return npcSimAt;
+  },
+  setNpcs(id: ConnectionId, next: RemoteNpc[], simAt?: number) {
     if (connectionId !== id) return;
     npcRows = next;
+    npcSimAt = simAt ?? next.reduce((latest, row) => Math.max(latest, row.updatedAt), 0);
     npcListeners.forEach((fn) => fn(npcRows));
   },
   setRemote(id: ConnectionId, next: RemotePresence[]) {

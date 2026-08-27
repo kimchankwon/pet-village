@@ -5,8 +5,9 @@ import {
   scaleToDisplayHeight,
 } from './characterScale';
 import { characterDepth } from './depth';
+import { NPC_PAUSE_MS, townNpcDef } from '@pet-village/multiplayer-protocol';
 import type { RemoteNpc } from './multiplayerBridge';
-import { advanceNpcRenderPose, shouldAdvanceNpcRenderPose } from './networkNpcMotion';
+import { shouldAdvanceNpcRenderPose, stepToward } from './networkNpcMotion';
 import {
   clampToMovementBounds,
   shuffledPatrolOrder,
@@ -56,7 +57,7 @@ export class WandererNpc {
   /** While set, update() leaves the sprite alone so emotes/hops play out. */
   private emoteUntil = 0;
   private facingLeft = false;
-  private readonly speed: number;
+  private speed: number;
   private readonly pauseMs: [number, number];
   private readonly movementBounds: MovementBounds;
   /** Off-map after transit completes — hidden from interact prompts. */
@@ -71,7 +72,10 @@ export class WandererNpc {
   /** True while a dialogue menu with this NPC is open — don't wander away. */
   private conversing = false;
   private serverControlled = false;
-  private networkPose: RemoteNpc | null = null;
+  /** Wall-clock pause after arriving at a server point. */
+  private networkPauseUntil = 0;
+  private lastServerDest: number | null = null;
+  private lastServerPause = 0;
   /** Nested Menu depth so follow-up dialogues keep the freeze. */
   private talkDepth = 0;
 
@@ -262,7 +266,7 @@ export class WandererNpc {
     this.present = present;
     this.sprite.setActive(present).setVisible(present);
     if (!present) {
-      this.networkPose = null;
+      this.lastServerDest = null;
       this.sprite.stop();
     }
   }
@@ -273,7 +277,8 @@ export class WandererNpc {
    */
   setLocalControl(present = true) {
     this.serverControlled = false;
-    this.networkPose = null;
+    this.lastServerDest = null;
+    this.networkPauseUntil = 0;
     this.present = present;
     this.sprite.setActive(present).setVisible(present);
     if (present) {
@@ -284,31 +289,75 @@ export class WandererNpc {
     }
   }
 
-  setNetworkPose(pose: RemoteNpc) {
+  /**
+   * Server names the next plaza point. The sprite walks there on the
+   * local frame clock. Pose snapshots are not followed.
+   */
+  setNetworkRoute(row: RemoteNpc) {
+    const def = townNpcDef(row.id);
+    if (def) {
+      const halfWidth = this.sprite.displayWidth / 2 + 2;
+      const halfHeight = this.sprite.displayHeight / 2 + 2;
+      this.waypoints = def.waypoints.map((point) =>
+        clampToMovementBounds(point, this.movementBounds, halfWidth, halfHeight),
+      );
+      this.speed = def.speed;
+    }
+    const dest = Number.isInteger(row.destination) ? row.destination! : 1;
+    const pauseUntil = Number.isFinite(row.pauseUntil) ? row.pauseUntil! : 0;
+    const first = this.lastServerDest === null;
     this.serverControlled = true;
-    if (!this.networkPose) this.sprite.setPosition(pose.x, pose.y);
-    this.networkPose = pose;
     this.setServerPresent(true);
+    if (first) {
+      this.destIndex = dest;
+      this.networkPauseUntil = pauseUntil;
+      this.lastServerDest = dest;
+      this.lastServerPause = pauseUntil;
+      return;
+    }
+    if (dest === this.lastServerDest && pauseUntil === this.lastServerPause) return;
+    this.lastServerDest = dest;
+    this.lastServerPause = pauseUntil;
+    this.destIndex = dest;
+    this.networkPauseUntil = pauseUntil;
   }
 
   update() {
     if (!this.sprite.active) return;
 
     if (this.serverControlled) {
-      if (!this.networkPose) {
+      if (this.lastServerDest === null) {
         this.sprite.setDepth(characterDepth(this.sprite));
         return;
       }
       if (!shouldAdvanceNpcRenderPose(this.conversing, this.scene.time.now, this.emoteUntil)) {
-        if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) this.playBounce();
+        // Talk: idle in place. Emote/hop: leave the pose and tween alone.
+        if (this.conversing && this.scene.time.now >= this.emoteUntil) {
+          if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) this.playBounce();
+        }
         this.sprite.setDepth(characterDepth(this.sprite));
         return;
       }
-      const next = advanceNpcRenderPose(this.sprite, this.networkPose, 0.35);
+      const dest = this.waypoints[this.destIndex];
+      if (!dest) {
+        this.sprite.setDepth(characterDepth(this.sprite));
+        return;
+      }
+      const dt = Math.min(this.scene.game.loop.delta / 1000, 0.05);
+      const next = stepToward(this.sprite, dest, this.speed, dt);
       this.sprite.setPosition(next.x, next.y);
-      this.sprite.setFlipX(this.networkPose.facing === 'left');
-      if (this.networkPose.moving) this.sprite.play(`${this.prefix}-walk`, true);
-      else if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) this.playBounce();
+      this.sprite.setFlipX(next.facing === 'left');
+      if (next.arrived) {
+        if (Date.now() < this.networkPauseUntil) {
+          if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) this.playBounce();
+        } else {
+          this.destIndex = (this.destIndex + 1) % Math.max(this.waypoints.length, 1);
+          this.networkPauseUntil = Date.now() + NPC_PAUSE_MS;
+          this.playBounce();
+        }
+      } else if (next.moving) {
+        this.sprite.play(`${this.prefix}-walk`, true);
+      }
       this.sprite.setDepth(characterDepth(this.sprite));
       return;
     }

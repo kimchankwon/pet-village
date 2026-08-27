@@ -67,3 +67,22 @@ export function townRosterAt(now: number): string[] {
     (_unused, offset) => TOWN_RESIDENT_DEFS[(start + offset) % TOWN_RESIDENT_DEFS.length]!.id,
   );
 }
+
+export type TownNpcDef = { id: string; speed: number; waypoints: readonly TownNpcPoint[] };
+
+const TOWN_NPC_BY_ID = new Map<string, TownNpcDef>([
+  [BONGBONGEE_TOWN.id, BONGBONGEE_TOWN],
+  ...TOWN_RESIDENT_DEFS.map((def) => [def.id, def] as const),
+]);
+
+/** Shared plaza route: speed and the points a villager walks between. */
+export function townNpcDef(id: string): TownNpcDef | null {
+  return TOWN_NPC_BY_ID.get(id) ?? null;
+}
+
+export function townNpcPoint(id: string, destination: number): TownNpcPoint | null {
+  const def = townNpcDef(id);
+  if (!def || def.waypoints.length === 0) return null;
+  const index = ((destination % def.waypoints.length) + def.waypoints.length) % def.waypoints.length;
+  return def.waypoints[index] ?? null;
+}
