@@ -83,6 +83,10 @@ export function startGame(parent: HTMLElement, options: StartGameOptions = {}): 
     ],
   });
 
+  if (import.meta.env.DEV) {
+    (window as Window & { __petVillageGame?: Phaser.Game }).__petVillageGame = game;
+  }
+
   // Shell modals with a text field borrow the keyboard back from Phaser's
   // global key capture; the manager only exists once the game has booted.
   game.events.once(Phaser.Core.Events.READY, () => {

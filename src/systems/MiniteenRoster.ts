@@ -58,7 +58,7 @@ export class MiniteenRoster {
     }
   }
 
-  sync(rows: RemoteNpc[]) {
+  sync(rows: RemoteNpc[], snap = false) {
     this.localMode = false;
     const knownRows = rows.filter((row) => MINITEEN.some((definition) => definition.id === row.id));
     const ids = new Set(knownRows.map((row) => row.id));
@@ -83,7 +83,7 @@ export class MiniteenRoster {
         this.active.set(row.id, npc);
         this.fade(npc, 0, 1);
       }
-      npc.setNetworkPose(row);
+      npc.setNetworkPose(row, snap);
     }
   }
 

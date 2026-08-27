@@ -49,6 +49,8 @@ export function snapshotNpcs(state: TownState): RemoteNpc[] {
       facing: npc.facing,
       moving: npc.moving,
       updatedAt: npc.updatedAt,
+      destination: npc.destination,
+      pauseUntil: npc.pauseUntil,
     });
   });
   return npcs;
@@ -133,7 +135,17 @@ export function snapshotPlayers(
 export type VillageSnapshot = {
   userId: string;
   players: Array<Partial<PlayerState> & { sessionId: string; userId: string }>;
-  npcs: Array<{ id: string; x: number; y: number; facing: 'left' | 'right'; moving: boolean; updatedAt: number }>;
+  npcs: Array<{
+    id: string;
+    x: number;
+    y: number;
+    facing: 'left' | 'right';
+    moving: boolean;
+    updatedAt: number;
+    destination?: number;
+    pauseUntil?: number;
+  }>;
+  npcSimAt?: number;
 };
 
 export function townStateFromSnapshot(snapshot: VillageSnapshot): TownState {
@@ -187,7 +199,9 @@ export function applyVillageSnapshot(
   appliedVillage = next;
   if (!previous || previous.players !== next.players) multiplayerBridge.setRemote(connectionId, players);
   if (!previous || previous.roster !== next.roster) multiplayerBridge.setRoster(connectionId, roster);
-  if (!previous || previous.npcs !== next.npcs) multiplayerBridge.setNpcs(connectionId, npcs);
+  if (!previous || previous.npcs !== next.npcs) {
+    multiplayerBridge.setNpcs(connectionId, npcs, snapshot.npcSimAt);
+  }
 }
 
 type VillageListener = (snapshot: VillageSnapshot) => void;

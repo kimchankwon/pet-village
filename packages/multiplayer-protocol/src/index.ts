@@ -511,6 +511,8 @@ export class NpcState {
   facing: 'left' | 'right' = 'right';
   moving = false;
   updatedAt = 0;
+  destination = 1;
+  pauseUntil = 0;
 }
 
 export class SledPlayerState {
@@ -644,7 +646,15 @@ export function canWave(
   );
 }
 
-export { TownNpcSimulation, type NpcSnapshot } from './npcSimulation.js';
+export {
+  TownNpcSimulation,
+  TownNpcPredictor,
+  advanceTownNpcSimulation,
+  normalizeNpcSnapshot,
+  NPC_TICK_MS,
+  NPC_MAX_CATCH_UP_MS,
+  type NpcSnapshot,
+} from './npcSimulation.js';
 export {
   SledRaceSimulation,
   dumpSledSimulation,

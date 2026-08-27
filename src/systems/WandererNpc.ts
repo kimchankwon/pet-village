@@ -284,9 +284,9 @@ export class WandererNpc {
     }
   }
 
-  setNetworkPose(pose: RemoteNpc) {
+  setNetworkPose(pose: RemoteNpc, snap = false) {
     this.serverControlled = true;
-    if (!this.networkPose) this.sprite.setPosition(pose.x, pose.y);
+    if (snap || !this.networkPose) this.sprite.setPosition(pose.x, pose.y);
     this.networkPose = pose;
     this.setServerPresent(true);
   }

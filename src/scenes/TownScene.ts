@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import {
   BONGBONGEE_TOWN,
   TOWN_ROSTER_SHIFT_MS,
+  TownNpcPredictor,
+  normalizeNpcSnapshot,
   townRosterAt,
   worldSceneSpawn,
 } from '@pet-village/multiplayer-protocol';
@@ -112,6 +114,8 @@ export class TownScene extends Phaser.Scene {
   private localTownNpcs = false;
   /** Clock shift index for {@link useLocalTownNpcs} roster rotation. */
   private localRosterShift = -1;
+  /** Walks the server plaza sim locally so villagers don't freeze between ticks. */
+  private readonly npcPredictor = new TownNpcPredictor();
 
   constructor() {
     super('Town');
@@ -784,16 +788,24 @@ export class TownScene extends Phaser.Scene {
   private syncNpcs(rows: RemoteNpc[]) {
     // Empty list = multiplayer has never delivered a roster (guest, offline, or
     // first frame). Keep Town populated with the same clock roster the server
-    // uses. A non-empty list always comes from the live village snapshot.
+    // uses. A non-empty list is the live village snapshot, which the predictor
+    // then walks locally so a stalled Convex tick cannot freeze the plaza.
     if (rows.length === 0) {
+      this.npcPredictor.clear();
       this.useLocalTownNpcs();
       return;
     }
     this.localTownNpcs = false;
+    const simAt = multiplayerBridge.getNpcSimAt() || rows.reduce((latest, row) => Math.max(latest, row.updatedAt), 0);
+    this.npcPredictor.ingest(rows.map(normalizeNpcSnapshot), simAt);
+    this.applyPredictedNpcs(this.npcPredictor.sample(Date.now()));
+  }
+
+  private applyPredictedNpcs(rows: RemoteNpc[]) {
     const { bongbongee, miniteens } = partitionTownNpcSnapshot(rows);
-    if (bongbongee) this.bongbongee.setNetworkPose(bongbongee);
+    if (bongbongee) this.bongbongee.setNetworkPose(bongbongee, true);
     else this.bongbongee.setServerPresent(false);
-    this.miniteens.sync(miniteens);
+    this.miniteens.sync(miniteens, true);
   }
 
   /** Solo / offline plaza: Bongbongee + the current Town shift, local AI. */
@@ -870,6 +882,9 @@ export class TownScene extends Phaser.Scene {
     }
     this.wasMoving = moving;
     this.worldMultiplayer.update(this.facing, moving, this.game.loop.delta);
+    if (!this.localTownNpcs && this.npcPredictor.size > 0) {
+      this.applyPredictedNpcs(this.npcPredictor.sample(Date.now()));
+    }
     for (const npc of this.npcs) npc.update();
     // Solo roster advances on the same 90s clock as the multiplayer server.
     if (this.localTownNpcs) this.useLocalTownNpcs();

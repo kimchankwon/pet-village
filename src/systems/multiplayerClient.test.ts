@@ -74,7 +74,10 @@ test('multiplayer client projects synchronized NPC schema into renderer snapshot
   state.npcs.set(npc.id, npc);
 
   assert.deepEqual(snapshotNpcs(state), [
-    { id: 'bongbongee', x: 360, y: 456, facing: 'left', moving: true, updatedAt: 123 },
+    {
+      id: 'bongbongee', x: 360, y: 456, facing: 'left', moving: true, updatedAt: 123,
+      destination: 1, pauseUntil: 0,
+    },
   ]);
 });
 

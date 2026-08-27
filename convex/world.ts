@@ -15,7 +15,8 @@ import {
   isWorldScene,
   sanitizeChatText,
   validateMove,
-  TownNpcSimulation,
+  NPC_TICK_MS,
+  advanceTownNpcSimulation,
   type NpcSnapshot,
   type WorldScene,
 } from '@pet-village/multiplayer-protocol';
@@ -26,7 +27,6 @@ import { sanitizeEquippedAccessories } from './lib/admissionProfile';
 
 const EMOTE_MIN_INTERVAL_MS = 250;
 const PRESENCE_GRACE_MS = 20_000;
-const NPC_TICK_MS = 200;
 const PENGUIN_COLORS = new Set([
   'blue', 'green', 'pink', 'black', 'red', 'purple',
   'orange', 'darkpurple', 'brown', 'peach', 'darkgreen', 'lightblue',
@@ -98,13 +98,42 @@ function correction(row: { scene: string; x: number; y: number; petX: number; pe
   };
 }
 
+async function townSimRow(ctx: QueryCtx | MutationCtx) {
+  return ctx.db.query('townSim').withIndex('by_key', (q) => q.eq('key', 'town')).unique();
+}
+
+async function setOccupantCount(ctx: MutationCtx, count: number) {
+  const next = Math.max(0, count);
+  const sim = await townSimRow(ctx);
+  if (sim) {
+    if (sim.occupantCount !== next) await ctx.db.patch(sim._id, { occupantCount: next });
+    return;
+  }
+  await ctx.db.insert('townSim', {
+    key: 'town',
+    lastStepAt: Date.now(),
+    tickScheduled: false,
+    occupantCount: next,
+  });
+}
+
+async function bumpOccupancy(ctx: MutationCtx, delta: number) {
+  const sim = await townSimRow(ctx);
+  await setOccupantCount(ctx, (sim?.occupantCount ?? 0) + delta);
+}
+
 async function ensureNpcTick(ctx: MutationCtx) {
-  const sim = await ctx.db.query('townSim').withIndex('by_key', (q) => q.eq('key', 'town')).unique();
+  const sim = await townSimRow(ctx);
   if (sim?.tickScheduled) return;
   if (sim) {
     await ctx.db.patch(sim._id, { tickScheduled: true });
   } else {
-    await ctx.db.insert('townSim', { key: 'town', lastStepAt: Date.now(), tickScheduled: true });
+    await ctx.db.insert('townSim', {
+      key: 'town',
+      lastStepAt: Date.now(),
+      tickScheduled: true,
+      occupantCount: 0,
+    });
   }
   await ctx.scheduler.runAfter(NPC_TICK_MS, internal.world.tickNpcs, {});
 }
@@ -117,6 +146,7 @@ export const join = mutation({
     const sessionId = crypto.randomUUID();
     const spawn = profile.townPosition ?? { ...TOWN_SPAWNS[0], facing: 'down' as const };
     const now = Date.now();
+    await bumpOccupancy(ctx, 1);
     await ctx.db.insert('presence', {
       userId,
       sessionId,
@@ -160,7 +190,10 @@ export const leave = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     const row = await presenceBySession(ctx, args.sessionId);
-    if (row && row.userId === userId) await ctx.db.delete(row._id);
+    if (row && row.userId === userId) {
+      await ctx.db.delete(row._id);
+      await bumpOccupancy(ctx, -1);
+    }
   },
 });
 
@@ -455,6 +488,8 @@ export const snapshot = query({
         facing: npc.facing,
         moving: npc.moving,
         updatedAt: npc.updatedAt,
+        destination: npc.destination,
+        pauseUntil: npc.pauseUntil,
       })),
     };
   },
@@ -463,21 +498,49 @@ export const snapshot = query({
 export const expireStale = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const cutoff = Date.now() - PRESENCE_GRACE_MS;
+    const now = Date.now();
+    const cutoff = now - PRESENCE_GRACE_MS;
     const rows = await ctx.db.query('presence').collect();
     for (const row of rows) {
       if (row.updatedAt < cutoff) await ctx.db.delete(row._id);
     }
+    const live = (await ctx.db.query('presence').collect()).filter((row) => now - row.updatedAt <= PRESENCE_GRACE_MS);
+    await setOccupantCount(ctx, live.length);
+    if (live.length > 0) {
+      const sim = await townSimRow(ctx);
+      // A dead scheduler leaves tickScheduled true and villagers frozen.
+      if (sim && now - sim.lastStepAt > NPC_TICK_MS * 5) {
+        await ctx.db.patch(sim._id, { tickScheduled: false });
+      }
+      await ensureNpcTick(ctx);
+    }
   },
 });
+
+function npcDocChanged(
+  doc: { x: number; y: number; facing: string; moving: boolean; updatedAt: number; destination: number; pauseUntil: number },
+  next: NpcSnapshot,
+) {
+  return (
+    doc.facing !== next.facing ||
+    doc.moving !== next.moving ||
+    doc.destination !== next.destination ||
+    doc.pauseUntil !== next.pauseUntil ||
+    doc.updatedAt !== next.updatedAt ||
+    Math.abs(doc.x - next.x) > 0.01 ||
+    Math.abs(doc.y - next.y) > 0.01
+  );
+}
 
 export const tickNpcs = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
-    const presence = await ctx.db.query('presence').collect();
-    const occupied = presence.some((row) => now - row.updatedAt <= PRESENCE_GRACE_MS);
-    const simRow = await ctx.db.query('townSim').withIndex('by_key', (q) => q.eq('key', 'town')).unique();
+    const simRow = await townSimRow(ctx);
+    // Occupancy lives on townSim so this tick does not read `presence`.
+    // Reading every player here retried against every walk mutation and
+    // killed the scheduler chain, which froze the plaza.
+    const occupied = simRow?.occupantCount === undefined || (simRow.occupantCount ?? 0) > 0;
     if (!occupied) {
       if (simRow) await ctx.db.patch(simRow._id, { tickScheduled: false });
       return;
@@ -498,19 +561,14 @@ export const tickNpcs = internalMutation({
       });
     }
     const lastStepAt = simRow?.lastStepAt ?? now;
-    const simulation = new TownNpcSimulation(states, lastStepAt);
-    let t = lastStepAt;
-    while (t + NPC_TICK_MS <= now) {
-      simulation.step(NPC_TICK_MS, t + NPC_TICK_MS);
-      t += NPC_TICK_MS;
-    }
-    const keep = new Set(states.keys());
+    const t = advanceTownNpcSimulation(states, lastStepAt, now);
     for (const doc of docs) {
       const next = states.get(doc.npcId);
       if (!next) {
         await ctx.db.delete(doc._id);
         continue;
       }
+      if (!npcDocChanged(doc, next)) continue;
       await ctx.db.patch(doc._id, {
         x: next.x,
         y: next.y,
@@ -534,11 +592,12 @@ export const tickNpcs = internalMutation({
         pauseUntil: next.pauseUntil,
       });
     }
-    void keep;
     if (simRow) {
-      await ctx.db.patch(simRow._id, { lastStepAt: t, tickScheduled: true });
+      if (simRow.lastStepAt !== t || !simRow.tickScheduled) {
+        await ctx.db.patch(simRow._id, { lastStepAt: t, tickScheduled: true });
+      }
     } else {
-      await ctx.db.insert('townSim', { key: 'town', lastStepAt: t, tickScheduled: true });
+      await ctx.db.insert('townSim', { key: 'town', lastStepAt: t, tickScheduled: true, occupantCount: 1 });
     }
     await ctx.scheduler.runAfter(NPC_TICK_MS, internal.world.tickNpcs, {});
   },

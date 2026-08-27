@@ -130,6 +130,7 @@ export default defineSchema({
     key: v.literal("town"),
     lastStepAt: v.number(),
     tickScheduled: v.boolean(),
+    occupantCount: v.optional(v.number()),
   }).index("by_key", ["key"]),
 
   sledRace: defineTable({
