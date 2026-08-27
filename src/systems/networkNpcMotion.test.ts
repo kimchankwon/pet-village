@@ -19,6 +19,8 @@ test('server-controlled NPCs freeze while talking or emoting', () => {
   assert.equal(shouldAdvanceNpcRenderPose(true, 1_000, 0), false);
   assert.equal(shouldAdvanceNpcRenderPose(false, 999, 1_000), false);
   assert.equal(shouldAdvanceNpcRenderPose(false, 1_000, 1_000), true);
+  // Talk and hop together: still frozen, so a dest update cannot walk them.
+  assert.equal(shouldAdvanceNpcRenderPose(true, 999, 1_000), false);
 });
 
 test('server-owned NPC render poses interpolate toward the authoritative snapshot', () => {

@@ -322,10 +322,6 @@ export class WandererNpc {
     this.networkPauseUntil = pauseUntil;
   }
 
-  setNetworkPose(pose: RemoteNpc, _snap = false) {
-    this.setNetworkRoute(pose);
-  }
-
   update() {
     if (!this.sprite.active) return;
 
@@ -335,7 +331,10 @@ export class WandererNpc {
         return;
       }
       if (!shouldAdvanceNpcRenderPose(this.conversing, this.scene.time.now, this.emoteUntil)) {
-        if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) this.playBounce();
+        // Talk: idle in place. Emote/hop: leave the pose and tween alone.
+        if (this.conversing && this.scene.time.now >= this.emoteUntil) {
+          if (this.sprite.anims.currentAnim?.key !== `${this.prefix}-bounce`) this.playBounce();
+        }
         this.sprite.setDepth(characterDepth(this.sprite));
         return;
       }
