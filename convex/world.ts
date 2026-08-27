@@ -518,18 +518,10 @@ export const expireStale = internalMutation({
 });
 
 function npcDocChanged(
-  doc: { x: number; y: number; facing: string; moving: boolean; updatedAt: number; destination: number; pauseUntil: number },
+  doc: { destination: number; pauseUntil: number },
   next: NpcSnapshot,
 ) {
-  return (
-    doc.facing !== next.facing ||
-    doc.moving !== next.moving ||
-    doc.destination !== next.destination ||
-    doc.pauseUntil !== next.pauseUntil ||
-    doc.updatedAt !== next.updatedAt ||
-    Math.abs(doc.x - next.x) > 0.01 ||
-    Math.abs(doc.y - next.y) > 0.01
-  );
+  return doc.destination !== next.destination || doc.pauseUntil !== next.pauseUntil;
 }
 
 export const tickNpcs = internalMutation({

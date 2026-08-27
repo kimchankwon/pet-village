@@ -9,7 +9,12 @@ import {
 
 export { TOWN_RESIDENT_COUNT, TOWN_ROSTER_SHIFT_MS, townRosterAt };
 
-export const NPC_TICK_MS = 200;
+/** How often Convex writes the next plaza point. The browser walks in between. */
+export const NPC_TICK_MS = 1_000;
+/** Inner sim step used to pick those points. Not a render interval. */
+export const NPC_SIM_STEP_MS = 200;
+/** How long a villager stands on a point before the next one. */
+export const NPC_PAUSE_MS = 2_000;
 /** Skip replaying hours of missed ticks; resume walking from the stored poses. */
 export const NPC_MAX_CATCH_UP_MS = 2_000;
 
@@ -49,15 +54,14 @@ export function normalizeNpcSnapshot(row: {
 /**
  * Walk the plaza simulation from `lastStepAt` to `now`.
  *
- * A long gap (Convex tick chain died, tab slept) is not replayed tick-by-tick:
- * that would freeze a mutation or zip villagers around on the next frame.
- * They resume from the poses already stored.
+ * Used on the server to pick the next destination point. The browser walks
+ * toward those points on its own clock; this must not be the render path.
  */
 export function advanceTownNpcSimulation(
   states: Map<string, NpcSnapshot>,
   lastStepAt: number,
   now: number,
-  tickMs = NPC_TICK_MS,
+  tickMs = NPC_SIM_STEP_MS,
   maxCatchUpMs = NPC_MAX_CATCH_UP_MS,
 ): number {
   const sim = new TownNpcSimulation(states, lastStepAt);
@@ -70,46 +74,10 @@ export function advanceTownNpcSimulation(
   return t;
 }
 
-/**
- * Keeps Town villagers walking on the client even when Convex snapshots stall.
- *
- * A fresh server snapshot becomes the new base. Between snapshots (or after
- * they stop), the same simulation steps forward on the local clock.
- */
-export class TownNpcPredictor {
-  private states = new Map<string, NpcSnapshot>();
-  private simTime = 0;
-  private lastIngestAt = Number.NEGATIVE_INFINITY;
-
-  get size() {
-    return this.states.size;
-  }
-
-  ingest(rows: readonly NpcSnapshot[], simAt: number) {
-    if (rows.length === 0) return;
-    if (this.states.size > 0 && simAt === this.lastIngestAt) return;
-    this.lastIngestAt = simAt;
-    this.states = new Map(rows.map((row) => [row.id, normalizeNpcSnapshot(row)]));
-    this.simTime = simAt;
-  }
-
-  sample(now: number): NpcSnapshot[] {
-    if (this.states.size === 0) return [];
-    this.simTime = advanceTownNpcSimulation(this.states, this.simTime, now);
-    return [...this.states.values()].map((row) => ({ ...row }));
-  }
-
-  clear() {
-    this.states.clear();
-    this.simTime = 0;
-    this.lastIngestAt = Number.NEGATIVE_INFINITY;
-  }
-}
-
 type NpcDefinition = { id: string; speed: number; waypoints: readonly TownNpcPoint[] };
 type Runtime = { definition: NpcDefinition; destination: number; pauseUntil: number };
 
-const PAUSE_MS = 2_000;
+
 
 const BONGBONGEE: NpcDefinition = BONGBONGEE_TOWN;
 const TOWN_RESIDENTS: readonly NpcDefinition[] = TOWN_RESIDENT_DEFS;
@@ -194,7 +162,7 @@ export class TownNpcSimulation {
         state.moving = false;
         state.updatedAt = now;
         runtime.destination = (runtime.destination + 1) % runtime.definition.waypoints.length;
-        runtime.pauseUntil = now + PAUSE_MS;
+        runtime.pauseUntil = now + NPC_PAUSE_MS;
         state.destination = runtime.destination;
         state.pauseUntil = runtime.pauseUntil;
         continue;

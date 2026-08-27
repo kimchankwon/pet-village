@@ -3,15 +3,15 @@ import test from 'node:test';
 import { TOWN_BOUNDS } from '../src/index.ts';
 import {
   NPC_MAX_CATCH_UP_MS,
-  NPC_TICK_MS,
+  NPC_SIM_STEP_MS,
   TOWN_RESIDENT_COUNT,
   TOWN_ROSTER_SHIFT_MS,
-  TownNpcPredictor,
   TownNpcSimulation,
   advanceTownNpcSimulation,
   townRosterAt,
   type NpcSnapshot,
 } from '../src/npcSimulation.ts';
+import { townNpcDef, townNpcPoint } from '../src/townNpcs.ts';
 
 test('server initializes the authoritative Town NPC roster', () => {
   const states = new Map<string, NpcSnapshot>();
@@ -94,7 +94,7 @@ test('a long tick gap resumes from stored poses instead of replaying the hour', 
   const now = start + 60 * 60 * 1000;
   const t = advanceTownNpcSimulation(states, start, now);
   assert.equal(t, now);
-  assert.ok(now - t <= NPC_TICK_MS);
+  assert.ok(now - t <= NPC_SIM_STEP_MS);
   const after = states.get('bongbongee')!;
   const moved = Math.hypot(after.x - before.x, after.y - before.y);
   assert.ok(moved > 0, 'they take a step from where they were');
@@ -114,40 +114,19 @@ test('incomplete snapshots still walk toward a waypoint instead of throwing', ()
     destination: Number.NaN,
     pauseUntil: Number.NaN,
   });
-  const t = advanceTownNpcSimulation(states, 1_000, 1_000 + NPC_TICK_MS * 3);
-  assert.equal(t, 1_000 + NPC_TICK_MS * 3);
+  const t = advanceTownNpcSimulation(states, 1_000, 1_000 + NPC_SIM_STEP_MS * 3);
+  assert.equal(t, 1_000 + NPC_SIM_STEP_MS * 3);
   const bong = states.get('bongbongee')!;
   assert.notDeepEqual({ x: bong.x, y: bong.y }, { x: 200, y: 200 });
   assert.equal(Number.isInteger(bong.destination), true);
 });
 
-test('the client predictor keeps walking when the same snapshot is repeated', () => {
-  const predictor = new TownNpcPredictor();
-  const states = new Map<string, NpcSnapshot>();
-  new TownNpcSimulation(states, 5_000);
-  const rows = [...states.values()];
-  predictor.ingest(rows, 5_000);
-  const first = predictor.sample(5_000 + NPC_TICK_MS * 2);
-  const bong = first.find((row) => row.id === 'bongbongee')!;
-  predictor.ingest(rows, 5_000);
-  const second = predictor.sample(5_000 + NPC_TICK_MS * 4);
-  const later = second.find((row) => row.id === 'bongbongee')!;
-  assert.notDeepEqual({ x: later.x, y: later.y }, { x: bong.x, y: bong.y });
-});
-
-test('a newer server snapshot becomes the predictor base', () => {
-  const predictor = new TownNpcPredictor();
-  const first = new Map<string, NpcSnapshot>();
-  const second = new Map<string, NpcSnapshot>();
-  new TownNpcSimulation(first, 1_000);
-  new TownNpcSimulation(second, 2_000);
-  advanceTownNpcSimulation(second, 2_000, 2_000 + NPC_TICK_MS * 5);
-  predictor.ingest([...first.values()], 1_000);
-  predictor.sample(1_000 + NPC_TICK_MS);
-  predictor.ingest([...second.values()], 2_000 + NPC_TICK_MS * 5);
-  const sampled = predictor.sample(2_000 + NPC_TICK_MS * 5);
-  const expected = second.get('bongbongee')!;
-  const got = sampled.find((row) => row.id === 'bongbongee')!;
-  assert.equal(got.x, expected.x);
-  assert.equal(got.y, expected.y);
+test('plaza points are the shared waypoint list, not live poses', () => {
+  const def = townNpcDef('bongbongee');
+  assert.ok(def);
+  assert.equal(def.waypoints.length, 5);
+  assert.deepEqual(townNpcPoint('bongbongee', 1), def.waypoints[1]);
+  assert.deepEqual(townNpcPoint('bongbongee', 6), def.waypoints[1]);
+  assert.equal(townNpcPoint('nobody', 0), null);
+  assert.ok(townNpcDef('ocl'));
 });

@@ -553,7 +553,10 @@ export {
   TOWN_RESIDENT_COUNT,
   TOWN_ROSTER_SHIFT_MS,
   townRosterAt,
+  townNpcDef,
+  townNpcPoint,
   type TownNpcPoint,
+  type TownNpcDef,
 } from './townNpcs.js';
 
 /** Server move validator is looser than the advertised walk speed. */
@@ -648,10 +651,11 @@ export function canWave(
 
 export {
   TownNpcSimulation,
-  TownNpcPredictor,
   advanceTownNpcSimulation,
   normalizeNpcSnapshot,
   NPC_TICK_MS,
+  NPC_SIM_STEP_MS,
+  NPC_PAUSE_MS,
   NPC_MAX_CATCH_UP_MS,
   type NpcSnapshot,
 } from './npcSimulation.js';

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { advanceNpcRenderPose, partitionTownNpcSnapshot, shouldAdvanceNpcRenderPose } from './networkNpcMotion';
+import { advanceNpcRenderPose, partitionTownNpcSnapshot, shouldAdvanceNpcRenderPose, stepToward } from './networkNpcMotion';
 import type { RemoteNpc } from './multiplayerBridge';
 
 test('authoritative roster partitions Bongbongee and removes it when omitted', () => {
@@ -33,4 +33,23 @@ test('server-owned NPC render poses snap tiny residual distances', () => {
     advanceNpcRenderPose({ x: 99.6, y: 60.3 }, { x: 100, y: 60 }, 0.25),
     { x: 100, y: 60 },
   );
+});
+
+test('frame-rate steps toward a plaza point are small and even', () => {
+  let pos = { x: 0, y: 0 };
+  const target = { x: 100, y: 0 };
+  const dt = 1 / 60;
+  const speed = 50;
+  const distances: number[] = [];
+  for (let i = 0; i < 60; i += 1) {
+    const next = stepToward(pos, target, speed, dt);
+    distances.push(Math.hypot(next.x - pos.x, next.y - pos.y));
+    pos = { x: next.x, y: next.y };
+  }
+  assert.ok(Math.abs(pos.x - 50) < 0.01);
+  assert.equal(pos.y, 0);
+  assert.ok(distances.every((d) => d > 0.8 && d < 0.9));
+  const arrived = stepToward({ x: 97, y: 0 }, target, speed, dt);
+  assert.equal(arrived.arrived, true);
+  assert.equal(arrived.x, 100);
 });
