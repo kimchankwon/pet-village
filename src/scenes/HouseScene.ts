@@ -179,6 +179,7 @@ export class HouseScene extends Phaser.Scene {
     });
     markAsUi(this, houseHint, decorateBtn);
 
+    this.cameras.main.setBounds(0, 0, this.cameras.main.width, ROOM_Y + ROWS * TILE + 18);
     this.cameraZoom = attachCameraZoom(this, {
       kind: 'hub',
       isBlocked: () => this.menuOpen || isUiBlocked() || Boolean(this.placing),

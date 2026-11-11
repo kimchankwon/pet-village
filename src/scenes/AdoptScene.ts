@@ -31,6 +31,7 @@ export class AdoptScene extends Phaser.Scene {
   > = {};
   private nameInput!: HTMLInputElement;
   private errorText!: Phaser.GameObjects.Text;
+  private oy = 0;
 
   constructor() {
     super('Adopt');
@@ -43,9 +44,11 @@ export class AdoptScene extends Phaser.Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     this.add.rectangle(cx, cy, w, h, 0x152030).setDepth(-10);
+    this.oy = Math.max(0, Math.round((h - 600) / 2));
+    const oy = this.oy;
 
     this.add
-      .text(cx, 36, 'Pet Village', {
+      .text(cx, oy + 36, 'Pet Village', {
         fontFamily: '"Press Start 2P", monospace',
         fontSize: '16px',
         color: '#7ed6a8',
@@ -53,11 +56,11 @@ export class AdoptScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(cx, 68, 'Choose your pet', { ...FONT, fontSize: '20px', color: '#ffb3d1' })
+      .text(cx, oy + 68, 'Choose your pet', { ...FONT, fontSize: '20px', color: '#ffb3d1' })
       .setOrigin(0.5);
 
     this.add
-      .text(cx, 92, 'Pick a companion, then give them a name.', {
+      .text(cx, oy + 90, 'Pick a companion, then give them a name.', {
         ...FONT,
         fontSize: '12px',
         color: '#a89bc4',
@@ -65,25 +68,25 @@ export class AdoptScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(cx, 108, 'Tamagotchi', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .text(cx, oy + 113, 'Tamagotchi', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
     // 7 classic pets — tighter spacing so the row still fits.
-    this.layoutRow(CLASSIC_PETS, 168, 88, COMPANION_DISPLAY_H, 84);
+    this.layoutRow(CLASSIC_PETS, oy + 168, 88, COMPANION_DISPLAY_H, 84);
 
     this.add
-      .text(cx, 232, 'Friends', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .text(cx, oy + 232, 'Friends', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
-    this.layoutRow(MASCOT_PETS, 288, 140, COMPANION_DISPLAY_H, 100);
+    this.layoutRow(MASCOT_PETS, oy + 288, 140, COMPANION_DISPLAY_H, 100);
 
     this.add
-      .text(cx, 352, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
+      .text(cx, oy + 352, 'Puffles', { ...FONT, fontSize: '13px', color: '#ffe066' })
       .setOrigin(0.5);
-    this.layoutRow(PUFFLE_PETS, 408, 72, PUFFLE_DISPLAY_H, 88);
+    this.layoutRow(PUFFLE_PETS, oy + 408, 72, PUFFLE_DISPLAY_H, 88);
 
     this.selectSpecies('mametchi');
 
     this.add
-      .text(cx, 468, 'Pet name', { ...FONT, fontSize: '13px', color: '#c8c8dc' })
+      .text(cx, oy + 468, 'Pet name', { ...FONT, fontSize: '13px', color: '#c8c8dc' })
       .setOrigin(0.5);
 
     this.nameInput = document.createElement('input');
@@ -115,11 +118,11 @@ export class AdoptScene extends Phaser.Scene {
     bindSceneResize(this.scale, this.events, this.positionNameInput);
 
     this.errorText = this.add
-      .text(cx, 534, '', { ...FONT, fontSize: '13px', color: '#ff6b6b' })
+      .text(cx, oy + 534, '', { ...FONT, fontSize: '13px', color: '#ff6b6b' })
       .setOrigin(0.5);
 
     const start = this.add
-      .text(cx, 568, '[ Start adventure ]', {
+      .text(cx, oy + 568, '[ Start adventure ]', {
         ...FONT,
         fontSize: '18px',
         color: '#7ed6a8',
@@ -149,6 +152,7 @@ export class AdoptScene extends Phaser.Scene {
     cardH: number,
   ) {
     const n = defs.length;
+    spacing = Math.min(spacing, (this.cameras.main.width - 16) / n);
     const startX = this.cameras.main.width / 2 - ((n - 1) * spacing) / 2;
     const cardW = Math.min(180, spacing - 8);
 
@@ -189,7 +193,7 @@ export class AdoptScene extends Phaser.Scene {
     const scaleX = canvasRect.width / this.scale.width;
     const scaleY = canvasRect.height / this.scale.height;
     const left = canvasRect.left - parentRect.left + (this.scale.width / 2) * scaleX - 110;
-    const top = canvasRect.top - parentRect.top + 500 * scaleY - 17;
+    const top = canvasRect.top - parentRect.top + (this.oy + 500) * scaleY - 17;
     this.nameInput.style.left = `${left}px`;
     this.nameInput.style.top = `${top}px`;
   };

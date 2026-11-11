@@ -203,6 +203,7 @@ export class ShopScene extends Phaser.Scene {
       },
     );
 
+    this.cameras.main.setBounds(0, 0, this.cameras.main.width, ROOM_Y + ROWS * TILE + 18);
     this.cameraZoom = attachCameraZoom(this, {
       kind: 'hub',
       isBlocked: () => this.menuOpen || isUiBlocked(),

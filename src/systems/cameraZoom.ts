@@ -132,6 +132,7 @@ export class CameraZoom {
   private pinchStartDist = 0;
   private pinchStartZoom = 1;
   private destroyed = false;
+  private worldBounds: Phaser.Geom.Rectangle | null;
 
   constructor(scene: Phaser.Scene, opts: CameraZoomOpts) {
     this.scene = scene;
@@ -141,7 +142,11 @@ export class CameraZoom {
     const policy = zoomPolicy(opts.kind, rememberedUserZoom);
     const initial = clampZoom(policy.initial);
     this.zoom = initial;
-    scene.cameras.main.setZoom(initial);
+    const cam = scene.cameras.main;
+    this.worldBounds = cam.useBounds ? Phaser.Geom.Rectangle.Clone(cam.getBounds()) : null;
+    cam.setZoom(initial);
+    this.centerSmallWorld();
+    scene.scale.on('resize', this.centerSmallWorld);
 
     if (policy.controls) {
       this.slider = new ZoomSlider(scene, {
@@ -183,8 +188,18 @@ export class CameraZoom {
     this.zoom = next;
     rememberedUserZoom = next;
     this.scene.cameras.main.setZoom(next);
+    this.centerSmallWorld();
     this.slider?.sync();
   }
+
+  private centerSmallWorld = () => {
+    const world = this.worldBounds;
+    if (!world || this.destroyed) return;
+    const cam = this.scene.cameras.main;
+    const padX = Math.max(0, (cam.width / cam.zoom - world.width) / 2);
+    const padY = Math.max(0, (cam.height / cam.zoom - world.height) / 2);
+    cam.setBounds(world.x - padX, world.y - padY, world.width + padX * 2, world.height + padY * 2);
+  };
 
   private blocked(): boolean {
     return this.opts.isBlocked?.() ?? false;
@@ -249,6 +264,7 @@ export class CameraZoom {
   private destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.scene.scale.off('resize', this.centerSmallWorld);
     this.scene.input.off('wheel', this.onWheel);
     this.scene.input.off('pointerdown', this.onPointerDown);
     this.scene.input.off('pointermove', this.onPointerMove);

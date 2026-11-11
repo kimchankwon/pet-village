@@ -672,7 +672,7 @@ export class WorldMultiplayer {
       .setOrigin(0.5, 1);
     const petLabel = this.scene.add
       .text(local.petX, local.petY, presentation.petLabel, labelStyle('#bfe6ff'))
-      .setOrigin(0.5, 1);
+      .setOrigin(0.5, 0);
     const remote: RemoteAvatar = {
       row,
       player,
@@ -892,7 +892,7 @@ export class WorldMultiplayer {
       )
       .setDepth(this.depthFor(penguinDepthTarget(remote.player)) + 2);
     remote.petLabel
-      .setPosition(remote.pet.x, remote.pet.y - remote.pet.displayHeight / 2 - 3)
+      .setPosition(remote.pet.x, remote.pet.y + remote.pet.displayHeight / 2 + 1)
       .setDepth(this.depthFor(remote.pet) + 2);
     drawChatBubble(
       remote.chat,
