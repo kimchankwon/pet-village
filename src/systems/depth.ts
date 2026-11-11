@@ -9,6 +9,8 @@ export function feetDepth(obj: { y: number; displayHeight: number; originY: numb
  * props when sharing a sort row (sprites often have empty bottom padding that
  * pushes prop depths too far south).
  */
+export const NAMETAG_DEPTH = 1300;
+
 export function characterDepth(obj: { y: number; displayHeight: number; originY: number }): number {
   return feetDepth(obj) + 2;
 }

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { State } from './GameState';
 import { toast } from './UI';
-import { characterDepth } from './depth';
+import { NAMETAG_DEPTH, characterDepth } from './depth';
 import { petAnimKey, petDrawScale, petTextureKey, type PetPose } from './pets';
 import { petLine } from './petDialog';
 import {
@@ -69,7 +69,7 @@ export class Pet {
         stroke: '#101826',
         strokeThickness: 3,
       })
-      .setOrigin(0.5, 1);
+      .setOrigin(0.5, 0);
     const world = movementBounds ?? scene.physics.world.bounds;
     this.movementBounds = { x: world.x, y: world.y, width: world.width, height: world.height };
     const start = this.confinedPoint(x, y);
@@ -162,8 +162,8 @@ export class Pet {
     }
     this.nameLabel
       .setText(State.data.petName || 'Pet')
-      .setPosition(this.sprite.x, this.sprite.y - this.sprite.displayHeight / 2 - 3)
-      .setDepth(this.ownDepth() + 2)
+      .setPosition(this.sprite.x, this.sprite.y + this.sprite.displayHeight / 2 + 1)
+      .setDepth(NAMETAG_DEPTH + this.sprite.y / 10000)
       .setVisible(this.sprite.visible)
       .setAlpha(this.sprite.alpha);
   }

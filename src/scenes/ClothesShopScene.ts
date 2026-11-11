@@ -210,6 +210,8 @@ export class ClothesShopScene extends Phaser.Scene {
       },
     );
 
+    this.cameras.main.setBounds(this.roomX - TILE / 2, 0, COLS * TILE + TILE, ROOM_Y + ROWS * TILE + 18);
+    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.cameraZoom = attachCameraZoom(this, {
       kind: 'hub',
       isBlocked: () => this.menuOpen || isUiBlocked(),

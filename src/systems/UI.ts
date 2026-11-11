@@ -167,6 +167,18 @@ type MenuRow = {
  * Modal list menu. Long option lists paginate so the panel stays on-screen.
  * Navigate with arrows/WASD; confirm with Space/E; ESC closes.
  */
+function fitMenuLabel(label: Phaser.GameObjects.Text, maxWidth: number, maxHeight: number) {
+  if (label.width <= maxWidth) return;
+  for (const size of [13, 12, 11]) {
+    label.setFontSize(size);
+    if (label.width <= maxWidth) return;
+  }
+  label.setWordWrapWidth(maxWidth, true);
+  label.setLineSpacing(-2);
+  if (label.height <= maxHeight) return;
+  label.setFontSize(10);
+}
+
 export class Menu {
   /** Open menus, oldest first — lets callers close the topmost (e.g. an I keypress). */
   private static openStack: Menu[] = [];
@@ -239,7 +251,7 @@ export class Menu {
       (m, o) => Math.max(m, o.label.length),
       Math.max(layout.subtitle?.length ?? 0, title.length),
     );
-    const w = Phaser.Math.Clamp(110 + Math.min(maxChars, 52) * 8.5 + faceSlot, 380, 640);
+    const w = Math.min(Phaser.Math.Clamp(110 + Math.min(maxChars, 52) * 8.5 + faceSlot, 380, 640), cam.width - 24);
     const rowH = 44;
     const wrapW = w - faceSlot - 36;
 
@@ -378,6 +390,7 @@ export class Menu {
         .setOrigin(0, 0.5)
         .setScrollFactor(0)
         .setDepth(2003);
+      fitMenuLabel(label, cx + w / 2 - 18 - tx, rowH - 8);
       this.objects.push(row, label);
       this.rows.push({ opt, row, label });
     });

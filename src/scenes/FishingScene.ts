@@ -219,7 +219,7 @@ export class FishingScene extends Phaser.Scene {
     });
 
     this.backBtn = this.add
-      .text(14, 10, '[ Back ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', padding: { x: 8, y: 8 } })
+      .text(14, 10, '[ Back ]', { ...FONT, fontSize: '18px', color: '#ffb3d1', backgroundColor: '#1a1a2ecc', padding: { x: 8, y: 6 } })
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(1601)
