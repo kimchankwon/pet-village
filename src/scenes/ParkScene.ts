@@ -280,8 +280,7 @@ export class ParkScene extends Phaser.Scene {
       delay: 60_000,
       loop: true,
       callback: () => {
-        State.decay(1 / 60);
-        State.save();
+        State.tickDecay();
         this.hud.refresh();
         this.pet.updateMood();
       },

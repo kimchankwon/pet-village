@@ -217,6 +217,11 @@ export class AdoptScene extends Phaser.Scene {
   private async confirm() {
     if (this.confirming) return;
     let name: string;
+    if (!this.nameInput.value.trim()) {
+      this.errorText.setText('Give your pet a name!');
+      this.nameInput.focus();
+      return;
+    }
     try {
       name = validatePetName(this.nameInput.value);
     } catch (error) {

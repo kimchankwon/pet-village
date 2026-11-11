@@ -112,3 +112,39 @@ test('Bongbongee skip-rope quest: locked until fish done, 3 clears, 120c + snack
     assert.equal(state.snapshot().questCounters?.[BONGBONGEE_SKIP_QUEST_ID], undefined);
   });
 });
+
+test('saves between decay ticks do not swallow elapsed time', async () => {
+  await withLocalStorage(() => {
+    const state = new GameStateStore();
+    state.data.pet = { hunger: 80, happiness: 80, energy: 80 };
+    state.data.lastSeen = Date.now() - 30 * 60_000;
+
+    state.addCoins(1);
+    state.spendEnergy(0);
+    assert.equal(state.data.pet.hunger, 80);
+
+    state.tickDecay();
+    assert.ok(Math.abs(state.data.pet.hunger - 77) < 0.01, `hunger ${state.data.pet.hunger}`);
+    assert.ok(Math.abs(state.data.pet.energy - 78.5) < 0.01, `energy ${state.data.pet.energy}`);
+    assert.ok(Date.now() - state.data.lastSeen < 1000);
+
+    const hungerAfterTick = state.data.pet.hunger;
+    state.tickDecay();
+    assert.ok(hungerAfterTick - state.data.pet.hunger < 0.01);
+  });
+});
+
+test('a fresh store applies offline decay since the stored lastSeen', async () => {
+  await withLocalStorage((storage) => {
+    const seeded = new GameStateStore();
+    seeded.data.adopted = true;
+    seeded.data.petName = 'Mochi';
+    seeded.data.pet = { hunger: 80, happiness: 80, energy: 80 };
+    seeded.data.lastSeen = Date.now() - 2 * 3_600_000;
+    seeded.save();
+    assert.equal(JSON.parse(storage.getItem('pet-village-save-v1') ?? '{}').pet.hunger, 80);
+
+    const reloaded = new GameStateStore();
+    assert.ok(Math.abs(reloaded.data.pet.hunger - 68) < 0.01, `hunger ${reloaded.data.pet.hunger}`);
+  });
+});

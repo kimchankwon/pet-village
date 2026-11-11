@@ -525,7 +525,6 @@ export class GameStateStore {
   }
 
   private persistLocal() {
-    this.data.lastSeen = Date.now();
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(KEY, JSON.stringify(this.data));
     }
@@ -553,11 +552,18 @@ export class GameStateStore {
     this.cloudSaver?.(this.snapshot());
   }
 
-  private applyOfflineDecay() {
-    const hours = Math.min(MAX_OFFLINE_HOURS, (Date.now() - this.data.lastSeen) / 3_600_000);
-    if (hours <= 0) return;
+  private applyOfflineDecay(): boolean {
+    const now = Date.now();
+    const hours = Math.min(MAX_OFFLINE_HOURS, (now - this.data.lastSeen) / 3_600_000);
+    if (hours <= 0) return false;
     this.decay(hours);
+    this.data.lastSeen = now;
     this.persistLocal();
+    return true;
+  }
+
+  tickDecay() {
+    if (this.applyOfflineDecay()) this.save();
   }
 
   /**
