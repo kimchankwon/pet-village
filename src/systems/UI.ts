@@ -4,6 +4,7 @@ import { blockUi, isPointerUiBlocked, unblockUi } from './nav';
 import { isPortraitDesign, joystickAnchor } from '../game/viewport';
 import { markAsUi } from './cameraZoom';
 import { isBottomButtonsCompact } from './bottomButtonsPolicy';
+import { HUD_PAD, HUD_PANEL_H, HUD_PANEL_W, JOYSTICK_RADIUS, hudRightEdge, promptCenterY } from './hudLayout';
 
 export { isBottomButtonsCompact } from './bottomButtonsPolicy';
 
@@ -19,12 +20,7 @@ const ROW_BACK = 0x59415f;
 /** Max option rows before the menu paginates (fits a 600px-tall bottom sheet). */
 export const DEFAULT_MENU_PAGE_SIZE = 5;
 
-const HUD_PAD = 10;
-const HUD_PANEL_W = 190;
-const HUD_RIGHT_EDGE = HUD_PAD + HUD_PANEL_W + 12;
-const PROMPT_BOTTOM_OFFSET = 76;
-const HUD_PANEL_H = 128;
-const PROMPT_ABOVE_HUD_OFFSET = HUD_PAD + HUD_PANEL_H + 20;
+const BUTTONS_CLEAR_OF_HUD = hudRightEdge() + 12;
 
 // Heads-up display: pet name, coins + pet need bars. Fixed to camera,
 // anchored bottom-left (clears the touch joystick / bottom-right pet button).
@@ -83,7 +79,7 @@ export class HUD {
       this.root.setPosition(pad, cam.height - this.panelH - pad);
       return;
     }
-    const radius = 54;
+    const radius = JOYSTICK_RADIUS;
     const anchor = joystickAnchor(cam.width, cam.height, radius);
     if (isPortraitDesign(cam.width, cam.height)) {
       // Portrait joystick sits higher/right — HUD hugs the very bottom-left.
@@ -605,7 +601,7 @@ export function bottomButtons(
   const relayout = () => {
     const compact = bottomButtonsCompact(scene);
     const rowLeft = layoutRow(compact);
-    if (!compact && rowLeft < HUD_RIGHT_EDGE) layoutRow(true);
+    if (!compact && rowLeft < BUTTONS_CLEAR_OF_HUD) layoutRow(true);
   };
   relayout();
   scene.scale.on('resize', relayout);
@@ -641,9 +637,9 @@ export class Prompt {
 
   private place = () => {
     const cam = this.scene.cameras.main;
-    const left = cam.width / 2 - this.text.width / 2;
-    const offset = left < HUD_RIGHT_EDGE ? PROMPT_ABOVE_HUD_OFFSET : PROMPT_BOTTOM_OFFSET;
-    this.text.setPosition(cam.width / 2, cam.height - offset);
+    const touch = Boolean(this.scene.sys.game.device.input.touch);
+    const y = promptCenterY(cam.width, cam.height, touch, this.text.width, this.text.height);
+    this.text.setPosition(cam.width / 2, y);
   };
 
   show(msg: string) {

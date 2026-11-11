@@ -148,3 +148,63 @@ test('a fresh store applies offline decay since the stored lastSeen', async () =
     assert.ok(Math.abs(reloaded.data.pet.hunger - 68) < 0.01, `hunger ${reloaded.data.pet.hunger}`);
   });
 });
+
+test('a clock rollback resets the decay baseline instead of freezing decay', async () => {
+  await withLocalStorage(() => {
+    const state = new GameStateStore();
+    state.data.pet = { hunger: 80, happiness: 80, energy: 80 };
+    state.data.lastSeen = Date.now() + 3 * 24 * 3_600_000;
+
+    state.tickDecay();
+    assert.equal(state.data.pet.hunger, 80);
+    assert.ok(Math.abs(state.data.lastSeen - Date.now()) < 1000);
+
+    state.data.lastSeen = Date.now() - 30 * 60_000;
+    state.tickDecay();
+    assert.ok(Math.abs(state.data.pet.hunger - 77) < 0.01, `hunger ${state.data.pet.hunger}`);
+  });
+});
+
+test('feeding applies pending decay before the snack', async () => {
+  await withLocalStorage(() => {
+    const state = new GameStateStore();
+    state.data.pet = { hunger: 0, happiness: 50, energy: 50 };
+    state.data.inventory = { fish: 1 };
+    state.data.lastSeen = Date.now() - 2 * 3_600_000;
+
+    assert.equal(state.feedPet('fish'), true);
+    const fedHunger = state.data.pet.hunger;
+    assert.ok(fedHunger > 0);
+
+    state.tickDecay();
+    assert.ok(fedHunger - state.data.pet.hunger < 0.01, `hunger ${state.data.pet.hunger}`);
+  });
+});
+
+test('sleeping applies pending decay before resting', async () => {
+  await withLocalStorage(() => {
+    const state = new GameStateStore();
+    state.data.pet = { hunger: 80, happiness: 80, energy: 10 };
+    state.data.lastSeen = Date.now() - 2 * 3_600_000;
+
+    state.petSleep();
+    assert.ok(state.data.pet.energy > 99.99, `energy ${state.data.pet.energy}`);
+    assert.ok(Math.abs(state.data.pet.hunger - (80 - 12 - 25)) < 0.01, `hunger ${state.data.pet.hunger}`);
+  });
+});
+
+test('adopting a pet starts its decay clock now', async () => {
+  await withLocalStorage(async () => {
+    const state = new GameStateStore();
+    state.data.lastSeen = Date.now() - 5 * 3_600_000;
+    await state.adopt('mametchi', 'Mochi');
+    assert.ok(Math.abs(state.data.lastSeen - Date.now()) < 1000);
+
+    state.tickDecay();
+    assert.ok(state.data.pet.hunger > 79.99, `hunger ${state.data.pet.hunger}`);
+
+    state.data.lastSeen = Date.now() - 5 * 3_600_000;
+    state.resetToPetSelect();
+    assert.ok(Math.abs(state.data.lastSeen - Date.now()) < 1000);
+  });
+});
