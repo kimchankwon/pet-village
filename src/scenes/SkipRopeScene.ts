@@ -216,8 +216,7 @@ export class SkipRopeScene extends Phaser.Scene {
       delay: 60_000,
       loop: true,
       callback: () => {
-        State.decay(1 / 60);
-        State.save();
+        State.tickDecay();
       },
     });
 
@@ -648,6 +647,7 @@ export class SkipRopeScene extends Phaser.Scene {
     if (this.jumps >= SKIP_ROPE_TARGET) {
       this.mode = 'won';
       this.backBtn.setVisible(false);
+      State.rewardSkipRopeWin();
       this.time.delayedCall(JUMP_AIR_MS + 200, () => this.celebrateWin());
     }
   }
@@ -725,7 +725,6 @@ export class SkipRopeScene extends Phaser.Scene {
   }
 
   private celebrateWin() {
-    State.rewardSkipRopeWin();
     this.refreshHud();
 
     this.petSprite.stop();

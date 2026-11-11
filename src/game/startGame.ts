@@ -23,6 +23,7 @@ function applyHostAspect(game: Phaser.Game, parent: HTMLElement) {
   if (game.scale.width !== width || game.scale.height !== height) {
     game.scale.resize(width, height);
   }
+  game.scale.displaySize.setAspectRatio(width / height);
   game.scale.refresh();
 }
 

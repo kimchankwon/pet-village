@@ -67,6 +67,7 @@ export class HouseScene extends Phaser.Scene {
     this.menuOpen = false;
     this.placing = null;
     this.ghost = null;
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopPlacing());
 
     this.cameras.main.setBackgroundColor('#1a2838');
 
@@ -193,8 +194,7 @@ export class HouseScene extends Phaser.Scene {
       delay: 60_000,
       loop: true,
       callback: () => {
-        State.decay(1 / 60);
-        State.save();
+        State.tickDecay();
         this.hud.refresh();
         this.pet.updateMood();
       },
@@ -238,7 +238,7 @@ export class HouseScene extends Phaser.Scene {
                     label: `Tuck ${State.data.petName || 'Pet'} in (full energy!)`,
                     icon: 'item-bed',
                     disabled: bedTuck.disabled,
-                    onSelect: () => this.tuckPetIntoBed(),
+                    onSelect: () => this.tuckPetIntoBed(placed),
                   }]
                 : []),
               { label: 'Leave it', onSelect: () => undefined },
@@ -323,7 +323,7 @@ export class HouseScene extends Phaser.Scene {
         y: bed.y,
         radius: bed.radius,
         label: bed.label,
-        action: () => this.tuckPetIntoBed(),
+        action: () => this.tuckPetIntoBed(bed.bed),
         targets: [this.furnitureImageAt(bed.bed.gx, bed.bed.gy)].filter(
           (img): img is Phaser.GameObjects.Image => Boolean(img),
         ),
@@ -508,9 +508,11 @@ export class HouseScene extends Phaser.Scene {
   }
 
   /** Walk to the placed bed, sleep (energy up, hunger/happy down), then return. */
-  private tuckPetIntoBed() {
+  private tuckPetIntoBed(target?: { gx: number; gy: number }) {
     if (this.petTucking) return;
-    const bed = State.data.placed.find((p) => p.id === 'bed');
+    const bed =
+      State.data.placed.find((p) => p.id === 'bed' && p.gx === target?.gx && p.gy === target?.gy) ??
+      State.data.placed.find((p) => p.id === 'bed');
     if (!bed) return;
     this.petTucking = true;
     const bedX = this.roomX + bed.gx * TILE + TILE / 2;

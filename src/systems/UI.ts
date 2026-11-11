@@ -4,6 +4,7 @@ import { blockUi, isPointerUiBlocked, unblockUi } from './nav';
 import { isPortraitDesign, joystickAnchor } from '../game/viewport';
 import { markAsUi } from './cameraZoom';
 import { isBottomButtonsCompact } from './bottomButtonsPolicy';
+import { HUD_PAD, HUD_PANEL_H, HUD_PANEL_W, JOYSTICK_RADIUS, hudRightEdge, promptCenterY } from './hudLayout';
 
 export { isBottomButtonsCompact } from './bottomButtonsPolicy';
 
@@ -19,6 +20,8 @@ const ROW_BACK = 0x59415f;
 /** Max option rows before the menu paginates (fits a 600px-tall bottom sheet). */
 export const DEFAULT_MENU_PAGE_SIZE = 5;
 
+const BUTTONS_CLEAR_OF_HUD = hudRightEdge() + 12;
+
 // Heads-up display: pet name, coins + pet need bars. Fixed to camera,
 // anchored bottom-left (clears the touch joystick / bottom-right pet button).
 export class HUD {
@@ -27,8 +30,8 @@ export class HUD {
   private nameText!: Phaser.GameObjects.Text;
   private coinText!: Phaser.GameObjects.Text;
   private bars: { key: 'hunger' | 'happiness' | 'energy'; fill: Phaser.GameObjects.Rectangle }[] = [];
-  private readonly panelW = 190;
-  private readonly panelH = 128;
+  private readonly panelW = HUD_PANEL_W;
+  private readonly panelH = HUD_PANEL_H;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -71,12 +74,12 @@ export class HUD {
 
   private place = () => {
     const cam = this.scene.cameras.main;
-    const pad = 10;
+    const pad = HUD_PAD;
     if (!this.scene.sys.game.device.input.touch) {
       this.root.setPosition(pad, cam.height - this.panelH - pad);
       return;
     }
-    const radius = 54;
+    const radius = JOYSTICK_RADIUS;
     const anchor = joystickAnchor(cam.width, cam.height, radius);
     if (isPortraitDesign(cam.width, cam.height)) {
       // Portrait joystick sits higher/right — HUD hugs the very bottom-left.
@@ -577,9 +580,8 @@ export function bottomButtons(
   }
   markAsUi(scene, ...nodes);
 
-  const relayout = () => {
+  const layoutRow = (compact: boolean) => {
     const c = scene.cameras.main;
-    const compact = bottomButtonsCompact(scene);
     const pad = compact ? 10 : 16;
     const gap = compact ? 6 : 12;
     const fontSize = compact ? '12px' : '17px';
@@ -594,6 +596,12 @@ export function bottomButtons(
       b.setPosition(rx, ry);
       rx -= b.width + gap;
     });
+    return rx + gap;
+  };
+  const relayout = () => {
+    const compact = bottomButtonsCompact(scene);
+    const rowLeft = layoutRow(compact);
+    if (!compact && rowLeft < BUTTONS_CLEAR_OF_HUD) layoutRow(true);
   };
   relayout();
   scene.scale.on('resize', relayout);
@@ -604,10 +612,12 @@ export function bottomButtons(
 
 export class Prompt {
   private text: Phaser.GameObjects.Text;
+  private scene: Phaser.Scene;
 
   constructor(scene: Phaser.Scene) {
+    this.scene = scene;
     this.text = scene.add
-      .text(scene.cameras.main.width / 2, scene.cameras.main.height - 24, '', {
+      .text(0, 0, '', {
         ...FONT,
         color: '#ffffff',
         backgroundColor: '#1a1a2ecc',
@@ -618,10 +628,26 @@ export class Prompt {
       .setDepth(1200)
       .setVisible(false);
     markAsUi(scene, this.text);
+    this.place();
+    scene.scale.on('resize', this.place);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      scene.scale.off('resize', this.place);
+    });
   }
 
+  private place = () => {
+    const cam = this.scene.cameras.main;
+    const touch = Boolean(this.scene.sys.game.device.input.touch);
+    const y = promptCenterY(cam.width, cam.height, touch, this.text.width, this.text.height);
+    this.text.setPosition(cam.width / 2, y);
+  };
+
   show(msg: string) {
-    this.text.setText(msg).setVisible(true);
+    if (this.text.text !== msg) {
+      this.text.setText(msg);
+      this.place();
+    }
+    this.text.setVisible(true);
   }
 
   hide() {

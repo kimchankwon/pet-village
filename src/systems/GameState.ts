@@ -525,7 +525,6 @@ export class GameStateStore {
   }
 
   private persistLocal() {
-    this.data.lastSeen = Date.now();
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(KEY, JSON.stringify(this.data));
     }
@@ -553,11 +552,23 @@ export class GameStateStore {
     this.cloudSaver?.(this.snapshot());
   }
 
-  private applyOfflineDecay() {
-    const hours = Math.min(MAX_OFFLINE_HOURS, (Date.now() - this.data.lastSeen) / 3_600_000);
-    if (hours <= 0) return;
+  private applyOfflineDecay(): boolean {
+    const now = Date.now();
+    const hours = Math.min(MAX_OFFLINE_HOURS, (now - this.data.lastSeen) / 3_600_000);
+    if (hours < 0) {
+      this.data.lastSeen = now;
+      this.persistLocal();
+      return false;
+    }
+    if (hours === 0) return false;
     this.decay(hours);
+    this.data.lastSeen = now;
     this.persistLocal();
+    return true;
+  }
+
+  tickDecay() {
+    if (this.applyOfflineDecay()) this.save();
   }
 
   /**
@@ -826,6 +837,8 @@ export class GameStateStore {
   feedPet(foodId: string): boolean {
     const def = ITEMS[foodId];
     if (!petCanEat(def)) return false;
+    if ((this.data.inventory[foodId] ?? 0) < 1) return false;
+    this.applyOfflineDecay();
     if (!this.removeItem(foodId)) return false;
     applyPetFoodStats(this.data.pet, def);
     this.save();
@@ -843,6 +856,7 @@ export class GameStateStore {
   }
 
   petSleep() {
+    this.applyOfflineDecay();
     // Full rest, but waking up a bit peckish and only slightly less cheerful.
     this.data.pet.energy = 100;
     this.data.pet.hunger = clamp(this.data.pet.hunger - 25);
@@ -918,6 +932,7 @@ export class GameStateStore {
     this.data.adopted = true;
     // Fresh needs for the new companion — village progress is untouched.
     this.data.pet = { hunger: 80, happiness: 80, energy: 90 };
+    this.data.lastSeen = Date.now();
     if (species === 'bongbongee') {
       // Starter outfit for a newly adopted Bongbongee — further pieces are
       // sold at Cafe Cinnamon (the town NPC no longer gifts clothes).
@@ -1116,6 +1131,7 @@ export class GameStateStore {
     this.data.petName = '';
     this.data.petSpecies = 'mametchi';
     this.data.pet = { hunger: 80, happiness: 80, energy: 90 };
+    this.data.lastSeen = Date.now();
     this.persistLocal();
   }
 }
