@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { State } from './GameState';
 import { toast } from './UI';
-import { characterDepth } from './depth';
+import { NAMETAG_DEPTH, characterDepth } from './depth';
 import { petAnimKey, petDrawScale, petTextureKey, type PetPose } from './pets';
 import { petLine } from './petDialog';
 import {
@@ -163,7 +163,7 @@ export class Pet {
     this.nameLabel
       .setText(State.data.petName || 'Pet')
       .setPosition(this.sprite.x, this.sprite.y + this.sprite.displayHeight / 2 + 1)
-      .setDepth(this.ownDepth() + 2)
+      .setDepth(NAMETAG_DEPTH + this.sprite.y / 10000)
       .setVisible(this.sprite.visible)
       .setAlpha(this.sprite.alpha);
   }

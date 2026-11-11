@@ -52,7 +52,7 @@ import {
   petTextureKey,
   type PetSpecies,
 } from './pets';
-import { feetDepth } from './depth';
+import { NAMETAG_DEPTH, feetDepth } from './depth';
 import { localDisplayName } from './localProfile';
 import { State } from './GameState';
 import { toast } from './UI';
@@ -893,7 +893,7 @@ export class WorldMultiplayer {
       .setDepth(this.depthFor(penguinDepthTarget(remote.player)) + 2);
     remote.petLabel
       .setPosition(remote.pet.x, remote.pet.y + remote.pet.displayHeight / 2 + 1)
-      .setDepth(this.depthFor(remote.pet) + 2);
+      .setDepth(NAMETAG_DEPTH + remote.pet.y / 10000);
     drawChatBubble(
       remote.chat,
       remote.player.x,

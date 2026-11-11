@@ -37,7 +37,7 @@ export class AdoptScene extends Phaser.Scene {
     super('Adopt');
   }
 
-  create() {
+  create(data?: { species?: PetSpecies; name?: string }) {
     this.cameras.main.setBackgroundColor('#152030');
     const cx = this.cameras.main.width / 2;
     const cy = this.cameras.main.height / 2;
@@ -83,7 +83,7 @@ export class AdoptScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.layoutRow(PUFFLE_PETS, oy + 408, 72, PUFFLE_DISPLAY_H, 88);
 
-    this.selectSpecies('mametchi');
+    this.selectSpecies(data?.species ?? 'mametchi');
 
     this.add
       .text(cx, oy + 468, 'Pet name', { ...FONT, fontSize: '13px', color: '#c8c8dc' })
@@ -95,7 +95,7 @@ export class AdoptScene extends Phaser.Scene {
     // Empty on open — only a soft placeholder hint. Pre-filling species defaults
     // made two friends hit the same name and get stuck on adopt.
     this.nameInput.placeholder = PET_SPECIES.mametchi.defaultName;
-    this.nameInput.value = '';
+    this.nameInput.value = data?.name ?? '';
     this.nameInput.autocomplete = 'off';
     this.nameInput.spellcheck = false;
     Object.assign(this.nameInput.style, {
@@ -116,6 +116,12 @@ export class AdoptScene extends Phaser.Scene {
     this.game.canvas.parentElement?.appendChild(this.nameInput);
     this.positionNameInput();
     bindSceneResize(this.scale, this.events, this.positionNameInput);
+    const builtFor = { w, h };
+    bindSceneResize(this.scale, this.events, () => {
+      const cam = this.cameras.main;
+      if (cam.width === builtFor.w && cam.height === builtFor.h) return;
+      this.scene.restart({ species: this.selected, name: this.nameInput.value });
+    });
 
     this.errorText = this.add
       .text(cx, oy + 534, '', { ...FONT, fontSize: '13px', color: '#ff6b6b' })
